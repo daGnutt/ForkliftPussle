@@ -1,12 +1,43 @@
 import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
+import { zoneDone } from './game.js';
 
 const EYE_X = -0.5; // cabin seat, local x (origin at the front axle)
 const EYE_Z = 1.45; // eye height in box units
 const WALL_H = 3;
-const HFOV = Math.PI / 2;
+const HFOV = (110 * Math.PI) / 180;
 const COL_W = 2;
 const MAX_DIST = 30;
+
+// Fills a flat floor quad (world corners) as seen from the eye.
+function floorQuad(ctx, eye, ang, f, cx, cy, pts, fill, stroke) {
+  const c = Math.cos(ang), s = Math.sin(ang);
+  let poly = pts.map(([px, py]) => {
+    const dx = px - eye.x, dy = py - eye.y;
+    return [dx * c + dy * s, -dx * s + dy * c]; // [forward, right]
+  });
+  const near = 0.08, out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    if (a[0] >= near) out.push(a);
+    if ((a[0] >= near) !== (b[0] >= near)) {
+      const t = (near - a[0]) / (b[0] - a[0]);
+      out.push([near, a[1] + t * (b[1] - a[1])]);
+    }
+  }
+  if (out.length < 3) return;
+  ctx.beginPath();
+  out.forEach(([fw, rt], i) => {
+    const X = cx + (rt / fw) * f, Y = cy + (EYE_Z / fw) * f;
+    if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
 
 const PAL = 0.1; // pallet / tine thickness
 
@@ -66,7 +97,7 @@ export function drawPov(ctx, g, x, y, w, h) {
   ctx.beginPath();
   ctx.rect(x, y, w, h);
   ctx.clip();
-  const horizon = h * 0.5;
+  const horizon = h * 0.4;
   const sky = ctx.createLinearGradient(0, y, 0, y + horizon);
   sky.addColorStop(0, '#2b3038');
   sky.addColorStop(1, '#4a505a');
@@ -80,6 +111,12 @@ export function drawPov(ctx, g, x, y, w, h) {
 
   const eye = toWorld(g.fl, EYE_X, 0);
   const f = (w / 2) / Math.tan(HFOV / 2);
+  for (const z of g.zones) {
+    const done = zoneDone(g, z), r = 0.6;
+    floorQuad(ctx, eye, g.fl.a, f, x + w / 2, y + horizon,
+      [[z.x - r, z.y - r], [z.x + r, z.y - r], [z.x + r, z.y + r], [z.x - r, z.y + r]],
+      COLORS[z.color] + (done ? 'cc' : '77'), COLORS[z.color]);
+  }
   const edges = buildEdges(g);
   for (let px = 0; px < w; px += COL_W) {
     const off = Math.atan((px + COL_W / 2 - w / 2) / f);
