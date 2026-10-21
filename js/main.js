@@ -1,5 +1,6 @@
-import { newGame, update, forkUp, forkDown, zoneDone } from './game.js';
+import { newGame, update, forkUp, forkDown, zoneDone, score } from './game.js';
 import { createInput } from './input.js';
+import { getBest, beats, saveBest } from './highscores.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { startAudio, toggleMusic, playFork, playBlocked, playSuccess, setEngine } from './audio.js';
@@ -24,12 +25,26 @@ let seed = parseSeed(seedText);
 let game = newGame(level, seed);
 const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
 let doneZones = countDone();
+view.best = getBest(localStorage, seed, level);
+let recordOpen = false, recorded = false;
+const recordEl = document.getElementById('record');
+const recordName = document.getElementById('recordName');
+
+function closeRecord() {
+  recordOpen = false;
+  recordEl.classList.add('hide');
+  recordName.blur();
+  input.clear();
+}
 
 function load(n) {
+  if (recordOpen) closeRecord();
+  recorded = false;
   level = Math.max(1, n);
   localStorage.setItem('forklift-level', String(level));
   game = newGame(level, seed);
   doneZones = countDone();
+  view.best = getBest(localStorage, seed, level);
 }
 
 const input = createInput({
@@ -53,6 +68,31 @@ const input = createInput({
   prev: () => load(level - 1),
 });
 
+const pending = {};
+recordName.addEventListener('keydown', (e) => e.stopPropagation());
+document.getElementById('recordForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = recordName.value.trim() || 'Anonymous';
+  localStorage.setItem('forklift-player', name);
+  saveBest(localStorage, pending.seed, pending.level, { ...pending.result, name });
+  if (pending.level === level && pending.seed === seed) view.best = getBest(localStorage, seed, level);
+  closeRecord();
+});
+
+function checkRecord() {
+  if (game.status !== 'won' || recorded) return;
+  recorded = true;
+  const result = { score: score(game), time: game.time };
+  if (!beats(result, getBest(localStorage, seed, level))) return;
+  Object.assign(pending, { seed, level, result });
+  document.getElementById('recordInfo').textContent = `Level ${level}: ${result.score} points in ${result.time.toFixed(0)}s`;
+  recordName.value = localStorage.getItem('forklift-player') || '';
+  recordOpen = true;
+  recordEl.classList.remove('hide');
+  input.clear();
+  recordName.focus();
+}
+
 const splash = document.getElementById('splash');
 let splashOn = true;
 const seedInput = document.getElementById('seed');
@@ -66,6 +106,7 @@ function startGame() {
     localStorage.setItem('forklift-seed', text);
     load(1);
   }
+  view.best = getBest(localStorage, seed, level);
   splashOn = false;
   splash.classList.add('hide');
   seedInput.blur();
@@ -98,6 +139,7 @@ function frame(now) {
     update(game, input.state(), STEP);
     acc -= STEP;
   }
+  checkRecord();
   const st = input.state();
   setEngine(game.fl.speed, st.up || st.down);
   const done = countDone();

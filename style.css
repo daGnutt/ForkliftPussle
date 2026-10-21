@@ -26,3 +26,11 @@ footer b { color: var(--accent); }
   border: 2px solid rgba(0,0,0,.65); box-shadow: -8px 12px 0 -2px color-mix(in srgb, var(--c) 50%, #000); animation: bob 1.6s ease-in-out infinite; }
 #splash .boxes i:nth-child(2) { animation-delay: .2s; } #splash .boxes i:nth-child(3) { animation-delay: .4s; }
 @keyframes bob { 50% { transform: translateY(-10px); } }
+
+#record { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); color: var(--fg); z-index: 20; }
+#record.hide { display: none; }
+#record form { background: var(--splash1); padding: 20px 28px; border-radius: 8px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
+#record h2 { margin: 0; color: var(--accent); }
+#record p { margin: 0; }
+#record input { width: 160px; padding: 6px 8px; font: inherit; color: var(--title); background: var(--input); border: 1px solid var(--border); border-radius: 4px; }
+#record button { padding: 6px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }

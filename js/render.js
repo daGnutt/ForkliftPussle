@@ -320,6 +320,10 @@ export function draw(ctx, g, view) {
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText(`Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${g.time.toFixed(0)}s`, hx0, 25);
+  const best = view.best;
+  ctx.font = '14px sans-serif';
+  ctx.fillStyle = '#b3e5fc';
+  ctx.fillText(best ? `Best ${best.score} by ${best.name} (${best.time}s)` : 'Best: none yet', hx0 + 380, 48);
   const lost = lostBreakdown(g);
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#ef9a9a';
