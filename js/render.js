@@ -1,5 +1,6 @@
 import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
+import { drawPov } from './pov.js';
 import { zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
 function rotRect(ctx, cx, cy, a, fn) {
@@ -198,13 +199,10 @@ function drawCarried(ctx, g) {
   drawStack(ctx, g.carried, p.x, p.y, g.hf, g.carriedRots.map((r) => r + g.fl.a));
 }
 
-export function draw(ctx, g, view) {
-  const { width, height } = view;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#1b1f23';
-  ctx.fillRect(0, 0, width, height);
-  const s = Math.min(48, Math.min((width - 40) / g.w, (height - 70) / g.h));
-  const ox = (width - g.w * s) / 2, oy = 50 + (height - 70 - g.h * s) / 2;
+// Draws the top-down overview scaled into the screen rect (rx, ry, rw, rh).
+function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale) {
+  const s = Math.min(maxScale, rw / g.w, rh / g.h);
+  const ox = rx + (rw - g.w * s) / 2, oy = ry + (rh - g.h * s) / 2;
   ctx.setTransform(s * view.dpr, 0, 0, s * view.dpr, ox * view.dpr, oy * view.dpr);
 
   ctx.fillStyle = '#c9c4b8';
@@ -282,27 +280,57 @@ export function draw(ctx, g, view) {
   ctx.strokeStyle = '#555';
   ctx.lineWidth = 0.3;
   ctx.strokeRect(-0.15, -0.15, g.w + 0.3, g.h + 0.3);
+}
 
-  // screen-space HUD
+export function draw(ctx, g, view) {
+  const { width, height } = view;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#1b1f23';
+  ctx.fillRect(0, 0, width, height);
+  const POV_W = 300, POV_H = 170, hx0 = view.showSmall ? 20 + POV_W + 16 : 20;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  if (view.povBig) {
+    drawPov(ctx, g, 0, 0, width, height);
+    if (view.showSmall) {
+      ctx.fillStyle = '#1b1f23';
+      ctx.fillRect(10, 10, POV_W, POV_H);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(10, 10, POV_W, POV_H);
+      ctx.clip();
+      drawOverview(ctx, g, view, 10, 10, POV_W, POV_H, 48);
+      ctx.restore();
+      ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(10, 10, POV_W, POV_H);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(hx0 - 8, 8, 560, 94);
+  } else {
+    drawOverview(ctx, g, view, 20, 50, width - 40, height - 70, 48);
+    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+    if (view.showSmall) drawPov(ctx, g, 10, 10, POV_W, POV_H);
+  }
+  // screen-space HUD
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
   ctx.fillStyle = '#eee';
   ctx.font = 'bold 20px sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${g.time.toFixed(0)}s`, 20, 25);
+  ctx.fillText(`Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${g.time.toFixed(0)}s`, hx0, 25);
   const lost = lostBreakdown(g);
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#ef9a9a';
-  ctx.fillText(`Damage −${lost.crash} (locked)`, 20, 48);
+  ctx.fillText(`Damage −${lost.crash} (locked)`, hx0, 48);
   ctx.fillStyle = '#ffe082';
-  ctx.fillText(`Placement −${lost.square} (fixable)`, 20, 68);
+  ctx.fillText(`Placement −${lost.square} (fixable)`, hx0, 68);
   ctx.fillStyle = '#eee';
 
   if (g.status === 'play' && isSolved(g)) {
     ctx.font = 'bold 16px sans-serif';
     ctx.fillStyle = '#ffe082';
-    ctx.fillText(scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish', 20, 92);
+    ctx.fillText(scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish', hx0, 92);
   }
 
   // fork height gauge: 0 = floor; box layer i fills the cell at height i-1

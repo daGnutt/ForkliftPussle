@@ -7,15 +7,16 @@ Read this first for a map of the code. Vanilla JS ES modules + Canvas 2D, no bui
 | File | Role | Key exports |
 |------|------|-------------|
 | `js/main.js` | Browser entry: canvas setup, fixed 1/120 s loop, level persistence in `localStorage` (`forklift-level`) | – |
-| `js/input.js` | Key state (arrows, Space = brake) + discrete handlers (A = fork up, Z = fork down, R restart, N/Enter next, P prev, G go to level via prompt) | `createInput` |
+| `js/input.js` | Key state (arrows, Space = brake) + discrete handlers (A = fork up, Z = fork down, R restart, F swap big cabin view / overview, C show/hide the small corner window (`view.showSmall`, default off), N/Enter next, P prev, G go to level via prompt) | `createInput` |
 | `js/game.js` | All state and rules; DOM-free so Node tests import it | `newGame`, `update`, `forkUp`, `forkDown`, `stackInZone`, `isSolved`, `zoneDone` |
 | `js/forklift.js` | Vehicle model (rear-wheel-steering bicycle) and geometry constants | `FL`, `makeForklift`, `drive`, `toWorld`, `toLocal` |
 | `js/level.js` | Seeded procedural level generator | `generateLevel`, `parseSeed`, `levelParams`, `COLORS`, `COLOR_NAMES` |
 | `js/audio.js` | Procedural Web Audio (no asset files): generative 98 BPM background music (pad, bass, arpeggio, drums; mute toggle, `localStorage` key `forklift-music-muted`) and SFX; browser only, started on the first key press | `startAudio`, `toggleMusic`, `playFork`, `playBlocked`, `playSuccess`, `setEngine` (electric motor whine, pitch follows speed, called every frame) |
 | `js/geom.js` | Polygon helpers: `rectPoly`, SAT collision, `pointRectDist` | – |
+| `js/pov.js` | Doom-style first-person raycaster of the cabin view (walls, stacks, carried stack, floor drop zones and the parking spot (floor quad, green once all zones are done and score is enough); 110° FOV, eye at local x −0.5, height 1.45), also draws the tines (at `g.hf`) and a thin pallet under every box (fork level h is drawn at height h·1.1); drawn top-left by `render.js` (full-screen with a small overview when `view.povBig`, toggled by F in `main.js`) | `drawPov` |
 | `js/render.js` | Pure drawing from game state | `draw` |
 
-Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` triggers sounds by watching state changes: fork level, number of done zones; `game.js` stays audio-free); `game` → `forklift`, `level`, `geom`; `render` → `game`, `level`, `forklift`. `game.js` must never touch the DOM.
+Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` triggers sounds by watching state changes: fork level, number of done zones; `game.js` stays audio-free); `game` → `forklift`, `level`, `geom`; `render` → `pov`, `game`, `level`, `forklift`. `game.js` must never touch the DOM.
 
 ## Units and coordinates
 - Simulation units are tiles; one box is 1×1. The renderer scales the canvas.
