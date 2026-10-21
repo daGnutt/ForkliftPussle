@@ -38,7 +38,7 @@ Dependency direction: `main` → `game`, `input`, `render`; `game` → `forklift
 - `resolve()` runs iterative SAT: forklift shapes vs walls; forklift shapes vs stacks (mass-weighted pushing); stacks vs walls; stacks vs stacks.
 
 ## Scoring (`game.js`)
-- Each box is worth 100 points; points are only deducted (score = `maxScore - crash - square`, starts full on every `newGame`, so level load/restart resets it).
+- Each box is worth 100 points, but only boxes in a stack that completes a zone count towards `score(g)`; score = sum of (100 − crash − square) over those boxes, so it starts at 0 on every `newGame` and rises as zones are filled; `maxScore` is 100 × all boxes.
 - Crash (up to 50 per box): forklift body or carried boxes hitting a floor stack, stack-vs-stack contact, or carried boxes hitting a wall, at forklift speed ≥ 0.8 (1–5 points, 0.4 s cooldown per stack/carried group).
 - Squareness (up to 50 per box): on release in `forkDown`, deduction scales with the box's deviation from the nearest multiple of 90° (free within 5°, then floored to steps of 5 points); `sq` is overwritten on every placement, so re-placing a box can recover its squareness points (crash losses are permanent). `lostBreakdown(g)` returns `{crash, square}` totals; the HUD shows both under the score.
 

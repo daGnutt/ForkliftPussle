@@ -52,9 +52,18 @@ export function lostBreakdown(g) {
   return { crash: Math.round(crashLost), square: Math.round(squareLost) };
 }
 
+// Points earned: only boxes in a stack that completes a zone count.
 export function score(g) {
-  const l = lostBreakdown(g);
-  return maxScore(g) - l.crash - l.square;
+  let pts = 0;
+  const counted = new Set();
+  for (const z of g.zones) {
+    const S = g.stacks.find((s) => stackFillsZone(s, z));
+    if (!S || counted.has(S)) continue;
+    counted.add(S);
+    ensure(S);
+    for (const p of S.pen) pts += BOX_POINTS - p.crash - p.sq;
+  }
+  return Math.round(pts);
 }
 
 export function newGame(levelNumber) {
@@ -264,12 +273,12 @@ export function isSolved(g) {
   return g.zones.every((z) => zoneDone(g, z));
 }
 
+const stackFillsZone = (s, z) =>
+  Math.abs(s.x - z.x) < 0.5 &&
+  Math.abs(s.y - z.y) < 0.5 &&
+  s.layers.length === z.count &&
+  s.layers.every((c) => c === z.color);
+
 export function zoneDone(g, z) {
-  return g.stacks.some(
-    (s) =>
-      Math.abs(s.x - z.x) < 0.5 &&
-      Math.abs(s.y - z.y) < 0.5 &&
-      s.layers.length === z.count &&
-      s.layers.every((c) => c === z.color),
-  );
+  return g.stacks.some((s) => stackFillsZone(s, z));
 }

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { generateLevel } from '../js/level.js';
 import { FL } from '../js/forklift.js';
-import { newGame, update, forkUp, forkDown, stackInZone, score, lostBreakdown } from '../js/game.js';
+import { newGame, update, forkUp, forkDown, stackInZone, score, maxScore, lostBreakdown } from '../js/game.js';
 
 const NONE = {};
+const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
 const run = (g, inp, secs) => { for (let i = 0; i < secs * 120; i++) update(g, inp, 1 / 120); };
 
 // Every colour's zones sit together in one area, clear of other areas.
@@ -174,11 +175,11 @@ const driveUntil = (g, x, brakeAt) => {
   g.stacks = [{ x: 8, y: 5, layers: [0] }];
   const f = g.fl;
   f.x = 5; f.y = 5; f.a = 0; f.speed = 0;
-  assert.equal(score(g), 100);
+  assert.equal(pts(g), 100);
   run(g, { up: true }, 3);
-  assert.ok(score(g) < 100 && score(g) >= 50, 'crash costs points but not below 50');
+  assert.ok(pts(g) < 100 && pts(g) >= 50, 'crash costs points but not below 50');
   for (let i = 0; i < 20; i++) { g.time += 1; g.fl.speed = 4; run(g, { up: true }, 0.01); }
-  assert.ok(score(g) >= 50, 'crash loss capped at 50 per box');
+  assert.ok(pts(g) >= 50, 'crash loss capped at 50 per box');
 }
 {
   const g = newGame(1);
@@ -188,11 +189,11 @@ const driveUntil = (g, x, brakeAt) => {
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
   driveUntil(g, 10, 8);
   forkUp(g);
-  const before = score(g);
+  const before = pts(g);
   forkDown(g);
-  assert.ok(before - score(g) > 0 && score(g) <= 100 - 40, 'diagonal box loses ~50 for squareness');
+  assert.ok(before - pts(g) > 0 && pts(g) <= 100 - 40, 'diagonal box loses ~50 for squareness');
   g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
-  assert.equal(score(g), 100, 'square box keeps full points');
+  assert.equal(pts(g), 100, 'square box keeps full points');
 }
 
 // Re-placing a crooked box squarely recovers its squareness points.
@@ -205,11 +206,11 @@ const driveUntil = (g, x, brakeAt) => {
   driveUntil(g, 10, 8);
   forkUp(g);
   forkDown(g);
-  assert.ok(score(g) <= 60, 'crooked placement');
+  assert.ok(pts(g) <= 60, 'crooked placement');
   forkUp(g);
   f.a -= Math.PI / 4;
   forkDown(g);
-  assert.ok(score(g) >= 98, 're-placed square recovers points');
+  assert.ok(pts(g) >= 98, 're-placed square recovers points');
 }
 
 // Small angle errors are free and deductions come in steps of 5.
@@ -228,6 +229,19 @@ const driveUntil = (g, x, brakeAt) => {
   assert.equal(place(0.05), 0, 'within allowance');
   for (const a of [0.2, 0.4, 0.6, 0.78]) assert.equal(place(a) % 5, 0, 'multiple of 5');
   assert.ok(place(0.4) > 0 && place(0.4) < place(0.78));
+}
+
+// Boxes only score once their stack sits in its correct zone.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.zones = [{ x: 12, y: 5, color: 0, count: 1 }];
+  g.stacks = [{ x: 8, y: 5, layers: [0] }];
+  assert.equal(score(g), 0, 'not in zone yet');
+  g.stacks[0].x = 12;
+  assert.equal(score(g), 100, 'in zone');
+  g.stacks[0].pen = [{ crash: 10, sq: 5 }];
+  assert.equal(score(g), 85);
 }
 
 console.log('all tests passed');
