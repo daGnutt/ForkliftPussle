@@ -85,6 +85,7 @@ export function newGame(levelNumber) {
     zones: lvl.zones,
     areas: lvl.areas,
     stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), pen: s.layers.map(newPen), a: 0 })),
+    parking: { ...toWorld(lvl.start, (FL.back + FL.front) / 2, 0), a: lvl.start.a },
     fl: makeForklift(lvl.start.x, lvl.start.y, lvl.start.a),
     carried: null,
     carriedRel: 0,
@@ -201,7 +202,7 @@ export function update(g, input, dt) {
 
   g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
 
-  if (g.status === 'play' && isSolved(g)) g.status = 'won';
+  if (g.status === 'play' && isFinished(g)) g.status = 'won';
 }
 
 export function stackInZone(g) {
@@ -267,6 +268,25 @@ export function forkDown(g) {
     g.carriedRots = [];
     g.carriedPen = [];
   }
+}
+
+const PARK_POS = 0.6, PARK_ANGLE = 0.35, PARK_SPEED = 0.5;
+const MIN_SCORE_FRACTION = 0.5;
+
+export function isParked(g) {
+  const f = g.fl, p = g.parking;
+  const c = toWorld(f, (FL.back + FL.front) / 2, 0);
+  let da = (f.a - p.a) % (2 * Math.PI);
+  if (da > Math.PI) da -= 2 * Math.PI;
+  if (da < -Math.PI) da += 2 * Math.PI;
+  return Math.hypot(c.x - p.x, c.y - p.y) < PARK_POS && Math.abs(da) < PARK_ANGLE && Math.abs(f.speed) < PARK_SPEED;
+}
+
+export const scoreEnough = (g) => score(g) >= MIN_SCORE_FRACTION * maxScore(g);
+
+// A level is finished: every zone filled, enough score, forklift back in its parking spot.
+export function isFinished(g) {
+  return isSolved(g) && scoreEnough(g) && isParked(g);
 }
 
 export function isSolved(g) {

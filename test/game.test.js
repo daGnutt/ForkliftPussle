@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateLevel } from '../js/level.js';
 import { FL } from '../js/forklift.js';
-import { newGame, update, forkUp, forkDown, stackInZone, score, maxScore, lostBreakdown } from '../js/game.js';
+import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown } from '../js/game.js';
 
 const NONE = {};
 const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
@@ -242,6 +242,25 @@ const driveUntil = (g, x, brakeAt) => {
   assert.equal(score(g), 100, 'in zone');
   g.stacks[0].pen = [{ crash: 10, sq: 5 }];
   assert.equal(score(g), 85);
+}
+
+// Parking spot: forklift spawns parked; a level finishes only when solved, score >= 50% and parked.
+{
+  const g = newGame(1);
+  assert.ok(isParked(g), 'spawns in parking spot');
+  g.stacks = [{ x: 12, y: 5, layers: [0], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
+  g.zones = [{ x: 12, y: 5, color: 0, count: 1 }];
+  assert.ok(isFinished(g), 'solved and parked');
+  g.stacks[0].pen = [{ crash: 50, sq: 50 }];
+  assert.ok(!isFinished(g), 'score below 50%');
+  g.stacks[0].pen = [{ crash: 0, sq: 0 }];
+  g.fl.x += 3;
+  assert.ok(!isParked(g) && !isFinished(g), 'must be parked');
+  g.fl.x -= 3; g.fl.a += 1;
+  assert.ok(!isParked(g), 'must be aligned');
+  g.fl.a -= 1; g.fl.speed = 0;
+  update(g, {}, 1 / 120);
+  assert.equal(g.status, 'won');
 }
 
 console.log('all tests passed');

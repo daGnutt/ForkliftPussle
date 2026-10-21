@@ -24,6 +24,9 @@ Fork level is a whole number 0–5 (height above the floor in box heights), chan
 No build step. Serve the folder statically (ES modules need http): `python3 -m http.server`, then open http://localhost:8000.
 GitHub Pages: Settings → Pages → deploy from branch, root folder.
 
+## Finishing a level
+You spawn in a parking spot (marked **P**). To finish a level, fill every zone, have at least 50% of the maximum score, and drive back into the parking spot (aligned, nearly stopped).
+
 ## Scoring
 Each box is worth 100 points, but only boxes in a stack that is in its correct zone count towards your score. Crashing into boxes (or hitting a wall while carrying) costs a few points, down to 50 per box; the other 50 depend on how square a box is when you put it down (within 5° is free; deductions come in steps of 5); you can pick a box up and re-place it to fix its squareness (crash losses stay). The score resets on level load/restart.
 

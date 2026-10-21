@@ -1,6 +1,6 @@
 import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
-import { zoneDone, stackInZone, score, maxScore, lostBreakdown } from './game.js';
+import { zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
 function rotRect(ctx, cx, cy, a, fn) {
   ctx.save();
@@ -146,6 +146,27 @@ export function draw(ctx, g, view) {
     ctx.globalAlpha = 1;
   }
 
+  {
+    const p = g.parking, ok = isSolved(g) && scoreEnough(g);
+    const hx = (FL.front - FL.back) / 2 + 0.2, hy = FL.halfW + 0.2;
+    rotRect(ctx, p.x, p.y, p.a, () => {
+      ctx.fillStyle = ok ? '#66bb6a' : '#9e9e9e';
+      ctx.globalAlpha = isParked(g) && ok ? 0.5 : 0.22;
+      ctx.fillRect(-hx, -hy, 2 * hx, 2 * hy);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = ok ? '#66bb6a' : '#bdbdbd';
+      ctx.lineWidth = 0.08;
+      ctx.setLineDash([0.25, 0.15]);
+      ctx.strokeRect(-hx, -hy, 2 * hx, 2 * hy);
+      ctx.setLineDash([]);
+      ctx.fillStyle = ok ? '#66bb6a' : '#bdbdbd';
+      ctx.font = 'bold 0.8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('P', 0, 0);
+    });
+  }
+
   for (const z of g.zones) {
     const done = zoneDone(g, z);
     ctx.fillStyle = COLORS[z.color];
@@ -200,6 +221,12 @@ export function draw(ctx, g, view) {
   ctx.fillStyle = '#ffe082';
   ctx.fillText(`Placement −${lost.square} (fixable)`, 20, 68);
   ctx.fillStyle = '#eee';
+
+  if (g.status === 'play' && isSolved(g)) {
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillStyle = '#ffe082';
+    ctx.fillText(scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish', 20, 92);
+  }
 
   // fork height gauge: 0 = floor; box layer i fills the cell at height i-1
   const gx = width - 70, gy = 70, cell = 26, top = 5;

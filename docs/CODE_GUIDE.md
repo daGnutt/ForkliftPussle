@@ -28,13 +28,14 @@ Dependency direction: `main` → `game`, `input`, `render`; `game` → `forklift
 - `fl`: forklift `{x, y, a, speed, steer}`.
 - `carried`: array of layers being carried, or `null`; `carriedRots`: each carried box's angle relative to the forklift (so they turn with it, and keep their world angle when dropped); `carriedRel` = `carriedRots[0]`, used for collision. `carriedPen`: the carried boxes' `pen` entries.
 - `H`: logical fork level (integer 0–5); `hf`: smoothed value used only for drawing.
+- `parking`: `{x, y, a}` centre/heading of the parking spot (the forklift's spawn pose).
 - `status`: `'play'` or `'won'`; `time`: seconds elapsed.
 
 ## Rules (see `game.js`)
 - Fork level `H` = box heights above the floor. A stack of n boxes spans heights 0..n. `forkUp` lifts the box at height `H` and everything above it; level 0 lifts the whole stack.
 - Tines never collide with boxes. Only the forklift body and the carried stack (when `stack.layers.length > g.H`) do.
 - `forkDown` releases the carried stack automatically at its resting height (top of the stack below, or the floor), merging into it. Max 5 layers (`MAX_LAYERS`).
-- A zone is done only when a stack of exactly `zone.count` boxes, all of `zone.color`, is within 0.5 of it. Winning = all zones done.
+- A zone is done only when a stack of exactly `zone.count` boxes, all of `zone.color`, is within 0.5 of it. Winning (`isFinished`) = all zones done (`isSolved`) AND `score ≥ 50%` of `maxScore` AND forklift parked (`isParked`: within 0.6 of the spot, heading within 0.35 rad, speed < 0.5).
 - `resolve()` runs iterative SAT: forklift shapes vs walls; forklift shapes vs stacks (mass-weighted pushing); stacks vs walls; stacks vs stacks.
 
 ## Scoring (`game.js`)
