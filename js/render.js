@@ -1,5 +1,6 @@
 import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
+import { drawPov } from './pov.js';
 import { zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
 function rotRect(ctx, cx, cy, a, fn) {
@@ -285,24 +286,26 @@ export function draw(ctx, g, view) {
 
   // screen-space HUD
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  const POV_W = 300, POV_H = 170, hx0 = 20 + POV_W + 16;
+  drawPov(ctx, g, 10, 10, POV_W, POV_H);
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
   ctx.fillStyle = '#eee';
   ctx.font = 'bold 20px sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${g.time.toFixed(0)}s`, 20, 25);
+  ctx.fillText(`Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${g.time.toFixed(0)}s`, hx0, 25);
   const lost = lostBreakdown(g);
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#ef9a9a';
-  ctx.fillText(`Damage −${lost.crash} (locked)`, 20, 48);
+  ctx.fillText(`Damage −${lost.crash} (locked)`, hx0, 48);
   ctx.fillStyle = '#ffe082';
-  ctx.fillText(`Placement −${lost.square} (fixable)`, 20, 68);
+  ctx.fillText(`Placement −${lost.square} (fixable)`, hx0, 68);
   ctx.fillStyle = '#eee';
 
   if (g.status === 'play' && isSolved(g)) {
     ctx.font = 'bold 16px sans-serif';
     ctx.fillStyle = '#ffe082';
-    ctx.fillText(scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish', 20, 92);
+    ctx.fillText(scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish', hx0, 92);
   }
 
   // fork height gauge: 0 = floor; box layer i fills the cell at height i-1

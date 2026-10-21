@@ -13,9 +13,10 @@ Read this first for a map of the code. Vanilla JS ES modules + Canvas 2D, no bui
 | `js/level.js` | Seeded procedural level generator | `generateLevel`, `parseSeed`, `levelParams`, `COLORS`, `COLOR_NAMES` |
 | `js/audio.js` | Procedural Web Audio (no asset files): generative 98 BPM background music (pad, bass, arpeggio, drums; mute toggle, `localStorage` key `forklift-music-muted`) and SFX; browser only, started on the first key press | `startAudio`, `toggleMusic`, `playFork`, `playBlocked`, `playSuccess`, `setEngine` (electric motor whine, pitch follows speed, called every frame) |
 | `js/geom.js` | Polygon helpers: `rectPoly`, SAT collision, `pointRectDist` | – |
+| `js/pov.js` | Doom-style first-person raycaster of the cabin view (walls, stacks, carried stack; 90° FOV, eye at local x −0.5, height 1.7), drawn top-left by `render.js` | `drawPov` |
 | `js/render.js` | Pure drawing from game state | `draw` |
 
-Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` triggers sounds by watching state changes: fork level, number of done zones; `game.js` stays audio-free); `game` → `forklift`, `level`, `geom`; `render` → `game`, `level`, `forklift`. `game.js` must never touch the DOM.
+Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` triggers sounds by watching state changes: fork level, number of done zones; `game.js` stays audio-free); `game` → `forklift`, `level`, `geom`; `render` → `pov`, `game`, `level`, `forklift`. `game.js` must never touch the DOM.
 
 ## Units and coordinates
 - Simulation units are tiles; one box is 1×1. The renderer scales the canvas.
