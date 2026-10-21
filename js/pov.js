@@ -2,7 +2,7 @@ import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
 
 const EYE_X = -0.5; // cabin seat, local x (origin at the front axle)
-const EYE_Z = 1.7; // eye height in box units
+const EYE_Z = 1.45; // eye height in box units
 const WALL_H = 3;
 const HFOV = Math.PI / 2;
 const COL_W = 2;
@@ -19,10 +19,14 @@ function rectEdges(x, y, a, hl, hw, z0, z1, color, edges) {
   }
 }
 
-// A stack of boxes standing on a small pallet whose underside is at height z.
-function stackEdges(x, y, rots, layers, z, edges) {
-  rectEdges(x, y, rots[0] ?? 0, 0.5, 0.5, z, z + PAL, '#9a7040', edges);
-  layers.forEach((c, i) => rectEdges(x, y, rots[i] ?? 0, 0.5, 0.5, z + PAL + i, z + PAL + i + 1, COLORS[c], edges));
+// Stack with a pallet under every box; level h maps to height h * (1 + PAL),
+// so the tines at fork level h line up with the pallet of box h.
+function stackEdges(x, y, rots, layers, level, edges) {
+  layers.forEach((c, i) => {
+    const z = (level + i) * (1 + PAL), r = rots[i] ?? 0;
+    rectEdges(x, y, r, 0.5, 0.5, z, z + PAL, '#9a7040', edges);
+    rectEdges(x, y, r, 0.5, 0.5, z + PAL, z + 1 + PAL, COLORS[c], edges);
+  });
 }
 
 function buildEdges(g) {
@@ -41,7 +45,7 @@ function buildEdges(g) {
   const len = (FL.tineX1 - FL.tineX0) / 2;
   for (const side of [-1, 1]) {
     const t = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, side * FL.tineOff);
-    rectEdges(t.x, t.y, g.fl.a, len, FL.tineHalf, g.hf, g.hf + PAL, '#b0b4ba', edges);
+    rectEdges(t.x, t.y, g.fl.a, len, FL.tineHalf, g.hf * (1 + PAL), g.hf * (1 + PAL) + PAL, '#b0b4ba', edges);
   }
   return edges;
 }
