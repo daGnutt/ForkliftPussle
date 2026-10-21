@@ -20,3 +20,7 @@ export function saveBest(store, seed, level, result) {
   all[keyOf(seed, level)] = { score: result.score, time: Math.round(result.time), name: result.name };
   try { store.setItem(KEY, JSON.stringify(all)); } catch { /* storage unavailable */ }
 }
+
+// 1 point off per 10 seconds; only applied to the submitted score, never to level completion.
+export const timePenalty = (time) => Math.floor(time / 10);
+export const finalScore = (points, time) => Math.max(0, points - timePenalty(time));

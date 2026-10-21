@@ -1,6 +1,6 @@
 import { newGame, update, forkUp, forkDown, zoneDone, score } from './game.js';
 import { createInput } from './input.js';
-import { getBest, beats, saveBest } from './highscores.js';
+import { getBest, beats, saveBest, finalScore, timePenalty } from './highscores.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { startAudio, toggleMusic, playFork, playBlocked, playSuccess, setEngine } from './audio.js';
@@ -82,10 +82,10 @@ document.getElementById('recordForm').addEventListener('submit', (e) => {
 function checkRecord() {
   if (game.status !== 'won' || recorded) return;
   recorded = true;
-  const result = { score: score(game), time: game.time };
+  const result = { score: finalScore(score(game), game.time), time: game.time };
   if (!beats(result, getBest(localStorage, seed, level))) return;
   Object.assign(pending, { seed, level, result });
-  document.getElementById('recordInfo').textContent = `Level ${level}: ${result.score} points in ${result.time.toFixed(0)}s`;
+  document.getElementById('recordInfo').textContent = `Level ${level}: ${score(game)} − ${timePenalty(game.time)} time = ${result.score} points (${result.time.toFixed(0)}s)`;
   recordName.value = localStorage.getItem('forklift-player') || '';
   recordOpen = true;
   recordEl.classList.remove('hide');

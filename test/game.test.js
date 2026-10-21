@@ -315,7 +315,7 @@ console.log('all tests passed');
 
 // high scores
 {
-  const { getBest, beats, saveBest } = await import('../js/highscores.js');
+  const { getBest, beats, saveBest, finalScore } = await import('../js/highscores.js');
   const mem = new Map();
   const store = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
   assert.equal(getBest(store, 5, 1), null);
@@ -327,5 +327,8 @@ console.log('all tests passed');
   assert.ok(!beats({ score: 400, time: 1 }, getBest(store, 5, 1)));
   assert.ok(beats({ score: 500, time: 20 }, getBest(store, 5, 1)));
   assert.ok(!beats({ score: 500, time: 40 }, getBest(store, 5, 1)));
+  assert.equal(finalScore(500, 9.9), 500);
+  assert.equal(finalScore(500, 100), 490);
+  assert.equal(finalScore(5, 1000), 0);
   console.log('highscores ok');
 }
