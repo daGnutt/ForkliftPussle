@@ -190,12 +190,11 @@ export function drawPov(ctx, g, x, y, w, h) {
       }
     }
   }
-  // floating labels (drawn over the walls so they stay readable): boxes still missing per zone
+  // floating labels (drawn over the walls so they stay readable): total boxes wanted per zone, hidden once the zone is done
   for (const z of g.zones) {
     const done = zoneDone(g, z);
-    const st = g.stacks.find((q) => Math.hypot(q.x - z.x, q.y - z.y) < 0.5);
-    const have = st ? st.layers.filter((l) => l === z.color).length : 0;
-    const text = done ? '✓' : `×${Math.max(0, z.count - have)}`;
+    if (done) continue;
+    const text = `×${z.count}`;
     const c = Math.cos(g.fl.a), s = Math.sin(g.fl.a);
     const dx = z.x - eye.x, dy = z.y - eye.y;
     const fw = dx * c + dy * s, rt = -dx * s + dy * c;
@@ -208,7 +207,7 @@ export function drawPov(ctx, g, x, y, w, h) {
       ctx.lineWidth = Math.max(2, size / 6);
       ctx.strokeStyle = '#000';
       ctx.strokeText(text, sx, sy);
-      ctx.fillStyle = done ? '#fff' : COLORS[z.color];
+      ctx.fillStyle = COLORS[z.color];
       ctx.fillText(text, sx, sy);
     }
   }
