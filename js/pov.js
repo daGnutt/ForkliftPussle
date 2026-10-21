@@ -61,8 +61,8 @@ function stackEdges(x, y, rots, layers, level, edges, heading) {
     // centre block plus corner blocks: tine openings on all four sides
     const cr = Math.cos(r), sr = Math.sin(r);
     rectEdges(x, y, r, 0.2, 0.2, z, z + PAL, '#9a7040', edges);
-    for (const [u, v] of [[-0.4, -0.4], [0.4, -0.4], [0.4, 0.4], [-0.4, 0.4]]) {
-      rectEdges(x + u * cr - v * sr, y + u * sr + v * cr, r, 0.1, 0.1, z, z + PAL, '#9a7040', edges);
+    for (const [u, v] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) {
+      rectEdges(x + u * cr - v * sr, y + u * sr + v * cr, r, 0.05, 0.05, z, z + PAL, '#9a7040', edges);
     }
     rectEdges(x, y, r, 0.5, 0.5, z + PAL, z + BOX_H + PAL, COLORS[c], edges, i === layers.length - 1);
   });
