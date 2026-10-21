@@ -114,7 +114,7 @@ function buildEdges(g) {
   const len = (FL.tineX1 - FL.tineX0) / 2;
   for (const side of [-1, 1]) {
     const t = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, side * FL.tineOff);
-    rectEdges(t.x, t.y, g.fl.a, len, FL.tineHalf, g.hf * (BOX_H + PAL), g.hf * (BOX_H + PAL) + PAL, '#b0b4ba', edges, true);
+    rectEdges(t.x, t.y, g.fl.a, len, FL.tineHalf, g.hf * (BOX_H + PAL), g.hf * (BOX_H + PAL) + PAL, theme().tine, edges, true);
   }
   return edges;
 }
