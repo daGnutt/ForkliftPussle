@@ -137,7 +137,7 @@ const driveUntil = (g, x, brakeAt) => {
 {
   const g = newGame(1);
   flatWorld(g);
-  g.stacks = [{ x: 10, y: 5, layers: [0], a: 0.3 }];
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0.3], a: 0.3 }];
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
   driveUntil(g, 10, 8);
@@ -147,6 +147,24 @@ const driveUntil = (g, x, brakeAt) => {
   forkDown(g);
   assert.equal(g.carried, null);
   assert.ok(Math.abs(g.stacks[0].a - 0.8) < 0.05, 'dropped with rotated orientation');
+}
+
+// Each box in a stack remembers its own rotation through lift, drop and merge.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1], rots: [0.1, 0.4], a: 0.1 }];
+  const f = g.fl;
+  f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
+  driveUntil(g, 10, 8);
+  g.H = 1;
+  forkUp(g);
+  assert.deepEqual(g.stacks[0].rots, [0.1]);
+  assert.ok(Math.abs(g.carriedRots[0] - 0.4) < 1e-9);
+  forkDown(g);
+  assert.equal(g.carried, null);
+  assert.deepEqual(g.stacks[0].layers, [0, 1]);
+  assert.ok(Math.abs(g.stacks[0].rots[0] - 0.1) < 1e-9 && Math.abs(g.stacks[0].rots[1] - 0.4) < 1e-9);
 }
 
 console.log('all tests passed');

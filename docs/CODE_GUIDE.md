@@ -24,9 +24,9 @@ Dependency direction: `main` → `game`, `input`, `render`; `game` → `forklift
 ## Game state `g` (from `newGame`)
 - `walls`: border + pillar rects with a `poly` (collision). `pillars`: the raw pillar rects (for drawing).
 - `zones`: `{x, y, color, count}` targets. `areas`: `{color, x, y, w, h}` tinted regions; all zones of a colour sit in one area.
-- `stacks`: floor stacks `{x, y, layers, a}`; `layers` are colour indices into `COLORS` (bottom → top); `a` is the stack's rotation.
+- `stacks`: floor stacks `{x, y, layers, a}`; `layers` are colour indices into `COLORS` (bottom → top); `rots` is a parallel array with each box's own world angle (remembered through lift/drop/merge); `a` is the bottom box's angle, used for collision.
 - `fl`: forklift `{x, y, a, speed, steer}`.
-- `carried`: array of layers being carried, or `null`; `carriedRel`: carried stack angle relative to the forklift (so it turns with the forklift, and keeps its world angle when dropped).
+- `carried`: array of layers being carried, or `null`; `carriedRots`: each carried box's angle relative to the forklift (so they turn with it, and keep their world angle when dropped); `carriedRel` = `carriedRots[0]`, used for collision.
 - `H`: logical fork level (integer 0–5); `hf`: smoothed value used only for drawing.
 - `status`: `'play'` or `'won'`; `time`: seconds elapsed.
 
@@ -44,7 +44,7 @@ Dependency direction: `main` → `game`, `input`, `render`; `game` → `forklift
 
 ## Rendering (`render.js`)
 - Height is faked with a parallax offset (`PX`/`PY`). Draw order: floor/grid → areas → zones → low stacks → forklift body → tines → high stacks → carried stack → pillars → HUD.
-- `drawStack(ctx, layers, x, y, z0, ang)` draws rotated boxes; the top box shows its colour and the boxes below appear as coloured numbers.
+- `drawStack(ctx, layers, x, y, z0, ang)` draws boxes, each with its own angle from `rots`; the top box shows its colour and the boxes below appear as coloured numbers.
 
 ## Tests
 - `test/game.test.js` is a sequence of independent blocks (plain `node:assert`). Helpers: `run` (simulate seconds of input), `driveUntil`, `flatWorld` (clears zones and pillars). Any game-logic change needs a scenario here.

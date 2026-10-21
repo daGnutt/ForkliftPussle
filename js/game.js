@@ -23,10 +23,11 @@ export function newGame(levelNumber) {
     pillars: lvl.walls,
     zones: lvl.zones,
     areas: lvl.areas,
-    stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], a: 0 })),
+    stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), a: 0 })),
     fl: makeForklift(lvl.start.x, lvl.start.y, lvl.start.a),
     carried: null,
     carriedRel: 0,
+    carriedRots: [],
     H: 0,
     hf: 0,
     status: 'play',
@@ -158,7 +159,8 @@ export function forkUp(g) {
   const S = stackInZone(g);
   if (S && S.layers.length > g.H) {
     g.carried = S.layers.splice(g.H);
-    g.carriedRel = (S.a || 0) - g.fl.a;
+    g.carriedRots = S.rots.splice(g.H).map((r) => r - g.fl.a);
+    g.carriedRel = g.carriedRots[0];
     if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
   }
   g.H = Math.min(MAX_H, g.H + 1);
@@ -177,11 +179,13 @@ export function forkDown(g) {
   if (g.H === n && minH === n) {
     if (S) {
       S.layers.push(...g.carried);
+      S.rots.push(...g.carriedRots.map((r) => r + g.fl.a));
     } else {
       const p = toWorld(g.fl, FL.carryX, 0);
-      g.stacks.push({ x: p.x, y: p.y, layers: g.carried, a: g.fl.a + g.carriedRel });
+      g.stacks.push({ x: p.x, y: p.y, layers: g.carried, rots: g.carriedRots.map((r) => r + g.fl.a), a: g.fl.a + g.carriedRel });
     }
     g.carried = null;
+    g.carriedRots = [];
   }
 }
 

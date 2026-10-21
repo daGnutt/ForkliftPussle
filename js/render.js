@@ -14,23 +14,23 @@ const PX = 0.042, PY = -0.07; // screen shift per unit of height
 
 // Draws a stack whose bottom box is at height z0 above the floor: top box
 // colour, plus a coloured number for each box below it.
-function drawStack(ctx, layers, x, y, z0 = 0, ang = 0) {
+function drawStack(ctx, layers, x, y, z0 = 0, rots = []) {
   const n = layers.length;
   const size = 1, h = size / 2;
-  const at = (cx, cy, fn) => {
+  const at = (cx, cy, i, fn) => {
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(ang);
+    ctx.rotate(rots[i] || 0);
     fn();
     ctx.restore();
   };
   if (z0 > 0) {
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    at(x + 0.1, y + 0.1, () => ctx.fillRect(-h, -h, size, size));
+    at(x + 0.1, y + 0.1, 0, () => ctx.fillRect(-h, -h, size, size));
   }
   const cx = x + (z0 + n - 1) * PX, cy = y + (z0 + n - 1) * PY;
   for (let i = 0; i < n; i++) {
-    at(x + (z0 + i) * PX, y + (z0 + i) * PY, () => {
+    at(x + (z0 + i) * PX, y + (z0 + i) * PY, i, () => {
       ctx.fillStyle = COLORS[layers[i]];
       ctx.fillRect(-h, -h, size, size);
       ctx.strokeStyle = 'rgba(0,0,0,0.65)';
@@ -38,7 +38,7 @@ function drawStack(ctx, layers, x, y, z0 = 0, ang = 0) {
       ctx.strokeRect(-h, -h, size, size);
     });
   }
-  at(cx, cy, () => {
+  at(cx, cy, n - 1, () => {
     ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.lineWidth = 0.04;
     ctx.strokeRect(-h + 0.12, -h + 0.12, size - 0.24, size - 0.24);
@@ -118,7 +118,7 @@ function drawTines(ctx, g) {
 function drawCarried(ctx, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  drawStack(ctx, g.carried, p.x, p.y, g.hf, g.fl.a + g.carriedRel);
+  drawStack(ctx, g.carried, p.x, p.y, g.hf, g.carriedRots.map((r) => r + g.fl.a));
 }
 
 export function draw(ctx, g, view) {
@@ -168,10 +168,10 @@ export function draw(ctx, g, view) {
   // slide under are drawn over them.
   const low = g.stacks.filter((st) => st.layers.length <= g.hf);
   const high = g.stacks.filter((st) => st.layers.length > g.hf);
-  for (const st of low) drawStack(ctx, st.layers, st.x, st.y, 0, st.a);
+  for (const st of low) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots);
   drawForkliftBody(ctx, g);
   drawTines(ctx, g);
-  for (const st of high) drawStack(ctx, st.layers, st.x, st.y, 0, st.a);
+  for (const st of high) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots);
   drawCarried(ctx, g);
 
   ctx.fillStyle = '#3b3f45';
