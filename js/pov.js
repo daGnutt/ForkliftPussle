@@ -53,10 +53,16 @@ function rectEdges(x, y, a, hl, hw, z0, z1, color, edges, top = false) {
 
 // Stack with a pallet under every box; level h maps to height h * (1 + PAL),
 // so the tines at fork level h line up with the pallet of box h.
-function stackEdges(x, y, rots, layers, level, edges) {
+function stackEdges(x, y, rots, layers, level, edges, heading) {
   layers.forEach((c, i) => {
     const z = (level + i) * (1 + PAL), r = rots[i] ?? 0;
-    rectEdges(x, y, r, 0.5, 0.5, z, z + PAL, '#9a7040', edges);
+    // runners point along the box axis closest to the forklift heading, leaving gaps for the tines
+    const rel = heading - r;
+    const pr = Math.abs(Math.cos(rel)) >= Math.abs(Math.sin(rel)) ? r : r + Math.PI / 2;
+    const cp = Math.cos(pr), sp = Math.sin(pr);
+    for (const [off, hw] of [[0, 0.2], [-0.45, 0.05], [0.45, 0.05]]) {
+      rectEdges(x - sp * off, y + cp * off, pr, 0.5, hw, z, z + PAL, '#9a7040', edges);
+    }
     rectEdges(x, y, r, 0.5, 0.5, z + PAL, z + 1 + PAL, COLORS[c], edges, i === layers.length - 1);
   });
 }
@@ -69,10 +75,10 @@ function buildEdges(g) {
       edges.push({ x1, y1, x2, y2, z0: 0, z1: WALL_H, color: null, shade: y1 === y2 ? 1 : 0.8 });
     }
   }
-  for (const st of g.stacks) stackEdges(st.x, st.y, st.rots || [], st.layers, 0, edges);
+  for (const st of g.stacks) stackEdges(st.x, st.y, st.rots || [], st.layers, 0, edges, g.fl.a);
   if (g.carried) {
     const p = toWorld(g.fl, FL.carryX, 0);
-    stackEdges(p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, edges);
+    stackEdges(p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, edges, g.fl.a);
   }
   const len = (FL.tineX1 - FL.tineX0) / 2;
   for (const side of [-1, 1]) {
