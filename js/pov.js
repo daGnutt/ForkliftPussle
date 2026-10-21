@@ -131,22 +131,6 @@ export function drawPov(ctx, g, x, y, w, h) {
     floorQuad(ctx, eye, g.fl.a, f, x + w / 2, y + horizon,
       [[z.x - r, z.y - r], [z.x + r, z.y - r], [z.x + r, z.y + r], [z.x - r, z.y + r]],
       COLORS[z.color] + (done ? 'cc' : '77'), COLORS[z.color]);
-    // floating "×N" label above the zone; drawn before the walls so they occlude it
-    const c = Math.cos(g.fl.a), s = Math.sin(g.fl.a);
-    const dx = z.x - eye.x, dy = z.y - eye.y;
-    const fw = dx * c + dy * s, rt = -dx * s + dy * c;
-    if (fw > 0.3 && fw < MAX_DIST) {
-      const sx = x + w / 2 + (rt / fw) * f, sy = y + horizon - ((0.9 - EYE_Z) / fw) * f;
-      const size = Math.max(8, Math.min(48, (0.5 / fw) * f));
-      ctx.font = `bold ${size}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineWidth = Math.max(2, size / 6);
-      ctx.strokeStyle = '#000';
-      ctx.strokeText(`×${z.count}`, sx, sy);
-      ctx.fillStyle = done ? '#fff' : COLORS[z.color];
-      ctx.fillText(`×${z.count}`, sx, sy);
-    }
   }
   const park = parkingCorners(g);
   const ready = isSolved(g) && scoreEnough(g);
@@ -191,6 +175,28 @@ export function drawPov(ctx, g, x, y, w, h) {
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(x + px, yBot - 1, COL_W, 1);
       }
+    }
+  }
+  // floating labels (drawn over the walls so they stay readable): boxes still missing per zone
+  for (const z of g.zones) {
+    const done = zoneDone(g, z);
+    const st = g.stacks.find((q) => Math.hypot(q.x - z.x, q.y - z.y) < 0.5);
+    const have = st ? st.layers.filter((l) => l === z.color).length : 0;
+    const text = done ? '✓' : `×${Math.max(0, z.count - have)}`;
+    const c = Math.cos(g.fl.a), s = Math.sin(g.fl.a);
+    const dx = z.x - eye.x, dy = z.y - eye.y;
+    const fw = dx * c + dy * s, rt = -dx * s + dy * c;
+    if (fw > 0.3 && fw < MAX_DIST) {
+      const sx = x + w / 2 + (rt / fw) * f, sy = y + horizon - ((0.9 - EYE_Z) / fw) * f;
+      const size = Math.max(8, Math.min(48, (0.5 / fw) * f));
+      ctx.font = `bold ${size}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = Math.max(2, size / 6);
+      ctx.strokeStyle = '#000';
+      ctx.strokeText(text, sx, sy);
+      ctx.fillStyle = done ? '#fff' : COLORS[z.color];
+      ctx.fillText(text, sx, sy);
     }
   }
   // cabin frame / crosshair-free window border
