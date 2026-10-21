@@ -15,6 +15,7 @@ footer b { color: #f9a825; }
 #splash input { width: 160px; padding: 6px 8px; font: inherit; color: #eee; background: #1b1f24; border: 1px solid #555; border-radius: 4px; }
 #splash input:focus { outline: 2px solid #f9a825; }
 #splash button { padding: 6px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
+#splash button svg { display: block; }
 @keyframes blink { 50% { opacity: .25; } }
 #splash .boxes { display: flex; align-items: flex-end; gap: 6px; }
 #splash .boxes i { display: block; width: 56px; height: 56px; position: relative; background: linear-gradient(135deg, rgba(255,255,255,.35), rgba(0,0,0,.2)), var(--c);

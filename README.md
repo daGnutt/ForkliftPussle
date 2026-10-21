@@ -14,7 +14,7 @@ Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift an
 | N / P | Next / previous level (Enter after winning) |
 
 ## Seeds
-On the splash screen you can type a seed (a number or any text) and press Enter/Start. **Random** fills in a random seed. The same seed and level number always give the same layout; empty = the default levels. The seed is remembered between visits.
+On the splash screen you can type a seed (a number or any text) and press Enter/Start. The shuffle button fills in a random seed. The same seed and level number always give the same layout; empty = the default levels. The seed is remembered between visits.
 
 ## Fork levels
 Fork level is a whole number 0–5 (height above the floor in box heights), changed with **A** (up) and **Z** (down). A floor stack spans heights 0..n. Tines never collide with boxes (the forklift body and carried boxes still do), but empty forks can't be lowered *through* a box: **Z** then plays a buzz, the forks stay put and the box under them loses 10 points. Raise the forks (or back out) first.
