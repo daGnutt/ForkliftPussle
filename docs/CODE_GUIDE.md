@@ -51,7 +51,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 
 ## Level generation (`level.js`)
 - Deterministic per (level number, seed) via `mulberry32`; `generateLevel(n, seed = 0)`, seed 0 = the default layouts. `parseSeed(text)` maps splash input to an int (integers as-is, other text hashed). `newGame(n, seed)` stores `g.seed`; retries up to 300 attempts and falls back to level 1 if placement keeps failing.
-- Order: choose boxes and zone counts per colour → pillars → per-colour zone area → stack placement avoiding areas, pillars and the start.
+- Order: choose boxes and zone counts per colour → pillars → per-colour zone area (preferably flush against an outer wall, 0.5 gap) → stack placement avoiding areas, pillars and the start.
 - Guarantees valid placement and matching box/zone counts, **not** solvability. Difficulty scales in `levelParams`.
 
 ## Rendering (`render.js`)
