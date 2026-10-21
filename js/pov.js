@@ -44,6 +44,27 @@ function floorQuad(ctx, eye, ang, f, cx, cy, pts, fill, stroke) {
   ctx.stroke();
 }
 
+// Tile grid on the floor (lines at integer world coordinates) so distances can be judged.
+function floorGrid(ctx, eye, ang, f, cx, cy) {
+  const c = Math.cos(ang), s = Math.sin(ang), R = 18, near = 0.08;
+  const line = (x1, y1, x2, y2) => {
+    let a = [(x1 - eye.x) * c + (y1 - eye.y) * s, -(x1 - eye.x) * s + (y1 - eye.y) * c];
+    let b = [(x2 - eye.x) * c + (y2 - eye.y) * s, -(x2 - eye.x) * s + (y2 - eye.y) * c];
+    if (a[0] < near && b[0] < near) return;
+    if (a[0] < near) a = [near, a[1] + ((near - a[0]) / (b[0] - a[0])) * (b[1] - a[1])];
+    else if (b[0] < near) b = [near, b[1] + ((near - b[0]) / (a[0] - b[0])) * (a[1] - b[1])];
+    ctx.moveTo(cx + (a[1] / a[0]) * f, cy + (eyeZ / a[0]) * f);
+    ctx.lineTo(cx + (b[1] / b[0]) * f, cy + (eyeZ / b[0]) * f);
+  };
+  const x0 = Math.floor(eye.x - R), x1 = Math.ceil(eye.x + R), y0 = Math.floor(eye.y - R), y1 = Math.ceil(eye.y + R);
+  ctx.beginPath();
+  for (let gx = x0; gx <= x1; gx++) line(gx, y0, gx, y1);
+  for (let gy = y0; gy <= y1; gy++) line(x0, gy, x1, gy);
+  ctx.strokeStyle = theme().povGrid;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
 const PAL = 0.1; // pallet / tine thickness
 
 function rectEdges(x, y, a, hl, hw, z0, z1, color, edges, top = false) {
@@ -145,6 +166,7 @@ export function drawPov(ctx, g, x, y, w, h, opts = {}) {
   eyeZ = EYE_Z + EYE_FOLLOW * g.hf * (BOX_H + PAL);
   const eye = toWorld(g.fl, EYE_X, 0);
   const f = (w / 2) / Math.tan((opts.rear ? REAR_HFOV : HFOV) / 2);
+  floorGrid(ctx, eye, yaw, f, x + w / 2, y + horizon);
   for (const z of g.zones) {
     const done = zoneDone(g, z), r = 0.6;
     floorQuad(ctx, eye, yaw, f, x + w / 2, y + horizon,
@@ -195,6 +217,17 @@ export function drawPov(ctx, g, x, y, w, h, opts = {}) {
       const dark = Math.min(0.75, d / 14) + (1 - e.shade) * 0.6;
       ctx.fillStyle = `rgba(0,0,0,${dark})`;
       ctx.fillRect(x + px, yTop, COL_W, yBot - yTop);
+      if (!e.color) { // wall texture: checker tiles with mortar lines every box height
+        const along = e.y1 === e.y2 ? eye.x + dx * t : eye.y + dy * t;
+        if ((Math.floor(along) & 1) === 0) {
+          ctx.fillStyle = 'rgba(255,255,255,0.07)';
+          ctx.fillRect(x + px, yTop, COL_W, yBot - yTop);
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        for (let zl = 1; zl < e.z1; zl++) {
+          if (zl > e.z0) ctx.fillRect(x + px, y + horizon - ((zl - eyeZ) / d) * f, COL_W, 1);
+        }
+      }
       const u = e.id && e.z0 > eyeZ ? under[e.id] : null;
       if (u && t === u[1] && u[1] > u[0]) queue.push({ e, u, t });
       const q = e.top && e.z1 < eyeZ ? span[e.id] : null;
