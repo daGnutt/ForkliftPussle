@@ -89,41 +89,88 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = []) {
   });
 }
 
-function drawWheel(ctx, lx, ly, ang) {
+// Extruded box in the forklift's local frame between heights z0 and z1,
+// using the same parallax as the box layers.
+function block(ctx, f, x0, y0, x1, y1, z0, z1, col, rot = 0) {
+  const ca = Math.cos(f.a), sa = Math.sin(f.a);
+  const dz = z1 - z0;
+  // floor-ward extrusion in the local frame
+  const ex = (-PX * ca - PY * sa) * dz, ey = (PX * sa - PY * ca) * dz;
   ctx.save();
-  ctx.translate(lx, ly);
-  ctx.rotate(ang);
-  ctx.fillStyle = '#111';
-  ctx.fillRect(-0.22, -0.1, 0.44, 0.2);
+  ctx.translate(f.x + z1 * PX, f.y + z1 * PY);
+  ctx.rotate(f.a + rot);
+  const cr = Math.cos(rot), sr = Math.sin(rot);
+  const lx = ex * cr + ey * sr, ly = -ex * sr + ey * cr;
+  const edges = [[0, -1, x0, y0, x1, y0], [1, 0, x1, y0, x1, y1], [0, 1, x1, y1, x0, y1], [-1, 0, x0, y1, x0, y0]];
+  ctx.lineJoin = 'round';
+  for (const [nx, ny, ax, ay, bx, by] of edges) {
+    if (nx * lx + ny * ly <= 0) continue;
+    const wx = nx * Math.cos(f.a + rot) - ny * Math.sin(f.a + rot);
+    const wy = nx * Math.sin(f.a + rot) + ny * Math.cos(f.a + rot);
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+    ctx.lineTo(bx + lx, by + ly); ctx.lineTo(ax + lx, ay + ly);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = `rgba(0,0,0,${0.5 - 0.25 * (wx * 0.6 - wy * 0.8)})`;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 0.025;
+    ctx.stroke();
+  }
+  ctx.fillStyle = col;
+  ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+  const gr = ctx.createLinearGradient(x0, y0, x1, y1);
+  gr.addColorStop(0, 'rgba(255,255,255,0.3)');
+  gr.addColorStop(1, 'rgba(0,0,0,0.15)');
+  ctx.fillStyle = gr;
+  ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  ctx.lineWidth = 0.03;
+  ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
   ctx.restore();
+}
+
+function drawWheel(ctx, f, lx, ly, ang) {
+  const c = Math.cos(f.a), s = Math.sin(f.a);
+  const w = { x: f.x + lx * c - ly * s, y: f.y + lx * s + ly * c, a: f.a + ang };
+  block(ctx, w, -0.22, -0.1, 0.22, 0.1, 0, 0.32, '#1c1c1c');
 }
 
 function drawForkliftBody(ctx, g) {
   const f = g.fl;
-  rotRect(ctx, f.x, f.y, f.a, () => {
-    drawWheel(ctx, 0, -FL.halfW - 0.02, 0);
-    drawWheel(ctx, 0, FL.halfW + 0.02, 0);
-    drawWheel(ctx, -FL.L, -FL.halfW + 0.08, -f.steer);
-    drawWheel(ctx, -FL.L, FL.halfW - 0.08, -f.steer);
-    ctx.fillStyle = '#f9a825';
-    ctx.fillRect(FL.back, -FL.halfW, FL.front - FL.back, FL.halfW * 2);
-    ctx.strokeStyle = '#6d4c00';
-    ctx.lineWidth = 0.05;
-    ctx.strokeRect(FL.back, -FL.halfW, FL.front - FL.back, FL.halfW * 2);
-    ctx.fillStyle = '#555';
-    ctx.fillRect(FL.back, -FL.halfW + 0.05, 0.4, FL.halfW * 2 - 0.1);
-    ctx.fillStyle = '#37474f';
-    ctx.fillRect(-0.9, -0.28, 0.5, 0.56);
-    ctx.strokeStyle = '#222';
-    ctx.lineWidth = 0.06;
-    ctx.strokeRect(-1.1, -0.45, 1.0, 0.9);
-    ctx.fillStyle = '#444';
-    ctx.fillRect(FL.front - 0.08, -0.42, 0.16, 0.84);
-    ctx.fillStyle = '#c62828';
-    ctx.beginPath();
-    ctx.moveTo(-0.1, -0.1); ctx.lineTo(0.2, 0); ctx.lineTo(-0.1, 0.1);
-    ctx.fill();
+  const W = FL.halfW;
+  // ground shadow
+  rotRect(ctx, f.x + 0.08, f.y + 0.1, f.a, () => {
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(FL.back, -W, FL.front - FL.back, W * 2);
   });
+  drawWheel(ctx, f, 0, -W - 0.02, 0);
+  drawWheel(ctx, f, 0, W + 0.02, 0);
+  drawWheel(ctx, f, -FL.L, -W + 0.08, -f.steer);
+  drawWheel(ctx, f, -FL.L, W - 0.08, -f.steer);
+  // chassis, rear counterweight, hood, seat
+  block(ctx, f, FL.back, -W, FL.front, W, 0.15, 0.5, '#f9a825');
+  block(ctx, f, FL.back, -W, FL.back + 0.55, W, 0.5, 0.85, '#8d6e63');
+  block(ctx, f, -0.75, -0.4, -0.1, 0.4, 0.5, 0.62, '#37474f');
+  block(ctx, f, -1.2, -0.3, -0.85, 0.3, 0.5, 0.78, '#263238');
+  // mast uprights at the front
+  for (const s of [-1, 1]) block(ctx, f, FL.front - 0.12, s * 0.38 - 0.06, FL.front + 0.02, s * 0.38 + 0.06, 0.5, 1.5, '#555');
+  block(ctx, f, FL.front - 0.12, -0.38, FL.front + 0.02, 0.38, 1.3, 1.5, '#444');
+  // overhead guard: four posts and a roof
+  for (const px of [-1.1, -0.05]) for (const s of [-1, 1]) {
+    block(ctx, f, px - 0.04, s * 0.42 - 0.04, px + 0.04, s * 0.42 + 0.04, 0.5, 1.15, '#37474f');
+  }
+  block(ctx, f, -1.2, -0.5, 0.05, 0.5, 1.15, 1.25, '#f9a825');
+  ctx.save();
+  ctx.translate(f.x + 1.25 * PX, f.y + 1.25 * PY);
+  ctx.rotate(f.a);
+  ctx.fillStyle = '#c62828';
+  ctx.beginPath();
+  ctx.moveTo(-0.1, -0.1); ctx.lineTo(0.2, 0); ctx.lineTo(-0.1, 0.1);
+  ctx.fill();
+  ctx.restore();
 }
 
 // Tines are drawn at their own height (same parallax as box layers).
