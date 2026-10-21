@@ -65,6 +65,11 @@ function startGame() {
   last = performance.now();
 }
 
+document.getElementById('seedRandom').addEventListener('click', () => {
+  seedInput.value = String(1 + Math.floor(Math.random() * 999999));
+  seedInput.focus();
+});
+
 // Typing in the seed box must not reach the game keys; Enter there starts the game.
 seedInput.addEventListener('keydown', (e) => {
   e.stopPropagation();
