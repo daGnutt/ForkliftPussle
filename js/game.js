@@ -9,7 +9,6 @@ const MAX_LAYERS = 5;
 const BOX_POINTS = 100;
 const CRASH_POINTS = 50;
 const SQUARE_POINTS = 50;
-const ROTATE_SPEED = 1.2; // rad/s, carried boxes relative to the forklift
 const CRASH_MIN_SPEED = 0.8;
 const CRASH_COOLDOWN = 0.4;
 
@@ -172,13 +171,6 @@ function resolve(g) {
 export function update(g, input, dt) {
   const f = g.fl;
   g.time += dt;
-  if (g.carried) {
-    const d = ((input.rotR ? 1 : 0) - (input.rotL ? 1 : 0)) * ROTATE_SPEED * dt;
-    if (d) {
-      g.carriedRots = g.carriedRots.map((r) => r + d);
-      g.carriedRel += d;
-    }
-  }
   drive(f, input, dt);
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;

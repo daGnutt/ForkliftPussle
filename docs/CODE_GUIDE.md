@@ -7,7 +7,7 @@ Read this first for a map of the code. Vanilla JS ES modules + Canvas 2D, no bui
 | File | Role | Key exports |
 |------|------|-------------|
 | `js/main.js` | Browser entry: canvas setup, fixed 1/120 s loop, level persistence in `localStorage` (`forklift-level`) | – |
-| `js/input.js` | Key state (arrows, Space = brake, Q/E = rotate carried boxes) + discrete handlers (A = fork up, Z = fork down, R restart, N/Enter next, P prev) | `createInput` |
+| `js/input.js` | Key state (arrows, Space = brake) + discrete handlers (A = fork up, Z = fork down, R restart, N/Enter next, P prev) | `createInput` |
 | `js/game.js` | All state and rules; DOM-free so Node tests import it | `newGame`, `update`, `forkUp`, `forkDown`, `stackInZone`, `isSolved`, `zoneDone` |
 | `js/forklift.js` | Vehicle model (rear-wheel-steering bicycle) and geometry constants | `FL`, `makeForklift`, `drive`, `toWorld`, `toLocal` |
 | `js/level.js` | Seeded procedural level generator | `generateLevel`, `levelParams`, `COLORS`, `COLOR_NAMES` |
@@ -36,8 +36,6 @@ Dependency direction: `main` → `game`, `input`, `render`; `game` → `forklift
 - `forkDown` releases the carried stack automatically at its resting height (top of the stack below, or the floor), merging into it. Max 5 layers (`MAX_LAYERS`).
 - A zone is done only when a stack of exactly `zone.count` boxes, all of `zone.color`, is within 0.5 of it. Winning = all zones done.
 - `resolve()` runs iterative SAT: forklift shapes vs walls; forklift shapes vs stacks (mass-weighted pushing); stacks vs walls; stacks vs stacks.
-
-- While carrying, `update` rotates `carriedRots`/`carriedRel` by `ROTATE_SPEED` when `input.rotL`/`rotR` is held, so a box can be squared before release.
 
 ## Scoring (`game.js`)
 - Each box is worth 100 points; points are only deducted (score = `maxScore - lostPoints`, starts full on every `newGame`, so level load/restart resets it).

@@ -195,22 +195,6 @@ const driveUntil = (g, x, brakeAt) => {
   assert.equal(score(g), 100, 'square box keeps full points');
 }
 
-// Carried boxes can be rotated (Q/E) to square them before placing.
-{
-  const g = newGame(1);
-  flatWorld(g);
-  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0.5], a: 0.5 }];
-  const f = g.fl;
-  f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
-  driveUntil(g, 10, 8);
-  forkUp(g);
-  run(g, { rotL: true }, 0.5 / 1.2);
-  assert.ok(Math.abs(g.carriedRots[0]) < 0.02, 'rotated back to square');
-  forkDown(g);
-  assert.equal(g.carried, null);
-  assert.ok(score(g) >= 98, 'squared placement keeps points');
-}
-
 // Re-placing a crooked box squarely recovers its squareness points.
 {
   const g = newGame(1);
@@ -223,7 +207,7 @@ const driveUntil = (g, x, brakeAt) => {
   forkDown(g);
   assert.ok(score(g) <= 60, 'crooked placement');
   forkUp(g);
-  run(g, { rotL: true }, (Math.PI / 4) / 1.2);
+  f.a -= Math.PI / 4;
   forkDown(g);
   assert.ok(score(g) >= 98, 're-placed square recovers points');
 }
