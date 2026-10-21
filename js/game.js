@@ -9,6 +9,7 @@ const MAX_LAYERS = 5;
 const BOX_POINTS = 100;
 const CRASH_POINTS = 50;
 const SQUARE_POINTS = 50;
+const SQUARE_ALLOWANCE = (5 * Math.PI) / 180;
 const CRASH_MIN_SPEED = 0.8;
 const CRASH_COOLDOWN = 0.4;
 
@@ -27,11 +28,15 @@ function crash(g, pens, owner) {
   for (const p of pens) p.crash = Math.min(CRASH_POINTS, p.crash + pts);
 }
 
-// Deduction (0..SQUARE_POINTS) for a box whose world angle is a.
+// Deduction (0..SQUARE_POINTS) for a box whose world angle is a: free within
+// SQUARE_ALLOWANCE of square, then scaled and floored to steps of 5 points.
 function squareLoss(a) {
   const q = Math.PI / 2;
-  const dev = Math.abs(((a % q) + q) % q);
-  return (Math.min(dev, q - dev) / (q / 2)) * SQUARE_POINTS;
+  const m = ((a % q) + q) % q;
+  const dev = Math.min(m, q - m);
+  if (dev <= SQUARE_ALLOWANCE) return 0;
+  const t = (dev - SQUARE_ALLOWANCE) / (q / 2 - SQUARE_ALLOWANCE);
+  return Math.floor((t * SQUARE_POINTS) / 5) * 5;
 }
 
 export function maxScore(g) {

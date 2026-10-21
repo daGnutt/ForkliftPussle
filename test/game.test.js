@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateLevel } from '../js/level.js';
 import { FL } from '../js/forklift.js';
-import { newGame, update, forkUp, forkDown, stackInZone, score } from '../js/game.js';
+import { newGame, update, forkUp, forkDown, stackInZone, score, lostBreakdown } from '../js/game.js';
 
 const NONE = {};
 const run = (g, inp, secs) => { for (let i = 0; i < secs * 120; i++) update(g, inp, 1 / 120); };
@@ -210,6 +210,24 @@ const driveUntil = (g, x, brakeAt) => {
   f.a -= Math.PI / 4;
   forkDown(g);
   assert.ok(score(g) >= 98, 're-placed square recovers points');
+}
+
+// Small angle errors are free and deductions come in steps of 5.
+{
+  const place = (ang) => {
+    const g = newGame(1);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [ang], a: ang }];
+    const f = g.fl;
+    f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
+    driveUntil(g, 10, 8);
+    forkUp(g);
+    forkDown(g);
+    return lostBreakdown(g).square;
+  };
+  assert.equal(place(0.05), 0, 'within allowance');
+  for (const a of [0.2, 0.4, 0.6, 0.78]) assert.equal(place(a) % 5, 0, 'multiple of 5');
+  assert.ok(place(0.4) > 0 && place(0.4) < place(0.78));
 }
 
 console.log('all tests passed');

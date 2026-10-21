@@ -25,6 +25,6 @@ No build step. Serve the folder statically (ES modules need http): `python3 -m h
 GitHub Pages: Settings → Pages → deploy from branch, root folder.
 
 ## Scoring
-Each box starts at 100 points and points are only deducted. Crashing into boxes (or hitting a wall while carrying) costs a few points, down to 50 per box; the other 50 depend on how square a box is when you put it down; you can pick a box up and re-place it to fix its squareness (crash losses stay). The score resets on level load/restart.
+Each box starts at 100 points and points are only deducted. Crashing into boxes (or hitting a wall while carrying) costs a few points, down to 50 per box; the other 50 depend on how square a box is when you put it down (within 5° is free; deductions come in steps of 5); you can pick a box up and re-place it to fix its squareness (crash losses stay). The score resets on level load/restart.
 
 Levels are procedurally generated from the level number (deterministic). Tests: `npm test` (or `node test/game.test.js`).

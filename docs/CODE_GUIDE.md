@@ -40,7 +40,7 @@ Dependency direction: `main` → `game`, `input`, `render`; `game` → `forklift
 ## Scoring (`game.js`)
 - Each box is worth 100 points; points are only deducted (score = `maxScore - crash - square`, starts full on every `newGame`, so level load/restart resets it).
 - Crash (up to 50 per box): forklift body or carried boxes hitting a floor stack, stack-vs-stack contact, or carried boxes hitting a wall, at forklift speed ≥ 0.8 (1–5 points, 0.4 s cooldown per stack/carried group).
-- Squareness (up to 50 per box): on release in `forkDown`, deduction scales with the box's deviation from the nearest multiple of 90°; `sq` is overwritten on every placement, so re-placing a box can recover its squareness points (crash losses are permanent). `lostBreakdown(g)` returns `{crash, square}` totals; the HUD shows both under the score.
+- Squareness (up to 50 per box): on release in `forkDown`, deduction scales with the box's deviation from the nearest multiple of 90° (free within 5°, then floored to steps of 5 points); `sq` is overwritten on every placement, so re-placing a box can recover its squareness points (crash losses are permanent). `lostBreakdown(g)` returns `{crash, square}` totals; the HUD shows both under the score.
 
 ## Level generation (`level.js`)
 - Deterministic per level number via `mulberry32`; retries up to 300 attempts and falls back to level 1 if placement keeps failing.
