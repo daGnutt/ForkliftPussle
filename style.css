@@ -36,10 +36,8 @@ footer b { color: var(--accent); }
 #record input { width: 160px; padding: 6px 8px; font: inherit; color: var(--title); background: var(--input); border: 1px solid var(--border); border-radius: 4px; }
 #record button { padding: 6px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
 
-#guide { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.55); color: var(--fg); z-index: 15; }
-#guide.hide { display: none; }
-#guide > div { background: var(--splash1); padding: 20px 28px; border-radius: 8px; max-width: 560px; }
-#guide h2 { margin: 0 0 8px; color: var(--accent); }
-#guide ul { margin: 0; padding-left: 20px; line-height: 1.5; }
-#guide b { color: var(--accent); }
-#guide .press { text-align: center; margin: 14px 0 0; color: #f9a825; font-weight: bold; animation: blink 1.2s infinite; }
+#tutorial { position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); max-width: 520px; padding: 12px 20px; border-radius: 8px; text-align: center;
+  background: var(--splash1); color: var(--fg); border: 2px solid #f9a825; box-shadow: 0 4px 16px rgba(0,0,0,.5); z-index: 5; pointer-events: none; }
+#tutorial.hide { display: none; }
+#tutorial small { display: block; color: var(--accent); font-weight: bold; margin-bottom: 4px; }
+#tutorial b { color: var(--accent); }

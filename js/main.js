@@ -98,13 +98,30 @@ let splashOn = true;
 const seedInput = document.getElementById('seed');
 seedInput.value = seedText;
 
-const guide = document.getElementById('guide');
-let guideOn = false;
-function setGuide(on) {
-  guideOn = on;
-  guide.classList.toggle('hide', !on);
-  if (on) input.clear(); else last = performance.now();
+const TUTORIAL = [
+  'Use <b>↑/↓</b> to drive and <b>←/→</b> to steer (the rear wheels steer!). <b>Space</b> brakes.',
+  'Press <b>A</b> to raise the forks and <b>Z</b> to lower them.',
+  'Drive the forks under a stack, lift it, and set it down on the matching coloured zone. Then park on the marked spot.',
+];
+const tutorialEl = document.getElementById('tutorial');
+let tutStep = localStorage.getItem('forklift-tutorial-done') ? -1 : 0;
+function showTutorial() {
+  tutorialEl.classList.toggle('hide', tutStep < 0);
+  if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep]}`;
 }
+function nextTutorial() {
+  tutStep = tutStep + 1 >= TUTORIAL.length ? -1 : tutStep + 1;
+  if (tutStep < 0) localStorage.setItem('forklift-tutorial-done', '1');
+  showTutorial();
+}
+function checkTutorial() {
+  if (tutStep < 0) return;
+  const g = game;
+  if (tutStep === 0 && Math.hypot(g.fl.x - g.parking.x, g.fl.y - g.parking.y) > 0.5) nextTutorial();
+  else if (tutStep === 1 && g.H !== 0) nextTutorial();
+  else if (tutStep === 2 && countDone() > 0) nextTutorial();
+}
+showTutorial();
 
 function startGame() {
   const text = seedInput.value.trim();
@@ -117,7 +134,6 @@ function startGame() {
   view.best = getBest(localStorage, seed, level);
   splashOn = false;
   splash.classList.add('hide');
-  setGuide(true);
   seedInput.blur();
   last = performance.now();
 }
@@ -134,15 +150,10 @@ seedInput.addEventListener('keydown', (e) => {
 });
 document.getElementById('seedForm').addEventListener('submit', (e) => { e.preventDefault(); startAudio(); startGame(); });
 window.addEventListener('keydown', (e) => {
-  if (splashOn || recordOpen || e.target === seedInput) return;
-  if (guideOn) {
-    e.stopImmediatePropagation();
-    e.preventDefault();
-    if (!e.repeat && !['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) setGuide(false);
-  } else if (e.code === 'KeyH') {
-    e.stopImmediatePropagation();
-    setGuide(true);
-  }
+  if (splashOn || recordOpen || e.target === seedInput || e.code !== 'KeyH' || e.repeat) return;
+  e.stopImmediatePropagation();
+  tutStep = 0;
+  showTutorial();
 }, true);
 window.addEventListener('keydown', (e) => {
   if (!splashOn || e.target === seedInput) return;
@@ -162,10 +173,11 @@ function frame(now) {
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
   if (view.paused) acc = 0;
-  while (!splashOn && !guideOn && !view.paused && acc >= STEP) {
+  while (!splashOn && !view.paused && acc >= STEP) {
     update(game, input.state(), STEP);
     acc -= STEP;
   }
+  checkTutorial();
   checkRecord();
   const st = input.state();
   setEngine(game.fl.speed, st.up || st.down);
