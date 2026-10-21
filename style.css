@@ -15,6 +15,7 @@ footer b { color: var(--accent); }
 #splash h1 span { color: #f9a825; }
 #splash p { margin: 0; font-size: 18px; }
 #splash .press { color: #f9a825; font-weight: bold; animation: blink 1.2s infinite; }
+#splash .tip { max-width: 520px; font-size: 15px; } #splash .tip b { color: var(--accent); }
 #splash form { display: flex; gap: 8px; align-items: center; font-size: 16px; }
 #splash input { width: 160px; padding: 6px 8px; font: inherit; color: var(--title); background: var(--input); border: 1px solid var(--border); border-radius: 4px; }
 #splash input:focus { outline: 2px solid #f9a825; }
@@ -34,3 +35,11 @@ footer b { color: var(--accent); }
 #record p { margin: 0; }
 #record input { width: 160px; padding: 6px 8px; font: inherit; color: var(--title); background: var(--input); border: 1px solid var(--border); border-radius: 4px; }
 #record button { padding: 6px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
+
+#guide { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.55); color: var(--fg); z-index: 15; }
+#guide.hide { display: none; }
+#guide > div { background: var(--splash1); padding: 20px 28px; border-radius: 8px; max-width: 560px; }
+#guide h2 { margin: 0 0 8px; color: var(--accent); }
+#guide ul { margin: 0; padding-left: 20px; line-height: 1.5; }
+#guide b { color: var(--accent); }
+#guide .press { text-align: center; margin: 14px 0 0; color: #f9a825; font-weight: bold; animation: blink 1.2s infinite; }

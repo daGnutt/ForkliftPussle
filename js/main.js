@@ -7,7 +7,7 @@ import { startAudio, toggleMusic, playFork, playBlocked, playSuccess, setEngine 
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const view = { width: 0, height: 0, dpr: 1, povBig: false, showSmall: false };
+const view = { width: 0, height: 0, dpr: 1, povBig: true, showSmall: false };
 
 function resize() {
   view.dpr = window.devicePixelRatio || 1;
@@ -98,6 +98,14 @@ let splashOn = true;
 const seedInput = document.getElementById('seed');
 seedInput.value = seedText;
 
+const guide = document.getElementById('guide');
+let guideOn = false;
+function setGuide(on) {
+  guideOn = on;
+  guide.classList.toggle('hide', !on);
+  if (on) input.clear(); else last = performance.now();
+}
+
 function startGame() {
   const text = seedInput.value.trim();
   if (text !== seedText) {
@@ -109,6 +117,7 @@ function startGame() {
   view.best = getBest(localStorage, seed, level);
   splashOn = false;
   splash.classList.add('hide');
+  setGuide(true);
   seedInput.blur();
   last = performance.now();
 }
@@ -124,6 +133,17 @@ seedInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); startAudio(); startGame(); }
 });
 document.getElementById('seedForm').addEventListener('submit', (e) => { e.preventDefault(); startAudio(); startGame(); });
+window.addEventListener('keydown', (e) => {
+  if (splashOn || recordOpen || e.target === seedInput) return;
+  if (guideOn) {
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    if (!e.repeat && !['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) setGuide(false);
+  } else if (e.code === 'KeyH') {
+    e.stopImmediatePropagation();
+    setGuide(true);
+  }
+}, true);
 window.addEventListener('keydown', (e) => {
   if (!splashOn || e.target === seedInput) return;
   e.stopImmediatePropagation();
@@ -142,7 +162,7 @@ function frame(now) {
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
   if (view.paused) acc = 0;
-  while (!splashOn && !view.paused && acc >= STEP) {
+  while (!splashOn && !guideOn && !view.paused && acc >= STEP) {
     update(game, input.state(), STEP);
     acc -= STEP;
   }
