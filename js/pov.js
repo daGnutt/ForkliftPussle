@@ -163,7 +163,23 @@ export function drawPov(ctx, g, x, y, w, h) {
     const cosOff = Math.cos(off);
     const under = {};
     for (const { t, e } of hits) if (e.id && e.z0 > EYE_Z) { const q = under[e.id] || (under[e.id] = [t, t]); q[0] = Math.min(q[0], t); q[1] = Math.max(q[1], t); }
+    // undersides wait in a queue and are drawn lowest-last once the ray moves nearer than all of them,
+    // because a lower plane above the eye hides a higher one
+    let queue = [];
+    const flush = () => {
+      queue.sort((a, b) => b.e.z0 - a.e.z0);
+      for (const { e, u } of queue) {
+        const yFar = y + horizon - ((e.z0 - EYE_Z) / (u[1] * cosOff)) * f;
+        const yNear = y + horizon - ((e.z0 - EYE_Z) / (u[0] * cosOff)) * f;
+        ctx.fillStyle = e.color;
+        ctx.fillRect(x + px, yNear, COL_W, yFar - yNear);
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(x + px, yNear, COL_W, yFar - yNear);
+      }
+      queue = [];
+    };
     for (const { t, e } of hits) {
+      if (queue.length && t < Math.min(...queue.map((o) => o.t)) - 1e-6) flush();
       const d = t * cosOff;
       const yTop = y + horizon - ((e.z1 - EYE_Z) / d) * f;
       const yBot = y + horizon - ((e.z0 - EYE_Z) / d) * f;
@@ -173,13 +189,7 @@ export function drawPov(ctx, g, x, y, w, h) {
       ctx.fillStyle = `rgba(0,0,0,${dark})`;
       ctx.fillRect(x + px, yTop, COL_W, yBot - yTop);
       const u = e.id && e.z0 > EYE_Z ? under[e.id] : null;
-      if (u && t === u[1] && u[1] > u[0]) { // underside, drawn at the far edge so nearer parts overdraw it
-        const yNear = y + horizon - ((e.z0 - EYE_Z) / (u[0] * cosOff)) * f;
-        ctx.fillStyle = e.color;
-        ctx.fillRect(x + px, yNear, COL_W, yBot - yNear);
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(x + px, yNear, COL_W, yBot - yNear);
-      }
+      if (u && t === u[1] && u[1] > u[0]) queue.push({ e, u, t });
       const q = e.top && e.z1 < EYE_Z ? span[e.id] : null;
       if (q && t === q[0] && q[1] > q[0]) { // closed lid between near and far edge
         // stop at any nearer solid that the lid runs into (e.g. tines slid under a box)
@@ -198,6 +208,7 @@ export function drawPov(ctx, g, x, y, w, h) {
         ctx.fillRect(x + px, yBot - 1, COL_W, 1);
       }
     }
+    flush();
   }
   // floating labels (drawn over the walls so they stay readable): total boxes wanted per zone, hidden once the zone is done
   for (const z of g.zones) {
