@@ -186,6 +186,16 @@ export function playFork(up) {
   tone(sfxBus, up ? 90 : 70, t, dur, { type: 'square', gain: 0.05, attack: 0.02, release: 0.1, cutoff: 400 });
 }
 
+// Descending buzz when the forks are refused a move through a box.
+export function playBlocked() {
+  if (!ctx || ctx.state !== 'running') return;
+  const t = ctx.currentTime, dur = 0.35;
+  const o = tone(sfxBus, 1, t, dur, { type: 'sawtooth', gain: 0.14, attack: 0.01, release: 0.1, cutoff: 900 });
+  o.frequency.cancelScheduledValues(t);
+  o.frequency.setValueAtTime(220, t);
+  o.frequency.exponentialRampToValueAtTime(70, t + dur);
+}
+
 // Cheerful rising arpeggio when a zone is filled.
 export function playSuccess() {
   if (!ctx || ctx.state !== 'running') return;

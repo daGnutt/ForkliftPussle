@@ -12,6 +12,7 @@ const SQUARE_POINTS = 50;
 const SQUARE_ALLOWANCE = (5 * Math.PI) / 180;
 const CRASH_MIN_SPEED = 0.8;
 const CRASH_COOLDOWN = 0.4;
+const FORK_BLOCK_POINTS = 10;
 
 const newPen = () => ({ crash: 0, sq: 0 });
 
@@ -240,8 +241,15 @@ export function forkUp(g) {
   g.H = Math.min(MAX_H, g.H + 1);
 }
 
+// Lowering empty forks through a box is refused ('blocked') and damages that box.
 export function forkDown(g) {
   if (!g.carried) {
+    const S = g.H > 0 ? stackInZone(g) : null;
+    if (S && S.layers.length >= g.H) {
+      ensure(S);
+      S.pen[g.H - 1].crash = Math.min(CRASH_POINTS, S.pen[g.H - 1].crash + FORK_BLOCK_POINTS);
+      return 'blocked';
+    }
     g.H = Math.max(0, g.H - 1);
     return;
   }

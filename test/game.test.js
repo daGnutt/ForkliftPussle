@@ -264,3 +264,22 @@ const driveUntil = (g, x, brakeAt) => {
 }
 
 console.log('all tests passed');
+
+// Lowering empty forks through a box is blocked and damages the box under the forks.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1] }];
+  const f = g.fl;
+  f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
+  driveUntil(g, 10, 8);
+  g.H = 2;
+  assert.equal(forkDown(g), 'blocked');
+  assert.equal(g.H, 2, 'forks stay put');
+  assert.equal(g.stacks[0].pen[1].crash, 10, 'box under the forks is damaged');
+  assert.equal(g.stacks[0].pen[0].crash, 0);
+  g.H = 3;
+  assert.equal(forkDown(g), undefined, 'free to lower above the stack');
+  assert.equal(g.H, 2);
+  console.log('fork-blocked ok');
+}

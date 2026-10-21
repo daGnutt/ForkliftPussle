@@ -1,7 +1,7 @@
 import { newGame, update, forkUp, forkDown, zoneDone } from './game.js';
 import { createInput } from './input.js';
 import { draw } from './render.js';
-import { startAudio, toggleMusic, playFork, playSuccess, setEngine } from './audio.js';
+import { startAudio, toggleMusic, playFork, playBlocked, playSuccess, setEngine } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -33,7 +33,11 @@ const input = createInput({
   anyKey: startAudio,
   mute: toggleMusic,
   up: () => { const h = game.H; forkUp(game); if (game.H !== h) playFork(true); },
-  down: () => { const h = game.H; forkDown(game); if (game.H !== h) playFork(false); },
+  down: () => {
+    const h = game.H;
+    if (forkDown(game) === 'blocked') playBlocked();
+    else if (game.H !== h) playFork(false);
+  },
   restart: () => load(level),
   next: (code) => { if (code === 'Enter' ? game.status === 'won' : true) load(level + 1); },
   prev: () => load(level - 1),
