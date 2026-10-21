@@ -7,7 +7,7 @@ const EYE_X = -0.5; // cabin seat, local x (origin at the front axle)
 const EYE_Z = 1.45; // eye height in box units
 const WALL_H = 3;
 const BOX_H = 0.5; // drawn box height in the first-person view (footprint stays 1×1)
-const HFOV = (110 * Math.PI) / 180;
+const HFOV = Math.PI / 2;
 const COL_W = 2;
 const MAX_DIST = 30;
 
@@ -124,7 +124,7 @@ export function drawPov(ctx, g, x, y, w, h) {
   ctx.beginPath();
   ctx.rect(x, y, w, h);
   ctx.clip();
-  const horizon = h * 0.4;
+  const horizon = h * 0.35;
   const sky = ctx.createLinearGradient(0, y, 0, y + horizon);
   sky.addColorStop(0, theme().skyTop);
   sky.addColorStop(1, theme().skyBottom);
