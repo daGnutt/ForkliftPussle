@@ -184,9 +184,9 @@ function drawTines(ctx, g) {
   rotRect(ctx, f.x, f.y, f.a, () => {
     for (const s of [-1, 1]) {
       const y = s * FL.tineOff - FL.tineHalf;
-      ctx.fillStyle = '#b0b0b0';
+      ctx.fillStyle = theme().tine;
       ctx.fillRect(FL.tineX0, y, FL.tineX1 - FL.tineX0, FL.tineHalf * 2);
-      ctx.strokeStyle = '#333';
+      ctx.strokeStyle = theme().tineEdge;
       ctx.lineWidth = 0.03;
       ctx.strokeRect(FL.tineX0, y, FL.tineX1 - FL.tineX0, FL.tineHalf * 2);
     }
