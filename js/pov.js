@@ -41,12 +41,13 @@ function floorQuad(ctx, eye, ang, f, cx, cy, pts, fill, stroke) {
 
 const PAL = 0.1; // pallet / tine thickness
 
-function rectEdges(x, y, a, hl, hw, z0, z1, color, edges) {
+function rectEdges(x, y, a, hl, hw, z0, z1, color, edges, top = false) {
+  const id = (edges.nid = (edges.nid || 0) + 1);
   const c = Math.cos(a), s = Math.sin(a);
   const p = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([u, v]) => [x + u * c - v * s, y + u * s + v * c]);
   for (let i = 0; i < 4; i++) {
     const q = p[i], r = p[(i + 1) % 4];
-    edges.push({ x1: q[0], y1: q[1], x2: r[0], y2: r[1], z0, z1, color, shade: 0.75 + 0.25 * Math.abs(Math.cos(Math.atan2(r[1] - q[1], r[0] - q[0]))) });
+    edges.push({ x1: q[0], y1: q[1], x2: r[0], y2: r[1], z0, z1, color, id, top, shade: 0.75 + 0.25 * Math.abs(Math.cos(Math.atan2(r[1] - q[1], r[0] - q[0]))) });
   }
 }
 
@@ -56,7 +57,7 @@ function stackEdges(x, y, rots, layers, level, edges) {
   layers.forEach((c, i) => {
     const z = (level + i) * (1 + PAL), r = rots[i] ?? 0;
     rectEdges(x, y, r, 0.5, 0.5, z, z + PAL, '#9a7040', edges);
-    rectEdges(x, y, r, 0.5, 0.5, z + PAL, z + 1 + PAL, COLORS[c], edges);
+    rectEdges(x, y, r, 0.5, 0.5, z + PAL, z + 1 + PAL, COLORS[c], edges, i === layers.length - 1);
   });
 }
 
@@ -76,7 +77,7 @@ function buildEdges(g) {
   const len = (FL.tineX1 - FL.tineX0) / 2;
   for (const side of [-1, 1]) {
     const t = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, side * FL.tineOff);
-    rectEdges(t.x, t.y, g.fl.a, len, FL.tineHalf, g.hf * (1 + PAL), g.hf * (1 + PAL) + PAL, '#b0b4ba', edges);
+    rectEdges(t.x, t.y, g.fl.a, len, FL.tineHalf, g.hf * (1 + PAL), g.hf * (1 + PAL) + PAL, '#b0b4ba', edges, true);
   }
   return edges;
 }
@@ -126,7 +127,9 @@ export function drawPov(ctx, g, x, y, w, h) {
       const t = rayHit(eye.x, eye.y, dx, dy, e);
       if (t > 0 && t < MAX_DIST) hits.push({ t, e });
     }
-    hits.sort((a, b) => b.t - a.t); // far to near
+    hits.sort((a, b) => (Math.abs(a.t - b.t) > 1e-6 ? b.t - a.t : a.e.z0 - b.e.z0)); // far to near
+    const span = {};
+    for (const { t, e } of hits) if (e.top) { const q = span[e.id] || (span[e.id] = [t, t]); q[0] = Math.min(q[0], t); q[1] = Math.max(q[1], t); }
     const cosOff = Math.cos(off);
     for (const { t, e } of hits) {
       const d = t * cosOff;
@@ -137,6 +140,14 @@ export function drawPov(ctx, g, x, y, w, h) {
       const dark = Math.min(0.75, d / 14) + (1 - e.shade) * 0.6;
       ctx.fillStyle = `rgba(0,0,0,${dark})`;
       ctx.fillRect(x + px, yTop, COL_W, yBot - yTop);
+      const q = e.top && e.z1 < EYE_Z ? span[e.id] : null;
+      if (q && t === q[0] && q[1] > q[0]) { // closed lid between near and far edge
+        const yFar = y + horizon - ((e.z1 - EYE_Z) / (q[1] * cosOff)) * f;
+        ctx.fillStyle = e.color;
+        ctx.fillRect(x + px, yFar, COL_W, yTop - yFar);
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(x + px, yFar, COL_W, yTop - yFar);
+      }
       if (e.color && Math.abs(e.z1 - e.z0 - 1) < 1e-6 && e.color !== '#9a7040') { // box seams
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(x + px, yBot - 1, COL_W, 1);
