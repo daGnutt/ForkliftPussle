@@ -7,7 +7,7 @@ Read this first for a map of the code. Vanilla JS ES modules + Canvas 2D, no bui
 | File | Role | Key exports |
 |------|------|-------------|
 | `js/main.js` | Browser entry: canvas setup, fixed 1/120 s loop, level persistence in `localStorage` (`forklift-level`) | – |
-| `js/input.js` | Key state (arrows, Space = brake) + discrete handlers (A = fork up, Z = fork down, R restart, F swap big cabin view / small overview, N/Enter next, P prev, G go to level via prompt) | `createInput` |
+| `js/input.js` | Key state (arrows, Space = brake) + discrete handlers (A = fork up, Z = fork down, R restart, F swap big cabin view / overview, C show/hide the small corner window (`view.showSmall`, default off), N/Enter next, P prev, G go to level via prompt) | `createInput` |
 | `js/game.js` | All state and rules; DOM-free so Node tests import it | `newGame`, `update`, `forkUp`, `forkDown`, `stackInZone`, `isSolved`, `zoneDone` |
 | `js/forklift.js` | Vehicle model (rear-wheel-steering bicycle) and geometry constants | `FL`, `makeForklift`, `drive`, `toWorld`, `toLocal` |
 | `js/level.js` | Seeded procedural level generator | `generateLevel`, `parseSeed`, `levelParams`, `COLORS`, `COLOR_NAMES` |

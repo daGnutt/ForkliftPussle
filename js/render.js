@@ -287,28 +287,30 @@ export function draw(ctx, g, view) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#1b1f23';
   ctx.fillRect(0, 0, width, height);
-  const POV_W = 300, POV_H = 170, hx0 = 20 + POV_W + 16;
+  const POV_W = 300, POV_H = 170, hx0 = view.showSmall ? 20 + POV_W + 16 : 20;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   if (view.povBig) {
     drawPov(ctx, g, 0, 0, width, height);
-    ctx.fillStyle = '#1b1f23';
-    ctx.fillRect(10, 10, POV_W, POV_H);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(10, 10, POV_W, POV_H);
-    ctx.clip();
-    drawOverview(ctx, g, view, 10, 10, POV_W, POV_H, 48);
-    ctx.restore();
-    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-    ctx.strokeStyle = '#111';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(10, 10, POV_W, POV_H);
+    if (view.showSmall) {
+      ctx.fillStyle = '#1b1f23';
+      ctx.fillRect(10, 10, POV_W, POV_H);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(10, 10, POV_W, POV_H);
+      ctx.clip();
+      drawOverview(ctx, g, view, 10, 10, POV_W, POV_H, 48);
+      ctx.restore();
+      ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(10, 10, POV_W, POV_H);
+    }
     ctx.fillStyle = 'rgba(0,0,0,0.45)';
     ctx.fillRect(hx0 - 8, 8, 560, 94);
   } else {
     drawOverview(ctx, g, view, 20, 50, width - 40, height - 70, 48);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-    drawPov(ctx, g, 10, 10, POV_W, POV_H);
+    if (view.showSmall) drawPov(ctx, g, 10, 10, POV_W, POV_H);
   }
   // screen-space HUD
   const done = g.zones.filter((z) => zoneDone(g, z)).length;

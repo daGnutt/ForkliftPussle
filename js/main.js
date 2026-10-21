@@ -6,7 +6,7 @@ import { startAudio, toggleMusic, playFork, playBlocked, playSuccess, setEngine 
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const view = { width: 0, height: 0, dpr: 1, povBig: false };
+const view = { width: 0, height: 0, dpr: 1, povBig: false, showSmall: false };
 
 function resize() {
   view.dpr = window.devicePixelRatio || 1;
@@ -35,6 +35,7 @@ function load(n) {
 const input = createInput({
   anyKey: startAudio,
   mute: toggleMusic,
+  toggleSmall: () => { view.showSmall = !view.showSmall; },
   swapView: () => { view.povBig = !view.povBig; },
   up: () => { const h = game.H; forkUp(game); if (game.H !== h) playFork(true); },
   down: () => {
