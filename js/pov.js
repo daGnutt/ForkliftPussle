@@ -58,12 +58,11 @@ function rectEdges(x, y, a, hl, hw, z0, z1, color, edges, top = false) {
 function stackEdges(x, y, rots, layers, level, edges, heading) {
   layers.forEach((c, i) => {
     const z = (level + i) * (BOX_H + PAL), r = rots[i] ?? 0;
-    // runners point along the box axis closest to the forklift heading, leaving gaps for the tines
-    const rel = heading - r;
-    const pr = Math.abs(Math.cos(rel)) >= Math.abs(Math.sin(rel)) ? r : r + Math.PI / 2;
-    const cp = Math.cos(pr), sp = Math.sin(pr);
-    for (const [off, hw] of [[0, 0.2], [-0.45, 0.05], [0.45, 0.05]]) {
-      rectEdges(x - sp * off, y + cp * off, pr, 0.5, hw, z, z + PAL, '#9a7040', edges);
+    // centre block plus corner blocks: tine openings on all four sides
+    const cr = Math.cos(r), sr = Math.sin(r);
+    rectEdges(x, y, r, 0.2, 0.2, z, z + PAL, '#9a7040', edges);
+    for (const [u, v] of [[-0.4, -0.4], [0.4, -0.4], [0.4, 0.4], [-0.4, 0.4]]) {
+      rectEdges(x + u * cr - v * sr, y + u * sr + v * cr, r, 0.1, 0.1, z, z + PAL, '#9a7040', edges);
     }
     rectEdges(x, y, r, 0.5, 0.5, z + PAL, z + BOX_H + PAL, COLORS[c], edges, i === layers.length - 1);
   });
