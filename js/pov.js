@@ -8,13 +8,21 @@ const HFOV = Math.PI / 2;
 const COL_W = 2;
 const MAX_DIST = 30;
 
-function boxEdges(x, y, a, z0, z1, color, edges) {
-  const h = 0.5, c = Math.cos(a), s = Math.sin(a);
-  const p = [[-h, -h], [h, -h], [h, h], [-h, h]].map(([u, v]) => [x + u * c - v * s, y + u * s + v * c]);
+const PAL = 0.1; // pallet / tine thickness
+
+function rectEdges(x, y, a, hl, hw, z0, z1, color, edges) {
+  const c = Math.cos(a), s = Math.sin(a);
+  const p = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([u, v]) => [x + u * c - v * s, y + u * s + v * c]);
   for (let i = 0; i < 4; i++) {
     const q = p[i], r = p[(i + 1) % 4];
     edges.push({ x1: q[0], y1: q[1], x2: r[0], y2: r[1], z0, z1, color, shade: 0.75 + 0.25 * Math.abs(Math.cos(Math.atan2(r[1] - q[1], r[0] - q[0]))) });
   }
+}
+
+// A stack of boxes standing on a small pallet whose underside is at height z.
+function stackEdges(x, y, rots, layers, z, edges) {
+  rectEdges(x, y, rots[0] ?? 0, 0.5, 0.5, z, z + PAL, '#9a7040', edges);
+  layers.forEach((c, i) => rectEdges(x, y, rots[i] ?? 0, 0.5, 0.5, z + PAL + i, z + PAL + i + 1, COLORS[c], edges));
 }
 
 function buildEdges(g) {
@@ -25,12 +33,15 @@ function buildEdges(g) {
       edges.push({ x1, y1, x2, y2, z0: 0, z1: WALL_H, color: null, shade: y1 === y2 ? 1 : 0.8 });
     }
   }
-  for (const st of g.stacks) {
-    st.layers.forEach((c, i) => boxEdges(st.x, st.y, st.rots?.[i] ?? st.a ?? 0, i, i + 1, COLORS[c], edges));
-  }
+  for (const st of g.stacks) stackEdges(st.x, st.y, st.rots || [], st.layers, 0, edges);
   if (g.carried) {
     const p = toWorld(g.fl, FL.carryX, 0);
-    g.carried.forEach((c, i) => boxEdges(p.x, p.y, (g.carriedRots?.[i] ?? 0) + g.fl.a, g.hf + i, g.hf + i + 1, COLORS[c], edges));
+    stackEdges(p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, edges);
+  }
+  const len = (FL.tineX1 - FL.tineX0) / 2;
+  for (const side of [-1, 1]) {
+    const t = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, side * FL.tineOff);
+    rectEdges(t.x, t.y, g.fl.a, len, FL.tineHalf, g.hf, g.hf + PAL, '#b0b4ba', edges);
   }
   return edges;
 }
@@ -85,7 +96,7 @@ export function drawPov(ctx, g, x, y, w, h) {
       const dark = Math.min(0.75, d / 14) + (1 - e.shade) * 0.6;
       ctx.fillStyle = `rgba(0,0,0,${dark})`;
       ctx.fillRect(x + px, yTop, COL_W, yBot - yTop);
-      if (e.color && e.z1 - e.z0 === 1) { // box seams
+      if (e.color && Math.abs(e.z1 - e.z0 - 1) < 1e-6 && e.color !== '#9a7040') { // box seams
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(x + px, yBot - 1, COL_W, 1);
       }
@@ -100,5 +111,5 @@ export function drawPov(ctx, g, x, y, w, h) {
   ctx.font = '10px sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('CABIN VIEW', x + 6, y + 5);
+  ctx.fillText('CABIN VIEW  (F: swap)', x + 6, y + 5);
 }
