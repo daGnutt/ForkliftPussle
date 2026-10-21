@@ -10,37 +10,37 @@ function rotRect(ctx, cx, cy, a, fn) {
   ctx.restore();
 }
 
-// Draws a stack: top box colour, plus a coloured number for each box below it.
-function drawStack(ctx, layers, x, y, lift = 0) {
+const PX = 0.042, PY = -0.07; // screen shift per unit of height
+
+// Draws a stack whose bottom box is at height z0 above the floor: top box
+// colour, plus a coloured number for each box below it.
+function drawStack(ctx, layers, x, y, z0 = 0) {
   const n = layers.length;
   const size = 1;
-  const off = 0.07;
-  if (lift > 0) {
+  if (z0 > 0) {
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.fillRect(x - size / 2 + 0.1, y - size / 2 + 0.1, size, size);
   }
-  const lx = x - lift * 0.04, ly = y - lift * 0.04;
+  let bx = 0, by = 0;
   for (let i = 0; i < n; i++) {
-    const bx = lx - size / 2 + i * off * 0.6, by = ly - size / 2 - i * off;
+    bx = x - size / 2 + (z0 + i) * PX;
+    by = y - size / 2 + (z0 + i) * PY;
     ctx.fillStyle = COLORS[layers[i]];
     ctx.fillRect(bx, by, size, size);
     ctx.strokeStyle = 'rgba(0,0,0,0.65)';
     ctx.lineWidth = 0.05;
     ctx.strokeRect(bx, by, size, size);
-    if (i === n - 1) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-      ctx.lineWidth = 0.04;
-      ctx.strokeRect(bx + 0.12, by + 0.12, size - 0.24, size - 0.24);
-    }
   }
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 0.04;
+  ctx.strokeRect(bx + 0.12, by + 0.12, size - 0.24, size - 0.24);
   if (n > 1) {
-    const tx = lx - size / 2 + (n - 1) * off * 0.6, ty = ly - size / 2 - (n - 1) * off;
     ctx.font = 'bold 0.34px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (let i = 0; i < n - 1; i++) {
       const col = i % 2, row = Math.floor(i / 2);
-      const px = tx + 0.3 + col * 0.4, py = ty + 0.3 + row * 0.4;
+      const px = bx + 0.3 + col * 0.4, py = by + 0.3 + row * 0.4;
       ctx.lineWidth = 0.1;
       ctx.strokeStyle = '#000';
       ctx.strokeText(String(i + 1), px, py);
@@ -59,48 +59,57 @@ function drawWheel(ctx, lx, ly, ang) {
   ctx.restore();
 }
 
-function drawForklift(ctx, g) {
+function drawForkliftBody(ctx, g) {
   const f = g.fl;
   rotRect(ctx, f.x, f.y, f.a, () => {
-    // wheels
     drawWheel(ctx, 0, -FL.halfW - 0.02, 0);
     drawWheel(ctx, 0, FL.halfW + 0.02, 0);
     drawWheel(ctx, -FL.L, -FL.halfW + 0.08, -f.steer);
     drawWheel(ctx, -FL.L, FL.halfW - 0.08, -f.steer);
-    // body
     ctx.fillStyle = '#f9a825';
     ctx.fillRect(FL.back, -FL.halfW, FL.front - FL.back, FL.halfW * 2);
     ctx.strokeStyle = '#6d4c00';
     ctx.lineWidth = 0.05;
     ctx.strokeRect(FL.back, -FL.halfW, FL.front - FL.back, FL.halfW * 2);
-    // counterweight
     ctx.fillStyle = '#555';
     ctx.fillRect(FL.back, -FL.halfW + 0.05, 0.4, FL.halfW * 2 - 0.1);
-    // seat & overhead guard
     ctx.fillStyle = '#37474f';
     ctx.fillRect(-0.9, -0.28, 0.5, 0.56);
     ctx.strokeStyle = '#222';
     ctx.lineWidth = 0.06;
     ctx.strokeRect(-1.1, -0.45, 1.0, 0.9);
-    // mast
     ctx.fillStyle = '#444';
     ctx.fillRect(FL.front - 0.08, -0.42, 0.16, 0.84);
-    // tines (shade shows fork height)
-    const shade = Math.round(150 + g.hf * 20);
-    ctx.fillStyle = `rgb(${shade},${shade},${shade})`;
-    for (const s of [-1, 1]) {
-      ctx.fillRect(FL.tineX0, s * FL.tineOff - FL.tineHalf, FL.tineX1 - FL.tineX0, FL.tineHalf * 2);
-    }
-    // direction marker
     ctx.fillStyle = '#c62828';
     ctx.beginPath();
     ctx.moveTo(-0.1, -0.1); ctx.lineTo(0.2, 0); ctx.lineTo(-0.1, 0.1);
     ctx.fill();
   });
-  if (g.carried) {
-    const p = toWorld(f, FL.carryX, 0);
-    drawStack(ctx, g.carried, p.x, p.y, g.hf);
-  }
+}
+
+// Tines are drawn at their own height (same parallax as box layers).
+function drawTines(ctx, g) {
+  const f = g.fl;
+  const z = Math.max(0, g.hf - 0.5);
+  ctx.save();
+  ctx.translate(z * PX, z * PY);
+  rotRect(ctx, f.x, f.y, f.a, () => {
+    for (const s of [-1, 1]) {
+      const y = s * FL.tineOff - FL.tineHalf;
+      ctx.fillStyle = '#b0b0b0';
+      ctx.fillRect(FL.tineX0, y, FL.tineX1 - FL.tineX0, FL.tineHalf * 2);
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 0.03;
+      ctx.strokeRect(FL.tineX0, y, FL.tineX1 - FL.tineX0, FL.tineHalf * 2);
+    }
+  });
+  ctx.restore();
+}
+
+function drawCarried(ctx, g) {
+  if (!g.carried) return;
+  const p = toWorld(g.fl, FL.carryX, 0);
+  drawStack(ctx, g.carried, p.x, p.y, Math.max(0, g.hf - 0.5));
 }
 
 export function draw(ctx, g, view) {
@@ -139,8 +148,15 @@ export function draw(ctx, g, view) {
     ctx.fillText(`×${z.count}`, z.x, z.y + 0.78);
   }
 
-  for (const st of g.stacks) drawStack(ctx, st.layers, st.x, st.y);
-  drawForklift(ctx, g);
+  // Stacks whose top is below the tines are drawn first; stacks the tines
+  // slide under are drawn over them.
+  const low = g.stacks.filter((st) => st.layers.length + 0.5 <= g.hf);
+  const high = g.stacks.filter((st) => st.layers.length + 0.5 > g.hf);
+  for (const st of low) drawStack(ctx, st.layers, st.x, st.y);
+  drawForkliftBody(ctx, g);
+  drawTines(ctx, g);
+  for (const st of high) drawStack(ctx, st.layers, st.x, st.y);
+  drawCarried(ctx, g);
 
   ctx.fillStyle = '#3b3f45';
   for (const w of g.pillars) {
@@ -162,29 +178,31 @@ export function draw(ctx, g, view) {
   ctx.textBaseline = 'middle';
   ctx.fillText(`Level ${g.level}   Zones ${done}/${g.zones.length}   ${g.time.toFixed(0)}s`, 20, 25);
 
-  // fork height gauge
+  // fork height gauge: 5 box layers (0.5 .. 5.5); the bar marks the tines
   const gx = width - 70, gy = 70, cell = 26;
+  const yOf = (h) => gy + (5.5 - h) * cell;
   ctx.font = '12px sans-serif';
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.fillStyle = '#aaa';
   ctx.fillText('FORKS', gx + 15, gy - 12);
-  for (let lvl = 5; lvl >= 0; lvl--) {
-    const y = gy + (5 - lvl) * cell;
+  for (let lvl = 5; lvl >= 1; lvl--) {
+    const y = yOf(lvl + 0.5);
     ctx.strokeStyle = '#666';
     ctx.lineWidth = 1;
     ctx.strokeRect(gx, y, 30, cell - 2);
     ctx.fillStyle = '#aaa';
     ctx.fillText(String(lvl), gx - 10, y + cell / 2);
-    if (g.carried && lvl >= g.T && lvl < g.T + g.carried.length) {
-      ctx.fillStyle = COLORS[g.carried[lvl - g.T]];
-      ctx.fillRect(gx + 3, y + 3, 24, cell - 8);
-    }
-    if (lvl === g.T) {
-      ctx.strokeStyle = '#f9a825';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(gx - 3, y - 2, 36, cell + 2);
-    }
   }
+  if (g.carried) {
+    g.carried.forEach((c, i) => {
+      ctx.fillStyle = COLORS[c];
+      ctx.fillRect(gx + 3, yOf(g.H + i + 1) + 3, 24, cell - 8);
+    });
+  }
+  ctx.fillStyle = '#f9a825';
+  ctx.fillRect(gx - 4, yOf(g.H) - 2, 38, 4);
+  ctx.fillText(g.H.toFixed(1), gx + 15, yOf(0) + 22);
 
   if (g.status === 'won') {
     ctx.fillStyle = 'rgba(0,0,0,0.65)';

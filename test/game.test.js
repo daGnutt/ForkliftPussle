@@ -41,41 +41,59 @@ for (let n = 1; n <= 40; n++) {
   assert.ok(f.x > 0 && f.x < 4, 'stopped by wall');
 }
 
-// Pick up, carry, stack onto another, then drop to floor.
+const flatWorld = (g) => { g.zones = []; g.walls = g.walls.slice(0, 4); };
+const driveUntil = (g, x, brakeAt) => {
+  const f = g.fl;
+  while (f.x + FL.carryX < x) update(g, { up: true, brake: f.speed > 1 && f.x > brakeAt }, 1 / 120);
+  run(g, { brake: true }, 0.8);
+};
+
+// Pick up (tines at floor gap 0.5), carry high over a stack, merge, then split again.
 {
   const g = newGame(1);
-  g.zones = [];
-  g.walls = g.walls.filter((w) => w.x < 0 || w.y < 0 || w.x >= g.w || w.y >= g.h);
-  g.walls = g.walls.slice(0, 4);
+  flatWorld(g);
   g.stacks = [{ x: 10, y: 5, layers: [0] }, { x: 14, y: 5, layers: [1, 2] }];
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
-  run(g, { up: true }, 2.2);
-  run(g, { brake: true }, 0.8);
+  forkUp(g, true);
+  assert.equal(g.H, 0.5);
+  driveUntil(g, 10, 8);
   assert.ok(stackInZone(g), 'stack in fork zone');
   forkUp(g);
   assert.deepEqual(g.carried, [0]);
-  assert.equal(g.T, 1);
-  forkUp(g); forkUp(g); forkUp(g);
-  assert.equal(g.T, 4);
-  // drive to the 2-stack with forks above it (top = 4 + 1 - 1 = 4 <= 5)
-  while (f.x + FL.carryX < 13.9) update(g, { up: true, brake: f.speed > 1 && f.x > 12.4 }, 1 / 120);
-  run(g, { brake: true }, 0.8);
+  assert.equal(g.H, 1.5);
+  forkUp(g); forkUp(g);
+  assert.equal(g.H, 3.5);
+  driveUntil(g, 13.9, 12.4);
   assert.equal(g.stacks[0].layers.length, 2);
-  assert.ok(Math.abs(g.stacks[0].x - 14) < 0.05, 'high forks do not push low stack');
+  assert.ok(Math.abs(g.stacks[0].x - 14) < 0.05, 'high forks pass over low stack');
   forkDown(g);
-  assert.equal(g.T, 3);
+  assert.equal(g.H, 2.5);
   forkDown(g);
   assert.equal(g.carried, null, 'merged onto stack at rest height');
   assert.deepEqual(g.stacks[0].layers, [1, 2, 0]);
-  // split: forks at 3 reach under layer 3
-  assert.equal(g.T, 3);
   forkUp(g);
   assert.deepEqual(g.carried, [0]);
   assert.deepEqual(g.stacks[0].layers, [1, 2]);
 }
 
-// Pushing at fork height 1.
+// Destack: tines in the gap under layer 2 lift layers 2..n.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1, 2] }];
+  const f = g.fl;
+  f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
+  forkUp(g, true); forkUp(g);
+  assert.equal(g.H, 1.5);
+  driveUntil(g, 10, 8);
+  forkUp(g);
+  assert.deepEqual(g.carried, [1, 2]);
+  assert.deepEqual(g.stacks[0].layers, [0]);
+  assert.equal(g.H, 2.5);
+}
+
+// Tines at an integer height are inside a box layer: they push the stack.
 {
   const g = newGame(1);
   g.zones = [];
@@ -83,7 +101,7 @@ for (let n = 1; n <= 40; n++) {
   const f = g.fl;
   f.x = 5; f.y = 5; f.a = 0;
   forkUp(g);
-  assert.equal(g.T, 1);
+  assert.equal(g.H, 1);
   run(g, { up: true }, 1.5);
   assert.ok(g.stacks[0].x > 9.5, 'stack pushed');
 }

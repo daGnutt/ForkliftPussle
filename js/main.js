@@ -26,8 +26,8 @@ function load(n) {
 }
 
 const input = createInput({
-  up: () => forkUp(game),
-  down: () => forkDown(game),
+  up: (half) => forkUp(game, half),
+  down: (half) => forkDown(game, half),
   restart: () => load(level),
   next: (code) => { if (code === 'Enter' ? game.status === 'won' : true) load(level + 1); },
   prev: () => load(level - 1),
