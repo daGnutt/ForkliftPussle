@@ -1,4 +1,5 @@
 import { COLORS } from './level.js';
+import { theme } from './theme.js';
 import { FL, toWorld } from './forklift.js';
 import { zoneDone, isSolved, scoreEnough, isParked } from './game.js';
 
@@ -112,13 +113,13 @@ export function drawPov(ctx, g, x, y, w, h) {
   ctx.clip();
   const horizon = h * 0.4;
   const sky = ctx.createLinearGradient(0, y, 0, y + horizon);
-  sky.addColorStop(0, '#2b3038');
-  sky.addColorStop(1, '#4a505a');
+  sky.addColorStop(0, theme().skyTop);
+  sky.addColorStop(1, theme().skyBottom);
   ctx.fillStyle = sky;
   ctx.fillRect(x, y, w, horizon);
   const floor = ctx.createLinearGradient(0, y + horizon, 0, y + h);
-  floor.addColorStop(0, '#8a867c');
-  floor.addColorStop(1, '#c9c4b8');
+  floor.addColorStop(0, theme().floorFar);
+  floor.addColorStop(1, theme().floor);
   ctx.fillStyle = floor;
   ctx.fillRect(x, y + horizon, w, h - horizon);
 

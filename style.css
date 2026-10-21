@@ -1,18 +1,22 @@
-html, body { margin: 0; height: 100%; background: #1b1f23; overflow: hidden; font-family: sans-serif; }
+html, body { --bg: #e8e6e1; --bar: #d6d3cc; --fg: #333; --accent: #b36b00; --splash1: #fff; --splash2: #cfcbc2; --title: #222; --shadow: #bbb; --input: #fff; --border: #999; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  html, body { --bg: #1b1f23; --bar: #111; --fg: #ccc; --accent: #f9a825; --splash1: #2b3138; --splash2: #111; --title: #eee; --shadow: #000; --input: #1b1f24; --border: #555; color-scheme: dark; }
+}
+html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; font-family: sans-serif; }
 body { display: flex; flex-direction: column; }
 canvas { flex: 1; width: 100%; min-height: 0; display: block; }
-footer { color: #ccc; padding: 8px 16px; font-size: 14px; background: #111; text-align: center; }
-footer b { color: #f9a825; }
+footer { color: var(--fg); padding: 8px 16px; font-size: 14px; background: var(--bar); text-align: center; }
+footer b { color: var(--accent); }
 
 #splash { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
-  background: radial-gradient(circle at 50% 40%, #2b3138, #111 75%); color: #ddd; z-index: 10; transition: opacity .4s; text-align: center; }
+  background: radial-gradient(circle at 50% 40%, var(--splash1), var(--splash2) 75%); color: var(--fg); z-index: 10; transition: opacity .4s; text-align: center; }
 #splash.hide { opacity: 0; pointer-events: none; }
-#splash h1 { margin: 0; font-size: clamp(40px, 9vw, 96px); font-style: italic; letter-spacing: 2px; text-transform: uppercase; color: #eee; text-shadow: 0 4px 0 #000; }
+#splash h1 { margin: 0; font-size: clamp(40px, 9vw, 96px); font-style: italic; letter-spacing: 2px; text-transform: uppercase; color: var(--title); text-shadow: 0 4px 0 var(--shadow); }
 #splash h1 span { color: #f9a825; }
 #splash p { margin: 0; font-size: 18px; }
 #splash .press { color: #f9a825; font-weight: bold; animation: blink 1.2s infinite; }
 #splash form { display: flex; gap: 8px; align-items: center; font-size: 16px; }
-#splash input { width: 160px; padding: 6px 8px; font: inherit; color: #eee; background: #1b1f24; border: 1px solid #555; border-radius: 4px; }
+#splash input { width: 160px; padding: 6px 8px; font: inherit; color: var(--title); background: var(--input); border: 1px solid var(--border); border-radius: 4px; }
 #splash input:focus { outline: 2px solid #f9a825; }
 #splash button { padding: 6px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
 #splash button svg { display: block; }
