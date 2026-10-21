@@ -10,7 +10,7 @@ function rotRect(ctx, cx, cy, a, fn) {
   ctx.restore();
 }
 
-const PX = 0.042, PY = -0.07; // screen shift per unit of height
+const PX = 0.06, PY = -0.1; // screen shift per unit of height
 
 // Draws a stack whose bottom box is at height z0 above the floor: top box
 // colour, plus a coloured number for each box below it.
@@ -31,11 +31,41 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = []) {
   const cx = x + (z0 + n - 1) * PX, cy = y + (z0 + n - 1) * PY;
   for (let i = 0; i < n; i++) {
     at(x + (z0 + i) * PX, y + (z0 + i) * PY, i, () => {
-      ctx.fillStyle = COLORS[layers[i]];
+      const col = COLORS[layers[i]];
+      const a = rots[i] || 0, ca = Math.cos(a), sa = Math.sin(a);
+      // extrusion towards the floor, expressed in the box's local frame
+      const ex = -PX * ca - PY * sa, ey = PX * sa - PY * ca;
+      const edges = [[0, -1, -h, -h, h, -h], [1, 0, h, -h, h, h], [0, 1, h, h, -h, h], [-1, 0, -h, h, -h, -h]];
+      ctx.lineJoin = 'round';
+      for (const [nx, ny, x1, y1, x2, y2] of edges) {
+        if (nx * ex + ny * ey <= 0) continue;
+        const wx = nx * ca - ny * sa, wy = nx * sa + ny * ca; // world normal
+        const shade = 0.5 - 0.25 * (wx * 0.6 - wy * 0.8);
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+        ctx.lineTo(x2 + ex, y2 + ey); ctx.lineTo(x1 + ex, y1 + ey);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = `rgba(0,0,0,${shade})`;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+        ctx.lineWidth = 0.04;
+        ctx.stroke();
+      }
+      ctx.fillStyle = col;
+      ctx.fillRect(-h, -h, size, size);
+      const gr = ctx.createLinearGradient(-h, -h, h, h);
+      gr.addColorStop(0, 'rgba(255,255,255,0.35)');
+      gr.addColorStop(1, 'rgba(0,0,0,0.18)');
+      ctx.fillStyle = gr;
       ctx.fillRect(-h, -h, size, size);
       ctx.strokeStyle = 'rgba(0,0,0,0.65)';
       ctx.lineWidth = 0.05;
       ctx.strokeRect(-h, -h, size, size);
+      // tape strip across the lid
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fillRect(-0.07, -h, 0.14, size);
     });
   }
   at(cx, cy, n - 1, () => {

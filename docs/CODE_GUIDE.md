@@ -51,7 +51,10 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 
 ## Rendering (`render.js`)
 - Height is faked with a parallax offset (`PX`/`PY`). Draw order: floor/grid → areas → zones → low stacks → forklift body → tines → high stacks → carried stack → pillars → HUD.
-- `drawStack(ctx, layers, x, y, z0, ang)` draws boxes, each with its own angle from `rots`; the top box shows its colour and the boxes below appear as coloured numbers.
+- `drawStack(ctx, layers, x, y, z0, rots)` draws boxes as extruded cubes (shaded side faces facing the floor-ward parallax direction, gradient lid with tape strip), each with its own angle from `rots`; the top box shows its colour and the boxes below appear as coloured numbers.
+
+## Branding / splash
+- Game name: Forklift Frenzy. `favicon.svg` is the tab icon; `#splash` in `index.html` (styled in `style.css`) is an overlay dismissed by the first key press (handled in `main.js`, which pauses the simulation until then and swallows that key).
 
 ## Tests
 - `test/game.test.js` is a sequence of independent blocks (plain `node:assert`). Helpers: `run` (simulate seconds of input), `driveUntil`, `flatWorld` (clears zones and pillars). Any game-logic change needs a scenario here.

@@ -39,12 +39,22 @@ const input = createInput({
   prev: () => load(level - 1),
 });
 
+const splash = document.getElementById('splash');
+let splashOn = true;
+window.addEventListener('keydown', (e) => {
+  if (!splashOn) return;
+  splashOn = false;
+  splash.classList.add('hide');
+  last = performance.now();
+  e.stopImmediatePropagation();
+}, true);
+
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 function frame(now) {
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
-  while (acc >= STEP) {
+  while (!splashOn && acc >= STEP) {
     update(game, input.state(), STEP);
     acc -= STEP;
   }
