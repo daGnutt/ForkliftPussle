@@ -33,8 +33,8 @@ function rectGap(a, b) {
   return Math.hypot(dx, dy);
 }
 
-function tryGenerate(n, attempt) {
-  const rnd = mulberry32(n * 7919 + attempt * 104729 + 17);
+function tryGenerate(n, attempt, seed = 0) {
+  const rnd = mulberry32(n * 7919 + attempt * 104729 + 17 + Math.imul(seed, 2654435761));
   const { w, h, maxH, colors, total, pillars } = levelParams(n);
   const start = { x: 3.2, y: h - 2.6, a: 0 };
 
@@ -132,10 +132,19 @@ function tryGenerate(n, attempt) {
   return { n, w, h, walls, zones, areas, stacks, start };
 }
 
-export function generateLevel(n) {
+// Integer seeds are used as-is; any other text is hashed. Empty/0 = the default layouts.
+export function parseSeed(text) {
+  const t = String(text ?? '').trim();
+  if (/^-?\d+$/.test(t)) return Number(t) | 0;
+  let h = 0;
+  for (const ch of t) h = (Math.imul(h, 31) + ch.codePointAt(0)) | 0;
+  return h;
+}
+
+export function generateLevel(n, seed = 0) {
   for (let attempt = 0; attempt < 300; attempt++) {
-    const lvl = tryGenerate(n, attempt);
+    const lvl = tryGenerate(n, attempt, seed);
     if (lvl) return lvl;
   }
-  return tryGenerate(1, 0);
+  return tryGenerate(1, 0, seed);
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { generateLevel } from '../js/level.js';
+import { generateLevel, parseSeed } from '../js/level.js';
 import { FL } from '../js/forklift.js';
 import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown } from '../js/game.js';
 
@@ -282,4 +282,14 @@ console.log('all tests passed');
   assert.equal(forkDown(g), undefined, 'free to lower above the stack');
   assert.equal(g.H, 2);
   console.log('fork-blocked ok');
+}
+
+// seeds: deterministic, differ from default, 0 = default
+{
+  assert.deepEqual(generateLevel(3, 42), generateLevel(3, 42), 'seeded level deterministic');
+  assert.deepEqual(generateLevel(3, 0), generateLevel(3), 'seed 0 is default');
+  assert.notDeepEqual(generateLevel(3, 42).stacks, generateLevel(3).stacks, 'seed changes layout');
+  assert.equal(parseSeed('42'), 42);
+  assert.equal(parseSeed('abc'), parseSeed('abc'));
+  assert.equal(newGame(2, 7).seed, 7);
 }

@@ -67,8 +67,8 @@ export function score(g) {
   return Math.round(pts);
 }
 
-export function newGame(levelNumber) {
-  const lvl = generateLevel(levelNumber);
+export function newGame(levelNumber, seed = 0) {
+  const lvl = generateLevel(levelNumber, seed);
   const walls = [];
   const T = 3;
   const add = (x, y, w, h) => walls.push({ x, y, w, h, poly: rectPoly(x + w / 2, y + h / 2, w / 2, h / 2) });
@@ -79,6 +79,7 @@ export function newGame(levelNumber) {
   for (const r of lvl.walls) add(r.x, r.y, r.w, r.h);
   return {
     level: levelNumber,
+    seed,
     w: lvl.w,
     h: lvl.h,
     walls,

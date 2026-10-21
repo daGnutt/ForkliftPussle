@@ -10,7 +10,7 @@ Read this first for a map of the code. Vanilla JS ES modules + Canvas 2D, no bui
 | `js/input.js` | Key state (arrows, Space = brake) + discrete handlers (A = fork up, Z = fork down, R restart, N/Enter next, P prev) | `createInput` |
 | `js/game.js` | All state and rules; DOM-free so Node tests import it | `newGame`, `update`, `forkUp`, `forkDown`, `stackInZone`, `isSolved`, `zoneDone` |
 | `js/forklift.js` | Vehicle model (rear-wheel-steering bicycle) and geometry constants | `FL`, `makeForklift`, `drive`, `toWorld`, `toLocal` |
-| `js/level.js` | Seeded procedural level generator | `generateLevel`, `levelParams`, `COLORS`, `COLOR_NAMES` |
+| `js/level.js` | Seeded procedural level generator | `generateLevel`, `parseSeed`, `levelParams`, `COLORS`, `COLOR_NAMES` |
 | `js/audio.js` | Procedural Web Audio (no asset files): generative 98 BPM background music (pad, bass, arpeggio, drums; mute toggle, `localStorage` key `forklift-music-muted`) and SFX; browser only, started on the first key press | `startAudio`, `toggleMusic`, `playFork`, `playBlocked`, `playSuccess`, `setEngine` (electric motor whine, pitch follows speed, called every frame) |
 | `js/geom.js` | Polygon helpers: `rectPoly`, SAT collision, `pointRectDist` | – |
 | `js/render.js` | Pure drawing from game state | `draw` |
@@ -46,7 +46,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 - Squareness (up to 50 per box): on release in `forkDown`, deduction scales with the box's deviation from the nearest multiple of 90° (free within 5°, then floored to steps of 5 points); `sq` is overwritten on every placement, so re-placing a box can recover its squareness points (crash losses are permanent). `lostBreakdown(g)` returns `{crash, square}` totals; the HUD shows both under the score.
 
 ## Level generation (`level.js`)
-- Deterministic per level number via `mulberry32`; retries up to 300 attempts and falls back to level 1 if placement keeps failing.
+- Deterministic per (level number, seed) via `mulberry32`; `generateLevel(n, seed = 0)`, seed 0 = the default layouts. `parseSeed(text)` maps splash input to an int (integers as-is, other text hashed). `newGame(n, seed)` stores `g.seed`; retries up to 300 attempts and falls back to level 1 if placement keeps failing.
 - Order: choose boxes and zone counts per colour → pillars → per-colour zone area → stack placement avoiding areas, pillars and the start.
 - Guarantees valid placement and matching box/zone counts, **not** solvability. Difficulty scales in `levelParams`.
 
@@ -55,7 +55,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 - `drawStack(ctx, layers, x, y, z0, rots)` draws boxes as extruded cubes (shaded side faces facing the floor-ward parallax direction, gradient lid with tape strip), each with its own angle from `rots`; the top box shows its colour and the boxes below appear as coloured numbers.
 
 ## Branding / splash
-- Game name: Forklift Frenzy. `favicon.svg` is the tab icon; `#splash` in `index.html` (styled in `style.css`) is an overlay dismissed by the first key press (handled in `main.js`, which pauses the simulation until then and swallows that key).
+- Game name: Forklift Frenzy. `favicon.svg` is the tab icon; `#splash` in `index.html` (styled in `style.css`) has a seed text box (persisted in `localStorage` `forklift-seed`; submitting with Enter/Start applies it and reloads the level). It is dismissed by the first key press outside the box (handled in `main.js`, which pauses the simulation until then and swallows that key).
 
 ## Tests
 - `test/game.test.js` is a sequence of independent blocks (plain `node:assert`). Helpers: `run` (simulate seconds of input), `driveUntil`, `flatWorld` (clears zones and pillars). Any game-logic change needs a scenario here.

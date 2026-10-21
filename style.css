@@ -11,6 +11,10 @@ footer b { color: #f9a825; }
 #splash h1 span { color: #f9a825; }
 #splash p { margin: 0; font-size: 18px; }
 #splash .press { color: #f9a825; font-weight: bold; animation: blink 1.2s infinite; }
+#splash form { display: flex; gap: 8px; align-items: center; font-size: 16px; }
+#splash input { width: 160px; padding: 6px 8px; font: inherit; color: #eee; background: #1b1f24; border: 1px solid #555; border-radius: 4px; }
+#splash input:focus { outline: 2px solid #f9a825; }
+#splash button { padding: 6px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
 @keyframes blink { 50% { opacity: .25; } }
 #splash .boxes { display: flex; align-items: flex-end; gap: 6px; }
 #splash .boxes i { display: block; width: 56px; height: 56px; position: relative; background: linear-gradient(135deg, rgba(255,255,255,.35), rgba(0,0,0,.2)), var(--c);

@@ -1,5 +1,6 @@
 import { newGame, update, forkUp, forkDown, zoneDone } from './game.js';
 import { createInput } from './input.js';
+import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { startAudio, toggleMusic, playFork, playBlocked, playSuccess, setEngine } from './audio.js';
 
@@ -18,14 +19,16 @@ window.addEventListener('resize', resize);
 resize();
 
 let level = Number(localStorage.getItem('forklift-level')) || 1;
-let game = newGame(level);
+let seedText = localStorage.getItem('forklift-seed') || '';
+let seed = parseSeed(seedText);
+let game = newGame(level, seed);
 const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
 let doneZones = countDone();
 
 function load(n) {
   level = Math.max(1, n);
   localStorage.setItem('forklift-level', String(level));
-  game = newGame(level);
+  game = newGame(level, seed);
   doneZones = countDone();
 }
 
@@ -45,12 +48,33 @@ const input = createInput({
 
 const splash = document.getElementById('splash');
 let splashOn = true;
-window.addEventListener('keydown', (e) => {
-  if (!splashOn) return;
+const seedInput = document.getElementById('seed');
+seedInput.value = seedText;
+
+function startGame() {
+  const text = seedInput.value.trim();
+  if (text !== seedText) {
+    seedText = text;
+    seed = parseSeed(text);
+    localStorage.setItem('forklift-seed', text);
+    load(level);
+  }
   splashOn = false;
   splash.classList.add('hide');
+  seedInput.blur();
   last = performance.now();
+}
+
+// Typing in the seed box must not reach the game keys; Enter there starts the game.
+seedInput.addEventListener('keydown', (e) => {
+  e.stopPropagation();
+  if (e.key === 'Enter') { e.preventDefault(); startAudio(); startGame(); }
+});
+document.getElementById('seedForm').addEventListener('submit', (e) => { e.preventDefault(); startAudio(); startGame(); });
+window.addEventListener('keydown', (e) => {
+  if (!splashOn || e.target === seedInput) return;
   e.stopImmediatePropagation();
+  startGame();
 }, true);
 
 const STEP = 1 / 120;

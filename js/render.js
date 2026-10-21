@@ -243,7 +243,7 @@ export function draw(ctx, g, view) {
   ctx.font = 'bold 20px sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`Level ${g.level}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${g.time.toFixed(0)}s`, 20, 25);
+  ctx.fillText(`Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${g.time.toFixed(0)}s`, 20, 25);
   const lost = lostBreakdown(g);
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#ef9a9a';
