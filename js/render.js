@@ -289,7 +289,7 @@ function drawWorld(ctx, g) {
 
 // Mirror showing the area around the forklift, rotated so the forklift's heading is up.
 function drawProximityMirror(ctx, g, view, x, y, w, h) {
-  const scale = w / 7;
+  const scale = w / 4.5;
   const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0);
   ctx.save();
   ctx.beginPath();

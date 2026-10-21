@@ -10,6 +10,7 @@ let eyeZ = EYE_Z; // current eye height, set per frame in drawPov
 const WALL_H = 3;
 const BOX_H = 0.5; // drawn box height in the first-person view (footprint stays 1×1)
 const HFOV = Math.PI / 2;
+const REAR_HFOV = (130 * Math.PI) / 180; // wide, like a convex mirror
 const COL_W = 2;
 const MAX_DIST = 30;
 
@@ -143,7 +144,7 @@ export function drawPov(ctx, g, x, y, w, h, opts = {}) {
 
   eyeZ = EYE_Z + EYE_FOLLOW * g.hf * (BOX_H + PAL);
   const eye = toWorld(g.fl, EYE_X, 0);
-  const f = (w / 2) / Math.tan(HFOV / 2);
+  const f = (w / 2) / Math.tan((opts.rear ? REAR_HFOV : HFOV) / 2);
   for (const z of g.zones) {
     const done = zoneDone(g, z), r = 0.6;
     floorQuad(ctx, eye, yaw, f, x + w / 2, y + horizon,
