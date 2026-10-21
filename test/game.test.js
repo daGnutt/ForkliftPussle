@@ -121,4 +121,20 @@ const driveUntil = (g, x, brakeAt) => {
   assert.ok(g.stacks[0].x > 9.5, 'carried box pushes stack');
 }
 
+// Carried boxes keep their orientation relative to the forklift and keep it when dropped.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], a: 0.3 }];
+  const f = g.fl;
+  f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
+  driveUntil(g, 10, 8);
+  forkUp(g);
+  assert.ok(Math.abs(g.carriedRel - 0.3) < 1e-9, 'relative angle stored');
+  f.a += 0.5;
+  forkDown(g);
+  assert.equal(g.carried, null);
+  assert.ok(Math.abs(g.stacks[0].a - 0.8) < 0.05, 'dropped with rotated orientation');
+}
+
 console.log('all tests passed');

@@ -118,7 +118,7 @@ function drawTines(ctx, g) {
 function drawCarried(ctx, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  drawStack(ctx, g.carried, p.x, p.y, g.hf, g.fl.a);
+  drawStack(ctx, g.carried, p.x, p.y, g.hf, g.fl.a + g.carriedRel);
 }
 
 export function draw(ctx, g, view) {
@@ -161,10 +161,10 @@ export function draw(ctx, g, view) {
   // slide under are drawn over them.
   const low = g.stacks.filter((st) => st.layers.length <= g.hf);
   const high = g.stacks.filter((st) => st.layers.length > g.hf);
-  for (const st of low) drawStack(ctx, st.layers, st.x, st.y);
+  for (const st of low) drawStack(ctx, st.layers, st.x, st.y, 0, st.a);
   drawForkliftBody(ctx, g);
   drawTines(ctx, g);
-  for (const st of high) drawStack(ctx, st.layers, st.x, st.y);
+  for (const st of high) drawStack(ctx, st.layers, st.x, st.y, 0, st.a);
   drawCarried(ctx, g);
 
   ctx.fillStyle = '#3b3f45';

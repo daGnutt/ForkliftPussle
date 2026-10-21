@@ -22,9 +22,10 @@ export function newGame(levelNumber) {
     walls,
     pillars: lvl.walls,
     zones: lvl.zones,
-    stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers] })),
+    stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], a: 0 })),
     fl: makeForklift(lvl.start.x, lvl.start.y, lvl.start.a),
     carried: null,
+    carriedRel: 0,
     H: 0,
     hf: 0,
     status: 'play',
@@ -32,7 +33,7 @@ export function newGame(levelNumber) {
   };
 }
 
-const stackPoly = (s) => rectPoly(s.x, s.y, 0.5, 0.5);
+const stackPoly = (s) => rectPoly(s.x, s.y, 0.5, 0.5, s.a || 0);
 
 function forkShapes(g) {
   const f = g.fl;
@@ -44,7 +45,10 @@ function forkShapes(g) {
     mk((FL.back + FL.front) / 2, 0, (FL.front - FL.back) / 2, FL.halfW, () => true),
   ];
   const tx = (FL.tineX0 + FL.tineX1) / 2, thx = (FL.tineX1 - FL.tineX0) / 2;
-  if (g.carried) shapes.push(mk(FL.carryX, 0, 0.5, 0.5, (s) => s.layers.length > g.H));
+  if (g.carried) {
+    const c = toWorld(f, FL.carryX, 0);
+    shapes.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, f.a + g.carriedRel), stackFilter: (s) => s.layers.length > g.H });
+  }
   shapes.push(mk(tx, -FL.tineOff, thx, FL.tineHalf, null));
   shapes.push(mk(tx, FL.tineOff, thx, FL.tineHalf, null));
   return shapes;
@@ -87,7 +91,7 @@ function resolve(g) {
 
     for (const s of g.stacks) {
       for (const w of g.walls) {
-        if (s.x + 0.5 < w.x || s.x - 0.5 > w.x + w.w || s.y + 0.5 < w.y || s.y - 0.5 > w.y + w.h) continue;
+        if (s.x + 0.71 < w.x || s.x - 0.71 > w.x + w.w || s.y + 0.71 < w.y || s.y - 0.71 > w.y + w.h) continue;
         const m = sat(stackPoly(s), w.poly);
         if (m) { s.x += m.x * m.depth; s.y += m.y * m.depth; }
       }
@@ -96,7 +100,7 @@ function resolve(g) {
     for (let i = 0; i < g.stacks.length; i++) {
       for (let j = i + 1; j < g.stacks.length; j++) {
         const a = g.stacks[i], b = g.stacks[j];
-        if (Math.abs(a.x - b.x) >= 1 || Math.abs(a.y - b.y) >= 1) continue;
+        if (Math.abs(a.x - b.x) >= 1.42 || Math.abs(a.y - b.y) >= 1.42) continue;
         const m = sat(stackPoly(a), stackPoly(b));
         if (!m) continue;
         const wa = 1 / a.layers.length, wb = 1 / b.layers.length;
@@ -153,6 +157,7 @@ export function forkUp(g) {
   const S = stackInZone(g);
   if (S && S.layers.length > g.H) {
     g.carried = S.layers.splice(g.H);
+    g.carriedRel = (S.a || 0) - g.fl.a;
     if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
   }
   g.H = Math.min(MAX_H, g.H + 1);
@@ -173,7 +178,7 @@ export function forkDown(g) {
       S.layers.push(...g.carried);
     } else {
       const p = toWorld(g.fl, FL.carryX, 0);
-      g.stacks.push({ x: p.x, y: p.y, layers: g.carried });
+      g.stacks.push({ x: p.x, y: p.y, layers: g.carried, a: g.fl.a + g.carriedRel });
     }
     g.carried = null;
   }

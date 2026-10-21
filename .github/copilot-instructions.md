@@ -22,3 +22,4 @@ Top-down, keyboard-only forklift puzzle. Vanilla JS ES modules + Canvas 2D, **no
 - Zones are only satisfied by a stack of *exactly* `zone.count` boxes all of `zone.color`.
 - Game-logic changes should be accompanied by a scenario in `test/game.test.js`, using the `run`/`driveUntil` helpers to simulate driving; update `README.md` control docs when the fork rules change.
 - Create every new fix or feature on its own branch (not directly on `main`).
+- Keep fix/feature branches local only (don't push them) unless explicitly told otherwise. After merging one into `main`, delete the local branch.
