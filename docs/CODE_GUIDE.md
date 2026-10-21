@@ -40,6 +40,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 - Empty `forkDown` with a box under the forks (`stack.layers.length >= H`, `H > 0`) is refused: returns `'blocked'`, adds 10 crash points (`FORK_BLOCK_POINTS`) to that box; `main.js` then plays `playBlocked`.
 - `forkDown` releases the carried stack automatically at its resting height (top of the stack below, or the floor), merging into it. Max 5 layers (`MAX_LAYERS`).
 - A zone is done only when a stack of exactly `zone.count` boxes, all of `zone.color`, is within 0.5 of it. Winning (`isFinished`) = all zones done (`isSolved`) AND `score ≥ 50%` of `maxScore` AND forklift parked (`isParked`: within 0.6 of the spot, heading within 0.35 rad, speed < 0.5).
+- Nudging: when the forklift body touches a stack while driving forward slowly (0.05 ≤ speed < `CRASH_MIN_SPEED`), `resolve()` collects it in `g.aligning` and `update()` turns every box (`rots`, `a`) towards the nearest square angle to the forklift heading (`ALIGN_RATE`); a multi-box stack's bottom box takes `ALIGN_DAMAGE` crash points per radian turned. Such slow contact is not counted as a crash.
 - `resolve()` runs iterative SAT: forklift shapes vs walls; forklift shapes vs stacks (mass-weighted pushing); stacks vs walls; stacks vs stacks.
 
 ## Scoring (`game.js`)

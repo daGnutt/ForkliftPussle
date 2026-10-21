@@ -13,6 +13,9 @@ const SQUARE_ALLOWANCE = (5 * Math.PI) / 180;
 const CRASH_MIN_SPEED = 0.8;
 const CRASH_COOLDOWN = 0.4;
 const FORK_BLOCK_POINTS = 10;
+const ALIGN_MIN_SPEED = 0.05;
+const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
+const ALIGN_DAMAGE = 10; // crash points per radian turned, bottom box of a multi-box stack only
 
 const newPen = () => ({ crash: 0, sq: 0 });
 
@@ -153,8 +156,9 @@ function resolve(g) {
         const m = sat(sh.poly, stackPoly(s));
         if (!m) continue;
         ensure(s);
-        crash(g, s.pen, s);
+        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && sh === shapes[0])) crash(g, s.pen, s);
         if (sh.carried) crash(g, g.carriedPen, g);
+        if (sh === shapes[0] && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
         const d = m.depth * 1.001;
         moveF(m.x * d * (wf / (wf + ws)), m.y * d * (wf / (wf + ws)));
         s.x -= m.x * d * (ws / (wf + ws));
@@ -188,13 +192,29 @@ function resolve(g) {
   }
 }
 
+// Driving slowly into a stack turns every box square to the forklift's heading.
+function alignStack(g, s, dt) {
+  const q = Math.PI / 2, step = ALIGN_RATE * dt;
+  const turn = (a) => {
+    const diff = ((g.fl.a - a) % q + q * 1.5) % q - q / 2; // signed distance to nearest square angle
+    return Math.max(-step, Math.min(step, diff));
+  };
+  ensure(s);
+  const t0 = turn(s.rots[0]);
+  s.rots = s.rots.map((r) => r + turn(r));
+  s.a = (s.a || 0) + turn(s.a || 0);
+  if (s.layers.length > 1) s.pen[0].crash = Math.min(CRASH_POINTS, s.pen[0].crash + Math.abs(t0) * ALIGN_DAMAGE);
+}
+
 export function update(g, input, dt) {
   const f = g.fl;
   g.time += dt;
   drive(f, input, dt);
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;
+  g.aligning = new Set();
   resolve(g);
+  for (const s of g.aligning) alignStack(g, s, dt);
 
   if (Math.abs(intended) > 1e-6) {
     const actual = (f.x - driven.x) * Math.cos(f.a) + (f.y - driven.y) * Math.sin(f.a) + intended;

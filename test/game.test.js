@@ -141,7 +141,7 @@ const driveUntil = (g, x, brakeAt) => {
   g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0.3], a: 0.3 }];
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
-  driveUntil(g, 10, 8);
+  driveUntil(g, 9.7, 8);
   forkUp(g);
   assert.ok(Math.abs(g.carriedRel - 0.3) < 1e-9, 'relative angle stored');
   f.a += 0.5;
@@ -292,4 +292,23 @@ console.log('all tests passed');
   assert.equal(parseSeed('42'), 42);
   assert.equal(parseSeed('abc'), parseSeed('abc'));
   assert.equal(newGame(2, 7).seed, 7);
+}
+
+// Nudging a box slowly squares it to the forklift; a stack's bottom box takes a little damage.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 9.2, y: 5, layers: [0, 1], rots: [0.4, 0.4], pen: [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }], a: 0.4 }];
+  const f = g.fl;
+  f.x = 7; f.y = 5; f.a = 0; f.speed = 0;
+  for (let i = 0; i < 600; i++) {
+    f.speed = Math.min(f.speed + 0.01, 0.5);
+    update(g, { up: true }, 1 / 120);
+    if (f.speed > 0.6) f.speed = 0.5;
+  }
+  const s = g.stacks[0];
+  assert.ok(Math.abs(s.a) < 0.01 && Math.abs(s.rots[1]) < 0.01, 'stack turned square to the forklift');
+  assert.ok(s.pen[0].crash > 0 && s.pen[0].crash < 10, 'bottom box takes a little damage');
+  assert.equal(s.pen[1].crash, 0, 'upper box undamaged');
+  console.log('box-align ok');
 }
