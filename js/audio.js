@@ -10,12 +10,15 @@ const CHORDS = [
   [48, 55, 64, 67, 71],
   [55, 59, 62, 64, 69],
 ];
-const SCALE = [69, 72, 74, 76, 79, 81, 84]; // A minor pentatonic-ish
-const CHORD_LEN = 7; // seconds
+const MUSIC_VOL = 0.35;
+const BPM = 98;
+const STEP = 60 / BPM / 4; // 16th note
+const STEPS_PER_CHORD = 32; // two bars
 
 let ctx = null, master = null, musicBus = null, sfxBus = null;
 let muted = localStorage.getItem(MUTE_KEY) === '1';
-let nextChord = 0, chordIdx = 0, timer = null;
+let nextStep = 0, stepIdx = 0, timer = null, noiseBuf = null;
+let engine = null;
 
 function init() {
   if (ctx) return;
@@ -27,7 +30,7 @@ function init() {
   master.connect(ctx.destination);
 
   musicBus = ctx.createGain();
-  musicBus.gain.value = muted ? 0 : 0.35;
+  musicBus.gain.value = muted ? 0 : MUSIC_VOL;
   sfxBus = ctx.createGain();
   sfxBus.gain.value = 0.5;
   sfxBus.connect(master);
@@ -72,35 +75,82 @@ function tone(dest, freq, t, dur, { type = 'sine', gain = 0.2, attack = 0.02, re
   return o;
 }
 
-function scheduleChord(t) {
-  const chord = CHORDS[chordIdx % CHORDS.length];
-  chordIdx++;
+function noise(dest, t, dur, { gain = 0.1, cutoff = 7000, type = 'highpass' } = {}) {
+  if (!noiseBuf) {
+    noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf;
+  const f = ctx.createBiquadFilter();
+  f.type = type;
+  f.frequency.value = cutoff;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  src.connect(f);
+  f.connect(g);
+  g.connect(dest);
+  src.start(t);
+  src.stop(t + dur + 0.02);
+}
+
+function kick(t) {
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.frequency.setValueAtTime(130, t);
+  o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
+  g.gain.setValueAtTime(0.5, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+  o.connect(g);
+  g.connect(musicBus);
+  o.start(t);
+  o.stop(t + 0.25);
+}
+
+function schedulePad(chord, t) {
   chord.forEach((m, i) => {
-    tone(musicBus, mtof(m), t, CHORD_LEN + 1.5, {
+    tone(musicBus, mtof(m), t, STEPS_PER_CHORD * STEP + 1.2, {
       type: i === 0 ? 'sine' : 'triangle',
-      gain: i === 0 ? 0.14 : 0.07,
-      attack: 1.6,
-      release: 2.4,
-      cutoff: 900,
+      gain: i === 0 ? 0.1 : 0.05,
+      attack: 0.8,
+      release: 1.6,
+      cutoff: 1200,
     });
   });
-  // A few sparse, soft melody notes.
-  let nt = t + 0.8;
-  while (nt < t + CHORD_LEN - 0.5) {
-    if (Math.random() < 0.7) {
-      const m = SCALE[Math.floor(Math.random() * SCALE.length)];
-      tone(musicBus, mtof(m), nt, 1.6, { gain: 0.06, attack: 0.03, release: 1.4 });
-    }
-    nt += 0.85 + Math.random() * 1.1;
+}
+
+function scheduleStep(i, t) {
+  const chord = CHORDS[Math.floor(i / STEPS_PER_CHORD) % CHORDS.length];
+  const k = i % STEPS_PER_CHORD;
+  const beat = k % 16;
+  if (k === 0) schedulePad(chord, t);
+
+  // Drums: four on the floor-ish kick, off-beat hats, snare-like tick on 2 and 4.
+  if (beat % 4 === 0) kick(t);
+  if (beat % 4 === 2) noise(musicBus, t, 0.05, { gain: 0.05 });
+  if (beat === 4 || beat === 12) noise(musicBus, t, 0.12, { gain: 0.08, cutoff: 1800, type: 'bandpass' });
+
+  // Syncopated bass on the chord root.
+  if ([0, 3, 6, 10, 14].includes(beat)) {
+    tone(musicBus, mtof(chord[0] - 12), t, STEP * 2.2, { type: 'sawtooth', gain: 0.1, attack: 0.01, release: 0.12, cutoff: 380 });
+  }
+
+  // 8th-note arpeggio over the chord tones, with an octave lift on the last bar.
+  if (k % 2 === 0) {
+    const pattern = [1, 2, 3, 4, 3, 2, 4, 3];
+    const m = chord[pattern[(k / 2) % pattern.length]] + (k >= 16 ? 12 : 0);
+    tone(musicBus, mtof(m + 12), t, STEP * 3, { type: 'triangle', gain: 0.06, attack: 0.01, release: 0.25, cutoff: 3000 });
   }
 }
 
 function tick() {
   if (!ctx) return;
-  if (nextChord < ctx.currentTime) nextChord = ctx.currentTime + 0.1;
-  while (nextChord < ctx.currentTime + 3) {
-    scheduleChord(nextChord);
-    nextChord += CHORD_LEN;
+  if (nextStep < ctx.currentTime - 0.5) nextStep = ctx.currentTime + 0.05;
+  while (nextStep < ctx.currentTime + 0.4) {
+    scheduleStep(stepIdx++, nextStep);
+    nextStep += STEP;
   }
 }
 
@@ -111,7 +161,7 @@ export function startAudio() {
   if (ctx.state === 'suspended') ctx.resume();
   if (!timer) {
     tick();
-    timer = setInterval(tick, 1000);
+    timer = setInterval(tick, 100);
   }
 }
 
@@ -121,7 +171,7 @@ export function toggleMusic() {
   startAudio();
   muted = !muted;
   localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
-  if (ctx) musicBus.gain.setTargetAtTime(muted ? 0 : 0.35, ctx.currentTime, 0.15);
+  if (ctx) musicBus.gain.setTargetAtTime(muted ? 0 : MUSIC_VOL, ctx.currentTime, 0.15);
   return muted;
 }
 
@@ -143,4 +193,37 @@ export function playSuccess() {
   [72, 76, 79, 84].forEach((m, i) => {
     tone(sfxBus, mtof(m), t + i * 0.09, 0.5, { type: 'triangle', gain: 0.16, attack: 0.01, release: 0.35 });
   });
+}
+
+// Electric motor: a thin whine whose pitch and level follow the forklift speed.
+function startEngine() {
+  const o = ctx.createOscillator();
+  const o2 = ctx.createOscillator();
+  const f = ctx.createBiquadFilter();
+  const g = ctx.createGain();
+  o.type = 'sawtooth';
+  o2.type = 'sine';
+  f.type = 'lowpass';
+  f.frequency.value = 900;
+  g.gain.value = 0;
+  o.connect(f);
+  o2.connect(f);
+  f.connect(g);
+  g.connect(sfxBus);
+  o.start();
+  o2.start();
+  engine = { o, o2, f, g };
+}
+
+// Call every frame. speed in tiles/s (signed); throttle: a drive key is held.
+export function setEngine(speed, throttle) {
+  if (!ctx || ctx.state !== 'running') return;
+  if (!engine) startEngine();
+  const v = Math.min(1, Math.abs(speed) / 4);
+  const t = ctx.currentTime;
+  const pitch = 110 + v * 520 + (throttle ? 25 : 0);
+  engine.o.frequency.setTargetAtTime(pitch, t, 0.08);
+  engine.o2.frequency.setTargetAtTime(pitch * 2, t, 0.08);
+  engine.f.frequency.setTargetAtTime(500 + v * 1800, t, 0.1);
+  engine.g.gain.setTargetAtTime(0.012 + v * 0.05 + (throttle ? 0.01 : 0), t, 0.1);
 }

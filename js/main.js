@@ -1,7 +1,7 @@
 import { newGame, update, forkUp, forkDown, zoneDone } from './game.js';
 import { createInput } from './input.js';
 import { draw } from './render.js';
-import { startAudio, toggleMusic, playFork, playSuccess } from './audio.js';
+import { startAudio, toggleMusic, playFork, playSuccess, setEngine } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -48,6 +48,8 @@ function frame(now) {
     update(game, input.state(), STEP);
     acc -= STEP;
   }
+  const st = input.state();
+  setEngine(game.fl.speed, st.up || st.down);
   const done = countDone();
   if (done > doneZones) playSuccess();
   doneZones = done;
