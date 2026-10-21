@@ -17,7 +17,7 @@ Fork level is a whole number 0–5 (height above the floor in box heights), chan
 
 - **Level H**: tines are under the box at height H of the stack in front of you. **A** lifts every box from there up (the forks rise one level). Level 0 takes the whole stack, level 1 everything above the bottom box, and so on.
 - **Carrying**: **A** raises, **Z** lowers. Carried boxes collide with floor stacks that reach their height, so raise high enough to pass over them.
-- **Put down**: lower until the carried boxes rest on the stack beneath (or the floor, level 0), then press **Z** once more to release them (merge, max 5 layers).
+- **Put down**: lower with **Z** until the carried boxes reach the stack beneath (or the floor, level 0); they are released as soon as they reach it (merge, max 5 layers).
 - The gauge on the right shows the fork level, the stack the forks are in, and what you carry. A stack shows its top colour, plus a coloured number for every box below it (number = layer from the bottom).
 
 ## Run / deploy

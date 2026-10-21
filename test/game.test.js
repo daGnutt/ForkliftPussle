@@ -67,8 +67,7 @@ const driveUntil = (g, x, brakeAt) => {
   assert.ok(Math.abs(g.stacks[0].x - 14) < 0.05, 'high carried box passes over low stack');
   forkDown(g);
   assert.equal(g.H, 2);
-  forkDown(g);
-  assert.equal(g.carried, null, 'merged onto stack at rest height');
+  assert.equal(g.carried, null, 'merged onto stack on reaching rest height');
   assert.deepEqual(g.stacks[0].layers, [1, 2, 0]);
   forkUp(g);
   assert.deepEqual(g.carried, [0]);
@@ -89,8 +88,7 @@ const driveUntil = (g, x, brakeAt) => {
   assert.equal(g.H, 1);
   forkDown(g);
   assert.equal(g.H, 0);
-  forkDown(g);
-  assert.equal(g.carried, null);
+  assert.equal(g.carried, null, 'released on reaching level 0');
   assert.deepEqual(g.stacks[0].layers, [0, 1]);
 }
 

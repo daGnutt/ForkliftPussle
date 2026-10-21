@@ -166,9 +166,9 @@ export function forkDown(g) {
   const S = stackInZone(g);
   const n = S ? S.layers.length : 0;
   const minH = n + g.carried.length <= MAX_LAYERS ? n : n + 1;
-  if (g.H > minH) {
-    g.H -= 1;
-  } else if (g.H === n && minH === n) {
+  if (g.H > minH) g.H = Math.max(minH, g.H - 1);
+  // Reaching the resting height puts the boxes down.
+  if (g.H === n && minH === n) {
     if (S) {
       S.layers.push(...g.carried);
     } else {
