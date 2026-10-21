@@ -1,6 +1,6 @@
 import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
-import { zoneDone } from './game.js';
+import { zoneDone, stackInZone } from './game.js';
 
 function rotRect(ctx, cx, cy, a, fn) {
   ctx.save();
@@ -90,7 +90,7 @@ function drawForkliftBody(ctx, g) {
 // Tines are drawn at their own height (same parallax as box layers).
 function drawTines(ctx, g) {
   const f = g.fl;
-  const z = g.hf - 1;
+  const z = g.hf;
   ctx.save();
   ctx.translate(z * PX, z * PY);
   rotRect(ctx, f.x, f.y, f.a, () => {
@@ -109,7 +109,7 @@ function drawTines(ctx, g) {
 function drawCarried(ctx, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  drawStack(ctx, g.carried, p.x, p.y, Math.max(0, g.hf - 1));
+  drawStack(ctx, g.carried, p.x, p.y, g.hf);
 }
 
 export function draw(ctx, g, view) {
@@ -150,8 +150,8 @@ export function draw(ctx, g, view) {
 
   // Stacks whose top is below the tines are drawn first; stacks the tines
   // slide under are drawn over them.
-  const low = g.stacks.filter((st) => st.layers.length < g.hf);
-  const high = g.stacks.filter((st) => st.layers.length >= g.hf);
+  const low = g.stacks.filter((st) => st.layers.length <= g.hf);
+  const high = g.stacks.filter((st) => st.layers.length > g.hf);
   for (const st of low) drawStack(ctx, st.layers, st.x, st.y);
   drawForkliftBody(ctx, g);
   drawTines(ctx, g);
@@ -178,32 +178,36 @@ export function draw(ctx, g, view) {
   ctx.textBaseline = 'middle';
   ctx.fillText(`Level ${g.level}   Zones ${done}/${g.zones.length}   ${g.time.toFixed(0)}s`, 20, 25);
 
-  // fork level gauge (0 = down, box layers 1..5, 6 = above the top layer)
-  const gx = width - 70, gy = 70, cell = 26;
-  const yOf = (lvl) => gy + (6 - lvl) * cell;
+  // fork height gauge: 0 = floor; box layer i fills the cell at height i-1
+  const gx = width - 70, gy = 70, cell = 26, top = 5;
+  const yOf = (lvl) => gy + (top - lvl) * cell;
   ctx.font = '12px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#aaa';
   ctx.fillText('FORKS', gx + 15, gy - 12);
-  for (let lvl = 6; lvl >= 0; lvl--) {
+  for (let lvl = top; lvl >= 0; lvl--) {
     ctx.strokeStyle = '#666';
     ctx.lineWidth = 1;
     ctx.strokeRect(gx, yOf(lvl), 30, cell - 2);
     ctx.fillStyle = '#aaa';
     ctx.fillText(String(lvl), gx - 10, yOf(lvl) + cell / 2);
   }
-  if (g.carried) {
-    g.carried.forEach((c, i) => {
-      const lvl = g.H + i;
-      if (lvl > 6) return;
-      ctx.fillStyle = COLORS[c];
-      ctx.fillRect(gx + 3, yOf(lvl) + 3, 24, cell - 8);
-    });
-  }
+  const cellBox = (lvl, color, alpha) => {
+    if (lvl > top) return;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = COLORS[color];
+    ctx.fillRect(gx + 3, yOf(lvl) + 3, 24, cell - 8);
+    ctx.globalAlpha = 1;
+  };
+  const under = stackInZone(g);
+  if (under) under.layers.forEach((c, i) => cellBox(i, c, 0.85));
+  if (g.carried) g.carried.forEach((c, i) => cellBox(g.H + i, c, 1));
   ctx.strokeStyle = '#f9a825';
   ctx.lineWidth = 3;
   ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);
+  ctx.fillStyle = '#f9a825';
+  ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
 
   if (g.status === 'won') {
     ctx.fillStyle = 'rgba(0,0,0,0.65)';

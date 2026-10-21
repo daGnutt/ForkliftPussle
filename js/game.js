@@ -44,7 +44,7 @@ function forkShapes(g) {
     mk((FL.back + FL.front) / 2, 0, (FL.front - FL.back) / 2, FL.halfW, () => true),
   ];
   const tx = (FL.tineX0 + FL.tineX1) / 2, thx = (FL.tineX1 - FL.tineX0) / 2;
-  if (g.carried) shapes.push(mk(FL.carryX, 0, 0.5, 0.5, (s) => s.layers.length >= g.H));
+  if (g.carried) shapes.push(mk(FL.carryX, 0, 0.5, 0.5, (s) => s.layers.length > g.H));
   shapes.push(mk(tx, -FL.tineOff, thx, FL.tineHalf, null));
   shapes.push(mk(tx, FL.tineOff, thx, FL.tineHalf, null));
   return shapes;
@@ -138,11 +138,12 @@ export function stackInZone(g) {
   return best;
 }
 
-// Fork level H (0..6) is a whole number. Box layer i (1..5) sits at level i.
-// At level H >= 1 the tines are under layer H: raising the forks lifts layers
-// H and above. Level 0 is "forks down" and never lifts anything. Tines do not
-// collide with boxes. A carried stack's bottom box is at level H.
-const MAX_H = 6;
+// Fork level H (0..5) is a whole number of box heights above the floor, so a
+// stack on the floor spans heights 0..n (layer i is between i-1 and i). The
+// tines at level H are under the box at height H: raising the forks lifts
+// every box at height H and above. Level 0 is the floor. Tines do not collide
+// with boxes. A carried stack's bottom is at height H.
+const MAX_H = 5;
 
 export function forkUp(g) {
   if (g.carried) {
@@ -150,8 +151,8 @@ export function forkUp(g) {
     return;
   }
   const S = stackInZone(g);
-  if (S && g.H >= 1 && S.layers.length >= g.H) {
-    g.carried = S.layers.splice(g.H - 1);
+  if (S && S.layers.length > g.H) {
+    g.carried = S.layers.splice(g.H);
     if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
   }
   g.H = Math.min(MAX_H, g.H + 1);
@@ -164,11 +165,10 @@ export function forkDown(g) {
   }
   const S = stackInZone(g);
   const n = S ? S.layers.length : 0;
-  const rest = n + 1;
-  const minH = n + g.carried.length <= MAX_LAYERS ? rest : rest + 1;
+  const minH = n + g.carried.length <= MAX_LAYERS ? n : n + 1;
   if (g.H > minH) {
     g.H -= 1;
-  } else if (g.H === rest && minH === rest) {
+  } else if (g.H === n && minH === n) {
     if (S) {
       S.layers.push(...g.carried);
     } else {

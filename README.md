@@ -13,13 +13,12 @@ Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift an
 | N / P | Next / previous level (Enter after winning) |
 
 ## Fork levels
-Fork level is a whole number 0–6, changed with **A** (up) and **Z** (down). Box layer *i* (1–5) sits at level *i*. Tines never collide with boxes (the forklift body and carried boxes still do).
+Fork level is a whole number 0–5 (height above the floor in box heights), changed with **A** (up) and **Z** (down). A floor stack spans heights 0..n. Tines never collide with boxes (the forklift body and carried boxes still do).
 
-- **Level 0**: forks down; they never lift anything.
-- **Level k ≥ 1**: tines are under layer *k* of the stack in front of you. Press **A** to lift layer *k* and everything above it (the forks rise to level *k*+1). Level 1 takes the whole stack, level 2 everything above the bottom box, and so on.
-- **Carrying**: **A** raises, **Z** lowers. Carried boxes collide with floor stacks that reach their level, so raise high enough to pass over them.
-- **Put down**: lower until the carried boxes rest on the stack beneath (or the floor, level 1), then press **Z** once more to release them (merge, max 5 layers).
-- A stack shows its top colour, plus a coloured number for every box below it (number = layer from the bottom). Tines are drawn at their own height, under the boxes they are beneath.
+- **Level H**: tines are under the box at height H of the stack in front of you. **A** lifts every box from there up (the forks rise one level). Level 0 takes the whole stack, level 1 everything above the bottom box, and so on.
+- **Carrying**: **A** raises, **Z** lowers. Carried boxes collide with floor stacks that reach their height, so raise high enough to pass over them.
+- **Put down**: lower until the carried boxes rest on the stack beneath (or the floor, level 0), then press **Z** once more to release them (merge, max 5 layers).
+- The gauge on the right shows the fork level, the stack the forks are in, and what you carry. A stack shows its top colour, plus a coloured number for every box below it (number = layer from the bottom).
 
 ## Run / deploy
 No build step. Serve the folder statically (ES modules need http): `python3 -m http.server`, then open http://localhost:8000.
