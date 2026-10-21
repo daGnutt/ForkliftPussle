@@ -51,7 +51,7 @@ const input = createInput({
   anyKey: startAudio,
   mute: toggleMusic,
   toggleSmall: () => { view.showSmall = !view.showSmall; },
-  swapView: () => { view.povBig = !view.povBig; },
+  swapView: () => { view.povBig = !view.povBig; if (tutStep === 3) nextTutorial(); },
   up: () => { const h = game.H; forkUp(game); if (game.H !== h) playFork(true); },
   down: () => {
     const h = game.H;
@@ -102,6 +102,7 @@ const TUTORIAL = [
   'Use <b>↑/↓</b> to drive and <b>←/→</b> to steer (the rear wheels steer!). <b>Space</b> brakes.',
   'Press <b>A</b> to raise the forks and <b>Z</b> to lower them.',
   'Drive the forks under a stack, lift it, and set it down on the matching coloured zone. Then park on the marked spot.',
+  'If you get lost, press <b>F</b> to switch to the map view (and <b>F</b> again to return to the cabin).',
 ];
 const tutorialEl = document.getElementById('tutorial');
 let tutStep = localStorage.getItem('forklift-tutorial-done') ? -1 : 0;
