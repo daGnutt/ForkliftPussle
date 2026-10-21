@@ -24,9 +24,9 @@ Dependency direction: `main` → `game`, `input`, `render`; `game` → `forklift
 ## Game state `g` (from `newGame`)
 - `walls`: border + pillar rects with a `poly` (collision). `pillars`: the raw pillar rects (for drawing).
 - `zones`: `{x, y, color, count}` targets. `areas`: `{color, x, y, w, h}` tinted regions; all zones of a colour sit in one area.
-- `stacks`: floor stacks `{x, y, layers, a}`; `layers` are colour indices into `COLORS` (bottom → top); `rots` is a parallel array with each box's own world angle (remembered through lift/drop/merge); `a` is the bottom box's angle, used for collision.
+- `stacks`: floor stacks `{x, y, layers, a}`; `layers` are colour indices into `COLORS` (bottom → top); `rots` is a parallel array with each box's own world angle (remembered through lift/drop/merge); `a` is the bottom box's angle, used for collision. `pen` is a parallel array of `{crash, sq}` point deductions per box.
 - `fl`: forklift `{x, y, a, speed, steer}`.
-- `carried`: array of layers being carried, or `null`; `carriedRots`: each carried box's angle relative to the forklift (so they turn with it, and keep their world angle when dropped); `carriedRel` = `carriedRots[0]`, used for collision.
+- `carried`: array of layers being carried, or `null`; `carriedRots`: each carried box's angle relative to the forklift (so they turn with it, and keep their world angle when dropped); `carriedRel` = `carriedRots[0]`, used for collision. `carriedPen`: the carried boxes' `pen` entries.
 - `H`: logical fork level (integer 0–5); `hf`: smoothed value used only for drawing.
 - `status`: `'play'` or `'won'`; `time`: seconds elapsed.
 
@@ -36,6 +36,11 @@ Dependency direction: `main` → `game`, `input`, `render`; `game` → `forklift
 - `forkDown` releases the carried stack automatically at its resting height (top of the stack below, or the floor), merging into it. Max 5 layers (`MAX_LAYERS`).
 - A zone is done only when a stack of exactly `zone.count` boxes, all of `zone.color`, is within 0.5 of it. Winning = all zones done.
 - `resolve()` runs iterative SAT: forklift shapes vs walls; forklift shapes vs stacks (mass-weighted pushing); stacks vs walls; stacks vs stacks.
+
+## Scoring (`game.js`)
+- Each box is worth 100 points; points are only deducted (score = `maxScore - lostPoints`, starts full on every `newGame`, so level load/restart resets it).
+- Crash (up to 50 per box): forklift body or carried boxes hitting a floor stack, stack-vs-stack contact, or carried boxes hitting a wall, at forklift speed ≥ 0.8 (1–5 points, 0.4 s cooldown per stack/carried group).
+- Squareness (up to 50 per box): on release in `forkDown`, deduction scales with the box's deviation from the nearest multiple of 90°; the worst placement is kept (`sq`).
 
 ## Level generation (`level.js`)
 - Deterministic per level number via `mulberry32`; retries up to 300 attempts and falls back to level 1 if placement keeps failing.

@@ -4,6 +4,50 @@ import { generateLevel } from './level.js';
 
 const FORKLIFT_MASS = 6;
 const MAX_LAYERS = 5;
+// Every box is worth BOX_POINTS: up to CRASH_POINTS lost to crashes and up to
+// SQUARE_POINTS lost for being placed crooked. Points are only ever deducted.
+const BOX_POINTS = 100;
+const CRASH_POINTS = 50;
+const SQUARE_POINTS = 50;
+const CRASH_MIN_SPEED = 0.8;
+const CRASH_COOLDOWN = 0.4;
+
+const newPen = () => ({ crash: 0, sq: 0 });
+
+function ensure(S) {
+  if (!S.rots) S.rots = S.layers.map(() => S.a || 0);
+  if (!S.pen) S.pen = S.layers.map(newPen);
+}
+
+function crash(g, pens, owner) {
+  const speed = Math.abs(g.fl.speed);
+  if (speed < CRASH_MIN_SPEED || g.time - (owner.hitAt ?? -1) < CRASH_COOLDOWN) return;
+  owner.hitAt = g.time;
+  const pts = Math.min(5, Math.max(1, Math.round(speed)));
+  for (const p of pens) p.crash = Math.min(CRASH_POINTS, p.crash + pts);
+}
+
+// Deduction (0..SQUARE_POINTS) for a box whose world angle is a.
+function squareLoss(a) {
+  const q = Math.PI / 2;
+  const dev = Math.abs(((a % q) + q) % q);
+  return (Math.min(dev, q - dev) / (q / 2)) * SQUARE_POINTS;
+}
+
+export function maxScore(g) {
+  return BOX_POINTS * (g.stacks.reduce((n, s) => n + s.layers.length, 0) + (g.carried ? g.carried.length : 0));
+}
+
+export function lostPoints(g) {
+  let lost = 0;
+  for (const S of g.stacks) { ensure(S); for (const p of S.pen) lost += p.crash + p.sq; }
+  for (const p of g.carriedPen) lost += p.crash + p.sq;
+  return lost;
+}
+
+export function score(g) {
+  return Math.round(maxScore(g) - lostPoints(g));
+}
 
 export function newGame(levelNumber) {
   const lvl = generateLevel(levelNumber);
@@ -23,11 +67,12 @@ export function newGame(levelNumber) {
     pillars: lvl.walls,
     zones: lvl.zones,
     areas: lvl.areas,
-    stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), a: 0 })),
+    stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), pen: s.layers.map(newPen), a: 0 })),
     fl: makeForklift(lvl.start.x, lvl.start.y, lvl.start.a),
     carried: null,
     carriedRel: 0,
     carriedRots: [],
+    carriedPen: [],
     H: 0,
     hf: 0,
     status: 'play',
@@ -49,7 +94,7 @@ function forkShapes(g) {
   const tx = (FL.tineX0 + FL.tineX1) / 2, thx = (FL.tineX1 - FL.tineX0) / 2;
   if (g.carried) {
     const c = toWorld(f, FL.carryX, 0);
-    shapes.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, f.a + g.carriedRel), stackFilter: (s) => s.layers.length > g.H });
+    shapes.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, f.a + g.carriedRel), stackFilter: (s) => s.layers.length > g.H, carried: true });
   }
   shapes.push(mk(tx, -FL.tineOff, thx, FL.tineHalf, null));
   shapes.push(mk(tx, FL.tineOff, thx, FL.tineHalf, null));
@@ -72,7 +117,10 @@ function resolve(g) {
     for (const sh of shapes) {
       for (const w of g.walls) {
         const m = sat(sh.poly, w.poly);
-        if (m) moveF(m.x * m.depth, m.y * m.depth);
+        if (m) {
+          moveF(m.x * m.depth, m.y * m.depth);
+          if (sh.carried) crash(g, g.carriedPen, g);
+        }
       }
     }
 
@@ -84,6 +132,9 @@ function resolve(g) {
         if (!sh.stackFilter || !sh.stackFilter(s)) continue;
         const m = sat(sh.poly, stackPoly(s));
         if (!m) continue;
+        ensure(s);
+        crash(g, s.pen, s);
+        if (sh.carried) crash(g, g.carriedPen, g);
         const d = m.depth * 1.001;
         moveF(m.x * d * (wf / (wf + ws)), m.y * d * (wf / (wf + ws)));
         s.x -= m.x * d * (ws / (wf + ws));
@@ -105,6 +156,9 @@ function resolve(g) {
         if (Math.abs(a.x - b.x) >= 1.42 || Math.abs(a.y - b.y) >= 1.42) continue;
         const m = sat(stackPoly(a), stackPoly(b));
         if (!m) continue;
+        ensure(a); ensure(b);
+        crash(g, a.pen, a);
+        crash(g, b.pen, b);
         const wa = 1 / a.layers.length, wb = 1 / b.layers.length;
         const d = m.depth * 1.001;
         a.x += m.x * d * (wa / (wa + wb)); a.y += m.y * d * (wa / (wa + wb));
@@ -158,9 +212,10 @@ export function forkUp(g) {
   }
   const S = stackInZone(g);
   if (S && S.layers.length > g.H) {
-    if (!S.rots) S.rots = S.layers.map(() => S.a || 0);
+    ensure(S);
     g.carried = S.layers.splice(g.H);
     g.carriedRots = S.rots.splice(g.H).map((r) => r - g.fl.a);
+    g.carriedPen = S.pen.splice(g.H);
     g.carriedRel = g.carriedRots[0];
     if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
   }
@@ -173,21 +228,27 @@ export function forkDown(g) {
     return;
   }
   const S = stackInZone(g);
-  if (S && !S.rots) S.rots = S.layers.map(() => S.a || 0);
+  if (S) ensure(S);
   const n = S ? S.layers.length : 0;
   const minH = n + g.carried.length <= MAX_LAYERS ? n : n + 1;
   if (g.H > minH) g.H = Math.max(minH, g.H - 1);
   // Reaching the resting height puts the boxes down.
   if (g.H === n && minH === n) {
+    while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen());
+    while (g.carriedRots.length < g.carried.length) g.carriedRots.push(g.carriedRel);
+    const worldRots = g.carriedRots.map((r) => r + g.fl.a);
+    g.carriedPen.forEach((p, i) => { p.sq = Math.max(p.sq, squareLoss(worldRots[i])); });
     if (S) {
       S.layers.push(...g.carried);
-      S.rots.push(...g.carriedRots.map((r) => r + g.fl.a));
+      S.rots.push(...worldRots);
+      S.pen.push(...g.carriedPen);
     } else {
       const p = toWorld(g.fl, FL.carryX, 0);
-      g.stacks.push({ x: p.x, y: p.y, layers: g.carried, rots: g.carriedRots.map((r) => r + g.fl.a), a: g.fl.a + g.carriedRel });
+      g.stacks.push({ x: p.x, y: p.y, layers: g.carried, rots: worldRots, pen: g.carriedPen, a: g.fl.a + g.carriedRel });
     }
     g.carried = null;
     g.carriedRots = [];
+    g.carriedPen = [];
   }
 }
 

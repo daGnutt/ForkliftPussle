@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateLevel } from '../js/level.js';
 import { FL } from '../js/forklift.js';
-import { newGame, update, forkUp, forkDown, stackInZone } from '../js/game.js';
+import { newGame, update, forkUp, forkDown, stackInZone, score } from '../js/game.js';
 
 const NONE = {};
 const run = (g, inp, secs) => { for (let i = 0; i < secs * 120; i++) update(g, inp, 1 / 120); };
@@ -165,6 +165,34 @@ const driveUntil = (g, x, brakeAt) => {
   assert.equal(g.carried, null);
   assert.deepEqual(g.stacks[0].layers, [0, 1]);
   assert.ok(Math.abs(g.stacks[0].rots[0] - 0.1) < 1e-9 && Math.abs(g.stacks[0].rots[1] - 0.4) < 1e-9);
+}
+
+// Scoring: starts at full points, crashes cost up to 50 per box, crooked placement costs up to 50.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 8, y: 5, layers: [0] }];
+  const f = g.fl;
+  f.x = 5; f.y = 5; f.a = 0; f.speed = 0;
+  assert.equal(score(g), 100);
+  run(g, { up: true }, 3);
+  assert.ok(score(g) < 100 && score(g) >= 50, 'crash costs points but not below 50');
+  for (let i = 0; i < 20; i++) { g.time += 1; g.fl.speed = 4; run(g, { up: true }, 0.01); }
+  assert.ok(score(g) >= 50, 'crash loss capped at 50 per box');
+}
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [Math.PI / 4], a: Math.PI / 4 }];
+  const f = g.fl;
+  f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
+  driveUntil(g, 10, 8);
+  forkUp(g);
+  const before = score(g);
+  forkDown(g);
+  assert.ok(before - score(g) > 0 && score(g) <= 100 - 40, 'diagonal box loses ~50 for squareness');
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+  assert.equal(score(g), 100, 'square box keeps full points');
 }
 
 console.log('all tests passed');

@@ -1,6 +1,6 @@
 import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
-import { zoneDone, stackInZone } from './game.js';
+import { zoneDone, stackInZone, score, maxScore } from './game.js';
 
 function rotRect(ctx, cx, cy, a, fn) {
   ctx.save();
@@ -192,7 +192,7 @@ export function draw(ctx, g, view) {
   ctx.font = 'bold 20px sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`Level ${g.level}   Zones ${done}/${g.zones.length}   ${g.time.toFixed(0)}s`, 20, 25);
+  ctx.fillText(`Level ${g.level}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${g.time.toFixed(0)}s`, 20, 25);
 
   // fork height gauge: 0 = floor; box layer i fills the cell at height i-1
   const gx = width - 70, gy = 70, cell = 26, top = 5;
