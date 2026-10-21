@@ -148,7 +148,12 @@ export function drawPov(ctx, g, x, y, w, h) {
       ctx.fillRect(x + px, yTop, COL_W, yBot - yTop);
       const q = e.top && e.z1 < EYE_Z ? span[e.id] : null;
       if (q && t === q[0] && q[1] > q[0]) { // closed lid between near and far edge
-        const yFar = y + horizon - ((e.z1 - EYE_Z) / (q[1] * cosOff)) * f;
+        // stop at any nearer solid that the lid runs into (e.g. tines slid under a box)
+        let dFar = q[1];
+        for (const o of hits) {
+          if (o.e.id !== e.id && o.t > q[0] && o.t < dFar && o.e.z0 <= e.z1 + 1e-6 && o.e.z1 > e.z1 + 1e-6) dFar = o.t;
+        }
+        const yFar = y + horizon - ((e.z1 - EYE_Z) / (dFar * cosOff)) * f;
         ctx.fillStyle = e.color;
         ctx.fillRect(x + px, yFar, COL_W, yTop - yFar);
         ctx.fillStyle = 'rgba(255,255,255,0.18)';
