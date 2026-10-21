@@ -15,6 +15,7 @@ footer b { color: var(--accent); }
 #splash h1 span { color: #f9a825; }
 #splash p { margin: 0; font-size: 18px; }
 #splash .press { color: #f9a825; font-weight: bold; animation: blink 1.2s infinite; }
+#splash .opt { font-size: 16px; cursor: pointer; } #splash .opt input { width: auto; vertical-align: middle; }
 #splash .tip { max-width: 520px; font-size: 15px; } #splash .tip b { color: var(--accent); }
 #splash form { display: flex; gap: 8px; align-items: center; font-size: 16px; }
 #splash input { width: 160px; padding: 6px 8px; font: inherit; color: var(--title); background: var(--input); border: 1px solid var(--border); border-radius: 4px; }

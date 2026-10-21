@@ -121,6 +121,8 @@ function checkTutorial() {
   else if (tutStep === 1 && g.H !== 0) nextTutorial();
   else if (tutStep === 2 && countDone() > 0) nextTutorial();
 }
+const tutorialOpt = document.getElementById('tutorialOpt');
+tutorialOpt.checked = tutStep >= 0;
 showTutorial();
 
 function startGame() {
@@ -132,6 +134,14 @@ function startGame() {
     load(1);
   }
   view.best = getBest(localStorage, seed, level);
+  if (tutorialOpt.checked) {
+    localStorage.removeItem('forklift-tutorial-done');
+    tutStep = 0;
+  } else {
+    tutStep = -1;
+    localStorage.setItem('forklift-tutorial-done', '1');
+  }
+  showTutorial();
   splashOn = false;
   splash.classList.add('hide');
   seedInput.blur();
