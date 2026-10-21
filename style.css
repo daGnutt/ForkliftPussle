@@ -15,6 +15,8 @@ footer b { color: var(--accent); }
 #splash h1 span { color: #f9a825; }
 #splash p { margin: 0; font-size: 18px; }
 #splash .press { color: #f9a825; font-weight: bold; animation: blink 1.2s infinite; }
+#splash .opt { font-size: 16px; cursor: pointer; } #splash .opt input { width: auto; vertical-align: middle; }
+#splash .tip { max-width: 520px; font-size: 15px; } #splash .tip b { color: var(--accent); }
 #splash form { display: flex; gap: 8px; align-items: center; font-size: 16px; }
 #splash input { width: 160px; padding: 6px 8px; font: inherit; color: var(--title); background: var(--input); border: 1px solid var(--border); border-radius: 4px; }
 #splash input:focus { outline: 2px solid #f9a825; }
@@ -34,3 +36,9 @@ footer b { color: var(--accent); }
 #record p { margin: 0; }
 #record input { width: 160px; padding: 6px 8px; font: inherit; color: var(--title); background: var(--input); border: 1px solid var(--border); border-radius: 4px; }
 #record button { padding: 6px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
+
+#tutorial { position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); max-width: 520px; padding: 12px 20px; border-radius: 8px; text-align: center;
+  background: var(--splash1); color: var(--fg); border: 2px solid #f9a825; box-shadow: 0 4px 16px rgba(0,0,0,.5); z-index: 5; pointer-events: none; }
+#tutorial.hide { display: none; }
+#tutorial small { display: block; color: var(--accent); font-weight: bold; margin-bottom: 4px; }
+#tutorial b { color: var(--accent); }

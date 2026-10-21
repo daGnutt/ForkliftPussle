@@ -7,7 +7,7 @@ import { startAudio, toggleMusic, playFork, playBlocked, playSuccess, setEngine 
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const view = { width: 0, height: 0, dpr: 1, povBig: false, showSmall: false };
+const view = { width: 0, height: 0, dpr: 1, povBig: true, showSmall: false };
 
 function resize() {
   view.dpr = window.devicePixelRatio || 1;
@@ -51,7 +51,7 @@ const input = createInput({
   anyKey: startAudio,
   mute: toggleMusic,
   toggleSmall: () => { view.showSmall = !view.showSmall; },
-  swapView: () => { view.povBig = !view.povBig; },
+  swapView: () => { view.povBig = !view.povBig; if (tutStep === 3) nextTutorial(); },
   up: () => { const h = game.H; forkUp(game); if (game.H !== h) playFork(true); },
   down: () => {
     const h = game.H;
@@ -98,6 +98,36 @@ let splashOn = true;
 const seedInput = document.getElementById('seed');
 seedInput.value = seedText;
 
+const TUTORIAL = [
+  'Use <b>↑/↓</b> to drive and <b>←/→</b> to steer (the rear wheels steer!). <b>Space</b> brakes.',
+  'Press <b>A</b> to raise the forks and <b>Z</b> to lower them.',
+  'Drive the forks under a stack, lift it, and set it down on the matching coloured zone. Then park on the marked spot.',
+  'If you get lost, press <b>F</b> to switch to the map view (and <b>F</b> again to return to the cabin).',
+];
+const tutorialEl = document.getElementById('tutorial');
+let tutStep = localStorage.getItem('forklift-tutorial-done') ? -1 : 0;
+function showTutorial() {
+  tutorialEl.classList.toggle('hide', tutStep < 0);
+  if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep]}`;
+}
+function nextTutorial() {
+  tutStep = tutStep + 1 >= TUTORIAL.length ? -1 : tutStep + 1;
+  if (tutStep < 0) localStorage.setItem('forklift-tutorial-done', '1');
+  showTutorial();
+}
+let tutStart = { x: game.fl.x, y: game.fl.y };
+function checkTutorial() {
+  if (tutStart.g !== game) tutStart = { x: game.fl.x, y: game.fl.y, g: game };
+  if (tutStep < 0) return;
+  const g = game;
+  if (tutStep === 0 && Math.hypot(g.fl.x - tutStart.x, g.fl.y - tutStart.y) > 0.5) nextTutorial();
+  else if (tutStep === 1 && g.H !== 0) nextTutorial();
+  else if (tutStep === 2 && countDone() > 0) nextTutorial();
+}
+const tutorialOpt = document.getElementById('tutorialOpt');
+tutorialOpt.checked = tutStep >= 0;
+showTutorial();
+
 function startGame() {
   const text = seedInput.value.trim();
   if (text !== seedText) {
@@ -107,6 +137,14 @@ function startGame() {
     load(1);
   }
   view.best = getBest(localStorage, seed, level);
+  if (tutorialOpt.checked) {
+    localStorage.removeItem('forklift-tutorial-done');
+    tutStep = 0;
+  } else {
+    tutStep = -1;
+    localStorage.setItem('forklift-tutorial-done', '1');
+  }
+  showTutorial();
   splashOn = false;
   splash.classList.add('hide');
   seedInput.blur();
@@ -124,6 +162,12 @@ seedInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); startAudio(); startGame(); }
 });
 document.getElementById('seedForm').addEventListener('submit', (e) => { e.preventDefault(); startAudio(); startGame(); });
+window.addEventListener('keydown', (e) => {
+  if (splashOn || recordOpen || e.target === seedInput || e.code !== 'KeyH' || e.repeat) return;
+  e.stopImmediatePropagation();
+  tutStep = 0;
+  showTutorial();
+}, true);
 window.addEventListener('keydown', (e) => {
   if (!splashOn || e.target === seedInput) return;
   e.stopImmediatePropagation();
@@ -146,6 +190,7 @@ function frame(now) {
     update(game, input.state(), STEP);
     acc -= STEP;
   }
+  checkTutorial();
   checkRecord();
   const st = input.state();
   setEngine(game.fl.speed, st.up || st.down);
