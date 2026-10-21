@@ -158,6 +158,7 @@ export function forkUp(g) {
   }
   const S = stackInZone(g);
   if (S && S.layers.length > g.H) {
+    if (!S.rots) S.rots = S.layers.map(() => S.a || 0);
     g.carried = S.layers.splice(g.H);
     g.carriedRots = S.rots.splice(g.H).map((r) => r - g.fl.a);
     g.carriedRel = g.carriedRots[0];
@@ -172,6 +173,7 @@ export function forkDown(g) {
     return;
   }
   const S = stackInZone(g);
+  if (S && !S.rots) S.rots = S.layers.map(() => S.a || 0);
   const n = S ? S.layers.length : 0;
   const minH = n + g.carried.length <= MAX_LAYERS ? n : n + 1;
   if (g.H > minH) g.H = Math.max(minH, g.H - 1);
