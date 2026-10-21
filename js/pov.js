@@ -4,7 +4,9 @@ import { FL, toWorld } from './forklift.js';
 import { zoneDone, isSolved, scoreEnough, isParked } from './game.js';
 
 const EYE_X = -0.5; // cabin seat, local x (origin at the front axle)
-const EYE_Z = 1.45; // eye height in box units
+const EYE_Z = 1.45; // eye height in box units with the fork on the floor
+const EYE_FOLLOW = 0.4; // share of the fork's height the camera follows
+let eyeZ = EYE_Z; // current eye height, set per frame in drawPov
 const WALL_H = 3;
 const BOX_H = 0.5; // drawn box height in the first-person view (footprint stays 1×1)
 const HFOV = Math.PI / 2;
@@ -30,7 +32,7 @@ function floorQuad(ctx, eye, ang, f, cx, cy, pts, fill, stroke) {
   if (out.length < 3) return;
   ctx.beginPath();
   out.forEach(([fw, rt], i) => {
-    const X = cx + (rt / fw) * f, Y = cy + (EYE_Z / fw) * f;
+    const X = cx + (rt / fw) * f, Y = cy + (eyeZ / fw) * f;
     if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y);
   });
   ctx.closePath();
@@ -113,7 +115,7 @@ function floorOccluded(eye, z, edges) {
     const t = rayHit(eye.x, eye.y, ux, uy, e);
     if (t < 0 || t >= d) return false;
     if (Math.hypot(eye.x + ux * t - z.x, eye.y + uy * t - z.y) < 0.75) return false;
-    const zl = EYE_Z * (1 - t / d); // sight-line height at the hit
+    const zl = eyeZ * (1 - t / d); // sight-line height at the hit
     return zl >= e.z0 && zl <= e.z1;
   });
 }
@@ -136,6 +138,7 @@ export function drawPov(ctx, g, x, y, w, h) {
   ctx.fillStyle = floor;
   ctx.fillRect(x, y + horizon, w, h - horizon);
 
+  eyeZ = EYE_Z + EYE_FOLLOW * g.hf * (BOX_H + PAL);
   const eye = toWorld(g.fl, EYE_X, 0);
   const f = (w / 2) / Math.tan(HFOV / 2);
   for (const z of g.zones) {
@@ -162,15 +165,15 @@ export function drawPov(ctx, g, x, y, w, h) {
     for (const { t, e } of hits) if (e.top) { const q = span[e.id] || (span[e.id] = [t, t]); q[0] = Math.min(q[0], t); q[1] = Math.max(q[1], t); }
     const cosOff = Math.cos(off);
     const under = {};
-    for (const { t, e } of hits) if (e.id && e.z0 > EYE_Z) { const q = under[e.id] || (under[e.id] = [t, t]); q[0] = Math.min(q[0], t); q[1] = Math.max(q[1], t); }
+    for (const { t, e } of hits) if (e.id && e.z0 > eyeZ) { const q = under[e.id] || (under[e.id] = [t, t]); q[0] = Math.min(q[0], t); q[1] = Math.max(q[1], t); }
     // undersides wait in a queue and are drawn lowest-last once the ray moves nearer than all of them,
     // because a lower plane above the eye hides a higher one
     let queue = [];
     const flush = () => {
       queue.sort((a, b) => b.e.z0 - a.e.z0);
       for (const { e, u } of queue) {
-        const yFar = y + horizon - ((e.z0 - EYE_Z) / (u[1] * cosOff)) * f;
-        const yNear = y + horizon - ((e.z0 - EYE_Z) / (u[0] * cosOff)) * f;
+        const yFar = y + horizon - ((e.z0 - eyeZ) / (u[1] * cosOff)) * f;
+        const yNear = y + horizon - ((e.z0 - eyeZ) / (u[0] * cosOff)) * f;
         ctx.fillStyle = e.color;
         ctx.fillRect(x + px, yNear, COL_W, yFar - yNear);
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -181,23 +184,23 @@ export function drawPov(ctx, g, x, y, w, h) {
     for (const { t, e } of hits) {
       if (queue.length && t < Math.min(...queue.map((o) => o.t)) - 1e-6) flush();
       const d = t * cosOff;
-      const yTop = y + horizon - ((e.z1 - EYE_Z) / d) * f;
-      const yBot = y + horizon - ((e.z0 - EYE_Z) / d) * f;
+      const yTop = y + horizon - ((e.z1 - eyeZ) / d) * f;
+      const yBot = y + horizon - ((e.z0 - eyeZ) / d) * f;
       ctx.fillStyle = e.color || '#555b64';
       ctx.fillRect(x + px, yTop, COL_W, yBot - yTop);
       const dark = Math.min(0.75, d / 14) + (1 - e.shade) * 0.6;
       ctx.fillStyle = `rgba(0,0,0,${dark})`;
       ctx.fillRect(x + px, yTop, COL_W, yBot - yTop);
-      const u = e.id && e.z0 > EYE_Z ? under[e.id] : null;
+      const u = e.id && e.z0 > eyeZ ? under[e.id] : null;
       if (u && t === u[1] && u[1] > u[0]) queue.push({ e, u, t });
-      const q = e.top && e.z1 < EYE_Z ? span[e.id] : null;
+      const q = e.top && e.z1 < eyeZ ? span[e.id] : null;
       if (q && t === q[0] && q[1] > q[0]) { // closed lid between near and far edge
         // stop at any nearer solid that the lid runs into (e.g. tines slid under a box)
         let dFar = q[1];
         for (const o of hits) {
           if (o.e.id !== e.id && o.t > q[0] && o.t < dFar && o.e.z0 <= e.z1 + 1e-6 && o.e.z1 > e.z1 + 1e-6) dFar = o.t;
         }
-        const yFar = y + horizon - ((e.z1 - EYE_Z) / (dFar * cosOff)) * f;
+        const yFar = y + horizon - ((e.z1 - eyeZ) / (dFar * cosOff)) * f;
         ctx.fillStyle = e.color;
         ctx.fillRect(x + px, yFar, COL_W, yTop - yFar);
         ctx.fillStyle = 'rgba(255,255,255,0.18)';
@@ -219,7 +222,7 @@ export function drawPov(ctx, g, x, y, w, h) {
     const dx = z.x - eye.x, dy = z.y - eye.y;
     const fw = dx * c + dy * s, rt = -dx * s + dy * c;
     if (fw > 0.3 && fw < MAX_DIST && !floorOccluded(eye, z, edges)) {
-      const sx = x + w / 2 + (rt / fw) * f, sy = y + horizon - ((0.9 - EYE_Z) / fw) * f;
+      const sx = x + w / 2 + (rt / fw) * f, sy = y + horizon - ((0.9 - eyeZ) / fw) * f;
       const size = Math.max(8, Math.min(48, (0.5 / fw) * f));
       ctx.font = `bold ${size}px sans-serif`;
       ctx.textAlign = 'center';
