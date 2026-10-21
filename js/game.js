@@ -44,15 +44,9 @@ function forkShapes(g) {
     mk((FL.back + FL.front) / 2, 0, (FL.front - FL.back) / 2, FL.halfW, () => true),
   ];
   const tx = (FL.tineX0 + FL.tineX1) / 2, thx = (FL.tineX1 - FL.tineX0) / 2;
-  if (g.carried) {
-    shapes.push(mk(FL.carryX, 0, 0.5, 0.5, (s) => s.layers.length + 0.5 > g.H));
-    shapes.push(mk(tx, -FL.tineOff, thx, FL.tineHalf, null));
-    shapes.push(mk(tx, FL.tineOff, thx, FL.tineHalf, null));
-  } else {
-    const hit = (s) => tinesInside(g.H, s.layers.length);
-    shapes.push(mk(tx, -FL.tineOff, thx, FL.tineHalf, hit));
-    shapes.push(mk(tx, FL.tineOff, thx, FL.tineHalf, hit));
-  }
+  if (g.carried) shapes.push(mk(FL.carryX, 0, 0.5, 0.5, (s) => s.layers.length >= g.H));
+  shapes.push(mk(tx, -FL.tineOff, thx, FL.tineHalf, null));
+  shapes.push(mk(tx, FL.tineOff, thx, FL.tineHalf, null));
   return shapes;
 }
 
@@ -144,44 +138,36 @@ export function stackInZone(g) {
   return best;
 }
 
-// Box layer i (1..5) occupies height i-0.5 .. i+0.5. Tines at an integer height
-// are inside that layer (they collide); at a half-integer they are in the gap
-// beneath the layer above (they slide in).
-const MAX_H = 5.5;
-const tinesInside = (H, n) => Number.isInteger(H) && H >= 1 && H <= n;
+// Fork level H (0..6) is a whole number. Box layer i (1..5) sits at level i.
+// At level H >= 1 the tines are under layer H: raising the forks lifts layers
+// H and above. Level 0 is "forks down" and never lifts anything. Tines do not
+// collide with boxes. A carried stack's bottom box is at level H.
+const MAX_H = 6;
 
-export function forkUp(g, half = false) {
+export function forkUp(g) {
   if (g.carried) {
     g.H = Math.min(MAX_H, g.H + 1);
     return;
   }
   const S = stackInZone(g);
-  // Forks fully down (0) behave like floor level (0.5) when a stack is on them.
-  const base = g.H === 0 ? 0.5 : g.H;
-  const k = base + 0.5;
-  if (S && Number.isInteger(k) && k >= 1 && k <= S.layers.length) {
-    g.carried = S.layers.splice(k - 1);
+  if (S && g.H >= 1 && S.layers.length >= g.H) {
+    g.carried = S.layers.splice(g.H - 1);
     if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
-    g.H = Math.min(MAX_H, base + 1);
-    return;
   }
-  const H = Math.min(MAX_H, g.H + (half ? 0.5 : 1));
-  if (!(S && tinesInside(H, S.layers.length))) g.H = H;
+  g.H = Math.min(MAX_H, g.H + 1);
 }
 
-export function forkDown(g, half = false) {
-  const S = stackInZone(g);
-  const n = S ? S.layers.length : 0;
+export function forkDown(g) {
   if (!g.carried) {
-    const H = Math.max(0, g.H - (half ? 0.5 : 1));
-    if (!(S && tinesInside(H, n))) g.H = H;
+    g.H = Math.max(0, g.H - 1);
     return;
   }
-  const m = g.carried.length;
-  const rest = n + 0.5;
-  const minH = n + m <= MAX_LAYERS ? rest : rest + 1;
+  const S = stackInZone(g);
+  const n = S ? S.layers.length : 0;
+  const rest = n + 1;
+  const minH = n + g.carried.length <= MAX_LAYERS ? rest : rest + 1;
   if (g.H > minH) {
-    g.H = Math.max(minH, g.H - 1);
+    g.H -= 1;
   } else if (g.H === rest && minH === rest) {
     if (S) {
       S.layers.push(...g.carried);

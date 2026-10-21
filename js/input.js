@@ -6,8 +6,8 @@ export function createInput(handlers) {
     if (GAME_KEYS.has(e.code)) e.preventDefault();
     if (e.repeat) return;
     down.add(e.code);
-    if (e.code === 'KeyA') handlers.up?.(e.shiftKey);
-    else if (e.code === 'KeyZ') handlers.down?.(e.shiftKey);
+    if (e.code === 'KeyA') handlers.up?.();
+    else if (e.code === 'KeyZ') handlers.down?.();
     else if (e.code === 'KeyR') handlers.restart?.();
     else if (e.code === 'KeyN' || e.code === 'Enter') handlers.next?.(e.code);
     else if (e.code === 'KeyP') handlers.prev?.();

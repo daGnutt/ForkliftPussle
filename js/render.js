@@ -90,7 +90,7 @@ function drawForkliftBody(ctx, g) {
 // Tines are drawn at their own height (same parallax as box layers).
 function drawTines(ctx, g) {
   const f = g.fl;
-  const z = Math.max(0, g.hf - 0.5);
+  const z = g.hf - 1;
   ctx.save();
   ctx.translate(z * PX, z * PY);
   rotRect(ctx, f.x, f.y, f.a, () => {
@@ -109,7 +109,7 @@ function drawTines(ctx, g) {
 function drawCarried(ctx, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  drawStack(ctx, g.carried, p.x, p.y, Math.max(0, g.hf - 0.5));
+  drawStack(ctx, g.carried, p.x, p.y, Math.max(0, g.hf - 1));
 }
 
 export function draw(ctx, g, view) {
@@ -150,8 +150,8 @@ export function draw(ctx, g, view) {
 
   // Stacks whose top is below the tines are drawn first; stacks the tines
   // slide under are drawn over them.
-  const low = g.stacks.filter((st) => st.layers.length + 0.5 <= g.hf);
-  const high = g.stacks.filter((st) => st.layers.length + 0.5 > g.hf);
+  const low = g.stacks.filter((st) => st.layers.length < g.hf);
+  const high = g.stacks.filter((st) => st.layers.length >= g.hf);
   for (const st of low) drawStack(ctx, st.layers, st.x, st.y);
   drawForkliftBody(ctx, g);
   drawTines(ctx, g);
@@ -178,31 +178,32 @@ export function draw(ctx, g, view) {
   ctx.textBaseline = 'middle';
   ctx.fillText(`Level ${g.level}   Zones ${done}/${g.zones.length}   ${g.time.toFixed(0)}s`, 20, 25);
 
-  // fork height gauge: 5 box layers (0.5 .. 5.5); the bar marks the tines
+  // fork level gauge (0 = down, box layers 1..5, 6 = above the top layer)
   const gx = width - 70, gy = 70, cell = 26;
-  const yOf = (h) => gy + (5.5 - h) * cell;
+  const yOf = (lvl) => gy + (6 - lvl) * cell;
   ctx.font = '12px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#aaa';
   ctx.fillText('FORKS', gx + 15, gy - 12);
-  for (let lvl = 5; lvl >= 1; lvl--) {
-    const y = yOf(lvl + 0.5);
+  for (let lvl = 6; lvl >= 0; lvl--) {
     ctx.strokeStyle = '#666';
     ctx.lineWidth = 1;
-    ctx.strokeRect(gx, y, 30, cell - 2);
+    ctx.strokeRect(gx, yOf(lvl), 30, cell - 2);
     ctx.fillStyle = '#aaa';
-    ctx.fillText(String(lvl), gx - 10, y + cell / 2);
+    ctx.fillText(String(lvl), gx - 10, yOf(lvl) + cell / 2);
   }
   if (g.carried) {
     g.carried.forEach((c, i) => {
+      const lvl = g.H + i;
+      if (lvl > 6) return;
       ctx.fillStyle = COLORS[c];
-      ctx.fillRect(gx + 3, yOf(g.H + i + 1) + 3, 24, cell - 8);
+      ctx.fillRect(gx + 3, yOf(lvl) + 3, 24, cell - 8);
     });
   }
-  ctx.fillStyle = '#f9a825';
-  ctx.fillRect(gx - 4, yOf(g.H) - 2, 38, 4);
-  ctx.fillText(g.H.toFixed(1), gx + 15, yOf(0) + 22);
+  ctx.strokeStyle = '#f9a825';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);
 
   if (g.status === 'won') {
     ctx.fillStyle = 'rgba(0,0,0,0.65)';
