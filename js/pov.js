@@ -6,6 +6,7 @@ import { zoneDone, isSolved, scoreEnough, isParked } from './game.js';
 const EYE_X = -0.5; // cabin seat, local x (origin at the front axle)
 const EYE_Z = 1.45; // eye height in box units
 const WALL_H = 3;
+const BOX_H = 0.5; // drawn box height in the first-person view (footprint stays 1×1)
 const HFOV = (110 * Math.PI) / 180;
 const COL_W = 2;
 const MAX_DIST = 30;
@@ -52,11 +53,11 @@ function rectEdges(x, y, a, hl, hw, z0, z1, color, edges, top = false) {
   }
 }
 
-// Stack with a pallet under every box; level h maps to height h * (1 + PAL),
+// Stack with a pallet under every box; level h maps to height h * (BOX_H + PAL),
 // so the tines at fork level h line up with the pallet of box h.
 function stackEdges(x, y, rots, layers, level, edges, heading) {
   layers.forEach((c, i) => {
-    const z = (level + i) * (1 + PAL), r = rots[i] ?? 0;
+    const z = (level + i) * (BOX_H + PAL), r = rots[i] ?? 0;
     // runners point along the box axis closest to the forklift heading, leaving gaps for the tines
     const rel = heading - r;
     const pr = Math.abs(Math.cos(rel)) >= Math.abs(Math.sin(rel)) ? r : r + Math.PI / 2;
@@ -64,7 +65,7 @@ function stackEdges(x, y, rots, layers, level, edges, heading) {
     for (const [off, hw] of [[0, 0.2], [-0.45, 0.05], [0.45, 0.05]]) {
       rectEdges(x - sp * off, y + cp * off, pr, 0.5, hw, z, z + PAL, '#9a7040', edges);
     }
-    rectEdges(x, y, r, 0.5, 0.5, z + PAL, z + 1 + PAL, COLORS[c], edges, i === layers.length - 1);
+    rectEdges(x, y, r, 0.5, 0.5, z + PAL, z + BOX_H + PAL, COLORS[c], edges, i === layers.length - 1);
   });
 }
 
@@ -90,7 +91,7 @@ function buildEdges(g) {
   const len = (FL.tineX1 - FL.tineX0) / 2;
   for (const side of [-1, 1]) {
     const t = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, side * FL.tineOff);
-    rectEdges(t.x, t.y, g.fl.a, len, FL.tineHalf, g.hf * (1 + PAL), g.hf * (1 + PAL) + PAL, '#b0b4ba', edges, true);
+    rectEdges(t.x, t.y, g.fl.a, len, FL.tineHalf, g.hf * (BOX_H + PAL), g.hf * (BOX_H + PAL) + PAL, '#b0b4ba', edges, true);
   }
   return edges;
 }
@@ -170,7 +171,7 @@ export function drawPov(ctx, g, x, y, w, h) {
         ctx.fillStyle = 'rgba(255,255,255,0.18)';
         ctx.fillRect(x + px, yFar, COL_W, yTop - yFar);
       }
-      if (e.color && Math.abs(e.z1 - e.z0 - 1) < 1e-6 && e.color !== '#9a7040') { // box seams
+      if (e.color && Math.abs(e.z1 - e.z0 - BOX_H) < 1e-6 && e.color !== '#9a7040') { // box seams
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(x + px, yBot - 1, COL_W, 1);
       }
