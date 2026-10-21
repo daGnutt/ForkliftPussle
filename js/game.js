@@ -139,7 +139,7 @@ export function stackInZone(g) {
   for (const s of g.stacks) {
     const l = toLocal(f, s.x, s.y);
     const dx = Math.abs(l.x - FL.carryX), dy = Math.abs(l.y);
-    if (dx < 0.45 && dy < 0.45 && dx + dy < bd) { best = s; bd = dx + dy; }
+    if (dx < 0.55 && dy < 0.5 && dx + dy < bd) { best = s; bd = dx + dy; }
   }
   return best;
 }
@@ -156,11 +156,13 @@ export function forkUp(g, half = false) {
     return;
   }
   const S = stackInZone(g);
-  const k = g.H + 0.5;
+  // Forks fully down (0) behave like floor level (0.5) when a stack is on them.
+  const base = g.H === 0 ? 0.5 : g.H;
+  const k = base + 0.5;
   if (S && Number.isInteger(k) && k >= 1 && k <= S.layers.length) {
     g.carried = S.layers.splice(k - 1);
     if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
-    g.H = Math.min(MAX_H, g.H + 1);
+    g.H = Math.min(MAX_H, base + 1);
     return;
   }
   const H = Math.min(MAX_H, g.H + (half ? 0.5 : 1));

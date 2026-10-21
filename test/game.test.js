@@ -77,6 +77,21 @@ const driveUntil = (g, x, brakeAt) => {
   assert.deepEqual(g.stacks[0].layers, [1, 2]);
 }
 
+// Forks fully down (0) under a stack: A lifts it.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1] }];
+  const f = g.fl;
+  f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
+  driveUntil(g, 10, 8);
+  forkUp(g);
+  assert.deepEqual(g.carried, [0, 1]);
+  assert.equal(g.H, 1.5);
+  forkUp(g);
+  assert.equal(g.H, 2.5);
+}
+
 // Destack: tines in the gap under layer 2 lift layers 2..n.
 {
   const g = newGame(1);
