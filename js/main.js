@@ -114,10 +114,12 @@ function nextTutorial() {
   if (tutStep < 0) localStorage.setItem('forklift-tutorial-done', '1');
   showTutorial();
 }
+let tutStart = { x: game.fl.x, y: game.fl.y };
 function checkTutorial() {
+  if (tutStart.g !== game) tutStart = { x: game.fl.x, y: game.fl.y, g: game };
   if (tutStep < 0) return;
   const g = game;
-  if (tutStep === 0 && Math.hypot(g.fl.x - g.parking.x, g.fl.y - g.parking.y) > 0.5) nextTutorial();
+  if (tutStep === 0 && Math.hypot(g.fl.x - tutStart.x, g.fl.y - tutStart.y) > 0.5) nextTutorial();
   else if (tutStep === 1 && g.H !== 0) nextTutorial();
   else if (tutStep === 2 && countDone() > 0) nextTutorial();
 }
