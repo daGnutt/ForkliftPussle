@@ -57,7 +57,7 @@ function startGame() {
     seedText = text;
     seed = parseSeed(text);
     localStorage.setItem('forklift-seed', text);
-    load(level);
+    load(1);
   }
   splashOn = false;
   splash.classList.add('hide');

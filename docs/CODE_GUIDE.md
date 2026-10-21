@@ -55,7 +55,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 - `drawStack(ctx, layers, x, y, z0, rots)` draws boxes as extruded cubes (shaded side faces facing the floor-ward parallax direction, gradient lid with tape strip), each with its own angle from `rots`; the top box shows its colour and the boxes below appear as coloured numbers.
 
 ## Branding / splash
-- Game name: Forklift Frenzy. `favicon.svg` is the tab icon; `#splash` in `index.html` (styled in `style.css`) has a seed text box and a shuffle-icon button (fills a random integer) (persisted in `localStorage` `forklift-seed`; submitting with Enter/Start applies it and reloads the level). It is dismissed by the first key press outside the box (handled in `main.js`, which pauses the simulation until then and swallows that key).
+- Game name: Forklift Frenzy. `favicon.svg` is the tab icon; `#splash` in `index.html` (styled in `style.css`) has a seed text box and a shuffle-icon button (fills a random integer) (persisted in `localStorage` `forklift-seed`; submitting with Enter/Start applies it and restarts at level 1). It is dismissed by the first key press outside the box (handled in `main.js`, which pauses the simulation until then and swallows that key).
 
 ## Tests
 - `test/game.test.js` is a sequence of independent blocks (plain `node:assert`). Helpers: `run` (simulate seconds of input), `driveUntil`, `flatWorld` (clears zones and pillars). Any game-logic change needs a scenario here.
