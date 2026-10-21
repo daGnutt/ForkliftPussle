@@ -161,6 +161,8 @@ export function drawPov(ctx, g, x, y, w, h) {
     const span = {};
     for (const { t, e } of hits) if (e.top) { const q = span[e.id] || (span[e.id] = [t, t]); q[0] = Math.min(q[0], t); q[1] = Math.max(q[1], t); }
     const cosOff = Math.cos(off);
+    const under = {};
+    for (const { t, e } of hits) if (e.id && e.z0 > EYE_Z) { const q = under[e.id] || (under[e.id] = [t, t]); q[0] = Math.min(q[0], t); q[1] = Math.max(q[1], t); }
     for (const { t, e } of hits) {
       const d = t * cosOff;
       const yTop = y + horizon - ((e.z1 - EYE_Z) / d) * f;
@@ -170,6 +172,14 @@ export function drawPov(ctx, g, x, y, w, h) {
       const dark = Math.min(0.75, d / 14) + (1 - e.shade) * 0.6;
       ctx.fillStyle = `rgba(0,0,0,${dark})`;
       ctx.fillRect(x + px, yTop, COL_W, yBot - yTop);
+      const u = e.id && e.z0 > EYE_Z ? under[e.id] : null;
+      if (u && t === u[1] && u[1] > u[0]) { // underside, drawn at the far edge so nearer parts overdraw it
+        const yNear = y + horizon - ((e.z0 - EYE_Z) / (u[0] * cosOff)) * f;
+        ctx.fillStyle = e.color;
+        ctx.fillRect(x + px, yNear, COL_W, yBot - yNear);
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(x + px, yNear, COL_W, yBot - yNear);
+      }
       const q = e.top && e.z1 < EYE_Z ? span[e.id] : null;
       if (q && t === q[0] && q[1] > q[0]) { // closed lid between near and far edge
         // stop at any nearer solid that the lid runs into (e.g. tines slid under a box)
