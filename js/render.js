@@ -205,7 +205,11 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale) {
   const s = Math.min(maxScale, rw / g.w, rh / g.h);
   const ox = rx + (rw - g.w * s) / 2, oy = ry + (rh - g.h * s) / 2;
   ctx.setTransform(s * view.dpr, 0, 0, s * view.dpr, ox * view.dpr, oy * view.dpr);
+  drawWorld(ctx, g);
+}
 
+// Top-down world in simulation units; the caller sets the transform.
+function drawWorld(ctx, g) {
   ctx.fillStyle = theme().floor;
   ctx.fillRect(0, 0, g.w, g.h);
   ctx.strokeStyle = theme().grid;
@@ -283,6 +287,32 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale) {
   ctx.strokeRect(-0.15, -0.15, g.w + 0.3, g.h + 0.3);
 }
 
+// Mirror showing the area around the forklift, rotated so the forklift's heading is up.
+function drawProximityMirror(ctx, g, view, x, y, w, h) {
+  const scale = w / 7;
+  const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.fillStyle = theme().bg;
+  ctx.fillRect(x, y, w, h);
+  ctx.translate(x + w / 2, y + h / 2);
+  ctx.rotate(-Math.PI / 2 - g.fl.a);
+  ctx.scale(scale, scale);
+  ctx.translate(-c.x, -c.y);
+  drawWorld(ctx, g);
+  ctx.restore();
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('SIDE MIRROR', x + 6, y + 5);
+}
+
 export function draw(ctx, g, view) {
   const { width, height } = view;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -292,6 +322,10 @@ export function draw(ctx, g, view) {
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   if (view.povBig) {
     drawPov(ctx, g, 0, 0, width, height);
+    const mw = Math.min(340, width * 0.3);
+    drawPov(ctx, g, (width - mw) / 2, 8, mw, mw * 0.28, { rear: true });
+    drawProximityMirror(ctx, g, view, width - 70 - 20 - 190, 8, 190, 150);
+    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
     if (view.showSmall) {
       ctx.fillStyle = theme().bg;
       ctx.fillRect(10, 10, POV_W, POV_H);

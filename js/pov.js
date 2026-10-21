@@ -121,11 +121,14 @@ function floorOccluded(eye, z, edges) {
 }
 
 // Doom-style first-person view from the cabin, drawn into the box (x, y, w, h).
-export function drawPov(ctx, g, x, y, w, h) {
+// opts.rear: look backwards, mirrored left-right (rear-view mirror).
+export function drawPov(ctx, g, x, y, w, h, opts = {}) {
+  const yaw = g.fl.a + (opts.rear ? Math.PI : 0);
   ctx.save();
   ctx.beginPath();
   ctx.rect(x, y, w, h);
   ctx.clip();
+  if (opts.rear) { ctx.translate(2 * x + w, 0); ctx.scale(-1, 1); }
   const horizon = h * 0.35;
   const sky = ctx.createLinearGradient(0, y, 0, y + horizon);
   sky.addColorStop(0, theme().skyTop);
@@ -143,18 +146,18 @@ export function drawPov(ctx, g, x, y, w, h) {
   const f = (w / 2) / Math.tan(HFOV / 2);
   for (const z of g.zones) {
     const done = zoneDone(g, z), r = 0.6;
-    floorQuad(ctx, eye, g.fl.a, f, x + w / 2, y + horizon,
+    floorQuad(ctx, eye, yaw, f, x + w / 2, y + horizon,
       [[z.x - r, z.y - r], [z.x + r, z.y - r], [z.x + r, z.y + r], [z.x - r, z.y + r]],
       COLORS[z.color] + (done ? 'cc' : '77'), COLORS[z.color]);
   }
   const park = parkingCorners(g);
   const ready = isSolved(g) && scoreEnough(g);
-  floorQuad(ctx, eye, g.fl.a, f, x + w / 2, y + horizon, park,
+  floorQuad(ctx, eye, yaw, f, x + w / 2, y + horizon, park,
     ready ? (isParked(g) ? '#66bb6a99' : '#66bb6a66') : '#9e9e9e55', ready ? '#66bb6a' : '#bdbdbd');
   const edges = buildEdges(g);
   for (let px = 0; px < w; px += COL_W) {
     const off = Math.atan((px + COL_W / 2 - w / 2) / f);
-    const ang = g.fl.a + off, dx = Math.cos(ang), dy = Math.sin(ang);
+    const ang = yaw + off, dx = Math.cos(ang), dy = Math.sin(ang);
     const hits = [];
     for (const e of edges) {
       const t = rayHit(eye.x, eye.y, dx, dy, e);
@@ -214,7 +217,7 @@ export function drawPov(ctx, g, x, y, w, h) {
     flush();
   }
   // floating labels (drawn over the walls so they stay readable): total boxes wanted per zone, hidden once the zone is done
-  for (const z of g.zones) {
+  for (const z of opts.rear ? [] : g.zones) {
     const done = zoneDone(g, z);
     if (done) continue;
     const text = `×${z.count}`;
@@ -243,5 +246,5 @@ export function drawPov(ctx, g, x, y, w, h) {
   ctx.font = '10px sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('CABIN VIEW  (F: swap)', x + 6, y + 5);
+  ctx.fillText(opts.rear ? 'REAR MIRROR' : 'CABIN VIEW  (F: swap)', x + 6, y + 5);
 }
