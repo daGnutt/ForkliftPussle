@@ -97,6 +97,7 @@ function tryGenerate(n, attempt, seed = 0) {
 
   // One tidy block per colour: that colour's zones laid out on a grid.
   const PITCH = 1.6;
+  const WALL_GAP = 0.5;
   for (let c = 0; c < colors; c++) {
     const zs = zones.filter((z) => z.color === c);
     const cols = Math.min(zs.length, 3), rows = Math.ceil(zs.length / cols);
@@ -109,6 +110,14 @@ function tryGenerate(n, attempt, seed = 0) {
         w: aw,
         h: ah,
       };
+      // Prefer drop-off areas flush against an outer wall (most attempts).
+      if (t < 300) {
+        const side = Math.floor(rnd() * 4);
+        if (side === 0) r.x = WALL_GAP;
+        else if (side === 1) r.x = w - aw - WALL_GAP;
+        else if (side === 2) r.y = WALL_GAP;
+        else r.y = h - ah - WALL_GAP;
+      }
       if (pointRectDist(start.x, start.y, r) < 3.2) continue;
       if (walls.some((o) => rectGap(o, r) < 1.5)) continue;
       if (areas.some((o) => rectGap(o, r) < 1.5)) continue;
