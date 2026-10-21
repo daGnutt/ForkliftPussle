@@ -106,6 +106,19 @@ function rayHit(ox, oy, dx, dy, e) {
   return t > 0.01 && u >= 0 && u <= 1 ? t : -1;
 }
 
+// True if something other than what stands on the zone itself blocks the line of sight to the zone's floor centre.
+function floorOccluded(eye, z, edges) {
+  const dx = z.x - eye.x, dy = z.y - eye.y, d = Math.hypot(dx, dy);
+  const ux = dx / d, uy = dy / d;
+  return edges.some((e) => {
+    const t = rayHit(eye.x, eye.y, ux, uy, e);
+    if (t < 0 || t >= d) return false;
+    if (Math.hypot(eye.x + ux * t - z.x, eye.y + uy * t - z.y) < 0.75) return false;
+    const zl = EYE_Z * (1 - t / d); // sight-line height at the hit
+    return zl >= e.z0 && zl <= e.z1;
+  });
+}
+
 // Doom-style first-person view from the cabin, drawn into the box (x, y, w, h).
 export function drawPov(ctx, g, x, y, w, h) {
   ctx.save();
@@ -186,7 +199,7 @@ export function drawPov(ctx, g, x, y, w, h) {
     const c = Math.cos(g.fl.a), s = Math.sin(g.fl.a);
     const dx = z.x - eye.x, dy = z.y - eye.y;
     const fw = dx * c + dy * s, rt = -dx * s + dy * c;
-    if (fw > 0.3 && fw < MAX_DIST) {
+    if (fw > 0.3 && fw < MAX_DIST && !floorOccluded(eye, z, edges)) {
       const sx = x + w / 2 + (rt / fw) * f, sy = y + horizon - ((0.9 - EYE_Z) / fw) * f;
       const size = Math.max(8, Math.min(48, (0.5 / fw) * f));
       ctx.font = `bold ${size}px sans-serif`;
