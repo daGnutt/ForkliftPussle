@@ -50,5 +50,5 @@ Dependency direction: `main` → `game`, `input`, `render`; `game` → `forklift
 - `test/game.test.js` is a sequence of independent blocks (plain `node:assert`). Helpers: `run` (simulate seconds of input), `driveUntil`, `flatWorld` (clears zones and pillars). Any game-logic change needs a scenario here.
 
 ## Workflow conventions
-- Each fix or feature goes on its own local branch (not pushed); delete it after merging into `main`.
+- Each fix or feature goes on its own local branch (not pushed); never merge into `main` unless the user explicitly asks; delete the branch only after such a merge.
 - Update `README.md` when controls or rules change, and this guide when structure changes.

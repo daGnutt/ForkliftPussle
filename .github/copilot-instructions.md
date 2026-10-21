@@ -25,4 +25,4 @@ Top-down, keyboard-only forklift puzzle. Vanilla JS ES modules + Canvas 2D, **no
 - Game-logic changes should be accompanied by a scenario in `test/game.test.js`, using the `run`/`driveUntil` helpers to simulate driving; update `README.md` control docs when the fork rules change.
 - Update `docs/CODE_GUIDE.md` whenever a change affects module structure, game state shape, rules, level generation, or rendering.
 - Create every new fix or feature on its own branch (not directly on `main`).
-- Keep fix/feature branches local only (don't push them) unless explicitly told otherwise. After merging one into `main`, delete the local branch.
+- Keep fix/feature branches local only (don't push them) unless explicitly told otherwise. **Never merge a branch into `main` automatically**; leave it unmerged until the user explicitly asks. Only after the user-requested merge, delete the local branch.
