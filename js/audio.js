@@ -158,11 +158,19 @@ function tick() {
 export function startAudio() {
   init();
   if (!ctx) return;
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state === 'suspended' && !silenced) ctx.resume();
   if (!timer) {
     tick();
     timer = setInterval(tick, 100);
   }
+}
+
+// Silence everything (focus lost / manual pause) by suspending the audio clock.
+let silenced = false;
+export function setSilenced(s) {
+  silenced = s;
+  if (!ctx) return;
+  if (s) ctx.suspend(); else ctx.resume();
 }
 
 export function isMusicMuted() { return muted; }

@@ -3,7 +3,7 @@ import { createInput } from './input.js';
 import { getBest, beats, saveBest, finalScore, timePenalty } from './highscores.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
-import { startAudio, toggleMusic, playFork, playBlocked, playSuccess, setEngine } from './audio.js';
+import { startAudio, toggleMusic, playFork, playBlocked, playSuccess, setEngine, setSilenced } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -59,13 +59,13 @@ const input = createInput({
     else if (game.H !== h) playFork(false);
   },
   restart: () => load(level),
-  next: (code) => { if (code === 'Enter' ? game.status === 'won' : true) load(level + 1); },
+  next: () => { if (game.status === 'won') load(level + 1); },
   goto: () => {
     const n = parseInt(window.prompt('Go to level:', String(level)), 10);
     input.clear();
     if (n >= 1) load(n);
   },
-  prev: () => load(level - 1),
+  pause: () => { if (!splashOn) setPaused(!view.userPaused, true); },
 });
 
 const pending = {};
@@ -174,11 +174,22 @@ window.addEventListener('keydown', (e) => {
   startGame();
 }, true);
 
-const setPaused = (p) => { view.paused = p; if (!p) last = performance.now(); };
-window.addEventListener('blur', () => setPaused(true));
-window.addEventListener('focus', () => setPaused(document.hidden));
-document.addEventListener('visibilitychange', () => setPaused(document.hidden || !document.hasFocus()));
+const lostFocus = () => document.hidden || !document.hasFocus();
+function applyPause() {
+  const p = !!view.userPaused || lostFocus();
+  if (!p && view.paused) last = performance.now();
+  view.paused = p;
+  setSilenced(p);
+}
+function setPaused(p, manual) {
+  if (manual) view.userPaused = p;
+  applyPause();
+}
+window.addEventListener('blur', applyPause);
+window.addEventListener('focus', applyPause);
+document.addEventListener('visibilitychange', applyPause);
 view.paused = !document.hasFocus();
+setSilenced(view.paused);
 
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();

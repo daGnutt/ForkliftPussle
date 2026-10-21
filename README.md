@@ -15,7 +15,8 @@ Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift an
 | F | Swap the big view between the top-down overview and the cabin (first-person) view |
 | R | Restart level |
 | G | Go to a level number (prompt) |
-| N / P | Next / previous level (Enter after winning) |
+| P | Pause / resume (the game also pauses and mutes all sound when the window loses focus) |
+| Enter | Next level (after winning) |
 
 ## Seeds
 On the splash screen you can type a seed (a number or any text) and press Enter/Start. The shuffle button fills in a random seed. The same seed and level number always give the same layout; empty = the default levels. Changing the seed resets you to level 1. The seed is remembered between visits.
