@@ -14,40 +14,49 @@ const PX = 0.042, PY = -0.07; // screen shift per unit of height
 
 // Draws a stack whose bottom box is at height z0 above the floor: top box
 // colour, plus a coloured number for each box below it.
-function drawStack(ctx, layers, x, y, z0 = 0) {
+function drawStack(ctx, layers, x, y, z0 = 0, ang = 0) {
   const n = layers.length;
-  const size = 1;
+  const size = 1, h = size / 2;
+  const at = (cx, cy, fn) => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(ang);
+    fn();
+    ctx.restore();
+  };
   if (z0 > 0) {
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(x - size / 2 + 0.1, y - size / 2 + 0.1, size, size);
+    at(x + 0.1, y + 0.1, () => ctx.fillRect(-h, -h, size, size));
   }
-  let bx = 0, by = 0;
+  const cx = x + (z0 + n - 1) * PX, cy = y + (z0 + n - 1) * PY;
   for (let i = 0; i < n; i++) {
-    bx = x - size / 2 + (z0 + i) * PX;
-    by = y - size / 2 + (z0 + i) * PY;
-    ctx.fillStyle = COLORS[layers[i]];
-    ctx.fillRect(bx, by, size, size);
-    ctx.strokeStyle = 'rgba(0,0,0,0.65)';
-    ctx.lineWidth = 0.05;
-    ctx.strokeRect(bx, by, size, size);
-  }
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-  ctx.lineWidth = 0.04;
-  ctx.strokeRect(bx + 0.12, by + 0.12, size - 0.24, size - 0.24);
-  if (n > 1) {
-    ctx.font = 'bold 0.34px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    for (let i = 0; i < n - 1; i++) {
-      const col = i % 2, row = Math.floor(i / 2);
-      const px = bx + 0.3 + col * 0.4, py = by + 0.3 + row * 0.4;
-      ctx.lineWidth = 0.1;
-      ctx.strokeStyle = '#000';
-      ctx.strokeText(String(i + 1), px, py);
+    at(x + (z0 + i) * PX, y + (z0 + i) * PY, () => {
       ctx.fillStyle = COLORS[layers[i]];
-      ctx.fillText(String(i + 1), px, py);
-    }
+      ctx.fillRect(-h, -h, size, size);
+      ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+      ctx.lineWidth = 0.05;
+      ctx.strokeRect(-h, -h, size, size);
+    });
   }
+  at(cx, cy, () => {
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 0.04;
+    ctx.strokeRect(-h + 0.12, -h + 0.12, size - 0.24, size - 0.24);
+    if (n > 1) {
+      ctx.font = 'bold 0.34px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i < n - 1; i++) {
+        const col = i % 2, row = Math.floor(i / 2);
+        const px = -h + 0.3 + col * 0.4, py = -h + 0.3 + row * 0.4;
+        ctx.lineWidth = 0.1;
+        ctx.strokeStyle = '#000';
+        ctx.strokeText(String(i + 1), px, py);
+        ctx.fillStyle = COLORS[layers[i]];
+        ctx.fillText(String(i + 1), px, py);
+      }
+    }
+  });
 }
 
 function drawWheel(ctx, lx, ly, ang) {
@@ -109,7 +118,7 @@ function drawTines(ctx, g) {
 function drawCarried(ctx, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  drawStack(ctx, g.carried, p.x, p.y, g.hf);
+  drawStack(ctx, g.carried, p.x, p.y, g.hf, g.fl.a);
 }
 
 export function draw(ctx, g, view) {
