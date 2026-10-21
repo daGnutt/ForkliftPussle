@@ -130,12 +130,19 @@ window.addEventListener('keydown', (e) => {
   startGame();
 }, true);
 
+const setPaused = (p) => { view.paused = p; if (!p) last = performance.now(); };
+window.addEventListener('blur', () => setPaused(true));
+window.addEventListener('focus', () => setPaused(document.hidden));
+document.addEventListener('visibilitychange', () => setPaused(document.hidden || !document.hasFocus()));
+view.paused = !document.hasFocus();
+
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 function frame(now) {
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
-  while (!splashOn && acc >= STEP) {
+  if (view.paused) acc = 0;
+  while (!splashOn && !view.paused && acc >= STEP) {
     update(game, input.state(), STEP);
     acc -= STEP;
   }

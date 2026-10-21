@@ -369,6 +369,14 @@ export function draw(ctx, g, view) {
   ctx.fillStyle = '#f9a825';
   ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
 
+  if (view.paused) {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText('Paused – click the window to resume', width / 2, height / 2);
+  }
   if (g.status === 'won') {
     ctx.fillStyle = 'rgba(0,0,0,0.65)';
     ctx.fillRect(0, height / 2 - 60, width, 120);
