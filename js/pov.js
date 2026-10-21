@@ -135,7 +135,6 @@ export function drawPov(ctx, g, x, y, w, h) {
   floorQuad(ctx, eye, g.fl.a, f, x + w / 2, y + horizon, park,
     ready ? (isParked(g) ? '#66bb6a99' : '#66bb6a66') : '#9e9e9e55', ready ? '#66bb6a' : '#bdbdbd');
   const edges = buildEdges(g);
-  for (const [px, py] of park) rectEdges(px, py, 0, 0.06, 0.06, 0, 1.3, ready ? '#66bb6a' : '#bdbdbd', edges);
   for (let px = 0; px < w; px += COL_W) {
     const off = Math.atan((px + COL_W / 2 - w / 2) / f);
     const ang = g.fl.a + off, dx = Math.cos(ang), dy = Math.sin(ang);
