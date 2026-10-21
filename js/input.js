@@ -1,4 +1,4 @@
-const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyA', 'KeyZ']);
+const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyA', 'KeyZ', 'KeyM']);
 
 export function createInput(handlers) {
   const down = new Set();
@@ -6,10 +6,12 @@ export function createInput(handlers) {
     if (GAME_KEYS.has(e.code)) e.preventDefault();
     if (e.repeat) return;
     down.add(e.code);
+    handlers.anyKey?.();
     if (e.code === 'KeyA') handlers.up?.();
     else if (e.code === 'KeyZ') handlers.down?.();
     else if (e.code === 'KeyR') handlers.restart?.();
     else if (e.code === 'KeyN' || e.code === 'Enter') handlers.next?.(e.code);
+    else if (e.code === 'KeyM') handlers.mute?.();
     else if (e.code === 'KeyP') handlers.prev?.();
   });
   window.addEventListener('keyup', (e) => down.delete(e.code));

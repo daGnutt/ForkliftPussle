@@ -9,6 +9,7 @@ Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift an
 | ← / → | Steer (rear wheels steer, so the tail swings out) |
 | Space | Brake |
 | A / Z | Forks up / down one level |
+| M | Mute / unmute the background music |
 | R | Restart level |
 | N / P | Next / previous level (Enter after winning) |
 

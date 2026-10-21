@@ -11,10 +11,11 @@ Read this first for a map of the code. Vanilla JS ES modules + Canvas 2D, no bui
 | `js/game.js` | All state and rules; DOM-free so Node tests import it | `newGame`, `update`, `forkUp`, `forkDown`, `stackInZone`, `isSolved`, `zoneDone` |
 | `js/forklift.js` | Vehicle model (rear-wheel-steering bicycle) and geometry constants | `FL`, `makeForklift`, `drive`, `toWorld`, `toLocal` |
 | `js/level.js` | Seeded procedural level generator | `generateLevel`, `levelParams`, `COLORS`, `COLOR_NAMES` |
+| `js/audio.js` | Procedural Web Audio (no asset files): generative background music (mute toggle, `localStorage` key `forklift-music-muted`) and SFX; browser only, started on the first key press | `startAudio`, `toggleMusic`, `playFork`, `playSuccess` |
 | `js/geom.js` | Polygon helpers: `rectPoly`, SAT collision, `pointRectDist` | – |
 | `js/render.js` | Pure drawing from game state | `draw` |
 
-Dependency direction: `main` → `game`, `input`, `render`; `game` → `forklift`, `level`, `geom`; `render` → `game`, `level`, `forklift`. `game.js` must never touch the DOM.
+Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` triggers sounds by watching state changes: fork level, number of done zones; `game.js` stays audio-free); `game` → `forklift`, `level`, `geom`; `render` → `game`, `level`, `forklift`. `game.js` must never touch the DOM.
 
 ## Units and coordinates
 - Simulation units are tiles; one box is 1×1. The renderer scales the canvas.

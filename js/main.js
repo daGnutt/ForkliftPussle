@@ -1,6 +1,7 @@
-import { newGame, update, forkUp, forkDown } from './game.js';
+import { newGame, update, forkUp, forkDown, zoneDone } from './game.js';
 import { createInput } from './input.js';
 import { draw } from './render.js';
+import { startAudio, toggleMusic, playFork, playSuccess } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -18,16 +19,21 @@ resize();
 
 let level = Number(localStorage.getItem('forklift-level')) || 1;
 let game = newGame(level);
+const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
+let doneZones = countDone();
 
 function load(n) {
   level = Math.max(1, n);
   localStorage.setItem('forklift-level', String(level));
   game = newGame(level);
+  doneZones = countDone();
 }
 
 const input = createInput({
-  up: () => forkUp(game),
-  down: () => forkDown(game),
+  anyKey: startAudio,
+  mute: toggleMusic,
+  up: () => { const h = game.H; forkUp(game); if (game.H !== h) playFork(true); },
+  down: () => { const h = game.H; forkDown(game); if (game.H !== h) playFork(false); },
   restart: () => load(level),
   next: (code) => { if (code === 'Enter' ? game.status === 'won' : true) load(level + 1); },
   prev: () => load(level - 1),
@@ -42,6 +48,9 @@ function frame(now) {
     update(game, input.state(), STEP);
     acc -= STEP;
   }
+  const done = countDone();
+  if (done > doneZones) playSuccess();
+  doneZones = done;
   draw(ctx, game, view);
   requestAnimationFrame(frame);
 }
