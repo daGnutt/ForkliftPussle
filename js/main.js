@@ -43,6 +43,11 @@ const input = createInput({
   },
   restart: () => load(level),
   next: (code) => { if (code === 'Enter' ? game.status === 'won' : true) load(level + 1); },
+  goto: () => {
+    const n = parseInt(window.prompt('Go to level:', String(level)), 10);
+    input.clear();
+    if (n >= 1) load(n);
+  },
   prev: () => load(level - 1),
 });
 

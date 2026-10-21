@@ -11,6 +11,7 @@ Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift an
 | A / Z | Forks up / down one level |
 | M | Mute / unmute the background music |
 | R | Restart level |
+| G | Go to a level number (prompt) |
 | N / P | Next / previous level (Enter after winning) |
 
 ## Seeds

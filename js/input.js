@@ -12,11 +12,13 @@ export function createInput(handlers) {
     else if (e.code === 'KeyR') handlers.restart?.();
     else if (e.code === 'KeyN' || e.code === 'Enter') handlers.next?.(e.code);
     else if (e.code === 'KeyM') handlers.mute?.();
+    else if (e.code === 'KeyG') handlers.goto?.();
     else if (e.code === 'KeyP') handlers.prev?.();
   });
   window.addEventListener('keyup', (e) => down.delete(e.code));
   window.addEventListener('blur', () => down.clear());
   return {
+    clear: () => down.clear(),
     state: () => ({
       up: down.has('ArrowUp'),
       down: down.has('ArrowDown'),
