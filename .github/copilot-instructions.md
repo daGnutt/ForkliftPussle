@@ -2,6 +2,8 @@
 
 Top-down, keyboard-only forklift puzzle. Vanilla JS ES modules + Canvas 2D, **no build step, no dependencies**; deployed as static files on GitHub Pages (Firefox is the primary target).
 
+**Before starting any task, read `docs/CODE_GUIDE.md`** (module map, state shape, rules). Keep it up to date when you change the structure.
+
 ## Commands
 - Test (plain `node:assert`, no framework; Node ≥ 20): `npm test` (= `node test/game.test.js`). Tests are sequential blocks in one file, so to run one scenario, temporarily comment out the others.
 - Run: serve the repo root statically (modules don't load from `file://`), e.g. `python3 -m http.server`, then open `index.html`.

@@ -1,0 +1,54 @@
+# Code guide (for AI agents)
+
+Read this first for a map of the code. Vanilla JS ES modules + Canvas 2D, no build, no dependencies. Source lives in `js/`, tests in `test/game.test.js` (`npm test`).
+
+## Module map
+
+| File | Role | Key exports |
+|------|------|-------------|
+| `js/main.js` | Browser entry: canvas setup, fixed 1/120 s loop, level persistence in `localStorage` (`forklift-level`) | – |
+| `js/input.js` | Key state (arrows, Space = brake) + discrete handlers (A = fork up, Z = fork down, R restart, N/Enter next, P prev) | `createInput` |
+| `js/game.js` | All state and rules; DOM-free so Node tests import it | `newGame`, `update`, `forkUp`, `forkDown`, `stackInZone`, `isSolved`, `zoneDone` |
+| `js/forklift.js` | Vehicle model (rear-wheel-steering bicycle) and geometry constants | `FL`, `makeForklift`, `drive`, `toWorld`, `toLocal` |
+| `js/level.js` | Seeded procedural level generator | `generateLevel`, `levelParams`, `COLORS`, `COLOR_NAMES` |
+| `js/geom.js` | Polygon helpers: `rectPoly`, SAT collision, `pointRectDist` | – |
+| `js/render.js` | Pure drawing from game state | `draw` |
+
+Dependency direction: `main` → `game`, `input`, `render`; `game` → `forklift`, `level`, `geom`; `render` → `game`, `level`, `forklift`. `game.js` must never touch the DOM.
+
+## Units and coordinates
+- Simulation units are tiles; one box is 1×1. The renderer scales the canvas.
+- x right, y down; angle `a` in radians, 0 = facing +x.
+- Forklift local frame: x forward, y right, origin at the **front** axle; rear wheels steer. `toWorld`/`toLocal` convert.
+
+## Game state `g` (from `newGame`)
+- `walls`: border + pillar rects with a `poly` (collision). `pillars`: the raw pillar rects (for drawing).
+- `zones`: `{x, y, color, count}` targets. `areas`: `{color, x, y, w, h}` tinted regions; all zones of a colour sit in one area.
+- `stacks`: floor stacks `{x, y, layers, a}`; `layers` are colour indices into `COLORS` (bottom → top); `a` is the stack's rotation.
+- `fl`: forklift `{x, y, a, speed, steer}`.
+- `carried`: array of layers being carried, or `null`; `carriedRel`: carried stack angle relative to the forklift (so it turns with the forklift, and keeps its world angle when dropped).
+- `H`: logical fork level (integer 0–5); `hf`: smoothed value used only for drawing.
+- `status`: `'play'` or `'won'`; `time`: seconds elapsed.
+
+## Rules (see `game.js`)
+- Fork level `H` = box heights above the floor. A stack of n boxes spans heights 0..n. `forkUp` lifts the box at height `H` and everything above it; level 0 lifts the whole stack.
+- Tines never collide with boxes. Only the forklift body and the carried stack (when `stack.layers.length > g.H`) do.
+- `forkDown` releases the carried stack automatically at its resting height (top of the stack below, or the floor), merging into it. Max 5 layers (`MAX_LAYERS`).
+- A zone is done only when a stack of exactly `zone.count` boxes, all of `zone.color`, is within 0.5 of it. Winning = all zones done.
+- `resolve()` runs iterative SAT: forklift shapes vs walls; forklift shapes vs stacks (mass-weighted pushing); stacks vs walls; stacks vs stacks.
+
+## Level generation (`level.js`)
+- Deterministic per level number via `mulberry32`; retries up to 300 attempts and falls back to level 1 if placement keeps failing.
+- Order: choose boxes and zone counts per colour → pillars → per-colour zone area → stack placement avoiding areas, pillars and the start.
+- Guarantees valid placement and matching box/zone counts, **not** solvability. Difficulty scales in `levelParams`.
+
+## Rendering (`render.js`)
+- Height is faked with a parallax offset (`PX`/`PY`). Draw order: floor/grid → areas → zones → low stacks → forklift body → tines → high stacks → carried stack → pillars → HUD.
+- `drawStack(ctx, layers, x, y, z0, ang)` draws rotated boxes; the top box shows its colour and the boxes below appear as coloured numbers.
+
+## Tests
+- `test/game.test.js` is a sequence of independent blocks (plain `node:assert`). Helpers: `run` (simulate seconds of input), `driveUntil`, `flatWorld` (clears zones and pillars). Any game-logic change needs a scenario here.
+
+## Workflow conventions
+- Each fix or feature goes on its own local branch (not pushed); delete it after merging into `main`.
+- Update `README.md` when controls or rules change, and this guide when structure changes.
