@@ -211,4 +211,21 @@ const driveUntil = (g, x, brakeAt) => {
   assert.ok(score(g) >= 98, 'squared placement keeps points');
 }
 
+// Re-placing a crooked box squarely recovers its squareness points.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [Math.PI / 4], a: Math.PI / 4 }];
+  const f = g.fl;
+  f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
+  driveUntil(g, 10, 8);
+  forkUp(g);
+  forkDown(g);
+  assert.ok(score(g) <= 60, 'crooked placement');
+  forkUp(g);
+  run(g, { rotL: true }, (Math.PI / 4) / 1.2);
+  forkDown(g);
+  assert.ok(score(g) >= 98, 're-placed square recovers points');
+}
+
 console.log('all tests passed');

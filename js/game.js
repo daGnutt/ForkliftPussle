@@ -245,7 +245,7 @@ export function forkDown(g) {
     while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen());
     while (g.carriedRots.length < g.carried.length) g.carriedRots.push(g.carriedRel);
     const worldRots = g.carriedRots.map((r) => r + g.fl.a);
-    g.carriedPen.forEach((p, i) => { p.sq = Math.max(p.sq, squareLoss(worldRots[i])); });
+    g.carriedPen.forEach((p, i) => { p.sq = squareLoss(worldRots[i]); });
     if (S) {
       S.layers.push(...g.carried);
       S.rots.push(...worldRots);
