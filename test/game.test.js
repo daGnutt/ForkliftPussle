@@ -6,6 +6,18 @@ import { newGame, update, forkUp, forkDown, stackInZone } from '../js/game.js';
 const NONE = {};
 const run = (g, inp, secs) => { for (let i = 0; i < secs * 120; i++) update(g, inp, 1 / 120); };
 
+// Every colour's zones sit together in one area, clear of other areas.
+for (let n = 1; n <= 40; n++) {
+  const l = generateLevel(n);
+  for (const a of l.areas) {
+    for (const z of l.zones.filter((z) => z.color === a.color)) {
+      assert.ok(z.x - 0.6 >= a.x - 1e-9 && z.x + 0.6 <= a.x + a.w + 1e-9, `level ${n} zone x in area`);
+      assert.ok(z.y - 0.6 >= a.y - 1e-9 && z.y + 0.6 <= a.y + a.h + 1e-9, `level ${n} zone y in area`);
+    }
+  }
+  assert.equal(new Set(l.zones.map((z) => z.color)).size, l.areas.length, `level ${n} one area per colour`);
+}
+
 // Generator: counts match, nothing overlaps walls, deterministic.
 for (let n = 1; n <= 40; n++) {
   const l = generateLevel(n);

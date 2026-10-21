@@ -139,6 +139,13 @@ export function draw(ctx, g, view) {
   for (let y = 0; y <= g.h; y++) { ctx.moveTo(0, y); ctx.lineTo(g.w, y); }
   ctx.stroke();
 
+  for (const a of g.areas) {
+    ctx.fillStyle = COLORS[a.color];
+    ctx.globalAlpha = 0.12;
+    ctx.fillRect(a.x - 0.3, a.y - 0.3, a.w + 0.6, a.h + 0.6);
+    ctx.globalAlpha = 1;
+  }
+
   for (const z of g.zones) {
     const done = zoneDone(g, z);
     ctx.fillStyle = COLORS[z.color];

@@ -22,6 +22,7 @@ export function newGame(levelNumber) {
     walls,
     pillars: lvl.walls,
     zones: lvl.zones,
+    areas: lvl.areas,
     stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], a: 0 })),
     fl: makeForklift(lvl.start.x, lvl.start.y, lvl.start.a),
     carried: null,

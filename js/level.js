@@ -81,23 +81,46 @@ function tryGenerate(n, attempt) {
   }
 
   const placed = [];
+  const areas = [];
   const spot = (margin, pillarGap, minOther) => {
     for (let t = 0; t < 400; t++) {
       const x = margin + rnd() * (w - 2 * margin);
       const y = margin + rnd() * (h - 2 * margin);
       if (Math.hypot(x - start.x, y - start.y) < 3.2) continue;
       if (walls.some((r) => pointRectDist(x, y, r) < pillarGap)) continue;
+      if (areas.some((r) => pointRectDist(x, y, r) < 1.6)) continue;
       if (placed.some((o) => Math.hypot(o.x - x, o.y - y) < minOther(o))) continue;
       return { x, y };
     }
     return null;
   };
 
-  for (const z of zones) {
-    const s = spot(1.6, 1.8, () => 2.0);
-    if (!s) return null;
-    z.x = s.x; z.y = s.y;
-    placed.push({ x: s.x, y: s.y, zone: true });
+  // One tidy block per colour: that colour's zones laid out on a grid.
+  const PITCH = 1.6;
+  for (let c = 0; c < colors; c++) {
+    const zs = zones.filter((z) => z.color === c);
+    const cols = Math.min(zs.length, 3), rows = Math.ceil(zs.length / cols);
+    const aw = (cols - 1) * PITCH + 1.2, ah = (rows - 1) * PITCH + 1.2;
+    let area = null;
+    for (let t = 0; t < 400 && !area; t++) {
+      const r = {
+        x: 1 + rnd() * (w - 2 - aw),
+        y: 1 + rnd() * (h - 2 - ah),
+        w: aw,
+        h: ah,
+      };
+      if (pointRectDist(start.x, start.y, r) < 3.2) continue;
+      if (walls.some((o) => rectGap(o, r) < 1.5)) continue;
+      if (areas.some((o) => rectGap(o, r) < 1.5)) continue;
+      area = { color: c, ...r };
+    }
+    if (!area) return null;
+    areas.push(area);
+    zs.forEach((z, i) => {
+      z.x = area.x + 0.6 + (i % cols) * PITCH;
+      z.y = area.y + 0.6 + Math.floor(i / cols) * PITCH;
+      placed.push({ x: z.x, y: z.y, zone: true });
+    });
   }
   for (const st of stacks) {
     const s = spot(2.3, 2.0, (o) => (o.zone ? 1.8 : 2.0));
@@ -106,7 +129,7 @@ function tryGenerate(n, attempt) {
     placed.push({ x: s.x, y: s.y });
   }
 
-  return { n, w, h, walls, zones, stacks, start };
+  return { n, w, h, walls, zones, areas, stacks, start };
 }
 
 export function generateLevel(n) {
