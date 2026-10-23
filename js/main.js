@@ -22,7 +22,8 @@ resize();
 let level = Number(localStorage.getItem('forklift-level')) || 1;
 let seedText = localStorage.getItem('forklift-seed') || '';
 let seed = parseSeed(seedText);
-let game = newGame(level, seed);
+let hard = localStorage.getItem('forklift-hard') === '1';
+let game = newGame(level, seed, hard);
 const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
 let doneZones = countDone();
 view.best = getBest(localStorage, seed, level);
@@ -42,7 +43,7 @@ function load(n) {
   recorded = false;
   level = Math.max(1, n);
   localStorage.setItem('forklift-level', String(level));
-  game = newGame(level, seed);
+  game = newGame(level, seed, hard);
   doneZones = countDone();
   view.best = getBest(localStorage, seed, level);
 }
@@ -126,6 +127,8 @@ function checkTutorial() {
 }
 const tutorialOpt = document.getElementById('tutorialOpt');
 tutorialOpt.checked = tutStep >= 0;
+const hardOpt = document.getElementById('hardOpt');
+hardOpt.checked = hard;
 showTutorial();
 
 function startGame() {
@@ -135,6 +138,11 @@ function startGame() {
     seed = parseSeed(text);
     localStorage.setItem('forklift-seed', text);
     load(1);
+  }
+  if (hardOpt.checked !== hard) {
+    hard = hardOpt.checked;
+    localStorage.setItem('forklift-hard', hard ? '1' : '0');
+    load(level);
   }
   view.best = getBest(localStorage, seed, level);
   if (tutorialOpt.checked) {

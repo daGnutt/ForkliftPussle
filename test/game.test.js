@@ -345,7 +345,7 @@ console.log('all tests passed');
 
 // Forks only enter a pallet when within 10 degrees of square to it.
 {
-  const g = newGame(1);
+  const g = newGame(1, 0, true);
   flatWorld(g);
   g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
   faceStack(g, 0.3);
@@ -359,7 +359,7 @@ console.log('all tests passed');
 
 // Turning with the forks in a pallet glides it with the forks sideways (and turns it) without lifting it.
 {
-  const g = newGame(1);
+  const g = newGame(1, 0, true);
   flatWorld(g);
   g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
   faceStack(g, 0);
@@ -376,7 +376,7 @@ console.log('all tests passed');
 // Driving the forks in at too steep an angle pushes the stack instead.
 {
   const run1 = (ang) => {
-    const g = newGame(1);
+    const g = newGame(1, 0, true);
     flatWorld(g);
     g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
     const f = g.fl;
@@ -390,7 +390,7 @@ console.log('all tests passed');
 
 // Turning with the forks in the middle of a stack turns only the boxes from the forks upward.
 {
-  const g = newGame(1);
+  const g = newGame(1, 0, true);
   flatWorld(g);
   g.stacks = [{ x: 10, y: 5, layers: [0, 1, 2], rots: [0, 0, 0], a: 0 }];
   faceStack(g, 0);
@@ -406,7 +406,7 @@ console.log('all tests passed');
 // Pushing a stack with the forks in a higher box only damages the boxes below the forks, unless fast.
 {
   const push = (speed) => {
-    const g = newGame(1);
+    const g = newGame(1, 0, true);
     flatWorld(g);
     const pen = () => ({ crash: 0, sq: 0 });
     g.stacks = [{ x: 10, y: 5, layers: [0, 1, 2], rots: [0, 0, 0], pen: [pen(), pen(), pen()], a: 0 }];
@@ -419,4 +419,20 @@ console.log('all tests passed');
   const slow = push(1.9), fast = push(3);
   assert.ok(slow[0] > 0 && slow[1] === 0 && slow[2] === 0, 'slow: only box below the forks');
   assert.ok(fast[1] > 0 && fast[2] > 0, 'fast: whole stack');
+}
+
+// Without hard mode, forks slide into a pallet from any angle and nothing is pushed or turned.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+  faceStack(g, 0.3);
+  forkUp(g);
+  assert.ok(g.carried, 'lifts at any angle');
+  const h = newGame(1);
+  flatWorld(h);
+  h.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+  h.fl.a = 0.5; h.fl.x = 7; h.fl.y = 4;
+  for (let i = 0; i < 120; i++) { h.fl.speed = 0.8; update(h, { up: true }, 1 / 120); }
+  assert.equal(h.stacks[0].x, 10, 'tines pass through');
 }

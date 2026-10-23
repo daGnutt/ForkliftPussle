@@ -71,7 +71,7 @@ export function score(g) {
   return Math.round(pts);
 }
 
-export function newGame(levelNumber, seed = 0) {
+export function newGame(levelNumber, seed = 0, hard = false) {
   const lvl = generateLevel(levelNumber, seed);
   const walls = [];
   const T = 3;
@@ -84,6 +84,7 @@ export function newGame(levelNumber, seed = 0) {
   return {
     level: levelNumber,
     seed,
+    hard,
     w: lvl.w,
     h: lvl.h,
     walls,
@@ -120,7 +121,7 @@ function forkShapes(g) {
     const c = toWorld(f, FL.carryX, 0);
     shapes.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, f.a + g.carriedRel), stackFilter: (s) => s.layers.length > g.H, carried: true });
   }
-  const blocks = (s) => s.layers.length > g.H && !squareToForks(g, s);
+  const blocks = (s) => g.hard && s.layers.length > g.H && !squareToForks(g, s);
   for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks), tine: true });
   return shapes;
 }
@@ -157,7 +158,7 @@ function resolve(g) {
         const m = sat(sh.poly, stackPoly(s));
         if (!m) continue;
         ensure(s);
-        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.H > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? g.H : s.pen.length);
+        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && g.H > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? g.H : s.pen.length);
         if (sh.carried) crash(g, g.carriedPen, g);
         if (!sh.carried && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
         const d = m.depth * 1.001;
@@ -223,7 +224,7 @@ function glideWithForks(g, S, ly, da, from) {
 export function update(g, input, dt) {
   const f = g.fl;
   g.time += dt;
-  const forked = forkedStack(g);
+  const forked = g.hard ? forkedStack(g) : null;
   const forkedY = forked ? toLocal(f, forked.x, forked.y).y : 0;
   const prevA = f.a;
   drive(f, input, dt);
@@ -277,7 +278,8 @@ function squareToForks(g, S) {
 // The stack whose box at the current fork level the tines are in, or null.
 function forkedStack(g) {
   const S = stackInZone(g);
-  return S && S.layers.length > g.H && squareToForks(g, S) ? S : null;
+  if (S) ensure(S);
+  return S && S.layers.length > g.H && (!g.hard || squareToForks(g, S)) ? S : null;
 }
 
 export function forkUp(g) {
