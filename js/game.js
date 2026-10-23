@@ -14,6 +14,7 @@ const CRASH_MIN_SPEED = 0.8;
 const CRASH_COOLDOWN = 0.4;
 const FORK_PUSH_FAST = 2; // above this speed a fork push damages the whole stack, not just the boxes below the forks
 const FORK_BLOCK_POINTS = 10;
+const PALLET_INERTIA = 0.17; // radius of gyration squared of a unit box
 const ALIGN_MIN_SPEED = 0.05;
 const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
 const ALIGN_DAMAGE = 10; // crash points per radian turned, bottom box of a multi-box stack only
@@ -121,9 +122,31 @@ function forkShapes(g) {
     const c = toWorld(f, FL.carryX, 0);
     shapes.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, f.a + g.carriedRel), stackFilter: (s) => s.layers.length > g.H, carried: true });
   }
-  const blocks = (s) => g.hard && s.layers.length > g.H && !squareToForks(g, s);
+  const blocks = (s) => g.hard && s.layers.length > g.H;
   for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks), tine: true });
   return shapes;
+}
+
+// A pallet is three runners along the fork axis (nearest square axis to the forklift heading) with a slot for each tine between them.
+const RUNNERS = [[0, 0.12], [-0.47, 0.03], [0.47, 0.03]]; // [lateral offset, half width]
+function palletRunners(g, s) {
+  ensure(s);
+  const q = Math.PI / 2, base = s.rots[g.H];
+  const ang = base + Math.round((g.fl.a - base) / q) * q;
+  const ux = Math.cos(ang), uy = Math.sin(ang);
+  return RUNNERS.map(([off, hw]) => rectPoly(s.x - uy * off, s.y + ux * off, 0.5, hw, ang));
+}
+
+// A tine pushing a pallet off its centre turns it by the lever arm of the push (boxes from the fork level upward).
+function spinPallet(g, s, tine, m, sx, sy) {
+  const nx = -m.x, ny = -m.y;
+  let tip = tine[0];
+  for (const p of tine) if (p.x * nx + p.y * ny > tip.x * nx + tip.y * ny) tip = p;
+  const rx = tip.x - s.x, ry = tip.y - s.y;
+  const raw = ((rx * ny - ry * nx) * Math.hypot(sx, sy)) / (rx * rx + ry * ry + PALLET_INERTIA);
+  const da = Math.max(-0.01, Math.min(0.01, raw));
+  s.rots = s.rots.map((r, i) => (i >= g.H ? r + da : r));
+  if (g.H === 0) s.a = (s.a || 0) + da;
 }
 
 function shiftPoly(poly, dx, dy) {
@@ -155,16 +178,20 @@ function resolve(g) {
       const wf = 1 / FORKLIFT_MASS, ws = 1 / mass;
       for (const sh of shapes) {
         if (!sh.stackFilter || !sh.stackFilter(s)) continue;
-        const m = sat(sh.poly, stackPoly(s));
+        const target = sh.tine ? palletRunners(g, s) : [stackPoly(s)];
+        let m = null;
+        for (const poly of target) { m = sat(sh.poly, poly); if (m) break; }
         if (!m) continue;
         ensure(s);
         if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && g.H > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? g.H : s.pen.length);
         if (sh.carried) crash(g, g.carriedPen, g);
-        if (!sh.carried && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
+        if (!sh.carried && !sh.tine && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
         const d = m.depth * 1.001;
         moveF(m.x * d * (wf / (wf + ws)), m.y * d * (wf / (wf + ws)));
-        s.x -= m.x * d * (ws / (wf + ws));
-        s.y -= m.y * d * (ws / (wf + ws));
+        const sx = -m.x * d * (ws / (wf + ws)), sy = -m.y * d * (ws / (wf + ws));
+        s.x += sx;
+        s.y += sy;
+        if (sh.tine) spinPallet(g, s, sh.poly, m, sx, sy);
       }
     }
 
@@ -264,22 +291,11 @@ export function stackInZone(g) {
 // with boxes. A carried stack's bottom is at height H.
 const MAX_H = 5;
 
-// Tines only fit into a pallet when the forklift is within FORK_ENTRY_ANGLE of square to it.
-const FORK_ENTRY_ANGLE = 10 * Math.PI / 180;
-
-// Whether the box of S at the fork level is within the entry angle of the forklift heading.
-function squareToForks(g, S) {
-  ensure(S);
-  const q = Math.PI / 2;
-  const diff = ((g.fl.a - S.rots[g.H]) % q + q * 1.5) % q - q / 2;
-  return Math.abs(diff) <= FORK_ENTRY_ANGLE;
-}
-
 // The stack whose box at the current fork level the tines are in, or null.
 function forkedStack(g) {
   const S = stackInZone(g);
   if (S) ensure(S);
-  return S && S.layers.length > g.H && (!g.hard || squareToForks(g, S)) ? S : null;
+  return S && S.layers.length > g.H ? S : null;
 }
 
 export function forkUp(g) {
