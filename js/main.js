@@ -48,9 +48,15 @@ function load(n) {
   view.best = getBest(localStorage, seed, level);
 }
 
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen?.().catch(() => {});
+}
+
 const input = createInput({
   anyKey: startAudio,
   mute: toggleMusic,
+  fullscreen: toggleFullscreen,
   toggleSmall: () => { view.showSmall = !view.showSmall; },
   swapView: () => { view.povBig = !view.povBig; if (tutStep === 3) nextTutorial(); },
   up: () => { const h = game.H; forkUp(game); if (game.H !== h) playFork(true); },
@@ -203,6 +209,7 @@ function toggleMenu(open) {
 }
 engineOpt.addEventListener('change', () => setEngineOn(engineOpt.checked));
 musicOpt.addEventListener('change', () => setMusicMuted(!musicOpt.checked));
+document.getElementById('menuFullscreen').addEventListener('click', toggleFullscreen);
 document.getElementById('menuResume').addEventListener('click', () => toggleMenu(false));
 document.getElementById('menuRestart').addEventListener('click', () => {
   hard = menuHardOpt.checked;

@@ -15,6 +15,7 @@ Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift an
 | F | Swap the big view between the top-down overview and the cabin (first-person) view. The cabin view has a rear-view mirror (top centre) and a side mirror (top right: zoomed-in (~4.5 tiles wide) top-down view around the forklift, rotated so the forklift points up) |
 | R | Restart level |
 | G | Go to a level number (prompt) |
+| V | Toggle full screen (also in the menu). Esc leaves full screen first (browser behaviour); use P for the menu there |
 | Esc / P | Menu (pauses the game and timer; the game also pauses and mutes all sound when the window loses focus): engine whine on/off, music on/off, and restart the level with hard mode on or off (these settings are remembered) |
 | Enter | Next level (after winning) |
 
