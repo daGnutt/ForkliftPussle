@@ -207,16 +207,17 @@ function alignStack(g, s, dt) {
   if (s.layers.length > 1) s.pen[0].crash = Math.min(CRASH_POINTS, s.pen[0].crash + Math.abs(t0) * ALIGN_DAMAGE);
 }
 
-// A pallet on the tines is held sideways (and turned) with the forks but can still slide along them.
-function glideWithForks(g, S, ly, da) {
+// A pallet on the tines is held sideways with the forks (the whole stack moves) but can still slide along them;
+// only the boxes from the fork level upward turn with the forks.
+function glideWithForks(g, S, ly, da, from) {
   const f = g.fl;
   const ux = Math.cos(f.a), uy = Math.sin(f.a), rx = -uy, ry = ux;
   const along = S.x * ux + S.y * uy;
   const across = f.x * rx + f.y * ry + ly;
   S.x = ux * along + rx * across;
   S.y = uy * along + ry * across;
-  S.rots = S.rots.map((r) => r + da);
-  S.a = (S.a || 0) + da;
+  S.rots = S.rots.map((r, i) => (i >= from ? r + da : r));
+  if (from === 0) S.a = (S.a || 0) + da;
 }
 
 export function update(g, input, dt) {
@@ -229,7 +230,7 @@ export function update(g, input, dt) {
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;
   g.aligning = new Set();
-  if (forked && f.a !== prevA) glideWithForks(g, forked, forkedY, f.a - prevA);
+  if (forked && f.a !== prevA) glideWithForks(g, forked, forkedY, f.a - prevA, g.H);
   resolve(g);
   for (const s of g.aligning) alignStack(g, s, dt);
 

@@ -387,3 +387,18 @@ console.log('all tests passed');
   assert.ok(run1(0.5) > 10.2, 'skewed forks push the stack');
   assert.ok(run1(0.05) < 10.01, 'straight forks slide in');
 }
+
+// Turning with the forks in the middle of a stack turns only the boxes from the forks upward.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1, 2], rots: [0, 0, 0], a: 0 }];
+  faceStack(g, 0);
+  g.H = 1;
+  g.fl.x -= 0.5;
+  for (let i = 0; i < 70; i++) { g.fl.speed = 0.8; update(g, { right: true }, 1 / 120); }
+  const s = g.stacks[0];
+  assert.equal(s.layers.length, 3, 'stack stays whole');
+  assert.equal(s.rots[0], 0, 'bottom box does not turn');
+  assert.ok(s.rots[1] > 0.05 && Math.abs(s.rots[1] - g.fl.a) < 1e-6 && s.rots[2] === s.rots[1], 'boxes from the forks up turn');
+}
