@@ -3,7 +3,7 @@ import { createInput } from './input.js';
 import { getBest, beats, saveBest, finalScore, timePenalty } from './highscores.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
-import { startAudio, toggleMusic, playFork, playBlocked, playSuccess, setEngine, setSilenced } from './audio.js';
+import { startAudio, toggleMusic, playFork, playBlocked, playSuccess, setEngine, setSilenced, isMusicMuted, setMusicMuted, isEngineOn, setEngineOn } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -66,6 +66,7 @@ const input = createInput({
     input.clear();
     if (n >= 1) load(n);
   },
+  menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   pause: () => { if (!splashOn) setPaused(!view.userPaused, true); },
 });
 
@@ -171,7 +172,7 @@ seedInput.addEventListener('keydown', (e) => {
 });
 document.getElementById('seedForm').addEventListener('submit', (e) => { e.preventDefault(); startAudio(); startGame(); });
 window.addEventListener('keydown', (e) => {
-  if (splashOn || recordOpen || e.target === seedInput || e.code !== 'KeyH' || e.repeat) return;
+  if (splashOn || recordOpen || view.menuOpen || e.target === seedInput || e.code !== 'KeyH' || e.repeat) return;
   e.stopImmediatePropagation();
   tutStep = 0;
   showTutorial();
@@ -182,9 +183,44 @@ window.addEventListener('keydown', (e) => {
   startGame();
 }, true);
 
+const menuEl = document.getElementById('menu');
+const engineOpt = document.getElementById('engineOpt');
+const musicOpt = document.getElementById('musicOpt');
+const menuHardOpt = document.getElementById('menuHardOpt');
+function toggleMenu(open) {
+  view.menuOpen = open;
+  menuEl.classList.toggle('hide', !open);
+  if (open) {
+    engineOpt.checked = isEngineOn();
+    musicOpt.checked = !isMusicMuted();
+    menuHardOpt.checked = hard;
+    document.getElementById('menuResume').focus();
+  } else {
+    document.activeElement?.blur();
+  }
+  input.clear();
+  applyPause();
+}
+engineOpt.addEventListener('change', () => setEngineOn(engineOpt.checked));
+musicOpt.addEventListener('change', () => setMusicMuted(!musicOpt.checked));
+document.getElementById('menuResume').addEventListener('click', () => toggleMenu(false));
+document.getElementById('menuRestart').addEventListener('click', () => {
+  hard = menuHardOpt.checked;
+  localStorage.setItem('forklift-hard', hard ? '1' : '0');
+  hardOpt.checked = hard;
+  load(level);
+  toggleMenu(false);
+});
+// While the menu is open it swallows all keys (so the game keys do nothing); Tab/Space/Enter still work on its controls.
+window.addEventListener('keydown', (e) => {
+  if (!view.menuOpen) return;
+  e.stopImmediatePropagation();
+  if (e.code === 'Escape') { e.preventDefault(); toggleMenu(false); }
+}, true);
+
 const lostFocus = () => document.hidden || !document.hasFocus();
 function applyPause() {
-  const p = !!view.userPaused || lostFocus();
+  const p = !!view.userPaused || !!view.menuOpen || lostFocus();
   if (!p && view.paused) last = performance.now();
   view.paused = p;
   setSilenced(p);

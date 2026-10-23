@@ -175,6 +175,19 @@ export function setSilenced(s) {
 
 export function isMusicMuted() { return muted; }
 
+const ENGINE_KEY = 'forklift-engine-off';
+let engineOn = localStorage.getItem(ENGINE_KEY) !== '1';
+export function isEngineOn() { return engineOn; }
+export function setEngineOn(on) {
+  engineOn = on;
+  localStorage.setItem(ENGINE_KEY, on ? '0' : '1');
+  if (!on && engine && ctx) engine.g.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+}
+
+export function setMusicMuted(m) {
+  if (m !== muted) toggleMusic();
+}
+
 export function toggleMusic() {
   startAudio();
   muted = !muted;
@@ -235,7 +248,7 @@ function startEngine() {
 
 // Call every frame. speed in tiles/s (signed); throttle: a drive key is held.
 export function setEngine(speed, throttle) {
-  if (!ctx || ctx.state !== 'running') return;
+  if (!ctx || ctx.state !== 'running' || !engineOn) return;
   if (!engine) startEngine();
   const v = Math.min(1, Math.abs(speed) / 4);
   const t = ctx.currentTime;

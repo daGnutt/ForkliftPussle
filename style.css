@@ -43,3 +43,10 @@ footer b { color: var(--accent); }
 #tutorial.hide { display: none; }
 #tutorial small { display: block; color: var(--accent); font-weight: bold; margin-bottom: 4px; }
 #tutorial b { color: var(--accent); }
+
+#menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); color: var(--fg); z-index: 15; }
+#menu.hide { display: none; }
+#menu .panel { background: var(--splash1); padding: 20px 28px; border-radius: 8px; display: flex; flex-direction: column; gap: 12px; min-width: 260px; }
+#menu h2 { margin: 0; color: var(--accent); text-align: center; }
+#menu label { cursor: pointer; } #menu label input { vertical-align: middle; }
+#menu button { padding: 8px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }

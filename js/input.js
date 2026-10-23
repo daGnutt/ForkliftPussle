@@ -1,4 +1,4 @@
-const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyA', 'KeyZ', 'KeyM', 'KeyF', 'KeyC', 'KeyP']);
+const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyA', 'KeyZ', 'KeyM', 'KeyF', 'KeyC', 'KeyP', 'Escape']);
 
 export function createInput(handlers) {
   const down = new Set();
@@ -16,6 +16,7 @@ export function createInput(handlers) {
     else if (e.code === 'KeyF') handlers.swapView?.();
     else if (e.code === 'KeyG') handlers.goto?.();
     else if (e.code === 'KeyP') handlers.pause?.();
+    else if (e.code === 'Escape') handlers.menu?.();
   });
   window.addEventListener('keyup', (e) => down.delete(e.code));
   window.addEventListener('blur', () => down.clear());
