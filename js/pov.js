@@ -1,7 +1,7 @@
 import { COLORS } from './level.js';
 import { theme } from './theme.js';
 import { FL, toWorld } from './forklift.js';
-import { zoneDone, isSolved, scoreEnough, isParked } from './game.js';
+import { carriedWorldOffs, zoneDone, isSolved, scoreEnough, isParked } from './game.js';
 
 const EYE_X = -0.5; // cabin seat, local x (origin at the front axle)
 const EYE_Z = 1.45; // eye height in box units with the fork on the floor
@@ -79,8 +79,9 @@ function rectEdges(x, y, a, hl, hw, z0, z1, color, edges, top = false) {
 
 // Stack with a pallet under every box; level h maps to height h * (BOX_H + PAL),
 // so the tines at fork level h line up with the pallet of box h.
-function stackEdges(x, y, rots, layers, level, edges, heading) {
+function stackEdges(x0, y0, rots, layers, level, edges, heading, offs = []) {
   layers.forEach((c, i) => {
+    const x = x0 + (offs[i]?.x || 0), y = y0 + (offs[i]?.y || 0);
     const z = (level + i) * (BOX_H + PAL), r = rots[i] ?? 0;
     // centre block plus corner blocks: tine openings on all four sides
     const cr = Math.cos(r), sr = Math.sin(r);
@@ -88,7 +89,7 @@ function stackEdges(x, y, rots, layers, level, edges, heading) {
     for (const [u, v] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) {
       rectEdges(x + u * cr - v * sr, y + u * sr + v * cr, r, 0.05, 0.05, z, z + PAL, '#9a7040', edges);
     }
-    rectEdges(x, y, r, 0.5, 0.5, z + PAL, z + BOX_H + PAL, COLORS[c], edges, i === layers.length - 1);
+    rectEdges(x, y, r, 0.5, 0.5, z + PAL, z + BOX_H + PAL, COLORS[c], edges, true);
   });
 }
 
@@ -106,10 +107,10 @@ function buildEdges(g) {
       edges.push({ x1, y1, x2, y2, z0: 0, z1: WALL_H, color: null, shade: y1 === y2 ? 1 : 0.8 });
     }
   }
-  for (const st of g.stacks) stackEdges(st.x, st.y, st.rots || [], st.layers, 0, edges, g.fl.a);
+  for (const st of g.stacks) stackEdges(st.x, st.y, st.rots || [], st.layers, 0, edges, g.fl.a, st.offs);
   if (g.carried) {
     const p = toWorld(g.fl, FL.carryX, 0);
-    stackEdges(p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, edges, g.fl.a);
+    stackEdges(p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, edges, g.fl.a, carriedWorldOffs(g));
   }
   const len = (FL.tineX1 - FL.tineX0) / 2;
   for (const side of [-1, 1]) {

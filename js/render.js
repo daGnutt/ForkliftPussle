@@ -2,7 +2,7 @@ import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
 import { drawPov } from './pov.js';
 import { theme } from './theme.js';
-import { zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
+import { carriedWorldOffs, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
 function rotRect(ctx, cx, cy, a, fn) {
   ctx.save();
@@ -16,7 +16,7 @@ const PX = 0.06, PY = -0.1; // screen shift per unit of height
 
 // Draws a stack whose bottom box is at height z0 above the floor: top box
 // colour, plus a coloured number for each box below it.
-function drawStack(ctx, layers, x, y, z0 = 0, rots = []) {
+function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = []) {
   const n = layers.length;
   const size = 1, h = size / 2;
   const at = (cx, cy, i, fn) => {
@@ -28,11 +28,11 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = []) {
   };
   if (z0 > 0) {
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    at(x + 0.1, y + 0.1, 0, () => ctx.fillRect(-h, -h, size, size));
+    at(x + (offs[0]?.x || 0) + 0.1, y + (offs[0]?.y || 0) + 0.1, 0, () => ctx.fillRect(-h, -h, size, size));
   }
-  const cx = x + (z0 + n - 1) * PX, cy = y + (z0 + n - 1) * PY;
+  const cx = x + (offs[n - 1]?.x || 0) + (z0 + n - 1) * PX, cy = y + (offs[n - 1]?.y || 0) + (z0 + n - 1) * PY;
   for (let i = 0; i < n; i++) {
-    at(x + (z0 + i) * PX, y + (z0 + i) * PY, i, () => {
+    at(x + (offs[i]?.x || 0) + (z0 + i) * PX, y + (offs[i]?.y || 0) + (z0 + i) * PY, i, () => {
       const col = COLORS[layers[i]];
       const a = rots[i] || 0, ca = Math.cos(a), sa = Math.sin(a);
       // extrusion towards the floor, expressed in the box's local frame
@@ -197,7 +197,7 @@ function drawTines(ctx, g) {
 function drawCarried(ctx, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  drawStack(ctx, g.carried, p.x, p.y, g.hf, g.carriedRots.map((r) => r + g.fl.a));
+  drawStack(ctx, g.carried, p.x, p.y, g.hf, g.carriedRots.map((r) => r + g.fl.a), carriedWorldOffs(g));
 }
 
 // Draws the top-down overview scaled into the screen rect (rx, ry, rw, rh).
@@ -269,10 +269,10 @@ function drawWorld(ctx, g) {
   // slide under are drawn over them.
   const low = g.stacks.filter((st) => st.layers.length <= g.hf);
   const high = g.stacks.filter((st) => st.layers.length > g.hf);
-  for (const st of low) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots);
+  for (const st of low) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs);
   drawForkliftBody(ctx, g);
   drawTines(ctx, g);
-  for (const st of high) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots);
+  for (const st of high) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs);
   drawCarried(ctx, g);
 
   ctx.fillStyle = '#3b3f45';

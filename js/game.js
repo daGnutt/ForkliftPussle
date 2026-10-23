@@ -1,9 +1,10 @@
-import { rectPoly, sat } from './geom.js';
+import { rectPoly, sat, overlapArea } from './geom.js';
 import { FL, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { generateLevel } from './level.js';
 
 const FORKLIFT_MASS = 6;
 const MAX_LAYERS = 5;
+const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
 // Every box is worth BOX_POINTS: up to CRASH_POINTS lost to crashes and up to
 // SQUARE_POINTS lost for being placed crooked. Points are only ever deducted.
 const BOX_POINTS = 100;
@@ -24,7 +25,50 @@ const newPen = () => ({ crash: 0, sq: 0 });
 function ensure(S) {
   if (!S.rots) S.rots = S.layers.map(() => S.a || 0);
   if (!S.pen) S.pen = S.layers.map(newPen);
+  if (!S.offs) S.offs = [];
+  while (S.offs.length < S.layers.length) S.offs.push({ x: 0, y: 0 });
 }
+
+// World-frame offsets of the carried boxes relative to the carried bottom box.
+export function carriedWorldOffs(g) {
+  const c = Math.cos(g.fl.a), sn = Math.sin(g.fl.a);
+  return (g.carriedOffs || []).map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c }));
+}
+
+// World position of box i of a stack: the stack position plus that box's own offset (boxes may sit crooked on each other).
+function boxPos(S, i) {
+  ensure(S);
+  return { x: S.x + S.offs[i].x, y: S.y + S.offs[i].y };
+}
+
+// Moves boxes i and above together; box 0 is the stack position itself, so moving it moves the whole stack.
+function shiftBoxes(S, i, dx, dy) {
+  if (i === 0) { S.x += dx; S.y += dy; return; }
+  for (let j = i; j < S.layers.length; j++) { S.offs[j].x += dx; S.offs[j].y += dy; }
+}
+
+// A box with less than MIN_SUPPORT of its area on the box below falls off, together with everything above it,
+// to the floor beside the stack, taking maximum damage.
+function settle(g, S) {
+  ensure(S);
+  for (let i = 1; i < S.layers.length; i++) {
+    const a = boxPos(S, i), b = boxPos(S, i - 1);
+    if (overlapArea(rectPoly(a.x, a.y, 0.5, 0.5, S.rots[i]), rectPoly(b.x, b.y, 0.5, 0.5, S.rots[i - 1])) >= MIN_SUPPORT) continue;
+    let dx = a.x - b.x, dy = a.y - b.y;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len; dy /= len;
+    const pen = S.pen.splice(i);
+    pen.forEach((q) => { q.crash = CRASH_POINTS; });
+    const offs = S.offs.splice(i);
+    const rots = S.rots.splice(i);
+    g.stacks.push({
+      x: S.x + dx * 1.45, y: S.y + dy * 1.45, layers: S.layers.splice(i), rots, pen, a: rots[0],
+      offs: offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y })),
+    });
+    break;
+  }
+}
+
 
 function crash(g, pens, owner, count = pens.length) {
   const speed = Math.abs(g.fl.speed);
@@ -92,13 +136,14 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     pillars: lvl.walls,
     zones: lvl.zones,
     areas: lvl.areas,
-    stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), pen: s.layers.map(newPen), a: 0 })),
+    stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), pen: s.layers.map(newPen), offs: s.layers.map(() => ({ x: 0, y: 0 })), a: 0 })),
     parking: { ...toWorld(lvl.start, (FL.back + FL.front) / 2, 0), a: lvl.start.a },
     fl: makeForklift(lvl.start.x, lvl.start.y, lvl.start.a),
     carried: null,
     carriedRel: 0,
     carriedRots: [],
     carriedPen: [],
+    carriedOffs: [],
     H: 0,
     hf: 0,
     status: 'play',
@@ -110,20 +155,26 @@ const stackPoly = (s) => rectPoly(s.x, s.y, 0.5, 0.5, s.a || 0);
 
 function forkShapes(g) {
   const f = g.fl;
-  const mk = (lx, ly, hx, hy, stackFilter) => {
+  const mk = (lx, ly, hx, hy, stackFilter, targets) => {
     const c = toWorld(f, lx, ly);
-    return { poly: rectPoly(c.x, c.y, hx, hy, f.a), stackFilter };
+    return { poly: rectPoly(c.x, c.y, hx, hy, f.a), stackFilter, targets };
+  };
+  const boxes = (from) => (s) => {
+    ensure(s);
+    const out = [];
+    for (let i = from; i < s.layers.length; i++) { const c = boxPos(s, i); out.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, s.rots[i]), from: i }); }
+    return out;
   };
   const shapes = [
-    mk((FL.back + FL.front) / 2, 0, (FL.front - FL.back) / 2, FL.halfW, () => true),
+    mk((FL.back + FL.front) / 2, 0, (FL.front - FL.back) / 2, FL.halfW, () => true, (s) => [{ poly: stackPoly(s), from: 0 }]),
   ];
   const tx = (FL.tineX0 + FL.tineX1) / 2, thx = (FL.tineX1 - FL.tineX0) / 2;
   if (g.carried) {
     const c = toWorld(f, FL.carryX, 0);
-    shapes.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, f.a + g.carriedRel), stackFilter: (s) => s.layers.length > g.H, carried: true });
+    shapes.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, f.a + g.carriedRel), stackFilter: (s) => s.layers.length > g.H, carried: true, targets: boxes(g.H) });
   }
   const blocks = (s) => g.hard && s.layers.length > g.H;
-  for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks), tine: true });
+  for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks, (s) => palletRunners(g, s).map((poly) => ({ poly, from: g.H }))), tine: true });
   return shapes;
 }
 
@@ -131,10 +182,10 @@ function forkShapes(g) {
 const RUNNERS = [[0, 0.12], [-0.47, 0.03], [0.47, 0.03]]; // [lateral offset, half width]
 function palletRunners(g, s) {
   ensure(s);
-  const q = Math.PI / 2, base = s.rots[g.H];
+  const q = Math.PI / 2, base = s.rots[g.H], c = boxPos(s, g.H);
   const ang = base + Math.round((g.fl.a - base) / q) * q;
   const ux = Math.cos(ang), uy = Math.sin(ang);
-  return RUNNERS.map(([off, hw]) => rectPoly(s.x - uy * off, s.y + ux * off, 0.5, hw, ang));
+  return RUNNERS.map(([off, hw]) => rectPoly(c.x - uy * off, c.y + ux * off, 0.5, hw, ang));
 }
 
 // A tine pushing a pallet off its centre turns it by the lever arm of the push (boxes from the fork level upward).
@@ -142,7 +193,8 @@ function spinPallet(g, s, tine, m, sx, sy) {
   const nx = -m.x, ny = -m.y;
   let tip = tine[0];
   for (const p of tine) if (p.x * nx + p.y * ny > tip.x * nx + tip.y * ny) tip = p;
-  const rx = tip.x - s.x, ry = tip.y - s.y;
+  const c = boxPos(s, g.H);
+  const rx = tip.x - c.x, ry = tip.y - c.y;
   const raw = ((rx * ny - ry * nx) * Math.hypot(sx, sy)) / (rx * rx + ry * ry + PALLET_INERTIA);
   const da = Math.max(-0.01, Math.min(0.01, raw));
   s.rots = s.rots.map((r, i) => (i >= g.H ? r + da : r));
@@ -174,24 +226,23 @@ function resolve(g) {
 
     for (const s of g.stacks) {
       if (Math.abs(s.x - f.x) > 5 || Math.abs(s.y - f.y) > 5) continue;
-      const mass = s.layers.length;
-      const wf = 1 / FORKLIFT_MASS, ws = 1 / mass;
+      const wf = 1 / FORKLIFT_MASS;
       for (const sh of shapes) {
         if (!sh.stackFilter || !sh.stackFilter(s)) continue;
-        const target = sh.tine ? palletRunners(g, s) : [stackPoly(s)];
-        let m = null;
-        for (const poly of target) { m = sat(sh.poly, poly); if (m) break; }
+        let m = null, from = 0;
+        for (const t of sh.targets(s)) { m = sat(sh.poly, t.poly); if (m) { from = t.from; break; } }
         if (!m) continue;
         ensure(s);
+        const ws = 1 / (s.layers.length - from);
         if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && g.H > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? g.H : s.pen.length);
         if (sh.carried) crash(g, g.carriedPen, g);
         if (!sh.carried && !sh.tine && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
         const d = m.depth * 1.001;
         moveF(m.x * d * (wf / (wf + ws)), m.y * d * (wf / (wf + ws)));
         const sx = -m.x * d * (ws / (wf + ws)), sy = -m.y * d * (ws / (wf + ws));
-        s.x += sx;
-        s.y += sy;
+        shiftBoxes(s, from, sx, sy);
         if (sh.tine) spinPallet(g, s, sh.poly, m, sx, sy);
+        if (from > 0) settle(g, s);
       }
     }
 
@@ -240,10 +291,11 @@ function alignStack(g, s, dt) {
 function glideWithForks(g, S, ly, da, from) {
   const f = g.fl;
   const ux = Math.cos(f.a), uy = Math.sin(f.a), rx = -uy, ry = ux;
-  const along = S.x * ux + S.y * uy;
+  const c = boxPos(S, from);
+  const along = c.x * ux + c.y * uy;
   const across = f.x * rx + f.y * ry + ly;
-  S.x = ux * along + rx * across;
-  S.y = uy * along + ry * across;
+  S.x += ux * along + rx * across - c.x;
+  S.y += uy * along + ry * across - c.y;
   S.rots = S.rots.map((r, i) => (i >= from ? r + da : r));
   if (from === 0) S.a = (S.a || 0) + da;
 }
@@ -252,7 +304,7 @@ export function update(g, input, dt) {
   const f = g.fl;
   g.time += dt;
   const forked = g.hard ? forkedStack(g) : null;
-  const forkedY = forked ? toLocal(f, forked.x, forked.y).y : 0;
+  const forkedY = forked ? toLocal(f, boxPos(forked, g.H).x, boxPos(forked, g.H).y).y : 0;
   const prevA = f.a;
   drive(f, input, dt);
   const driven = { x: f.x, y: f.y };
@@ -277,7 +329,9 @@ export function stackInZone(g) {
   const f = g.fl;
   let best = null, bd = Infinity;
   for (const s of g.stacks) {
-    const l = toLocal(f, s.x, s.y);
+    ensure(s);
+    const c = boxPos(s, g.carried ? s.layers.length - 1 : Math.min(g.H, s.layers.length - 1));
+    const l = toLocal(f, c.x, c.y);
     const dx = Math.abs(l.x - FL.carryX), dy = Math.abs(l.y);
     if (dx < 0.55 && dy < 0.5 && dx + dy < bd) { best = s; bd = dx + dy; }
   }
@@ -308,6 +362,11 @@ export function forkUp(g) {
     g.carried = S.layers.splice(g.H);
     g.carriedRots = S.rots.splice(g.H).map((r) => r - g.fl.a);
     g.carriedPen = S.pen.splice(g.H);
+    const ox = S.offs[g.H].x, oy = S.offs[g.H].y, c = Math.cos(g.fl.a), sn = Math.sin(g.fl.a);
+    g.carriedOffs = S.offs.splice(g.H).map((o) => {
+      const dx = o.x - ox, dy = o.y - oy;
+      return { x: dx * c + dy * sn, y: -dx * sn + dy * c };
+    });
     g.carriedRel = g.carriedRots[0];
     if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
   }
@@ -337,17 +396,23 @@ export function forkDown(g) {
     while (g.carriedRots.length < g.carried.length) g.carriedRots.push(g.carriedRel);
     const worldRots = g.carriedRots.map((r) => r + g.fl.a);
     g.carriedPen.forEach((p, i) => { p.sq = squareLoss(worldRots[i]); });
+    const p = toWorld(g.fl, FL.carryX, 0);
+    const c = Math.cos(g.fl.a), sn = Math.sin(g.fl.a);
+    while (g.carriedOffs.length < g.carried.length) g.carriedOffs.push({ x: 0, y: 0 });
+    const world = g.carriedOffs.map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c }));
     if (S) {
       S.layers.push(...g.carried);
       S.rots.push(...worldRots);
       S.pen.push(...g.carriedPen);
+      S.offs.push(...world.map((o) => ({ x: p.x + o.x - S.x, y: p.y + o.y - S.y })));
+      settle(g, S);
     } else {
-      const p = toWorld(g.fl, FL.carryX, 0);
-      g.stacks.push({ x: p.x, y: p.y, layers: g.carried, rots: worldRots, pen: g.carriedPen, a: g.fl.a + g.carriedRel });
+      g.stacks.push({ x: p.x, y: p.y, layers: g.carried, rots: worldRots, pen: g.carriedPen, offs: world, a: g.fl.a + g.carriedRel });
     }
     g.carried = null;
     g.carriedRots = [];
     g.carriedPen = [];
+    g.carriedOffs = [];
   }
 }
 

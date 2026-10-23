@@ -95,6 +95,44 @@ const driveUntil = (g, x, brakeAt) => {
   assert.equal(g.H, 3);
 }
 
+// A carried box needs at least half of it on the stack below, otherwise it falls beside the stack with maximum damage.
+{
+  const drop = (offset) => {
+    const g = newGame(1);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }, { x: 4, y: 12, layers: [1], rots: [0], a: 0 }];
+    g.carried = [1]; g.carriedRots = [0]; g.carriedPen = [{ crash: 0, sq: 0 }]; g.carriedRel = 0;
+    g.stacks.pop();
+    g.fl.a = 0; g.fl.x = 10 - FL.carryX + offset; g.fl.y = 5;
+    g.H = 2;
+    forkDown(g);
+    return g;
+  };
+  const ok = drop(0.25);
+  assert.deepEqual(ok.stacks[0].layers, [0, 1], 'mostly supported box stays on');
+  assert.ok(Math.abs(ok.stacks[0].offs[1].x - 0.25) < 1e-6, 'box keeps its offset: crooked tower');
+  const bad = drop(0.54);
+  assert.deepEqual(bad.stacks[0].layers, [0], 'stack below untouched');
+  assert.equal(bad.stacks.length, 2, 'box fell to the floor');
+  assert.equal(bad.stacks[1].pen[0].crash, 50, 'maximum crash damage');
+}
+
+// A crooked tower keeps its offsets when lifted and put down.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1], rots: [0, 0], a: 0, offs: [{ x: 0, y: 0 }, { x: 0.3, y: 0.1 }] }];
+  g.fl.a = 0; g.fl.x = 10 - FL.carryX; g.fl.y = 5;
+  forkUp(g);
+  assert.deepEqual(g.carried, [0, 1]);
+  assert.ok(Math.abs(g.carriedOffs[1].x - 0.3) < 1e-9 && Math.abs(g.carriedOffs[1].y - 0.1) < 1e-9);
+  g.fl.a = Math.PI / 2;
+  forkDown(g);
+  assert.equal(g.carried, null);
+  const o = g.stacks[0].offs[1];
+  assert.ok(Math.abs(o.x + 0.1) < 1e-9 && Math.abs(o.y - 0.3) < 1e-9, 'offset turns with the forklift');
+}
+
 // Whole stack from level 0; release on the floor at level 0.
 {
   const g = newGame(1);
@@ -138,7 +176,11 @@ const driveUntil = (g, x, brakeAt) => {
   g.carried = [2];
   g.H = 1;
   run(g, { up: true }, 1.5);
-  assert.ok(g.stacks[0].x > 9.5, 'carried box pushes stack');
+  assert.deepEqual(g.stacks[0].layers, [0], 'bottom box stays');
+  assert.equal(g.stacks.length, 2, 'pushed top box fell off the stack');
+  assert.deepEqual(g.stacks[1].layers, [1]);
+  assert.ok(g.stacks[1].x > 9.5, 'carried box pushed the top box off');
+  assert.equal(g.stacks[1].pen[0].crash, 50, 'maximum damage');
 }
 
 // Carried boxes keep their orientation relative to the forklift and keep it when dropped.
@@ -425,7 +467,7 @@ console.log('all tests passed');
     g.H = 1;
     const f = g.fl;
     f.a = 0.5; f.x = 7; f.y = 4; f.speed = speed;
-    for (let i = 0; i < 100; i++) { f.speed = speed; update(g, { up: true }, 1 / 120); if (g.stacks[0].x > 10.1) break; }
+    for (let i = 0; i < 100; i++) { f.speed = speed; update(g, { up: true }, 1 / 120); if (g.stacks[0].pen.some((p) => p.crash > 0)) break; }
     return g.stacks[0].pen.map((p) => p.crash);
   };
   const slow = push(1.9), fast = push(3);
