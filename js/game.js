@@ -321,6 +321,8 @@ export function update(g, input, dt) {
   }
 
   g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
+  // visual lowering of a just-released stack ends when the forks reach it
+  for (const s of g.stacks) if (s.dropFrom != null && (g.hf <= s.dropFrom + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;
 
   if (g.status === 'play' && isFinished(g)) g.status = 'won';
 }
@@ -405,9 +407,10 @@ export function forkDown(g) {
       S.rots.push(...worldRots);
       S.pen.push(...g.carriedPen);
       S.offs.push(...world.map((o) => ({ x: p.x + o.x - S.x, y: p.y + o.y - S.y })));
+      S.dropFrom = n;
       settle(g, S);
     } else {
-      g.stacks.push({ x: p.x, y: p.y, layers: g.carried, rots: worldRots, pen: g.carriedPen, offs: world, a: g.fl.a + g.carriedRel });
+      g.stacks.push({ x: p.x, y: p.y, layers: g.carried, rots: worldRots, pen: g.carriedPen, offs: world, a: g.fl.a + g.carriedRel, dropFrom: 0 });
     }
     g.carried = null;
     g.carriedRots = [];

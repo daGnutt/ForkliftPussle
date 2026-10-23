@@ -74,8 +74,9 @@ function floorGrid(ctx, cam) {
 }
 
 // Adds the faces of a rectangular prism (centre x,y, heading a, half sizes hl,hw, heights z0..z1).
-// wall = true: colourless, sides split into 1-tile segments (checker texture, better depth sorting).
-function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false) {
+// split: max segment length; long faces are cut up so far-to-near sorting stays right (walls, tines).
+// wall = true: colourless, checker-tinted tiles.
+function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, split = wall ? 1 : 0) {
   const c = Math.cos(a), s = Math.sin(a);
   const p = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([u, v]) => [x + u * c - v * s, y + u * s + v * c]);
   for (let i = 0; i < 4; i++) {
@@ -84,7 +85,7 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false) {
     const nx = ey / len, ny = -ex / len; // outward normal
     if ((cam.x - ax) * nx + (cam.y - ay) * ny <= 0) continue; // back face
     const shade = 0.75 + 0.25 * Math.abs(ex / len);
-    const n = wall ? Math.ceil(len) : 1;
+    const n = split ? Math.ceil(len / split) : 1;
     for (let k = 0; k < n; k++) {
       const q0 = [ax + (ex * k) / n, ay + (ey * k) / n], q1 = [ax + (ex * (k + 1)) / n, ay + (ey * (k + 1)) / n];
       faces.push({
@@ -95,18 +96,28 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false) {
       });
     }
   }
-  const flat = (z, shade, lit) => faces.push({
-    quad: p.map(([px, py]) => [px, py, z]), mx: x, my: y, mz: z, color, shade, lit,
-  });
+  const flat = (z, shade, lit) => {
+    const n = split ? Math.ceil((2 * hl) / split) : 1;
+    for (let k = 0; k < n; k++) {
+      const u0 = -hl + (2 * hl * k) / n, u1 = -hl + (2 * hl * (k + 1)) / n;
+      const at = (u, v) => [x + u * c - v * s, y + u * s + v * c, z];
+      const um = (u0 + u1) / 2;
+      faces.push({
+        quad: [at(u0, -hw), at(u1, -hw), at(u1, hw), at(u0, hw)],
+        mx: x + um * c, my: y + um * s, mz: z, color, shade, lit,
+      });
+    }
+  };
   if (cam.z > z1) flat(z1, 1, true);
   else if (cam.z < z0) flat(z0, 0.5, false);
 }
 
 // Stack with a pallet under every box; level h sits at height h * (BOX_H + PAL).
-function addStack(faces, cam, x0, y0, rots, layers, level, offs = []) {
+// Boxes from index `from` up are drawn `extra` levels higher (a stack still being lowered).
+function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, extra = 0) {
   layers.forEach((col, i) => {
     const x = x0 + (offs[i]?.x || 0), y = y0 + (offs[i]?.y || 0);
-    const z = (level + i) * (BOX_H + PAL), r = rots[i] ?? 0;
+    const z = (level + i + (i >= from ? extra : 0)) * (BOX_H + PAL), r = rots[i] ?? 0;
     const cr = Math.cos(r), sr = Math.sin(r);
     addPrism(faces, cam, x, y, r, 0.2, 0.2, z, z + PAL, PALLET_COLOR);
     for (const [u, v] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) {
@@ -121,7 +132,8 @@ function buildFaces(g, cam) {
   for (const w of g.walls) {
     addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, WALL_H, null, true);
   }
-  for (const st of g.stacks) addStack(faces, cam, st.x, st.y, st.rots || [], st.layers, 0, st.offs);
+  for (const st of g.stacks) addStack(faces, cam, st.x, st.y, st.rots || [], st.layers, 0, st.offs, st.dropFrom ?? 0,
+      st.dropFrom != null ? Math.max(0, g.hf - st.dropFrom) : 0);
   if (g.carried) {
     const p = toWorld(g.fl, FL.carryX, 0);
     addStack(faces, cam, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, carriedWorldOffs(g));
@@ -129,7 +141,7 @@ function buildFaces(g, cam) {
   const len = (FL.tineX1 - FL.tineX0) / 2, tz = g.hf * (BOX_H + PAL);
   for (const side of [-1, 1]) {
     const t = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, side * FL.tineOff);
-    addPrism(faces, cam, t.x, t.y, g.fl.a, len, FL.tineHalf, tz, tz + PAL, theme().tine);
+    addPrism(faces, cam, t.x, t.y, g.fl.a, len, FL.tineHalf, tz, tz + PAL, theme().tine, false, 0.2);
   }
   for (const f of faces) f.d = Math.hypot(f.mx - cam.x, f.my - cam.y, f.mz - cam.z);
   faces.sort((a, b) => b.d - a.d);

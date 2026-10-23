@@ -526,3 +526,19 @@ console.log('all tests passed');
   assert.ok(starts.size > 1, 'spawn point varies');
   console.log('spawn ok');
 }
+
+// A released stack is drawn lowering (dropFrom) until the forks reach the floor.
+{
+  const g = newGame(1);
+  g.stacks = [{ x: g.fl.x + 1, y: g.fl.y, layers: [0], rots: [g.fl.a], pen: [{ crash: 0, sq: 0 }], offs: [{ x: 0, y: 0 }], a: g.fl.a }];
+  forkUp(g);
+  assert.ok(g.carried, 'picked up');
+  g.hf = g.H = 3;
+  g.carried = g.carried || [0];
+  while (g.H > 0 && g.carried) forkDown(g);
+  const dropped = g.stacks.find((s) => s.dropFrom != null);
+  assert.ok(dropped && g.hf > dropped.dropFrom, 'released while forks still above');
+  run(g, {}, 1);
+  assert.ok(g.stacks.every((s) => s.dropFrom == null), 'lowering ends at the floor');
+  console.log('drop ok');
+}
