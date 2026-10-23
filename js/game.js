@@ -58,7 +58,7 @@ function settle(g, S) {
     const len = Math.hypot(dx, dy) || 1;
     dx /= len; dy /= len;
     const pen = S.pen.splice(i);
-    pen.forEach((q) => { q.crash = CRASH_POINTS; });
+    hurt(g, pen, CRASH_POINTS, S.x + dx * 1.45, S.y + dy * 1.45, pen.length);
     const offs = S.offs.splice(i);
     const rots = S.rots.splice(i);
     g.stacks.push({
@@ -70,12 +70,25 @@ function settle(g, S) {
 }
 
 
+export const HIT_LIFE = 1.2; // seconds a damage popup lives
+
+// Applies crash points and records the actual loss as a floating popup (x, y, z in box heights).
+function hurt(g, pens, pts, x, y, z) {
+  let lost = 0;
+  for (const p of pens) { const n = Math.min(CRASH_POINTS, p.crash + pts); lost += n - p.crash; p.crash = n; }
+  lost = Math.round(lost);
+  if (lost <= 0) return;
+  (g.hits ||= []).push({ x, y, z, pts: lost, t: g.time });
+  g.hitCount = (g.hitCount || 0) + 1;
+}
+
 function crash(g, pens, owner, count = pens.length) {
   const speed = Math.abs(g.fl.speed);
   if (speed < CRASH_MIN_SPEED || g.time - (owner.hitAt ?? -1) < CRASH_COOLDOWN) return;
   owner.hitAt = g.time;
   const pts = Math.min(5, Math.max(1, Math.round(speed)));
-  for (const p of pens.slice(0, count)) p.crash = Math.min(CRASH_POINTS, p.crash + pts);
+  const c = owner === g ? toWorld(g.fl, FL.carryX, 0) : owner;
+  hurt(g, pens.slice(0, count), pts, c.x, c.y, owner === g ? g.H + pens.length : pens.length);
 }
 
 // Deduction (0..SQUARE_POINTS) for a box whose world angle is a: free within
@@ -144,6 +157,8 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     carriedRots: [],
     carriedPen: [],
     carriedOffs: [],
+    hits: [],
+    hitCount: 0,
     H: 0,
     hf: 0,
     status: 'play',
@@ -303,6 +318,7 @@ function glideWithForks(g, S, ly, da, from) {
 export function update(g, input, dt) {
   const f = g.fl;
   g.time += dt;
+  if (g.hits) g.hits = g.hits.filter((h) => g.time - h.t < HIT_LIFE);
   const forked = g.hard ? forkedStack(g) : null;
   const forkedY = forked ? toLocal(f, boxPos(forked, g.H).x, boxPos(forked, g.H).y).y : 0;
   const prevA = f.a;
@@ -381,7 +397,7 @@ export function forkDown(g) {
     const S = g.H > 0 ? stackInZone(g) : null;
     if (S && S.layers.length >= g.H) {
       ensure(S);
-      S.pen[g.H - 1].crash = Math.min(CRASH_POINTS, S.pen[g.H - 1].crash + FORK_BLOCK_POINTS);
+      hurt(g, [S.pen[g.H - 1]], FORK_BLOCK_POINTS, S.x, S.y, g.H);
       return 'blocked';
     }
     g.H = Math.max(0, g.H - 1);

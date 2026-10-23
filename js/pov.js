@@ -1,7 +1,7 @@
 import { COLORS } from './level.js';
 import { theme } from './theme.js';
 import { FL, toWorld } from './forklift.js';
-import { carriedWorldOffs, zoneDone, isSolved, scoreEnough, isParked } from './game.js';
+import { carriedWorldOffs, HIT_LIFE, zoneDone, isSolved, scoreEnough, isParked } from './game.js';
 
 // Cabin view: a small polygon-projection 3D renderer. Everything is built from
 // prisms (walls, pallets, boxes, tines), split into faces, back-face culled and
@@ -228,6 +228,27 @@ function drawZoneLabels(ctx, g, cam, faces) {
   }
 }
 
+// Damage popups floating up from the damaged box.
+function drawHits(ctx, g, cam) {
+  for (const h of g.hits || []) {
+    const k = (g.time - h.t) / HIT_LIFE;
+    const [fw, rt] = toCam(cam, h.x, h.y, 0);
+    if (fw <= 0.3) continue;
+    const sx = cam.cx + (rt / fw) * cam.f, sy = cam.cy - ((h.z * (BOX_H + PAL) + 0.3 + k * 0.8 - cam.z) / fw) * cam.f;
+    const size = Math.max(10, Math.min(60, (0.45 / fw) * cam.f));
+    ctx.globalAlpha = Math.max(0, 1 - k * k);
+    ctx.font = `bold ${size}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = Math.max(2, size / 6);
+    ctx.strokeStyle = '#000';
+    ctx.strokeText(`−${h.pts}`, sx, sy);
+    ctx.fillStyle = '#ff5252';
+    ctx.fillText(`−${h.pts}`, sx, sy);
+  }
+  ctx.globalAlpha = 1;
+}
+
 // First-person view from the cabin, drawn into the box (x, y, w, h).
 // opts.rear: look backwards, mirrored left-right (rear-view mirror).
 export function drawPov(ctx, g, x, y, w, h, opts = {}) {
@@ -263,6 +284,7 @@ export function drawPov(ctx, g, x, y, w, h, opts = {}) {
   const faces = buildFaces(g, cam);
   for (const f of faces) if (f.d < MAX_DIST) drawFace(ctx, cam, f);
   if (!opts.rear) drawZoneLabels(ctx, g, cam, faces);
+  if (!opts.rear) drawHits(ctx, g, cam);
   ctx.restore();
 
   ctx.strokeStyle = '#111';

@@ -3,7 +3,7 @@ import { createInput } from './input.js';
 import { getBest, beats, saveBest, finalScore, timePenalty } from './highscores.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
-import { startAudio, playFork, playBlocked, playSuccess, setEngine, setSilenced, isMusicMuted, setMusicMuted, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playFork, playBlocked, playBreak, playSuccess, setEngine, setSilenced, isMusicMuted, setMusicMuted, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -26,6 +26,7 @@ let hard = localStorage.getItem('forklift-hard') === '1';
 let game = newGame(level, seed, hard);
 const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
 let doneZones = countDone();
+let hitCount = 0;
 view.best = getBest(localStorage, seed, level);
 let recordOpen = false, recorded = false;
 const recordEl = document.getElementById('record');
@@ -45,6 +46,7 @@ function load(n) {
   localStorage.setItem('forklift-level', String(level));
   game = newGame(level, seed, hard);
   doneZones = countDone();
+  hitCount = game.hitCount;
   view.best = getBest(localStorage, seed, level);
 }
 
@@ -272,6 +274,7 @@ function frame(now) {
   const done = countDone();
   if (done > doneZones) playSuccess();
   doneZones = done;
+  if (game.hitCount !== hitCount) { if (game.hitCount > hitCount) playBreak(); hitCount = game.hitCount; }
   draw(ctx, game, view);
   requestAnimationFrame(frame);
 }

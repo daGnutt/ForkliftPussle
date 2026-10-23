@@ -2,7 +2,7 @@ import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
 import { drawPov } from './pov.js';
 import { theme } from './theme.js';
-import { carriedWorldOffs, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
+import { carriedWorldOffs, HIT_LIFE, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
 function rotRect(ctx, cx, cy, a, fn) {
   ctx.save();
@@ -206,6 +206,20 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale) {
   const ox = rx + (rw - g.w * s) / 2, oy = ry + (rh - g.h * s) / 2;
   ctx.setTransform(s * view.dpr, 0, 0, s * view.dpr, ox * view.dpr, oy * view.dpr);
   drawWorld(ctx, g);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 0.55px sans-serif';
+  ctx.lineWidth = 0.1;
+  for (const h of g.hits || []) {
+    const k = (g.time - h.t) / HIT_LIFE;
+    const x = h.x + h.z * PX, y = h.y + h.z * PY - k * 1.2;
+    ctx.globalAlpha = Math.max(0, 1 - k * k);
+    ctx.strokeStyle = '#000';
+    ctx.strokeText(`−${h.pts}`, x, y);
+    ctx.fillStyle = '#ff5252';
+    ctx.fillText(`−${h.pts}`, x, y);
+  }
+  ctx.globalAlpha = 1;
 }
 
 // Top-down world in simulation units; the caller sets the transform.

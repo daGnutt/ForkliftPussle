@@ -227,6 +227,19 @@ export function playBlocked() {
   o.frequency.exponentialRampToValueAtTime(70, t + dur);
 }
 
+// Splintering crack of a damaged box: noise burst plus a few woody clicks.
+export function playBreak() {
+  if (!ctx || ctx.state !== 'running') return;
+  const t = ctx.currentTime;
+  noise(sfxBus, t, 0.18, { gain: 0.3, cutoff: 1400, type: 'bandpass' });
+  for (let i = 0; i < 3; i++) {
+    const o = tone(sfxBus, 1, t + i * 0.035, 0.08, { type: 'square', gain: 0.1, attack: 0.002, release: 0.05, cutoff: 1500 });
+    o.frequency.cancelScheduledValues(t);
+    o.frequency.setValueAtTime(260 - i * 50, t + i * 0.035);
+    o.frequency.exponentialRampToValueAtTime(60, t + i * 0.035 + 0.08);
+  }
+}
+
 // Cheerful rising arpeggio when a zone is filled.
 export function playSuccess() {
   if (!ctx || ctx.state !== 'running') return;
