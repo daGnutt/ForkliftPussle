@@ -67,7 +67,7 @@ const input = createInput({
     if (n >= 1) load(n);
   },
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
-  pause: () => { if (!splashOn) setPaused(!view.userPaused, true); },
+  pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
 });
 
 const pending = {};
@@ -215,19 +215,15 @@ document.getElementById('menuRestart').addEventListener('click', () => {
 window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
-  if (e.code === 'Escape') { e.preventDefault(); toggleMenu(false); }
+  if (e.code === 'Escape' || e.code === 'KeyP') { e.preventDefault(); toggleMenu(false); }
 }, true);
 
 const lostFocus = () => document.hidden || !document.hasFocus();
 function applyPause() {
-  const p = !!view.userPaused || !!view.menuOpen || lostFocus();
+  const p = !!view.menuOpen || lostFocus();
   if (!p && view.paused) last = performance.now();
   view.paused = p;
   setSilenced(p);
-}
-function setPaused(p, manual) {
-  if (manual) view.userPaused = p;
-  applyPause();
 }
 window.addEventListener('blur', applyPause);
 window.addEventListener('focus', applyPause);
