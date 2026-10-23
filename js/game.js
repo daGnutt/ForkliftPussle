@@ -1,9 +1,10 @@
-import { rectPoly, sat } from './geom.js';
+import { rectPoly, sat, overlapArea } from './geom.js';
 import { FL, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { generateLevel } from './level.js';
 
 const FORKLIFT_MASS = 6;
 const MAX_LAYERS = 5;
+const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
 // Every box is worth BOX_POINTS: up to CRASH_POINTS lost to crashes and up to
 // SQUARE_POINTS lost for being placed crooked. Points are only ever deducted.
 const BOX_POINTS = 100;
@@ -337,12 +338,20 @@ export function forkDown(g) {
     while (g.carriedRots.length < g.carried.length) g.carriedRots.push(g.carriedRel);
     const worldRots = g.carriedRots.map((r) => r + g.fl.a);
     g.carriedPen.forEach((p, i) => { p.sq = squareLoss(worldRots[i]); });
-    if (S) {
+    const p = toWorld(g.fl, FL.carryX, 0);
+    const top = S ? S.rots[S.layers.length - 1] : 0;
+    if (S && overlapArea(rectPoly(p.x, p.y, 0.5, 0.5, worldRots[0]), rectPoly(S.x, S.y, 0.5, 0.5, top)) < MIN_SUPPORT) {
+      // too little of the box rests on the stack: it falls to the floor beside it, taking maximum damage
+      let dx = p.x - S.x, dy = p.y - S.y;
+      const len = Math.hypot(dx, dy) || 1;
+      dx /= len; dy /= len;
+      g.carriedPen.forEach((q) => { q.crash = CRASH_POINTS; });
+      g.stacks.push({ x: S.x + dx * 1.45, y: S.y + dy * 1.45, layers: g.carried, rots: worldRots, pen: g.carriedPen, a: worldRots[0] });
+    } else if (S) {
       S.layers.push(...g.carried);
       S.rots.push(...worldRots);
       S.pen.push(...g.carriedPen);
     } else {
-      const p = toWorld(g.fl, FL.carryX, 0);
       g.stacks.push({ x: p.x, y: p.y, layers: g.carried, rots: worldRots, pen: g.carriedPen, a: g.fl.a + g.carriedRel });
     }
     g.carried = null;

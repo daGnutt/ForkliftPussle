@@ -30,7 +30,7 @@ Fork level is a whole number 0–5 (height above the floor in box heights), chan
 - **Straight in**: the tines only slide into the pallet's slots when you come in roughly square; otherwise they hit the pallet's runners, pushing it and turning it according to where they hit. Turn the forklift with the forks in a pallet and the pallet glides sideways (and turns) with the forks (in a stack the whole stack moves, but only the boxes from the fork level upward turn), while you can still slide the forks in and out.
 - **Level H**: tines are under the box at height H of the stack in front of you. **A** lifts every box from there up (the forks rise one level). Level 0 takes the whole stack, level 1 everything above the bottom box, and so on.
 - **Carrying**: **A** raises, **Z** lowers. Carried boxes collide with floor stacks that reach their height, so raise high enough to pass over them.
-- **Put down**: lower with **Z** until the carried boxes reach the stack beneath (or the floor, level 0); they are released as soon as they reach it (merge, max 5 layers).
+- **Put down**: lower with **Z** until the carried boxes reach the stack beneath (or the floor, level 0); they are released as soon as they reach it (merge, max 5 layers). At least half of the box must rest on the box below, otherwise it falls off beside the stack and takes maximum damage.
 - The gauge on the right shows the fork level, the stack the forks are in, and what you carry. A stack shows its top colour, plus a coloured number for every box below it (number = layer from the bottom).
 
 ## Run / deploy

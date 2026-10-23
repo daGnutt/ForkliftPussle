@@ -54,3 +54,28 @@ export function pointRectDist(px, py, r) {
   const dy = Math.max(r.y - py, 0, py - (r.y + r.h));
   return Math.hypot(dx, dy);
 }
+
+// Area of the intersection of two convex polygons (Sutherland-Hodgman clipping).
+export function overlapArea(a, b) {
+  const sgn = (p) => { let t = 0; for (let i = 0; i < p.length; i++) { const u = p[i], v = p[(i + 1) % p.length]; t += u.x * v.y - v.x * u.y; } return t >= 0 ? 1 : -1; };
+  const k = sgn(b);
+  let out = a;
+  for (let i = 0; i < b.length && out.length; i++) {
+    const p = b[i], q = b[(i + 1) % b.length];
+    const side = (v) => k * ((q.x - p.x) * (v.y - p.y) - (q.y - p.y) * (v.x - p.x));
+    const inp = out;
+    out = [];
+    for (let j = 0; j < inp.length; j++) {
+      const u = inp[j], v = inp[(j + 1) % inp.length];
+      const su = side(u), sv = side(v);
+      if (su >= 0) out.push(u);
+      if ((su >= 0) !== (sv >= 0)) {
+        const t = su / (su - sv);
+        out.push({ x: u.x + (v.x - u.x) * t, y: u.y + (v.y - u.y) * t });
+      }
+    }
+  }
+  let area = 0;
+  for (let i = 0; i < out.length; i++) { const u = out[i], v = out[(i + 1) % out.length]; area += u.x * v.y - v.x * u.y; }
+  return Math.abs(area) / 2;
+}

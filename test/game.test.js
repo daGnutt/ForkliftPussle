@@ -95,6 +95,27 @@ const driveUntil = (g, x, brakeAt) => {
   assert.equal(g.H, 3);
 }
 
+// A carried box needs at least half of it on the stack below, otherwise it falls beside the stack with maximum damage.
+{
+  const drop = (offset) => {
+    const g = newGame(1);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }, { x: 4, y: 12, layers: [1], rots: [0], a: 0 }];
+    g.carried = [1]; g.carriedRots = [0]; g.carriedPen = [{ crash: 0, sq: 0 }]; g.carriedRel = 0;
+    g.stacks.pop();
+    g.fl.a = 0; g.fl.x = 10 - FL.carryX + offset; g.fl.y = 5;
+    g.H = 2;
+    forkDown(g);
+    return g;
+  };
+  const ok = drop(0.25);
+  assert.deepEqual(ok.stacks[0].layers, [0, 1], 'mostly supported box stays on');
+  const bad = drop(0.54);
+  assert.deepEqual(bad.stacks[0].layers, [0], 'stack below untouched');
+  assert.equal(bad.stacks.length, 2, 'box fell to the floor');
+  assert.equal(bad.stacks[1].pen[0].crash, 50, 'maximum crash damage');
+}
+
 // Whole stack from level 0; release on the floor at level 0.
 {
   const g = newGame(1);
