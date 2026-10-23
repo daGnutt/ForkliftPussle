@@ -210,15 +210,10 @@ function alignStack(g, s, dt) {
 export function update(g, input, dt) {
   const f = g.fl;
   g.time += dt;
-  const prevA = f.a;
   drive(f, input, dt);
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;
   g.aligning = new Set();
-  if (!g.carried && Math.abs(f.a - prevA) > TURN_PICKUP_EPS) {
-    const S = forkedStack(g);
-    if (S) liftFrom(g, S);
-  }
   resolve(g);
   for (const s of g.aligning) alignStack(g, s, dt);
 
@@ -253,7 +248,6 @@ const MAX_H = 5;
 
 // Tines only fit into a pallet when the forklift is within FORK_ENTRY_ANGLE of square to it.
 const FORK_ENTRY_ANGLE = 10 * Math.PI / 180;
-const TURN_PICKUP_EPS = 1e-4;
 
 // Whether the box of S at the fork level is within the entry angle of the forklift heading.
 function squareToForks(g, S) {
@@ -269,22 +263,19 @@ function forkedStack(g) {
   return S && S.layers.length > g.H && squareToForks(g, S) ? S : null;
 }
 
-// Takes the boxes from the fork level upward off stack S onto the forks.
-function liftFrom(g, S) {
-  g.carried = S.layers.splice(g.H);
-  g.carriedRots = S.rots.splice(g.H).map((r) => r - g.fl.a);
-  g.carriedPen = S.pen.splice(g.H);
-  g.carriedRel = g.carriedRots[0];
-  if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
-}
-
 export function forkUp(g) {
   if (g.carried) {
     g.H = Math.min(MAX_H, g.H + 1);
     return;
   }
   const S = forkedStack(g);
-  if (S) liftFrom(g, S);
+  if (S) {
+    g.carried = S.layers.splice(g.H);
+    g.carriedRots = S.rots.splice(g.H).map((r) => r - g.fl.a);
+    g.carriedPen = S.pen.splice(g.H);
+    g.carriedRel = g.carriedRots[0];
+    if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
+  }
   g.H = Math.min(MAX_H, g.H + 1);
 }
 

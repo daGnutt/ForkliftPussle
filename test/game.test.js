@@ -357,28 +357,17 @@ console.log('all tests passed');
   assert.ok(g.carried, 'within 10 degrees lifts');
 }
 
-// Turning with the forks in a pallet turns the pallet; in a stack it splits off the boxes above the forks.
+// Turning with the forks in a pallet does not lift it; once skewed past 10 degrees the tines push it sideways.
 {
   const g = newGame(1);
   flatWorld(g);
   g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
   faceStack(g, 0);
-  g.fl.speed = 0;
-  update(g, { right: true }, 1 / 120);
-  assert.equal(g.carried, null, 'no turn, no pickup');
   g.fl.speed = 1;
-  run(g, { right: true }, 0.3);
-  assert.ok(g.carried && g.stacks.length === 0, 'pallet follows the forks');
-
-  const h = newGame(1);
-  flatWorld(h);
-  h.stacks = [{ x: 10, y: 5, layers: [0, 1, 2], rots: [0, 0, 0], a: 0 }];
-  faceStack(h, 0);
-  h.H = 1;
-  h.fl.speed = 1;
-  run(h, { right: true }, 0.3);
-  assert.deepEqual(h.stacks[0].layers, [0], 'lower box stays');
-  assert.deepEqual(h.carried, [1, 2], 'upper boxes split off');
+  run(g, { right: true }, 0.6);
+  assert.equal(g.carried, null, 'pallet is not carried');
+  assert.equal(g.stacks.length, 1);
+  assert.ok(Math.hypot(g.stacks[0].x - 10, g.stacks[0].y - 5) > 0.1, 'pallet pushed sideways');
 }
 
 // Driving the forks in at too steep an angle pushes the stack instead.
