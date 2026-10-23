@@ -343,18 +343,30 @@ console.log('all tests passed');
   console.log('highscores ok');
 }
 
-// Forks only enter a pallet when within 10 degrees of square to it.
+// The tines only enter the slots of a pallet when roughly square to it; otherwise they hit its runners and the pallet is pushed.
 {
   const g = newGame(1, 0, true);
   flatWorld(g);
   g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
-  faceStack(g, 0.3);
+  faceStack(g, 0.05);
   forkUp(g);
-  assert.equal(g.carried, null, 'misaligned forks pass beside the pallet');
-  g.H = 0;
-  faceStack(g, 0.15);
-  forkUp(g);
-  assert.ok(g.carried, 'within 10 degrees lifts');
+  assert.ok(g.carried, 'square-ish forks lift');
+}
+
+// A skewed tine hitting the pallet off-centre turns it towards the forks' heading, in both directions.
+{
+  const turned = (deg) => {
+    const g = newGame(1, 0, true);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+    const f = g.fl;
+    f.a = deg * Math.PI / 180; f.speed = 0;
+    f.x = 10 - 3 * Math.cos(f.a); f.y = 5 - 3 * Math.sin(f.a);
+    for (let i = 0; i < 480; i++) update(g, { up: f.speed < 0.3 }, 1 / 120);
+    return g.stacks[0].rots[0];
+  };
+  assert.ok(turned(20) > 0.05, 'turns towards a positive heading');
+  assert.ok(turned(-20) < -0.05, 'turns towards a negative heading');
 }
 
 // Turning with the forks in a pallet glides it with the forks sideways (and turns it) without lifting it.
@@ -385,7 +397,7 @@ console.log('all tests passed');
     return g.stacks[0].x;
   };
   assert.ok(run1(0.5) > 10.2, 'skewed forks push the stack');
-  assert.ok(run1(0.05) < 10.01, 'straight forks slide in');
+  assert.ok(run1(0) < 10.01, 'straight forks slide in');
 }
 
 // Turning with the forks in the middle of a stack turns only the boxes from the forks upward.
