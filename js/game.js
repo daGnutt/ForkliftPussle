@@ -12,6 +12,7 @@ const SQUARE_POINTS = 50;
 const SQUARE_ALLOWANCE = (5 * Math.PI) / 180;
 const CRASH_MIN_SPEED = 0.8;
 const CRASH_COOLDOWN = 0.4;
+const FORK_PUSH_FAST = 2; // above this speed a fork push damages the whole stack, not just the boxes below the forks
 const FORK_BLOCK_POINTS = 10;
 const ALIGN_MIN_SPEED = 0.05;
 const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
@@ -24,12 +25,12 @@ function ensure(S) {
   if (!S.pen) S.pen = S.layers.map(newPen);
 }
 
-function crash(g, pens, owner) {
+function crash(g, pens, owner, count = pens.length) {
   const speed = Math.abs(g.fl.speed);
   if (speed < CRASH_MIN_SPEED || g.time - (owner.hitAt ?? -1) < CRASH_COOLDOWN) return;
   owner.hitAt = g.time;
   const pts = Math.min(5, Math.max(1, Math.round(speed)));
-  for (const p of pens) p.crash = Math.min(CRASH_POINTS, p.crash + pts);
+  for (const p of pens.slice(0, count)) p.crash = Math.min(CRASH_POINTS, p.crash + pts);
 }
 
 // Deduction (0..SQUARE_POINTS) for a box whose world angle is a: free within
@@ -120,8 +121,7 @@ function forkShapes(g) {
     shapes.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, f.a + g.carriedRel), stackFilter: (s) => s.layers.length > g.H, carried: true });
   }
   const blocks = (s) => s.layers.length > g.H && !squareToForks(g, s);
-  shapes.push(mk(tx, -FL.tineOff, thx, FL.tineHalf, blocks));
-  shapes.push(mk(tx, FL.tineOff, thx, FL.tineHalf, blocks));
+  for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks), tine: true });
   return shapes;
 }
 
@@ -157,7 +157,7 @@ function resolve(g) {
         const m = sat(sh.poly, stackPoly(s));
         if (!m) continue;
         ensure(s);
-        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s);
+        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.H > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? g.H : s.pen.length);
         if (sh.carried) crash(g, g.carriedPen, g);
         if (!sh.carried && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
         const d = m.depth * 1.001;

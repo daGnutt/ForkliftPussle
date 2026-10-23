@@ -402,3 +402,21 @@ console.log('all tests passed');
   assert.equal(s.rots[0], 0, 'bottom box does not turn');
   assert.ok(s.rots[1] > 0.05 && Math.abs(s.rots[1] - g.fl.a) < 1e-6 && s.rots[2] === s.rots[1], 'boxes from the forks up turn');
 }
+
+// Pushing a stack with the forks in a higher box only damages the boxes below the forks, unless fast.
+{
+  const push = (speed) => {
+    const g = newGame(1);
+    flatWorld(g);
+    const pen = () => ({ crash: 0, sq: 0 });
+    g.stacks = [{ x: 10, y: 5, layers: [0, 1, 2], rots: [0, 0, 0], pen: [pen(), pen(), pen()], a: 0 }];
+    g.H = 1;
+    const f = g.fl;
+    f.a = 0.5; f.x = 7; f.y = 4; f.speed = speed;
+    for (let i = 0; i < 100; i++) { f.speed = speed; update(g, { up: true }, 1 / 120); if (g.stacks[0].x > 10.1) break; }
+    return g.stacks[0].pen.map((p) => p.crash);
+  };
+  const slow = push(1.9), fast = push(3);
+  assert.ok(slow[0] > 0 && slow[1] === 0 && slow[2] === 0, 'slow: only box below the forks');
+  assert.ok(fast[1] > 0 && fast[2] > 0, 'fast: whole stack');
+}
