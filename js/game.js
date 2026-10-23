@@ -71,14 +71,18 @@ function settle(g, S) {
 
 
 export const HIT_LIFE = 1.2; // seconds a damage popup lives
+const HIT_MERGE = 0.6; // further damage to the same stack within this time adds to its popup
 
 // Applies crash points and records the actual loss as a floating popup (x, y, z in box heights).
-function hurt(g, pens, pts, x, y, z) {
+function hurt(g, pens, pts, x, y, z, owner = null) {
   let lost = 0;
   for (const p of pens) { const n = Math.min(CRASH_POINTS, p.crash + pts); lost += n - p.crash; p.crash = n; }
   lost = Math.round(lost);
   if (lost <= 0) return;
-  (g.hits ||= []).push({ x, y, z, pts: lost, t: g.time });
+  g.hits ||= [];
+  const prev = owner && g.hits.find((h) => h.owner === owner && g.time - h.t < HIT_MERGE);
+  if (prev) { prev.pts += lost; prev.x = x; prev.y = y; prev.z = z; prev.t = g.time; }
+  else g.hits.push({ x, y, z, pts: lost, t: g.time, owner });
   g.hitCount = (g.hitCount || 0) + 1;
 }
 
@@ -88,7 +92,7 @@ function crash(g, pens, owner, count = pens.length) {
   owner.hitAt = g.time;
   const pts = Math.min(5, Math.max(1, Math.round(speed)));
   const c = owner === g ? toWorld(g.fl, FL.carryX, 0) : owner;
-  hurt(g, pens.slice(0, count), pts, c.x, c.y, owner === g ? g.H + pens.length : pens.length);
+  hurt(g, pens.slice(0, count), pts, c.x, c.y, owner === g ? g.H + pens.length : pens.length, owner);
 }
 
 // Deduction (0..SQUARE_POINTS) for a box whose world angle is a: free within
@@ -397,7 +401,7 @@ export function forkDown(g) {
     const S = g.H > 0 ? stackInZone(g) : null;
     if (S && S.layers.length >= g.H) {
       ensure(S);
-      hurt(g, [S.pen[g.H - 1]], FORK_BLOCK_POINTS, S.x, S.y, g.H);
+      hurt(g, [S.pen[g.H - 1]], FORK_BLOCK_POINTS, S.x, S.y, g.H, S);
       return 'blocked';
     }
     g.H = Math.max(0, g.H - 1);
