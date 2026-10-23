@@ -226,7 +226,20 @@ document.getElementById('menuRestart').addEventListener('click', () => {
 window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
-  if (e.code === 'Escape' || (e.code === 'KeyP' && e.target !== menuLevel)) { e.preventDefault(); toggleMenu(false); }
+  if (e.code === 'Escape' || (e.code === 'KeyP' && e.target !== menuLevel)) { e.preventDefault(); toggleMenu(false); return; }
+  if (e.target === menuLevel || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
+  const toggle = (el) => { el.checked = !el.checked; el.dispatchEvent(new Event('change')); };
+  const actions = {
+    KeyA: () => toggle(muteOpt),
+    KeyE: () => toggle(engineOpt),
+    KeyM: () => toggle(musicOpt),
+    KeyH: () => toggle(menuHardOpt),
+    KeyG: () => { menuLevel.focus(); menuLevel.select(); },
+    KeyF: toggleFullscreen,
+    KeyR: () => document.getElementById('menuRestart').click(),
+    KeyU: () => toggleMenu(false),
+  };
+  if (actions[e.code]) { e.preventDefault(); actions[e.code](); }
 }, true);
 
 const lostFocus = () => document.hidden || !document.hasFocus();
