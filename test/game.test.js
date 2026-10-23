@@ -513,3 +513,16 @@ console.log('all tests passed');
   for (let i = 0; i < 120; i++) { h.fl.speed = 0.8; update(h, { up: true }, 1 / 120); }
   assert.equal(h.stacks[0].x, 10, 'tines pass through');
 }
+
+// Spawn/parking varies per level and is axis-aligned and inside the walls.
+{
+  const starts = new Set();
+  for (let n = 1; n <= 8; n++) {
+    const l = generateLevel(n);
+    starts.add(`${l.start.x.toFixed(1)},${l.start.y.toFixed(1)}`);
+    assert.ok(Math.abs(Math.sin(2 * l.start.a)) < 1e-9, 'start heading is axis-aligned');
+    assert.ok(newGame(n) && isParked(newGame(n)), 'spawns parked');
+  }
+  assert.ok(starts.size > 1, 'spawn point varies');
+  console.log('spawn ok');
+}

@@ -93,7 +93,11 @@ function buildRooms(rnd, w, h, count, start) {
 function tryGenerate(n, attempt, seed = 0) {
   const rnd = mulberry32(n * 7919 + attempt * 104729 + 17 + Math.imul(seed, 2654435761));
   const { w, h, maxH, colors, total, dividers } = levelParams(n);
-  const start = { x: 3.2, y: h - 2.6, a: 0 };
+  const start = {
+    x: 3.2 + rnd() * (w - 6.4),
+    y: 3.2 + rnd() * (h - 6.4),
+    a: Math.floor(rnd() * 4) * (Math.PI / 2),
+  };
 
   const boxes = [];
   for (let c = 0; c < colors; c++) boxes.push(c);

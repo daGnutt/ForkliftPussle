@@ -178,6 +178,12 @@ export function drawPov(ctx, g, x, y, w, h, opts = {}) {
   const ready = isSolved(g) && scoreEnough(g);
   floorQuad(ctx, eye, yaw, f, x + w / 2, y + horizon, park,
     ready ? (isParked(g) ? '#66bb6a99' : '#66bb6a66') : '#9e9e9e55', ready ? '#66bb6a' : '#bdbdbd');
+  if (ready) {
+    const p = g.parking, hx = (FL.front - FL.back) / 2 + 0.2, c = Math.cos(p.a), s = Math.sin(p.a);
+    const arrow = [[hx - 0.15, 0], [hx - 0.75, -0.45], [hx - 0.75, 0.45]]
+      .map(([u, v]) => [p.x + u * c - v * s, p.y + u * s + v * c]);
+    floorQuad(ctx, eye, yaw, f, x + w / 2, y + horizon, arrow, '#66bb6a', '#66bb6a');
+  }
   const edges = buildEdges(g);
   for (let px = 0; px < w; px += COL_W) {
     const off = Math.atan((px + COL_W / 2 - w / 2) / f);

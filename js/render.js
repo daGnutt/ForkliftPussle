@@ -244,6 +244,14 @@ function drawWorld(ctx, g) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('P', 0, 0);
+      if (ok) {
+        ctx.beginPath();
+        ctx.moveTo(hx - 0.15, 0);
+        ctx.lineTo(hx - 0.75, -0.45);
+        ctx.lineTo(hx - 0.75, 0.45);
+        ctx.closePath();
+        ctx.fill();
+      }
     });
   }
 

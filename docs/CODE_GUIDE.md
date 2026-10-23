@@ -32,7 +32,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 - `fl`: forklift `{x, y, a, speed, steer}`.
 - `carried`: array of layers being carried, or `null`; `carriedRots`: each carried box's angle relative to the forklift (so they turn with it, and keep their world angle when dropped); `carriedOffs`: each carried box's offset from the carried bottom box in the forklift's frame (`carriedWorldOffs(g)` rotates it to world); `carriedRel` = `carriedRots[0]`, used for collision. `carriedPen`: the carried boxes' `pen` entries.
 - `H`: logical fork level (integer 0–5); `hf`: smoothed value used only for drawing.
-- `parking`: `{x, y, a}` centre/heading of the parking spot (the forklift's spawn pose).
+- `parking`: `{x, y, a}` centre/heading of the parking spot (the forklift's spawn pose; random per level, axis-aligned heading). When the spot turns green it also shows an arrow for the required heading (`render.js`, `pov.js`).
 - `status`: `'play'` or `'won'`; `time`: seconds elapsed.
 
 ## Rules (see `game.js`)
