@@ -26,7 +26,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 - Forklift local frame: x forward, y right, origin at the **front** axle; rear wheels steer. `toWorld`/`toLocal` convert.
 
 ## Game state `g` (from `newGame`)
-- `walls`: border + pillar rects with a `poly` (collision). `pillars`: the raw pillar rects (for drawing).
+- `walls`: border + interior wall rects with a `poly` (collision). `pillars`: the raw interior wall rects (for drawing).
 - `zones`: `{x, y, color, count}` targets. `areas`: `{color, x, y, w, h}` tinted regions; all zones of a colour sit in one area.
 - `stacks`: floor stacks `{x, y, layers, a}`; `layers` are colour indices into `COLORS` (bottom → top); `rots` is a parallel array with each box's own world angle (remembered through lift/drop/merge); `a` is the bottom box's angle, used for collision. `offs` is a parallel array of each box's world offset `{x, y}` from the stack position (`offs[0]` = 0), so towers can be crooked; `pen` is a parallel array of `{crash, sq}` point deductions per box.
 - `fl`: forklift `{x, y, a, speed, steer}`.
@@ -55,7 +55,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 
 ## Level generation (`level.js`)
 - Deterministic per (level number, seed) via `mulberry32`; `generateLevel(n, seed = 0)`, seed 0 = the default layouts. `parseSeed(text)` maps splash input to an int (integers as-is, other text hashed). `newGame(n, seed)` stores `g.seed`; retries up to 300 attempts and falls back to level 1 if placement keeps failing.
-- Order: choose boxes and zone counts per colour → pillars → per-colour zone area (preferably flush against an outer wall, 0.5 gap) → stack placement avoiding areas, pillars and the start.
+- Order: choose boxes and zone counts per colour → rooms (`buildRooms`: recursive splits into rooms/corridors by thickness-1 dividing walls, each with a 3.6-wide door; later walls keep clear of earlier doors so everything stays connected; `levelParams.dividers`, 0 on level 1) → per-colour zone area (preferably flush against an outer wall, 0.5 gap) → stack placement avoiding areas, walls and the start.
 - Guarantees valid placement and matching box/zone counts, **not** solvability. Difficulty scales in `levelParams`.
 
 ## Rendering (`render.js`)

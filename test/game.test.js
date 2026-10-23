@@ -32,6 +32,29 @@ for (let n = 1; n <= 40; n++) {
   assert.deepEqual(generateLevel(n), l, 'deterministic');
 }
 
+// Rooms and corridors: from the start, every stack and zone is reachable for a forklift-wide path.
+for (let n = 1; n <= 40; n++) {
+  const l = generateLevel(n);
+  const R = 0.5, W = Math.round(l.w / R), H = Math.round(l.h / R);
+  const blocked = (x, y) => x < 0.55 || y < 0.55 || x > l.w - 0.55 || y > l.h - 0.55 ||
+    l.walls.some((r) => x > r.x - 0.55 && x < r.x + r.w + 0.55 && y > r.y - 0.55 && y < r.y + r.h + 0.55);
+  const key = (i, j) => i + ',' + j;
+  const q = [[Math.floor(l.start.x / R), Math.floor(l.start.y / R)]];
+  const seen = new Set([key(...q[0])]);
+  while (q.length) {
+    const [i, j] = q.pop();
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const x = i + a, y = j + b;
+      if (x < 0 || y < 0 || x >= W || y >= H || seen.has(key(x, y)) || blocked(x * R, y * R)) continue;
+      seen.add(key(x, y));
+      q.push([x, y]);
+    }
+  }
+  for (const o of [...l.stacks, ...l.zones]) {
+    assert.ok(seen.has(key(Math.floor(o.x / R), Math.floor(o.y / R))), `level ${n} item reachable`);
+  }
+}
+
 // Rear steering: pressing right while moving forward turns the nose right and the rear swings left.
 {
   const g = newGame(1);

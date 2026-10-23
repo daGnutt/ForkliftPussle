@@ -23,7 +23,7 @@ export function levelParams(n) {
     maxH: Math.min(5, 2 + Math.floor((n - 1) / 2)),
     colors: Math.min(5, 2 + Math.floor((n - 1) / 2)),
     total: Math.min(28, 4 + n * 2),
-    pillars: Math.min(8, Math.floor(n / 2)),
+    dividers: n < 2 ? 0 : Math.min(7, 1 + Math.floor(n / 2)),
   };
 }
 
@@ -33,9 +33,66 @@ function rectGap(a, b) {
   return Math.hypot(dx, dy);
 }
 
+// Splits the level into rooms and corridors with dividing walls (thickness 1), each with a door gap.
+// Later walls keep clear of earlier doors so every room stays reachable.
+const WALL_T = 1, DOOR_W = 3.6, MIN_ROOM = 7, CORRIDOR_W = 3.4;
+
+function buildRooms(rnd, w, h, count, start) {
+  const walls = [];
+  const doors = [];
+  const regions = [{ x: 0, y: 0, w, h }];
+  const clear = (r) => !doors.some((d) => rectGap(d, r) === 0) &&
+    pointRectDist(start.x, start.y, r) >= 3;
+  for (let i = 0; i < count; i++) {
+    regions.sort((a, b) => b.w * b.h - a.w * a.h);
+    let done = false;
+    for (let ri = 0; ri < regions.length && !done; ri++) {
+      const reg = regions[ri];
+      const vertical = reg.w === reg.h ? rnd() < 0.5 : reg.w > reg.h;
+      const len = vertical ? reg.w : reg.h;
+      const cross = vertical ? reg.h : reg.w;
+      if (len < 2 * MIN_ROOM + WALL_T || cross < DOOR_W + 2) continue;
+      for (let t = 0; t < 30 && !done; t++) {
+        const corridor = len >= 2 * MIN_ROOM + CORRIDOR_W && rnd() < 0.4;
+        let c;
+        if (corridor) {
+          c = rnd() < 0.5 ? CORRIDOR_W : len - CORRIDOR_W - WALL_T;
+        } else {
+          c = MIN_ROOM + Math.floor(rnd() * (len - 2 * MIN_ROOM - WALL_T + 1));
+        }
+        const dMin = 0.5, dMax = cross - DOOR_W - 0.5;
+        const d = Math.round((dMin + rnd() * (dMax - dMin)) * 2) / 2;
+        const wallRect = vertical
+          ? { x: reg.x + c, y: reg.y, w: WALL_T, h: cross }
+          : { x: reg.x, y: reg.y + c, w: cross, h: WALL_T };
+        if (!clear(wallRect)) continue;
+        const door = vertical
+          ? { x: wallRect.x, y: reg.y + d, w: WALL_T, h: DOOR_W }
+          : { x: reg.x + d, y: wallRect.y, w: DOOR_W, h: WALL_T };
+        const pieces = vertical
+          ? [{ ...wallRect, h: d }, { ...wallRect, y: door.y + DOOR_W, h: cross - d - DOOR_W }]
+          : [{ ...wallRect, w: d }, { ...wallRect, x: door.x + DOOR_W, w: cross - d - DOOR_W }];
+        for (const p of pieces) if (p.w > 0 && p.h > 0) walls.push(p);
+        doors.push({ x: door.x - 1.2, y: door.y - 1.2, w: door.w + 2.4, h: door.h + 2.4 });
+        regions.splice(ri, 1);
+        if (vertical) {
+          regions.push({ x: reg.x, y: reg.y, w: c, h: reg.h },
+            { x: reg.x + c + WALL_T, y: reg.y, w: reg.w - c - WALL_T, h: reg.h });
+        } else {
+          regions.push({ x: reg.x, y: reg.y, w: reg.w, h: c },
+            { x: reg.x, y: reg.y + c + WALL_T, w: reg.w, h: reg.h - c - WALL_T });
+        }
+        done = true;
+      }
+    }
+    if (!done) break;
+  }
+  return walls;
+}
+
 function tryGenerate(n, attempt, seed = 0) {
   const rnd = mulberry32(n * 7919 + attempt * 104729 + 17 + Math.imul(seed, 2654435761));
-  const { w, h, maxH, colors, total, pillars } = levelParams(n);
+  const { w, h, maxH, colors, total, dividers } = levelParams(n);
   const start = { x: 3.2, y: h - 2.6, a: 0 };
 
   const boxes = [];
@@ -63,22 +120,7 @@ function tryGenerate(n, attempt, seed = 0) {
     i += k;
   }
 
-  const walls = [];
-  for (let p = 0; p < pillars; p++) {
-    for (let t = 0; t < 60; t++) {
-      const pw = 1 + Math.floor(rnd() * 3), ph = 1 + Math.floor(rnd() * 3);
-      const r = {
-        x: 3 + Math.floor(rnd() * (w - 6 - pw)),
-        y: 3 + Math.floor(rnd() * (h - 6 - ph)),
-        w: pw,
-        h: ph,
-      };
-      if (pointRectDist(start.x, start.y, r) < 4) continue;
-      if (walls.some((o) => rectGap(o, r) < 2.5)) continue;
-      walls.push(r);
-      break;
-    }
-  }
+  const walls = buildRooms(rnd, w, h, dividers, start);
 
   const placed = [];
   const areas = [];
