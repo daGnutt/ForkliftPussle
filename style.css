@@ -49,4 +49,6 @@ footer b { color: var(--accent); }
 #menu .panel { background: var(--splash1); padding: 20px 28px; border-radius: 8px; display: flex; flex-direction: column; gap: 12px; min-width: 260px; }
 #menu h2 { margin: 0; color: var(--accent); text-align: center; }
 #menu label { cursor: pointer; } #menu label input { vertical-align: middle; }
+#menu #menuGoto { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+#menu #menuLevel { width: 4.5em; font: inherit; }
 #menu button { padding: 8px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }

@@ -15,7 +15,6 @@ export function createInput(handlers) {
     else if (e.code === 'KeyM' || e.code === 'Tab') handlers.swapView?.();
     else if (e.code === 'KeyC') handlers.toggleSmall?.();
     else if (e.code === 'KeyF') handlers.fullscreen?.();
-    else if (e.code === 'KeyG') handlers.goto?.();
     else if (e.code === 'KeyP') handlers.pause?.();
     else if (e.code === 'Escape') handlers.menu?.();
   });

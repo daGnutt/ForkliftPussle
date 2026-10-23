@@ -66,11 +66,6 @@ const input = createInput({
   },
   restart: () => load(level),
   next: () => { if (game.status === 'won') load(level + 1); },
-  goto: () => {
-    const n = parseInt(window.prompt('Go to level:', String(level)), 10);
-    input.clear();
-    if (n >= 1) load(n);
-  },
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
 });
@@ -192,6 +187,7 @@ const menuEl = document.getElementById('menu');
 const engineOpt = document.getElementById('engineOpt');
 const musicOpt = document.getElementById('musicOpt');
 const muteOpt = document.getElementById('muteOpt');
+const menuLevel = document.getElementById('menuLevel');
 const menuHardOpt = document.getElementById('menuHardOpt');
 function toggleMenu(open) {
   view.menuOpen = open;
@@ -201,6 +197,7 @@ function toggleMenu(open) {
     engineOpt.checked = isEngineOn();
     musicOpt.checked = !isMusicMuted();
     menuHardOpt.checked = hard;
+    menuLevel.value = level;
     document.getElementById('menuResume').focus();
   } else {
     document.activeElement?.blur();
@@ -211,6 +208,11 @@ function toggleMenu(open) {
 muteOpt.addEventListener('change', () => setAllMuted(muteOpt.checked));
 engineOpt.addEventListener('change', () => setEngineOn(engineOpt.checked));
 musicOpt.addEventListener('change', () => setMusicMuted(!musicOpt.checked));
+document.getElementById('menuGoto').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const n = parseInt(menuLevel.value, 10);
+  if (n >= 1) { load(n); toggleMenu(false); }
+});
 document.getElementById('menuFullscreen').addEventListener('click', toggleFullscreen);
 document.getElementById('menuResume').addEventListener('click', () => toggleMenu(false));
 document.getElementById('menuRestart').addEventListener('click', () => {
@@ -224,7 +226,7 @@ document.getElementById('menuRestart').addEventListener('click', () => {
 window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
-  if (e.code === 'Escape' || e.code === 'KeyP') { e.preventDefault(); toggleMenu(false); }
+  if (e.code === 'Escape' || (e.code === 'KeyP' && e.target !== menuLevel)) { e.preventDefault(); toggleMenu(false); }
 }, true);
 
 const lostFocus = () => document.hidden || !document.hasFocus();
