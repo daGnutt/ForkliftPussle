@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { generateLevel, parseSeed } from '../js/level.js';
-import { FL } from '../js/forklift.js';
+import { FL, toLocal } from '../js/forklift.js';
 import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown } from '../js/game.js';
 
 const NONE = {};
@@ -357,17 +357,20 @@ console.log('all tests passed');
   assert.ok(g.carried, 'within 10 degrees lifts');
 }
 
-// Turning with the forks in a pallet does not lift it; once skewed past 10 degrees the tines push it sideways.
+// Turning with the forks in a pallet glides it with the forks sideways (and turns it) without lifting it.
 {
   const g = newGame(1);
   flatWorld(g);
   g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
   faceStack(g, 0);
-  g.fl.speed = 1;
-  run(g, { right: true }, 0.6);
+  g.fl.x -= 0.5 * Math.cos(0);
+  for (let i = 0; i < 120; i++) { g.fl.speed = 0.8; update(g, { right: true }, 1 / 120); }
+  const s = g.stacks[0];
   assert.equal(g.carried, null, 'pallet is not carried');
-  assert.equal(g.stacks.length, 1);
-  assert.ok(Math.hypot(g.stacks[0].x - 10, g.stacks[0].y - 5) > 0.1, 'pallet pushed sideways');
+  assert.ok(Math.abs(g.fl.a) > 0.05, 'forklift turned');
+  assert.ok(Math.abs(s.a - g.fl.a) < 1e-6, 'pallet turned with the forks');
+  const l = toLocal(g.fl, s.x, s.y);
+  assert.ok(Math.abs(l.y) < 1e-6, 'held sideways on the forks');
 }
 
 // Driving the forks in at too steep an angle pushes the stack instead.
