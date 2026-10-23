@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { generateLevel, parseSeed } from '../js/level.js';
-import { FL } from '../js/forklift.js';
+import { FL, toLocal } from '../js/forklift.js';
 import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown } from '../js/game.js';
 
 const NONE = {};
@@ -54,6 +54,13 @@ for (let n = 1; n <= 40; n++) {
   assert.ok(f.x > 0 && f.x < 4, 'stopped by wall');
 }
 
+// Turn the forklift to ang and place it so the stack at (10, 5) sits on the forks.
+const faceStack = (g, ang) => {
+  g.stacks[0].x = 10; g.stacks[0].y = 5;
+  g.fl.a = ang;
+  g.fl.x = 10 - FL.carryX * Math.cos(ang);
+  g.fl.y = 5 - FL.carryX * Math.sin(ang);
+};
 const flatWorld = (g) => { g.zones = []; g.walls = g.walls.slice(0, 4); };
 const driveUntil = (g, x, brakeAt) => {
   const f = g.fl;
@@ -138,34 +145,34 @@ const driveUntil = (g, x, brakeAt) => {
 {
   const g = newGame(1);
   flatWorld(g);
-  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0.3], a: 0.3 }];
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0.15], a: 0.15 }];
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
   driveUntil(g, 9.7, 8);
   forkUp(g);
-  assert.ok(Math.abs(g.carriedRel - 0.3) < 1e-9, 'relative angle stored');
+  assert.ok(Math.abs(g.carriedRel - 0.15) < 1e-9, 'relative angle stored');
   f.a += 0.5;
   forkDown(g);
   assert.equal(g.carried, null);
-  assert.ok(Math.abs(g.stacks[0].a - 0.8) < 0.05, 'dropped with rotated orientation');
+  assert.ok(Math.abs(g.stacks[0].a - 0.65) < 0.05, 'dropped with rotated orientation');
 }
 
 // Each box in a stack remembers its own rotation through lift, drop and merge.
 {
   const g = newGame(1);
   flatWorld(g);
-  g.stacks = [{ x: 10, y: 5, layers: [0, 1], rots: [0.1, 0.4], a: 0.1 }];
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1], rots: [0.1, 0.15], a: 0.1 }];
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
   driveUntil(g, 10, 8);
   g.H = 1;
   forkUp(g);
   assert.deepEqual(g.stacks[0].rots, [0.1]);
-  assert.ok(Math.abs(g.carriedRots[0] - 0.4) < 1e-9);
+  assert.ok(Math.abs(g.carriedRots[0] - 0.15) < 1e-9);
   forkDown(g);
   assert.equal(g.carried, null);
   assert.deepEqual(g.stacks[0].layers, [0, 1]);
-  assert.ok(Math.abs(g.stacks[0].rots[0] - 0.1) < 1e-9 && Math.abs(g.stacks[0].rots[1] - 0.4) < 1e-9);
+  assert.ok(Math.abs(g.stacks[0].rots[0] - 0.1) < 1e-9 && Math.abs(g.stacks[0].rots[1] - 0.15) < 1e-9);
 }
 
 // Scoring: starts at full points, crashes cost up to 50 per box, crooked placement costs up to 50.
@@ -188,6 +195,7 @@ const driveUntil = (g, x, brakeAt) => {
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
   driveUntil(g, 10, 8);
+  faceStack(g, Math.PI / 4);
   forkUp(g);
   const before = pts(g);
   forkDown(g);
@@ -204,13 +212,14 @@ const driveUntil = (g, x, brakeAt) => {
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
   driveUntil(g, 10, 8);
+  faceStack(g, Math.PI / 4);
   forkUp(g);
   forkDown(g);
   assert.ok(pts(g) <= 60, 'crooked placement');
   forkUp(g);
   f.a -= Math.PI / 4;
   forkDown(g);
-  assert.ok(pts(g) >= 98, 're-placed square recovers points');
+  assert.equal(lostBreakdown(g).square, 0, 're-placed square recovers points');
 }
 
 // Small angle errors are free and deductions come in steps of 5.
@@ -222,6 +231,7 @@ const driveUntil = (g, x, brakeAt) => {
     const f = g.fl;
     f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
     driveUntil(g, 10, 8);
+    faceStack(g, ang);
     forkUp(g);
     forkDown(g);
     return lostBreakdown(g).square;
@@ -331,4 +341,98 @@ console.log('all tests passed');
   assert.equal(finalScore(500, 100), 490);
   assert.equal(finalScore(5, 1000), 0);
   console.log('highscores ok');
+}
+
+// Forks only enter a pallet when within 10 degrees of square to it.
+{
+  const g = newGame(1, 0, true);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+  faceStack(g, 0.3);
+  forkUp(g);
+  assert.equal(g.carried, null, 'misaligned forks pass beside the pallet');
+  g.H = 0;
+  faceStack(g, 0.15);
+  forkUp(g);
+  assert.ok(g.carried, 'within 10 degrees lifts');
+}
+
+// Turning with the forks in a pallet glides it with the forks sideways (and turns it) without lifting it.
+{
+  const g = newGame(1, 0, true);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+  faceStack(g, 0);
+  g.fl.x -= 0.5 * Math.cos(0);
+  for (let i = 0; i < 120; i++) { g.fl.speed = 0.8; update(g, { right: true }, 1 / 120); }
+  const s = g.stacks[0];
+  assert.equal(g.carried, null, 'pallet is not carried');
+  assert.ok(Math.abs(g.fl.a) > 0.05, 'forklift turned');
+  assert.ok(Math.abs(s.a - g.fl.a) < 1e-6, 'pallet turned with the forks');
+  const l = toLocal(g.fl, s.x, s.y);
+  assert.ok(Math.abs(l.y) < 1e-6, 'held sideways on the forks');
+}
+
+// Driving the forks in at too steep an angle pushes the stack instead.
+{
+  const run1 = (ang) => {
+    const g = newGame(1, 0, true);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+    const f = g.fl;
+    f.a = ang; f.x = 7; f.y = ang > 0.1 ? 4 : 5; f.speed = 0;
+    run(g, { up: true }, 1.0);
+    return g.stacks[0].x;
+  };
+  assert.ok(run1(0.5) > 10.2, 'skewed forks push the stack');
+  assert.ok(run1(0.05) < 10.01, 'straight forks slide in');
+}
+
+// Turning with the forks in the middle of a stack turns only the boxes from the forks upward.
+{
+  const g = newGame(1, 0, true);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1, 2], rots: [0, 0, 0], a: 0 }];
+  faceStack(g, 0);
+  g.H = 1;
+  g.fl.x -= 0.5;
+  for (let i = 0; i < 70; i++) { g.fl.speed = 0.8; update(g, { right: true }, 1 / 120); }
+  const s = g.stacks[0];
+  assert.equal(s.layers.length, 3, 'stack stays whole');
+  assert.equal(s.rots[0], 0, 'bottom box does not turn');
+  assert.ok(s.rots[1] > 0.05 && Math.abs(s.rots[1] - g.fl.a) < 1e-6 && s.rots[2] === s.rots[1], 'boxes from the forks up turn');
+}
+
+// Pushing a stack with the forks in a higher box only damages the boxes below the forks, unless fast.
+{
+  const push = (speed) => {
+    const g = newGame(1, 0, true);
+    flatWorld(g);
+    const pen = () => ({ crash: 0, sq: 0 });
+    g.stacks = [{ x: 10, y: 5, layers: [0, 1, 2], rots: [0, 0, 0], pen: [pen(), pen(), pen()], a: 0 }];
+    g.H = 1;
+    const f = g.fl;
+    f.a = 0.5; f.x = 7; f.y = 4; f.speed = speed;
+    for (let i = 0; i < 100; i++) { f.speed = speed; update(g, { up: true }, 1 / 120); if (g.stacks[0].x > 10.1) break; }
+    return g.stacks[0].pen.map((p) => p.crash);
+  };
+  const slow = push(1.9), fast = push(3);
+  assert.ok(slow[0] > 0 && slow[1] === 0 && slow[2] === 0, 'slow: only box below the forks');
+  assert.ok(fast[1] > 0 && fast[2] > 0, 'fast: whole stack');
+}
+
+// Without hard mode, forks slide into a pallet from any angle and nothing is pushed or turned.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+  faceStack(g, 0.3);
+  forkUp(g);
+  assert.ok(g.carried, 'lifts at any angle');
+  const h = newGame(1);
+  flatWorld(h);
+  h.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+  h.fl.a = 0.5; h.fl.x = 7; h.fl.y = 4;
+  for (let i = 0; i < 120; i++) { h.fl.speed = 0.8; update(h, { up: true }, 1 / 120); }
+  assert.equal(h.stacks[0].x, 10, 'tines pass through');
 }

@@ -37,7 +37,11 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 
 ## Rules (see `game.js`)
 - Fork level `H` = box heights above the floor. A stack of n boxes spans heights 0..n. `forkUp` lifts the box at height `H` and everything above it; level 0 lifts the whole stack.
-- Tines never collide with boxes. Only the forklift body and the carried stack (when `stack.layers.length > g.H`) do.
+- **Hard mode** (`g.hard`, `newGame(n, seed, hard)`; splash checkbox `#hardOpt`, persisted in `localStorage` `forklift-hard`, toggling restarts the current level) enables the pallet rules below (entry angle, tine pushing, gliding, split damage). Off by default: forks lift from any angle and tines never collide.
+- Forks only enter a pallet when the forklift is within 10° of square to the box at the fork level (`forkedStack`); otherwise `forkUp` just raises the forks. A pallet on the tines glides with them (`glideWithForks`): while the forklift turns it stays fixed sideways relative to the forks and turns with them, but keeps its world position along the fork axis, so driving in/out slides the forks through it. The whole stack moves, but only boxes from the fork level upward (`rots[i]`, i ≥ `H`) turn; `a` (bottom box) only changes at level 0. Not lifted.
+- A tine push with the forks above the bottom box (`H > 0`) only gives crash points to the boxes below the forks (`pen.slice(0, H)`), unless speed ≥ `FORK_PUSH_FAST` (2), when the whole stack is damaged.
+- Tines collide with (and push) a stack at their level that is more than 10° off square (`squareToForks`); square-on they slide into the pallet.
+- Otherwise tines never collide with boxes. Only the forklift body and the carried stack (when `stack.layers.length > g.H`) do.
 - Empty `forkDown` with a box under the forks (`stack.layers.length >= H`, `H > 0`) is refused: returns `'blocked'`, adds 10 crash points (`FORK_BLOCK_POINTS`) to that box; `main.js` then plays `playBlocked`.
 - `forkDown` releases the carried stack automatically at its resting height (top of the stack below, or the floor), merging into it. Max 5 layers (`MAX_LAYERS`).
 - A zone is done only when a stack of exactly `zone.count` boxes, all of `zone.color`, is within 0.5 of it. Winning (`isFinished`) = all zones done (`isSolved`) AND `score ≥ 50%` of `maxScore` AND forklift parked (`isParked`: within 0.6 of the spot, heading within 0.35 rad, speed < 0.5).

@@ -12,6 +12,7 @@ const SQUARE_POINTS = 50;
 const SQUARE_ALLOWANCE = (5 * Math.PI) / 180;
 const CRASH_MIN_SPEED = 0.8;
 const CRASH_COOLDOWN = 0.4;
+const FORK_PUSH_FAST = 2; // above this speed a fork push damages the whole stack, not just the boxes below the forks
 const FORK_BLOCK_POINTS = 10;
 const ALIGN_MIN_SPEED = 0.05;
 const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
@@ -24,12 +25,12 @@ function ensure(S) {
   if (!S.pen) S.pen = S.layers.map(newPen);
 }
 
-function crash(g, pens, owner) {
+function crash(g, pens, owner, count = pens.length) {
   const speed = Math.abs(g.fl.speed);
   if (speed < CRASH_MIN_SPEED || g.time - (owner.hitAt ?? -1) < CRASH_COOLDOWN) return;
   owner.hitAt = g.time;
   const pts = Math.min(5, Math.max(1, Math.round(speed)));
-  for (const p of pens) p.crash = Math.min(CRASH_POINTS, p.crash + pts);
+  for (const p of pens.slice(0, count)) p.crash = Math.min(CRASH_POINTS, p.crash + pts);
 }
 
 // Deduction (0..SQUARE_POINTS) for a box whose world angle is a: free within
@@ -70,7 +71,7 @@ export function score(g) {
   return Math.round(pts);
 }
 
-export function newGame(levelNumber, seed = 0) {
+export function newGame(levelNumber, seed = 0, hard = false) {
   const lvl = generateLevel(levelNumber, seed);
   const walls = [];
   const T = 3;
@@ -83,6 +84,7 @@ export function newGame(levelNumber, seed = 0) {
   return {
     level: levelNumber,
     seed,
+    hard,
     w: lvl.w,
     h: lvl.h,
     walls,
@@ -119,8 +121,8 @@ function forkShapes(g) {
     const c = toWorld(f, FL.carryX, 0);
     shapes.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, f.a + g.carriedRel), stackFilter: (s) => s.layers.length > g.H, carried: true });
   }
-  shapes.push(mk(tx, -FL.tineOff, thx, FL.tineHalf, null));
-  shapes.push(mk(tx, FL.tineOff, thx, FL.tineHalf, null));
+  const blocks = (s) => g.hard && s.layers.length > g.H && !squareToForks(g, s);
+  for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks), tine: true });
   return shapes;
 }
 
@@ -156,9 +158,9 @@ function resolve(g) {
         const m = sat(sh.poly, stackPoly(s));
         if (!m) continue;
         ensure(s);
-        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && sh === shapes[0])) crash(g, s.pen, s);
+        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && g.H > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? g.H : s.pen.length);
         if (sh.carried) crash(g, g.carriedPen, g);
-        if (sh === shapes[0] && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
+        if (!sh.carried && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
         const d = m.depth * 1.001;
         moveF(m.x * d * (wf / (wf + ws)), m.y * d * (wf / (wf + ws)));
         s.x -= m.x * d * (ws / (wf + ws));
@@ -206,13 +208,30 @@ function alignStack(g, s, dt) {
   if (s.layers.length > 1) s.pen[0].crash = Math.min(CRASH_POINTS, s.pen[0].crash + Math.abs(t0) * ALIGN_DAMAGE);
 }
 
+// A pallet on the tines is held sideways with the forks (the whole stack moves) but can still slide along them;
+// only the boxes from the fork level upward turn with the forks.
+function glideWithForks(g, S, ly, da, from) {
+  const f = g.fl;
+  const ux = Math.cos(f.a), uy = Math.sin(f.a), rx = -uy, ry = ux;
+  const along = S.x * ux + S.y * uy;
+  const across = f.x * rx + f.y * ry + ly;
+  S.x = ux * along + rx * across;
+  S.y = uy * along + ry * across;
+  S.rots = S.rots.map((r, i) => (i >= from ? r + da : r));
+  if (from === 0) S.a = (S.a || 0) + da;
+}
+
 export function update(g, input, dt) {
   const f = g.fl;
   g.time += dt;
+  const forked = g.hard ? forkedStack(g) : null;
+  const forkedY = forked ? toLocal(f, forked.x, forked.y).y : 0;
+  const prevA = f.a;
   drive(f, input, dt);
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;
   g.aligning = new Set();
+  if (forked && f.a !== prevA) glideWithForks(g, forked, forkedY, f.a - prevA, g.H);
   resolve(g);
   for (const s of g.aligning) alignStack(g, s, dt);
 
@@ -245,14 +264,31 @@ export function stackInZone(g) {
 // with boxes. A carried stack's bottom is at height H.
 const MAX_H = 5;
 
+// Tines only fit into a pallet when the forklift is within FORK_ENTRY_ANGLE of square to it.
+const FORK_ENTRY_ANGLE = 10 * Math.PI / 180;
+
+// Whether the box of S at the fork level is within the entry angle of the forklift heading.
+function squareToForks(g, S) {
+  ensure(S);
+  const q = Math.PI / 2;
+  const diff = ((g.fl.a - S.rots[g.H]) % q + q * 1.5) % q - q / 2;
+  return Math.abs(diff) <= FORK_ENTRY_ANGLE;
+}
+
+// The stack whose box at the current fork level the tines are in, or null.
+function forkedStack(g) {
+  const S = stackInZone(g);
+  if (S) ensure(S);
+  return S && S.layers.length > g.H && (!g.hard || squareToForks(g, S)) ? S : null;
+}
+
 export function forkUp(g) {
   if (g.carried) {
     g.H = Math.min(MAX_H, g.H + 1);
     return;
   }
-  const S = stackInZone(g);
-  if (S && S.layers.length > g.H) {
-    ensure(S);
+  const S = forkedStack(g);
+  if (S) {
     g.carried = S.layers.splice(g.H);
     g.carriedRots = S.rots.splice(g.H).map((r) => r - g.fl.a);
     g.carriedPen = S.pen.splice(g.H);
