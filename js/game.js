@@ -119,8 +119,9 @@ function forkShapes(g) {
     const c = toWorld(f, FL.carryX, 0);
     shapes.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, f.a + g.carriedRel), stackFilter: (s) => s.layers.length > g.H, carried: true });
   }
-  shapes.push(mk(tx, -FL.tineOff, thx, FL.tineHalf, null));
-  shapes.push(mk(tx, FL.tineOff, thx, FL.tineHalf, null));
+  const blocks = (s) => s.layers.length > g.H && !squareToForks(g, s);
+  shapes.push(mk(tx, -FL.tineOff, thx, FL.tineHalf, blocks));
+  shapes.push(mk(tx, FL.tineOff, thx, FL.tineHalf, blocks));
   return shapes;
 }
 
@@ -156,9 +157,9 @@ function resolve(g) {
         const m = sat(sh.poly, stackPoly(s));
         if (!m) continue;
         ensure(s);
-        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && sh === shapes[0])) crash(g, s.pen, s);
+        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s);
         if (sh.carried) crash(g, g.carriedPen, g);
-        if (sh === shapes[0] && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
+        if (!sh.carried && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
         const d = m.depth * 1.001;
         moveF(m.x * d * (wf / (wf + ws)), m.y * d * (wf / (wf + ws)));
         s.x -= m.x * d * (ws / (wf + ws));
@@ -254,14 +255,18 @@ const MAX_H = 5;
 const FORK_ENTRY_ANGLE = 10 * Math.PI / 180;
 const TURN_PICKUP_EPS = 1e-4;
 
-// The stack whose box at the current fork level the tines are in, or null.
-function forkedStack(g) {
-  const S = stackInZone(g);
-  if (!S || S.layers.length <= g.H) return null;
+// Whether the box of S at the fork level is within the entry angle of the forklift heading.
+function squareToForks(g, S) {
   ensure(S);
   const q = Math.PI / 2;
   const diff = ((g.fl.a - S.rots[g.H]) % q + q * 1.5) % q - q / 2;
-  return Math.abs(diff) <= FORK_ENTRY_ANGLE ? S : null;
+  return Math.abs(diff) <= FORK_ENTRY_ANGLE;
+}
+
+// The stack whose box at the current fork level the tines are in, or null.
+function forkedStack(g) {
+  const S = stackInZone(g);
+  return S && S.layers.length > g.H && squareToForks(g, S) ? S : null;
 }
 
 // Takes the boxes from the fork level upward off stack S onto the forks.

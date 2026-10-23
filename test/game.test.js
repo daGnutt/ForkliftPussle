@@ -56,6 +56,7 @@ for (let n = 1; n <= 40; n++) {
 
 // Turn the forklift to ang and place it so the stack at (10, 5) sits on the forks.
 const faceStack = (g, ang) => {
+  g.stacks[0].x = 10; g.stacks[0].y = 5;
   g.fl.a = ang;
   g.fl.x = 10 - FL.carryX * Math.cos(ang);
   g.fl.y = 5 - FL.carryX * Math.sin(ang);
@@ -218,7 +219,7 @@ const driveUntil = (g, x, brakeAt) => {
   forkUp(g);
   f.a -= Math.PI / 4;
   forkDown(g);
-  assert.ok(pts(g) >= 98, 're-placed square recovers points');
+  assert.equal(lostBreakdown(g).square, 0, 're-placed square recovers points');
 }
 
 // Small angle errors are free and deductions come in steps of 5.
@@ -378,4 +379,19 @@ console.log('all tests passed');
   run(h, { right: true }, 0.3);
   assert.deepEqual(h.stacks[0].layers, [0], 'lower box stays');
   assert.deepEqual(h.carried, [1, 2], 'upper boxes split off');
+}
+
+// Driving the forks in at too steep an angle pushes the stack instead.
+{
+  const run1 = (ang) => {
+    const g = newGame(1);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+    const f = g.fl;
+    f.a = ang; f.x = 7; f.y = ang > 0.1 ? 4 : 5; f.speed = 0;
+    run(g, { up: true }, 1.0);
+    return g.stacks[0].x;
+  };
+  assert.ok(run1(0.5) > 10.2, 'skewed forks push the stack');
+  assert.ok(run1(0.05) < 10.01, 'straight forks slide in');
 }
