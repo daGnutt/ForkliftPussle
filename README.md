@@ -11,7 +11,7 @@ Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift an
 | A / Z | Forks up / down one level |
 | C | Show / hide the small corner window (cabin view, or the overview while M is active) |
 | H | Replay the on-screen tutorial (shown once on first play: drive, forks, place a stack, map view; each step disappears when you do it) |
-| M | Swap the big view between the top-down overview and the cabin (first-person) view. The cabin view has a rear-view mirror (top centre) and a side mirror (top right: zoomed-in (~4.5 tiles wide) top-down view around the forklift, rotated so the forklift points up) |
+| M / Tab | Swap the big view between the top-down overview and the cabin (first-person) view. The cabin view has a rear-view mirror (top centre) and a side mirror (top right: zoomed-in (~4.5 tiles wide) top-down view around the forklift, rotated so the forklift points up) |
 | R | Restart level |
 | G | Go to a level number (prompt) |
 | F | Toggle full screen (also in the menu). Esc leaves full screen first (browser behaviour); use P for the menu there |
