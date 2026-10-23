@@ -19,6 +19,9 @@ let ctx = null, master = null, musicBus = null, sfxBus = null;
 let muted = localStorage.getItem(MUTE_KEY) === '1';
 let nextStep = 0, stepIdx = 0, timer = null, noiseBuf = null;
 let engine = null;
+const ALL_KEY = 'forklift-all-muted';
+let allMuted = localStorage.getItem(ALL_KEY) === '1';
+const MASTER_VOL = 0.8;
 
 function init() {
   if (ctx) return;
@@ -26,7 +29,7 @@ function init() {
   if (!AC) return;
   ctx = new AC();
   master = ctx.createGain();
-  master.gain.value = 0.8;
+  master.gain.value = allMuted ? 0 : MASTER_VOL;
   master.connect(ctx.destination);
 
   musicBus = ctx.createGain();
@@ -171,6 +174,13 @@ export function setSilenced(s) {
   silenced = s;
   if (!ctx) return;
   if (s) ctx.suspend(); else ctx.resume();
+}
+
+export function isAllMuted() { return allMuted; }
+export function setAllMuted(m) {
+  allMuted = m;
+  localStorage.setItem(ALL_KEY, m ? '1' : '0');
+  if (ctx) master.gain.setTargetAtTime(m ? 0 : MASTER_VOL, ctx.currentTime, 0.03);
 }
 
 export function isMusicMuted() { return muted; }

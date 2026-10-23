@@ -15,7 +15,7 @@ Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift an
 | R | Restart level |
 | G | Go to a level number (prompt) |
 | F | Toggle full screen (also in the menu). Esc leaves full screen first (browser behaviour); use P for the menu there |
-| Esc / P | Menu (pauses the game and timer; the game also pauses and mutes all sound when the window loses focus): engine whine on/off, music on/off, and restart the level with hard mode on or off (these settings are remembered) |
+| Esc / P | Menu (pauses the game and timer; the game also pauses and mutes all sound when the window loses focus): mute all sounds, engine whine on/off, music on/off, and restart the level with hard mode on or off (these settings are remembered) |
 | Enter | Next level (after winning) |
 
 ## Seeds

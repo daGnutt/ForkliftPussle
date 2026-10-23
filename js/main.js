@@ -3,7 +3,7 @@ import { createInput } from './input.js';
 import { getBest, beats, saveBest, finalScore, timePenalty } from './highscores.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
-import { startAudio, playFork, playBlocked, playSuccess, setEngine, setSilenced, isMusicMuted, setMusicMuted, isEngineOn, setEngineOn } from './audio.js';
+import { startAudio, playFork, playBlocked, playSuccess, setEngine, setSilenced, isMusicMuted, setMusicMuted, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -191,11 +191,13 @@ window.addEventListener('keydown', (e) => {
 const menuEl = document.getElementById('menu');
 const engineOpt = document.getElementById('engineOpt');
 const musicOpt = document.getElementById('musicOpt');
+const muteOpt = document.getElementById('muteOpt');
 const menuHardOpt = document.getElementById('menuHardOpt');
 function toggleMenu(open) {
   view.menuOpen = open;
   menuEl.classList.toggle('hide', !open);
   if (open) {
+    muteOpt.checked = isAllMuted();
     engineOpt.checked = isEngineOn();
     musicOpt.checked = !isMusicMuted();
     menuHardOpt.checked = hard;
@@ -206,6 +208,7 @@ function toggleMenu(open) {
   input.clear();
   applyPause();
 }
+muteOpt.addEventListener('change', () => setAllMuted(muteOpt.checked));
 engineOpt.addEventListener('change', () => setEngineOn(engineOpt.checked));
 musicOpt.addEventListener('change', () => setMusicMuted(!musicOpt.checked));
 document.getElementById('menuFullscreen').addEventListener('click', toggleFullscreen);
