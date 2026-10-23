@@ -37,6 +37,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 
 ## Rules (see `game.js`)
 - Fork level `H` = box heights above the floor. A stack of n boxes spans heights 0..n. `forkUp` lifts the box at height `H` and everything above it; level 0 lifts the whole stack.
+- Forks only enter a pallet when the forklift is within 10° of square to the box at the fork level (`forkedStack`); otherwise `forkUp` just raises the forks. Turning the forklift while the forks are in a pallet picks up that box and everything above it (`liftFrom`, same as `forkUp` without raising), so it rotates with the forks; lower boxes stay (the stack is split). Lowering with `forkDown` puts them back.
 - Tines never collide with boxes. Only the forklift body and the carried stack (when `stack.layers.length > g.H`) do.
 - Empty `forkDown` with a box under the forks (`stack.layers.length >= H`, `H > 0`) is refused: returns `'blocked'`, adds 10 crash points (`FORK_BLOCK_POINTS`) to that box; `main.js` then plays `playBlocked`.
 - `forkDown` releases the carried stack automatically at its resting height (top of the stack below, or the floor), merging into it. Max 5 layers (`MAX_LAYERS`).

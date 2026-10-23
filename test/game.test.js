@@ -54,6 +54,12 @@ for (let n = 1; n <= 40; n++) {
   assert.ok(f.x > 0 && f.x < 4, 'stopped by wall');
 }
 
+// Turn the forklift to ang and place it so the stack at (10, 5) sits on the forks.
+const faceStack = (g, ang) => {
+  g.fl.a = ang;
+  g.fl.x = 10 - FL.carryX * Math.cos(ang);
+  g.fl.y = 5 - FL.carryX * Math.sin(ang);
+};
 const flatWorld = (g) => { g.zones = []; g.walls = g.walls.slice(0, 4); };
 const driveUntil = (g, x, brakeAt) => {
   const f = g.fl;
@@ -138,34 +144,34 @@ const driveUntil = (g, x, brakeAt) => {
 {
   const g = newGame(1);
   flatWorld(g);
-  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0.3], a: 0.3 }];
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0.15], a: 0.15 }];
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
   driveUntil(g, 9.7, 8);
   forkUp(g);
-  assert.ok(Math.abs(g.carriedRel - 0.3) < 1e-9, 'relative angle stored');
+  assert.ok(Math.abs(g.carriedRel - 0.15) < 1e-9, 'relative angle stored');
   f.a += 0.5;
   forkDown(g);
   assert.equal(g.carried, null);
-  assert.ok(Math.abs(g.stacks[0].a - 0.8) < 0.05, 'dropped with rotated orientation');
+  assert.ok(Math.abs(g.stacks[0].a - 0.65) < 0.05, 'dropped with rotated orientation');
 }
 
 // Each box in a stack remembers its own rotation through lift, drop and merge.
 {
   const g = newGame(1);
   flatWorld(g);
-  g.stacks = [{ x: 10, y: 5, layers: [0, 1], rots: [0.1, 0.4], a: 0.1 }];
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1], rots: [0.1, 0.15], a: 0.1 }];
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
   driveUntil(g, 10, 8);
   g.H = 1;
   forkUp(g);
   assert.deepEqual(g.stacks[0].rots, [0.1]);
-  assert.ok(Math.abs(g.carriedRots[0] - 0.4) < 1e-9);
+  assert.ok(Math.abs(g.carriedRots[0] - 0.15) < 1e-9);
   forkDown(g);
   assert.equal(g.carried, null);
   assert.deepEqual(g.stacks[0].layers, [0, 1]);
-  assert.ok(Math.abs(g.stacks[0].rots[0] - 0.1) < 1e-9 && Math.abs(g.stacks[0].rots[1] - 0.4) < 1e-9);
+  assert.ok(Math.abs(g.stacks[0].rots[0] - 0.1) < 1e-9 && Math.abs(g.stacks[0].rots[1] - 0.15) < 1e-9);
 }
 
 // Scoring: starts at full points, crashes cost up to 50 per box, crooked placement costs up to 50.
@@ -188,6 +194,7 @@ const driveUntil = (g, x, brakeAt) => {
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
   driveUntil(g, 10, 8);
+  faceStack(g, Math.PI / 4);
   forkUp(g);
   const before = pts(g);
   forkDown(g);
@@ -204,6 +211,7 @@ const driveUntil = (g, x, brakeAt) => {
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
   driveUntil(g, 10, 8);
+  faceStack(g, Math.PI / 4);
   forkUp(g);
   forkDown(g);
   assert.ok(pts(g) <= 60, 'crooked placement');
@@ -222,6 +230,7 @@ const driveUntil = (g, x, brakeAt) => {
     const f = g.fl;
     f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
     driveUntil(g, 10, 8);
+    faceStack(g, ang);
     forkUp(g);
     forkDown(g);
     return lostBreakdown(g).square;
@@ -331,4 +340,42 @@ console.log('all tests passed');
   assert.equal(finalScore(500, 100), 490);
   assert.equal(finalScore(5, 1000), 0);
   console.log('highscores ok');
+}
+
+// Forks only enter a pallet when within 10 degrees of square to it.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+  faceStack(g, 0.3);
+  forkUp(g);
+  assert.equal(g.carried, null, 'misaligned forks pass beside the pallet');
+  g.H = 0;
+  faceStack(g, 0.15);
+  forkUp(g);
+  assert.ok(g.carried, 'within 10 degrees lifts');
+}
+
+// Turning with the forks in a pallet turns the pallet; in a stack it splits off the boxes above the forks.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+  faceStack(g, 0);
+  g.fl.speed = 0;
+  update(g, { right: true }, 1 / 120);
+  assert.equal(g.carried, null, 'no turn, no pickup');
+  g.fl.speed = 1;
+  run(g, { right: true }, 0.3);
+  assert.ok(g.carried && g.stacks.length === 0, 'pallet follows the forks');
+
+  const h = newGame(1);
+  flatWorld(h);
+  h.stacks = [{ x: 10, y: 5, layers: [0, 1, 2], rots: [0, 0, 0], a: 0 }];
+  faceStack(h, 0);
+  h.H = 1;
+  h.fl.speed = 1;
+  run(h, { right: true }, 0.3);
+  assert.deepEqual(h.stacks[0].layers, [0], 'lower box stays');
+  assert.deepEqual(h.carried, [1, 2], 'upper boxes split off');
 }

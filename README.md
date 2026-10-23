@@ -26,6 +26,7 @@ The best score per seed and level is stored locally in your browser and shown in
 ## Fork levels
 Fork level is a whole number 0–5 (height above the floor in box heights), changed with **A** (up) and **Z** (down). A floor stack spans heights 0..n. Tines never collide with boxes (the forklift body and carried boxes still do), but empty forks can't be lowered *through* a box: **Z** then plays a buzz, the forks stay put and the box under them loses 10 points. Raise the forks (or back out) first.
 
+- **Straight in**: the forks only enter a pallet when you are within ±10° of square to it. Turn the forklift while the forks are in a pallet and you turn the pallet with you; in a stack, only the boxes from the fork level upward come along (the stack is split). **Z** puts them back down.
 - **Level H**: tines are under the box at height H of the stack in front of you. **A** lifts every box from there up (the forks rise one level). Level 0 takes the whole stack, level 1 everything above the bottom box, and so on.
 - **Carrying**: **A** raises, **Z** lowers. Carried boxes collide with floor stacks that reach their height, so raise high enough to pass over them.
 - **Put down**: lower with **Z** until the carried boxes reach the stack beneath (or the floor, level 0); they are released as soon as they reach it (merge, max 5 layers).
