@@ -89,7 +89,7 @@ function stackEdges(x0, y0, rots, layers, level, edges, heading, offs = []) {
     for (const [u, v] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) {
       rectEdges(x + u * cr - v * sr, y + u * sr + v * cr, r, 0.05, 0.05, z, z + PAL, '#9a7040', edges);
     }
-    rectEdges(x, y, r, 0.5, 0.5, z + PAL, z + BOX_H + PAL, COLORS[c], edges, i === layers.length - 1);
+    rectEdges(x, y, r, 0.5, 0.5, z + PAL, z + BOX_H + PAL, COLORS[c], edges, true);
   });
 }
 
