@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { generateLevel, parseSeed } from '../js/level.js';
-import { FL, toLocal } from '../js/forklift.js';
+import { FL, toLocal, maxSteerFor } from '../js/forklift.js';
 import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown } from '../js/game.js';
 
 const NONE = {};
@@ -65,6 +65,22 @@ for (let n = 1; n <= 40; n++) {
   const a0 = f.a;
   run(g, { up: true, right: true }, 0.5);
   assert.ok(f.a > a0, 'turns clockwise (right)');
+}
+
+// Steering lock: full lock standing still with forks down, clamped down by speed and by fork height.
+{
+  assert.equal(maxSteerFor(0, 0), FL.maxSteer, 'full lock at rest');
+  assert.ok(maxSteerFor(4, 0) < maxSteerFor(0, 0), 'speed narrows the lock');
+  assert.ok(maxSteerFor(0, 5) < maxSteerFor(0, 0), 'fork height narrows the lock');
+
+  const g = newGame(1);
+  g.stacks = [];
+  const f = g.fl;
+  f.x = 10; f.y = 7; f.a = 0;
+  g.H = 5;
+  run(g, { up: true }, 1);
+  run(g, { up: true, right: true }, 1);
+  assert.ok(f.steer <= maxSteerFor(f.speed, g.H) + 1e-9, 'steer stays within the tapered lock');
 }
 
 // Wall collision + brake.
