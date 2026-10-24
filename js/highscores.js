@@ -24,3 +24,12 @@ export function saveBest(store, seed, level, result) {
 // 1 point off per 10 seconds; only applied to the submitted score, never to level completion.
 export const timePenalty = (time) => Math.floor(time / 10);
 export const finalScore = (points, time) => Math.max(0, points - timePenalty(time));
+
+export function formatTime(time) {
+  const t = Math.floor(time);
+  if (t < 60) return `${t}s`;
+  if (t < 3600) return `${Math.floor(t / 60)}m ${String(t % 60).padStart(2, '0')}s`;
+  const h = Math.floor(t / 3600);
+  if (h >= 100) return '100+ h';
+  return `${h}h ${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}m`;
+}

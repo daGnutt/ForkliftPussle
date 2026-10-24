@@ -437,7 +437,8 @@ console.log('all tests passed');
 
 // high scores
 {
-  const { getBest, beats, saveBest, finalScore } = await import('../js/highscores.js');
+  const { getBest, beats, saveBest, finalScore, formatTime } = await import('../js/highscores.js');
+  assert.deepEqual([0, 59.9, 60, 3599, 3600, 7500, 359999, 360000].map(formatTime), ['0s', '59s', '1m 00s', '59m 59s', '1h 00m', '2h 05m', '99h 59m', '100+ h']);
   const mem = new Map();
   const store = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
   assert.equal(getBest(store, 5, 1), null);

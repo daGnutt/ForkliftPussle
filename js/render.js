@@ -1,6 +1,7 @@
 import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
 import { drawPov } from './pov.js';
+import { formatTime } from './highscores.js';
 import { theme } from './theme.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
 import { carriedWorldOffs, HIT_LIFE, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
@@ -386,8 +387,8 @@ export function draw(ctx, g, view) {
   // screen-space HUD
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
   const best = view.best;
-  const title = `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${g.time.toFixed(0)}s`;
-  const bestText = best ? `Best ${best.score} by ${best.name} (${best.time}s)` : 'Best: none yet';
+  const title = `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${formatTime(g.time)}`;
+  const bestText = best ? `Best ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Best: none yet';
   const hint = g.status === 'play' && isSolved(g)
     ? (scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish')
     : '';
