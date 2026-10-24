@@ -102,7 +102,7 @@ export function floorDecals(g) {
   // Random filler: not on the drop-offs or parking spot.
   const zoneBoxes = g.zones.map((z) => ({ x: z.x - 0.6, y: z.y - 0.6, w: 1.2, h: 1.2 }));
   const pk = g.parking, pr = { x: pk.x - 1.8, y: pk.y - 1.8, w: 3.6, h: 3.6 };
-  const keepClear = [...zoneBoxes, pr];
+  const keepClear = [...zoneBoxes, pr, ...g.areas.map((a) => ({ x: a.x - 0.3, y: a.y - 0.3, w: a.w + 0.6, h: a.h + 0.6 }))];
   const free = (pts, m) => { const [a, b, c, d] = ptsBox(pts); return !keepClear.some((r) => bboxHit(a, b, c, d, r, m)); };
   for (let cx = 0; cx <= Math.floor(g.w / CELL); cx++) {
     for (let cy = 0; cy <= Math.floor(g.h / CELL); cy++) {
@@ -135,22 +135,25 @@ export function floorDecals(g) {
     });
   }
 
-  // Yellow parking squares around the drop-offs (some stay empty); never touching a drop-off, wall, the parking spot or each other.
-  const squares = [];
-  for (const z of g.zones) {
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if ((!dx && !dy) || hash(z.x + dx * 3, z.y + dy * 3, 100) > 0.5) continue;
-        const x = z.x + dx * 1.6, y = z.y + dy * 1.6, box = { x: x - 0.55, y: y - 0.55, w: 1.1, h: 1.1 };
-        const pts = [[box.x, box.y], [box.x + 1.1, box.y], [box.x + 1.1, box.y + 1.1], [box.x, box.y + 1.1]];
-        if (!inside(pts, 0.2) || !clearOfWalls(pts, 0.3)) continue;
-        if (g.zones.some((o) => bboxHit(box.x, box.y, box.x + box.w, box.y + box.h, { x: o.x - 0.6, y: o.y - 0.6, w: 1.2, h: 1.2 }, 0.12))) continue;
-        if (bboxHit(box.x, box.y, box.x + box.w, box.y + box.h, pr, 0)) continue;
-        if (squares.some((q) => Math.abs(q.x - x) < 1.3 && Math.abs(q.y - y) < 1.3)) continue;
-        squares.push({ x, y });
-        out.push(...strip([[box.x, box.y], [box.x + 1.1, box.y], [box.x + 1.1, box.y + 1.1], [box.x, box.y + 1.1], [box.x, box.y - 0.05]], 0.09, YELLOW));
-      }
-    }
+  // Yellow bays: one outline around each whole drop-off area, plus a few unused empty bays elsewhere.
+  const outline = (x, y, w, h) => out.push(...strip([[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y - 0.045]], 0.09, YELLOW));
+  const bays = [];
+  for (const a of g.areas) {
+    const b = { x: a.x - 0.3, y: a.y - 0.3, w: a.w + 0.6, h: a.h + 0.6 };
+    bays.push(b);
+    if (inside([[b.x, b.y], [b.x + b.w, b.y + b.h]], 0.1)) outline(b.x, b.y, b.w, b.h);
+  }
+  const hit = (b, r, m) => bboxHit(b.x, b.y, b.x + b.w, b.y + b.h, r, m);
+  const spare = Math.max(1, Math.round((g.w * g.h) / 90));
+  for (let t = 0, made = 0; t < 60 && made < spare; t++) {
+    const w = 2 + Math.floor(hash(g.w, t, 110) * 3), h = 1 + Math.floor(hash(g.h, t, 111) * 3);
+    const b = { x: 1 + Math.floor(hash(t, g.h, 112) * (g.w - w - 2)), y: 1 + Math.floor(hash(t, g.w, 113) * (g.h - h - 2)), w, h };
+    const pts = [[b.x, b.y], [b.x + w, b.y + h]];
+    if (!inside(pts, 0.5) || !clearOfWalls(pts, 0.8) || hit(b, pr, 0.3)) continue;
+    if (bays.some((o) => hit(b, o, 0.6)) || g.zones.some((z) => hit(b, { x: z.x - 0.6, y: z.y - 0.6, w: 1.2, h: 1.2 }, 0.6))) continue;
+    bays.push(b);
+    outline(b.x, b.y, b.w, b.h);
+    made++;
   }
 
   cache.set(g, out);
