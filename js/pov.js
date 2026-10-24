@@ -46,6 +46,17 @@ function project(cam, pts) {
   return clipNear(pts).map(([fw, rt, z]) => [cam.cx + (rt / fw) * cam.f, cam.cy - (z / fw) * cam.f]);
 }
 
+// Projects a 2-point line, clipped to the near plane (null if fully behind it).
+function projectLine(cam, a, b) {
+  const ain = a[0] >= NEAR, bin = b[0] >= NEAR;
+  if (!ain && !bin) return null;
+  const cut = (p, q) => {
+    const t = (NEAR - p[0]) / (q[0] - p[0]);
+    return [NEAR, p[1] + t * (q[1] - p[1]), p[2] + t * (q[2] - p[2])];
+  };
+  return [ain ? a : cut(a, b), bin ? b : cut(b, a)].map(([fw, rt, z]) => [cam.cx + (rt / fw) * cam.f, cam.cy - (z / fw) * cam.f]);
+}
+
 function fillPoly(ctx, pts, fill, stroke) {
   if (pts.length < 3) return;
   ctx.beginPath();
@@ -65,8 +76,8 @@ function drawCeiling(ctx, g, cam) {
   fillPoly(ctx, project(cam, [pt(0, 0), pt(g.w, 0), pt(g.w, g.h), pt(0, g.h)]), '#3d424a');
   ctx.beginPath();
   const line = (ax, ay, bx, by) => {
-    const p = project(cam, [pt(ax, ay), pt(bx, by)]);
-    if (p.length === 2) { ctx.moveTo(p[0][0], p[0][1]); ctx.lineTo(p[1][0], p[1][1]); }
+    const p = projectLine(cam, pt(ax, ay), pt(bx, by));
+    if (p) { ctx.moveTo(p[0][0], p[0][1]); ctx.lineTo(p[1][0], p[1][1]); }
   };
   for (let x = 0; x <= g.w; x += 4) line(x, 0, x, g.h);
   for (let y = 0; y <= g.h; y += 4) line(0, y, g.w, y);
@@ -80,8 +91,8 @@ function floorGrid(ctx, cam) {
   const x0 = Math.floor(cam.x - R), x1 = Math.ceil(cam.x + R), y0 = Math.floor(cam.y - R), y1 = Math.ceil(cam.y + R);
   ctx.beginPath();
   const line = (ax, ay, bx, by) => {
-    const p = project(cam, [toCam(cam, ax, ay, 0), toCam(cam, bx, by, 0)]);
-    if (p.length === 2) { ctx.moveTo(p[0][0], p[0][1]); ctx.lineTo(p[1][0], p[1][1]); }
+    const p = projectLine(cam, toCam(cam, ax, ay, 0), toCam(cam, bx, by, 0));
+    if (p) { ctx.moveTo(p[0][0], p[0][1]); ctx.lineTo(p[1][0], p[1][1]); }
   };
   for (let gx = x0; gx <= x1; gx++) line(gx, y0, gx, y1);
   for (let gy = y0; gy <= y1; gy++) line(x0, gy, x1, gy);
