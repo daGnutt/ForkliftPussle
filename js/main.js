@@ -7,7 +7,7 @@ import { startAudio, playFork, playBlocked, playBreak, playSuccess, setEngine, s
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const view = { width: 0, height: 0, dpr: 1, povBig: true, showSmall: false };
+const view = { width: 0, height: 0, dpr: 1, povBig: false, showSmall: false };
 
 function resize() {
   view.dpr = window.devicePixelRatio || 1;
@@ -59,7 +59,7 @@ const input = createInput({
   anyKey: startAudio,
   fullscreen: toggleFullscreen,
   toggleSmall: () => { view.showSmall = !view.showSmall; },
-  swapView: () => { view.povBig = !view.povBig; if (tutStep === 3) nextTutorial(); },
+  swapView: () => { view.povBig = !view.povBig; if (tutStep === 3 && view.povBig) nextTutorial(); },
   up: () => { const h = game.H; forkUp(game); if (game.H !== h) playFork(true); },
   down: () => {
     const h = game.H;
@@ -106,7 +106,7 @@ const TUTORIAL = [
   'Use <b>↑/↓</b> to drive and <b>←/→</b> to steer (the rear wheels steer!). <b>Space</b> brakes.',
   'Press <b>A</b> to raise the forks and <b>Z</b> to lower them.',
   'Drive the forks under a stack, lift it, and set it down on the matching coloured zone. Then park on the marked spot.',
-  'If you get lost, press <b>M</b> to switch to the map view (and <b>M</b> again to return to the cabin).',
+  'If you get lost, press <b>Tab</b> or <b>M</b> to switch to the cab view (and again to return to the overview).',
 ];
 const tutorialEl = document.getElementById('tutorial');
 let tutStep = localStorage.getItem('forklift-tutorial-done') ? -1 : 0;
