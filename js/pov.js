@@ -1,6 +1,6 @@
 import { COLORS } from './level.js';
 import { theme } from './theme.js';
-import { floorDecals, wallDecal, wallBase, hash, overheadDecals } from './decals.js';
+import { decalsEnabled, floorDecals, wallDecal, wallBase, hash, overheadDecals } from './decals.js';
 import { FL, toWorld } from './forklift.js';
 import { carriedWorldOffs, HIT_LIFE, zoneDone, isSolved, scoreEnough, isParked } from './game.js';
 
@@ -157,6 +157,7 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
 
 // Ceiling fixtures as prisms so walls and boxes occlude them correctly.
 function addOverhead(faces, cam, g) {
+  if (!decalsEnabled()) return;
   const { lights, fans } = overheadDecals(g);
   const glow = (from) => { for (let i = from; i < faces.length; i++) faces[i].glow = true; };
   for (const l of lights) {
@@ -221,7 +222,7 @@ function doorFits(g, key, q0, q1) {
 function drawWallDecals(ctx, cam, g, f, dark) {
   const [q0, q1] = f.side;
   const len = Math.hypot(q1[0] - q0[0], q1[1] - q0[1]);
-  if (len < 0.9 || f.d > DECAL_MAX_DIST) return;
+  if (!decalsEnabled() || len < 0.9 || f.d > DECAL_MAX_DIST) return;
   const mx = f.mx, my = f.my;
   const shape = (uv, fill) => {
     const pts = project(cam, uv.map(([u, v]) => toCam(cam, q1[0] + (q0[0] - q1[0]) * u, q1[1] + (q0[1] - q1[1]) * u, v)));
@@ -411,6 +412,7 @@ function floorOccluded(cam, z, faces) {
 }
 
 function drawFloorDecals(ctx, g, cam) {
+  if (!decalsEnabled()) return;
   const R = 18;
   for (const d of floorDecals(g)) {
     if (Math.hypot(d.pts[0][0] - cam.x, d.pts[0][1] - cam.y) > R) continue;

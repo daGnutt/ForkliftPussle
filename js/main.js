@@ -3,6 +3,7 @@ import { createInput } from './input.js';
 import { getBest, beats, saveBest, finalScore, timePenalty } from './highscores.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
+import { decalsEnabled, setDecalsEnabled } from './decals.js';
 import { startAudio, playFork, playBlocked, playBreak, playSuccess, setEngine, setSilenced, isMusicMuted, setMusicMuted, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
@@ -190,6 +191,8 @@ const engineOpt = document.getElementById('engineOpt');
 const musicOpt = document.getElementById('musicOpt');
 const muteOpt = document.getElementById('muteOpt');
 const menuLevel = document.getElementById('menuLevel');
+const decalOpt = document.getElementById('decalOpt');
+setDecalsEnabled(localStorage.getItem('forklift-decals-off') !== '1');
 const menuHardOpt = document.getElementById('menuHardOpt');
 function toggleMenu(open) {
   view.menuOpen = open;
@@ -198,6 +201,7 @@ function toggleMenu(open) {
     muteOpt.checked = isAllMuted();
     engineOpt.checked = isEngineOn();
     musicOpt.checked = !isMusicMuted();
+    decalOpt.checked = decalsEnabled();
     menuHardOpt.checked = hard;
     menuLevel.value = level;
     document.getElementById('menuResume').focus();
@@ -209,6 +213,10 @@ function toggleMenu(open) {
 }
 muteOpt.addEventListener('change', () => setAllMuted(muteOpt.checked));
 engineOpt.addEventListener('change', () => setEngineOn(engineOpt.checked));
+decalOpt.addEventListener('change', () => {
+  setDecalsEnabled(decalOpt.checked);
+  localStorage.setItem('forklift-decals-off', decalOpt.checked ? '0' : '1');
+});
 musicOpt.addEventListener('change', () => setMusicMuted(!musicOpt.checked));
 document.getElementById('menuGoto').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -235,6 +243,7 @@ window.addEventListener('keydown', (e) => {
     KeyA: () => toggle(muteOpt),
     KeyE: () => toggle(engineOpt),
     KeyM: () => toggle(musicOpt),
+    KeyD: () => toggle(decalOpt),
     KeyH: () => toggle(menuHardOpt),
     KeyG: () => { menuLevel.focus(); menuLevel.select(); },
     KeyF: toggleFullscreen,

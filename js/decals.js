@@ -4,6 +4,11 @@
 const CELL = 4; // floor decals live in CELL×CELL tile cells
 
 // Cheap deterministic hash -> [0, 1).
+// Global on/off switch for all decals (menu option); drawing code checks it.
+let decalsOn = true;
+export function decalsEnabled() { return decalsOn; }
+export function setDecalsEnabled(on) { decalsOn = !!on; }
+
 export function hash(a, b, salt = 0) {
   let h = Math.imul(Math.floor(a * 7) + 1013, 374761393) ^ Math.imul(Math.floor(b * 7) + 7919, 668265263) ^ Math.imul(salt + 17, 2246822519);
   h = Math.imul(h ^ (h >>> 13), 1274126177);

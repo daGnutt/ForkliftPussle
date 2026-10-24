@@ -2,7 +2,7 @@ import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
 import { drawPov } from './pov.js';
 import { theme } from './theme.js';
-import { floorDecals } from './decals.js';
+import { decalsEnabled, floorDecals } from './decals.js';
 import { carriedWorldOffs, HIT_LIFE, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
 function rotRect(ctx, cx, cy, a, fn) {
@@ -234,7 +234,7 @@ function drawWorld(ctx, g) {
   for (let y = 0; y <= g.h; y++) { ctx.moveTo(0, y); ctx.lineTo(g.w, y); }
   ctx.stroke();
 
-  for (const d of floorDecals(g)) {
+  for (const d of decalsEnabled() ? floorDecals(g) : []) {
     ctx.fillStyle = d.fill;
     ctx.beginPath();
     d.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
