@@ -174,3 +174,29 @@ export function wallBase(mx, my) {
   const r = hash(mx, my, 33);
   return r < 0.3 ? 2 : r < 0.75 ? 1 : 0;
 }
+
+const overheadCache = new WeakMap();
+
+// Ceiling fixtures: fluorescent light bars on a 4-tile grid and a few stationary fans on the grid between them.
+// Positions that would sit inside or right beside a wall are skipped. Returns { lights: [{x, y, a}], fans: [{x, y, a}] }.
+export function overheadDecals(g) {
+  if (overheadCache.has(g)) return overheadCache.get(g);
+  const walls = g.pillars || [];
+  const clear = (x, y, m) => x > m && y > m && x < g.w - m && y < g.h - m
+    && !walls.some((r) => x > r.x - m && x < r.x + r.w + m && y > r.y - m && y < r.y + r.h + m);
+  const lights = [], fans = [];
+  for (let x = 2; x < g.w; x += 4) {
+    for (let y = 2; y < g.h; y += 4) {
+      const a = hash(x, y, 120) < 0.5 ? 0 : Math.PI / 2;
+      if (clear(x, y, 1.2)) lights.push({ x, y, a });
+    }
+  }
+  for (let x = 4; x < g.w; x += 4) {
+    for (let y = 4; y < g.h; y += 4) {
+      if (hash(x, y, 121) < 0.3 && clear(x, y, 1.5)) fans.push({ x, y, a: hash(x, y, 122) * Math.PI });
+    }
+  }
+  const res = { lights, fans };
+  overheadCache.set(g, res);
+  return res;
+}

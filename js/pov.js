@@ -1,6 +1,6 @@
 import { COLORS } from './level.js';
 import { theme } from './theme.js';
-import { floorDecals, wallDecal, wallBase, hash } from './decals.js';
+import { floorDecals, wallDecal, wallBase, hash, overheadDecals } from './decals.js';
 import { FL, toWorld } from './forklift.js';
 import { carriedWorldOffs, HIT_LIFE, zoneDone, isSolved, scoreEnough, isParked } from './game.js';
 
@@ -57,6 +57,22 @@ function fillPoly(ctx, pts, fill, stroke) {
 
 function floorPoly(ctx, cam, corners, fill, stroke) {
   fillPoly(ctx, project(cam, corners.map(([x, y]) => toCam(cam, x, y, 0))), fill, stroke);
+}
+
+// Ceiling plane over the whole level with steel joists every 4 tiles.
+function drawCeiling(ctx, g, cam) {
+  const pt = (x, y) => toCam(cam, x, y, WALL_H);
+  fillPoly(ctx, project(cam, [pt(0, 0), pt(g.w, 0), pt(g.w, g.h), pt(0, g.h)]), '#3d424a');
+  ctx.beginPath();
+  const line = (ax, ay, bx, by) => {
+    const p = project(cam, [pt(ax, ay), pt(bx, by)]);
+    if (p.length === 2) { ctx.moveTo(p[0][0], p[0][1]); ctx.lineTo(p[1][0], p[1][1]); }
+  };
+  for (let x = 0; x <= g.w; x += 4) line(x, 0, x, g.h);
+  for (let y = 0; y <= g.h; y += 4) line(0, y, g.w, y);
+  ctx.strokeStyle = 'rgba(15,17,20,0.7)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
 }
 
 function floorGrid(ctx, cam) {
@@ -128,8 +144,29 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
   });
 }
 
+// Ceiling fixtures as prisms so walls and boxes occlude them correctly.
+function addOverhead(faces, cam, g) {
+  const { lights, fans } = overheadDecals(g);
+  const glow = (from) => { for (let i = from; i < faces.length; i++) faces[i].glow = true; };
+  for (const l of lights) {
+    addPrism(faces, cam, l.x, l.y, l.a, 0.9, 0.14, WALL_H - 0.1, WALL_H - 0.02, '#4a4f57');
+    const n = faces.length;
+    addPrism(faces, cam, l.x, l.y, l.a, 0.84, 0.1, WALL_H - 0.12, WALL_H - 0.1, '#fff8d6');
+    glow(n);
+  }
+  for (const f of fans) {
+    addPrism(faces, cam, f.x, f.y, 0, 0.025, 0.025, WALL_H - 0.35, WALL_H, '#2c3036');
+    addPrism(faces, cam, f.x, f.y, 0, 0.12, 0.12, WALL_H - 0.45, WALL_H - 0.33, '#2c3036');
+    for (let i = 0; i < 4; i++) {
+      const a = f.a + (i * Math.PI) / 2, c = Math.cos(a), s = Math.sin(a);
+      addPrism(faces, cam, f.x + c * 0.6, f.y + s * 0.6, a, 0.48, 0.1, WALL_H - 0.43, WALL_H - 0.41, '#8c939b');
+    }
+  }
+}
+
 function buildFaces(g, cam) {
   const faces = [];
+  addOverhead(faces, cam, g);
   for (const w of g.walls) {
     addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, WALL_H, null, true);
   }
@@ -310,6 +347,13 @@ function drawFace(ctx, cam, f) {
   ctx.beginPath();
   pts.forEach(([X, Y], i) => (i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y)));
   ctx.closePath();
+  if (f.glow) {
+    ctx.fillStyle = f.color;
+    ctx.fill();
+    ctx.fillStyle = `rgba(0,0,0,${Math.min(0.35, f.d / FAR_DARK * 0.35)})`;
+    ctx.fill();
+    return;
+  }
   ctx.fillStyle = f.color || ((f.tile ?? 0) & 1 ? '#5d646e' : '#555b64');
   ctx.fill();
   ctx.fillStyle = `rgba(0,0,0,${Math.max(0, dark)})`;
@@ -443,6 +487,7 @@ export function drawPov(ctx, g, x, y, w, h, opts = {}) {
   ctx.fillStyle = floor;
   ctx.fillRect(x, y + horizon, w, h - horizon);
 
+  drawCeiling(ctx, g, cam);
   floorGrid(ctx, cam);
   drawFloorDecals(ctx, g, cam);
   drawFloorMarks(ctx, g, cam);
