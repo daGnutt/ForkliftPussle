@@ -428,12 +428,6 @@ export function draw(ctx, g, view) {
   if (view.paused) {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(0, 0, width, height);
-    if (!view.menuOpen) {
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 36px sans-serif';
-    ctx.fillText('Paused – click the window to resume', width / 2, height / 2);
-    }
   }
   if (g.status === 'won') {
     ctx.fillStyle = 'rgba(0,0,0,0.65)';
