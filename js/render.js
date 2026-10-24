@@ -378,8 +378,6 @@ export function draw(ctx, g, view) {
       ctx.lineWidth = 3;
       ctx.strokeRect(10, 10, POV_W, POV_H);
     }
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
-    ctx.fillRect(hx0 - 8, 8, 560, 94);
   } else {
     drawOverview(ctx, g, view, 20, 50, width - 40, height - 70, 48);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
@@ -387,15 +385,28 @@ export function draw(ctx, g, view) {
   }
   // screen-space HUD
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
-  ctx.fillStyle = '#eee';
-  ctx.font = 'bold 20px sans-serif';
+  const best = view.best;
+  const title = `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${g.time.toFixed(0)}s`;
+  const bestText = best ? `Best ${best.score} by ${best.name} (${best.time}s)` : 'Best: none yet';
+  const hint = g.status === 'play' && isSolved(g)
+    ? (scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish')
+    : '';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${g.time.toFixed(0)}s`, hx0, 25);
-  const best = view.best;
+  ctx.font = 'bold 20px sans-serif';
+  let boxW = ctx.measureText(title).width;
+  ctx.font = '14px sans-serif';
+  boxW = Math.max(boxW, 380 + ctx.measureText(bestText).width);
+  ctx.font = 'bold 16px sans-serif';
+  if (hint) boxW = Math.max(boxW, ctx.measureText(hint).width);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(hx0 - 8, 8, boxW + 16, hint ? 102 : 84);
+  ctx.fillStyle = '#eee';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillText(title, hx0, 25);
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#b3e5fc';
-  ctx.fillText(best ? `Best ${best.score} by ${best.name} (${best.time}s)` : 'Best: none yet', hx0 + 380, 48);
+  ctx.fillText(bestText, hx0 + 380, 48);
   const lost = lostBreakdown(g);
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#ef9a9a';
@@ -404,10 +415,10 @@ export function draw(ctx, g, view) {
   ctx.fillText(`Placement −${lost.square} (fixable)`, hx0, 68);
   ctx.fillStyle = '#eee';
 
-  if (g.status === 'play' && isSolved(g)) {
+  if (hint) {
     ctx.font = 'bold 16px sans-serif';
     ctx.fillStyle = '#ffe082';
-    ctx.fillText(scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish', hx0, 92);
+    ctx.fillText(hint, hx0, 92);
   }
 
   // fork height gauge: 0 = floor; box layer i fills the cell at height i-1

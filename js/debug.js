@@ -48,13 +48,14 @@ export function createDebug() {
       ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
       ctx.font = '12px monospace';
       ctx.textBaseline = 'top';
-      const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 12;
-      const h = lines.length * 15 + 8;
+      ctx.textAlign = 'left';
+      const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 20;
+      const h = lines.length * 16 + 12;
       const x = view.width - w - 6, y = view.height - h - 6;
       ctx.fillStyle = 'rgba(0,0,0,0.7)';
       ctx.fillRect(x, y, w, h);
       ctx.fillStyle = '#7CFC00';
-      lines.forEach((l, i) => ctx.fillText(l, x + 6, y + 6 + i * 15));
+      lines.forEach((l, i) => ctx.fillText(l, x + 10, y + 7 + i * 16));
       ctx.restore();
     },
   };
