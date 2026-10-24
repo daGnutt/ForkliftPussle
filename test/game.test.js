@@ -338,6 +338,27 @@ const driveUntil = (g, x, brakeAt) => {
   assert.equal(g.status, 'won');
 }
 
+// Raised forks cap top speed: empty forks (H=0) reach a higher top speed than fully raised forks (H=5).
+{
+  const g = newGame(1);
+  flatWorld(g);
+  const f = g.fl;
+  f.x = 5; f.y = 5; f.a = 0; f.speed = 0;
+  run(g, { up: true }, 5);
+  const lowSpeed = f.speed;
+
+  const h = newGame(1);
+  flatWorld(h);
+  h.H = 5;
+  const hf = h.fl;
+  hf.x = 5; hf.y = 5; hf.a = 0; hf.speed = 0;
+  run(h, { up: true }, 5);
+  const highSpeed = hf.speed;
+
+  assert.ok(highSpeed < lowSpeed, 'fully raised forks cap speed below level-0 top speed');
+  assert.ok(highSpeed > 0, 'still able to move with forks raised');
+}
+
 console.log('all tests passed');
 
 // Lowering empty forks through a box is blocked and damages the box under the forks.

@@ -326,7 +326,7 @@ export function update(g, input, dt) {
   const forked = g.hard ? forkedStack(g) : null;
   const forkedY = forked ? toLocal(f, boxPos(forked, g.H).x, boxPos(forked, g.H).y).y : 0;
   const prevA = f.a;
-  drive(f, input, dt);
+  drive(f, input, dt, g.H);
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;
   g.aligning = new Set();
