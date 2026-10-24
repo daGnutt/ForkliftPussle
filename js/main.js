@@ -246,16 +246,17 @@ window.addEventListener('keydown', (e) => {
 
 const lostFocus = () => document.hidden || !document.hasFocus();
 function applyPause() {
-  const p = !!view.menuOpen || lostFocus();
+  const p = !!view.menuOpen;
   if (!p && view.paused) last = performance.now();
   view.paused = p;
   setSilenced(p);
 }
-window.addEventListener('blur', applyPause);
-window.addEventListener('focus', applyPause);
-document.addEventListener('visibilitychange', applyPause);
-view.paused = !document.hasFocus();
-setSilenced(view.paused);
+// Losing focus opens the same pause menu as Esc/P; the player must click Resume (or press U/Esc/P) to continue, just like any other pause.
+const pauseOnBlur = () => { if (!splashOn && !recordOpen && lostFocus()) toggleMenu(true); };
+window.addEventListener('blur', pauseOnBlur);
+document.addEventListener('visibilitychange', pauseOnBlur);
+pauseOnBlur();
+applyPause();
 
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
