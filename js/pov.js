@@ -205,7 +205,20 @@ function circlePts(u, v, r, n = 18) {
   return Array.from({ length: n }, (_, i) => [u + Math.cos((i / n) * Math.PI * 2) * r, v + Math.sin((i / n) * Math.PI * 2) * r]);
 }
 
-function drawWallDecals(ctx, cam, f, dark) {
+// A roller door spans two segments around the junction `key`; skip it unless the whole width is free wall face
+// (no perpendicular wall abutting the face within the span).
+function doorFits(g, key, q0, q1) {
+  const L = Math.hypot(q1[0] - q0[0], q1[1] - q0[1]);
+  const dx = (q1[0] - q0[0]) / L, dy = (q1[1] - q0[1]) / L;
+  const nx = dy, ny = -dx;
+  for (let t = -1.9; t <= 1.9; t += 0.2) {
+    const x = key[0] + dx * L * t + nx * 0.1, y = key[1] + dy * L * t + ny * 0.1;
+    if (g.walls.some((w) => x > w.x && x < w.x + w.w && y > w.y && y < w.y + w.h)) return false;
+  }
+  return true;
+}
+
+function drawWallDecals(ctx, cam, g, f, dark) {
   const [q0, q1] = f.side;
   const len = Math.hypot(q1[0] - q0[0], q1[1] - q0[1]);
   if (len < 0.9 || f.d > DECAL_MAX_DIST) return;
@@ -229,7 +242,7 @@ function drawWallDecals(ctx, cam, f, dark) {
   // Two-segment roller door: the pair (k even, k + 1) shares the point where the segments meet.
   if (f.n > 1 && (f.k & 1 ? true : f.k + 1 < f.n)) {
     const key = f.k & 1 ? q0 : q1;
-    if (hash(key[0], key[1], 34) < 0.1) {
+    if (hash(key[0], key[1], 34) < 0.1 && doorFits(g, key, q0, q1)) {
       const off = f.k & 1 ? 0 : 1; // visually the later segment is the left half
       const slab = (x0, v0, x1, v1, fill) => {
         const a = Math.max(0, x0 - off), b = Math.min(1, x1 - off);
@@ -351,7 +364,7 @@ function drawWallDecals(ctx, cam, f, dark) {
   }
 }
 
-function drawFace(ctx, cam, f) {
+function drawFace(ctx, cam, g, f) {
   const pts = project(cam, f.quad.map(([x, y, z]) => toCam(cam, x, y, z)));
   if (pts.length < 3) return;
   const dark = Math.min(0.75, f.d / FAR_DARK) + (1 - f.shade) * 0.6;
@@ -370,7 +383,7 @@ function drawFace(ctx, cam, f) {
   ctx.fillStyle = `rgba(0,0,0,${Math.max(0, dark)})`;
   ctx.fill();
   if (f.lit) { ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fill(); }
-  if (f.tile != null && f.side) drawWallDecals(ctx, cam, f, Math.max(0, dark));
+  if (f.tile != null && f.side) drawWallDecals(ctx, cam, g, f, Math.max(0, dark));
   if (f.color && f.color !== PALLET_COLOR) {
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
     ctx.lineWidth = 1;
@@ -503,7 +516,7 @@ export function drawPov(ctx, g, x, y, w, h, opts = {}) {
   drawFloorDecals(ctx, g, cam);
   drawFloorMarks(ctx, g, cam);
   const faces = buildFaces(g, cam);
-  for (const f of faces) if (f.d < MAX_DIST) drawFace(ctx, cam, f);
+  for (const f of faces) if (f.d < MAX_DIST) drawFace(ctx, cam, g, f);
   if (!opts.rear) drawZoneLabels(ctx, g, cam, faces);
   if (!opts.rear) drawHits(ctx, g, cam);
   ctx.restore();
