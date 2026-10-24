@@ -142,7 +142,7 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, spli
 
 // Stack with a pallet under every box; level h sits at height h * (BOX_H + PAL).
 // Boxes from index `from` up are drawn `extra` levels higher (a stack still being lowered).
-function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, extra = 0) {
+function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, extra = 0, pens = []) {
   layers.forEach((col, i) => {
     const x = x0 + (offs[i]?.x || 0), y = y0 + (offs[i]?.y || 0);
     const z = (level + i + (i >= from ? extra : 0)) * (BOX_H + PAL), r = rots[i] ?? 0;
@@ -151,7 +151,7 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
     for (const [u, v] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) {
       addPrism(faces, cam, x + u * cr - v * sr, y + u * sr + v * cr, r, 0.05, 0.05, z, z + PAL, PALLET_COLOR);
     }
-    addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? boxDecalKind(col, i) : 0);
+    addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? pens[i]?.deco ?? boxDecalKind(col, i) : 0);
   });
 }
 
@@ -183,10 +183,10 @@ function buildFaces(g, cam) {
     addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, WALL_H, null, true);
   }
   for (const st of g.stacks) addStack(faces, cam, st.x, st.y, st.rots || [], st.layers, 0, st.offs, st.dropFrom ?? 0,
-      st.dropFrom != null ? Math.max(0, g.hf - st.dropFrom) : 0);
+      st.dropFrom != null ? Math.max(0, g.hf - st.dropFrom) : 0, st.pen);
   if (g.carried) {
     const p = toWorld(g.fl, FL.carryX, 0);
-    addStack(faces, cam, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, carriedWorldOffs(g));
+    addStack(faces, cam, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, carriedWorldOffs(g), 0, 0, g.carriedPen);
   }
   const len = (FL.tineX1 - FL.tineX0) / 2, tz = g.hf * (BOX_H + PAL);
   for (const side of [-1, 1]) {

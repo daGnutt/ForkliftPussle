@@ -1,3 +1,4 @@
+import { boxDecalKind } from './decals.js';
 import { rectPoly, sat, overlapArea } from './geom.js';
 import { FL, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { generateLevel } from './level.js';
@@ -20,11 +21,12 @@ const ALIGN_MIN_SPEED = 0.05;
 const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
 const ALIGN_DAMAGE = 10; // crash points per radian turned, bottom box of a multi-box stack only
 
-const newPen = () => ({ crash: 0, sq: 0 });
+// `deco` is the box's decal kind; it lives in the pen entry so it travels with the box.
+const newPen = (col = 0, seed = 0) => ({ crash: 0, sq: 0, deco: boxDecalKind(col, seed) });
 
 function ensure(S) {
   if (!S.rots) S.rots = S.layers.map(() => S.a || 0);
-  if (!S.pen) S.pen = S.layers.map(newPen);
+  if (!S.pen) S.pen = S.layers.map((c, i) => newPen(c, i));
   if (!S.offs) S.offs = [];
   while (S.offs.length < S.layers.length) S.offs.push({ x: 0, y: 0 });
 }
@@ -153,7 +155,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     pillars: lvl.walls,
     zones: lvl.zones,
     areas: lvl.areas,
-    stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), pen: s.layers.map(newPen), offs: s.layers.map(() => ({ x: 0, y: 0 })), a: 0 })),
+    stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), pen: s.layers.map((c, i) => newPen(c, Math.floor(s.x * 31 + s.y * 17) + i)), offs: s.layers.map(() => ({ x: 0, y: 0 })), a: 0 })),
     parking: { ...toWorld(lvl.start, (FL.back + FL.front) / 2, 0), a: lvl.start.a },
     fl: makeForklift(lvl.start.x, lvl.start.y, lvl.start.a),
     carried: null,
@@ -414,7 +416,7 @@ export function forkDown(g) {
   if (g.H > minH) g.H = Math.max(minH, g.H - 1);
   // Reaching the resting height puts the boxes down.
   if (g.H === n && minH === n) {
-    while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen());
+    while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen(g.carried[g.carriedPen.length], g.carriedPen.length));
     while (g.carriedRots.length < g.carried.length) g.carriedRots.push(g.carriedRel);
     const worldRots = g.carriedRots.map((r) => r + g.fl.a);
     g.carriedPen.forEach((p, i) => { p.sq = squareLoss(worldRots[i]); });

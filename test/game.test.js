@@ -589,3 +589,15 @@ console.log('all tests passed');
   assert.ok(g.stacks.every((s) => s.dropFrom == null), 'lowering ends at the floor');
   console.log('drop ok');
 }
+
+{
+  const g = newGame(3);
+  const S = g.stacks.find((s) => s.layers.length > 0);
+  const before = S.pen.map((p) => p.deco);
+  assert.ok(before.every((d) => d >= 0 && d <= 3));
+  g.fl.x = S.x - 1; g.fl.y = S.y; g.fl.a = 0; g.fl.speed = 0;
+  forkUp(g);
+  assert.ok(g.carried, 'stack lifted');
+  assert.deepEqual(g.carriedPen.map((p) => p.deco), before, 'decals travel with lifted boxes');
+  console.log('box decals ok');
+}

@@ -17,7 +17,7 @@ const PX = 0.06, PY = -0.1; // screen shift per unit of height
 
 // Draws a stack whose bottom box is at height z0 above the floor: top box
 // colour, plus a coloured number for each box below it.
-function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = []) {
+function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
   const n = layers.length;
   const size = 1, h = size / 2;
   const at = (cx, cy, i, fn) => {
@@ -70,7 +70,7 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = []) {
       ctx.fillStyle = 'rgba(255,255,255,0.18)';
       ctx.fillRect(-0.07, -h, 0.14, size);
       if (decalsEnabled()) {
-        for (const d of boxDecalShapes(boxDecalKind(layers[i], i))) {
+        for (const d of boxDecalShapes(pens[i]?.deco ?? boxDecalKind(layers[i], i))) {
           ctx.fillStyle = d.fill;
           ctx.beginPath();
           d.pts.forEach(([u, v], k) => (k ? ctx.lineTo(u * 0.4, -v * 0.4) : ctx.moveTo(u * 0.4, -v * 0.4)));
@@ -206,7 +206,7 @@ function drawTines(ctx, g) {
 function drawCarried(ctx, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  drawStack(ctx, g.carried, p.x, p.y, g.hf, g.carriedRots.map((r) => r + g.fl.a), carriedWorldOffs(g));
+  drawStack(ctx, g.carried, p.x, p.y, g.hf, g.carriedRots.map((r) => r + g.fl.a), carriedWorldOffs(g), g.carriedPen);
 }
 
 // Draws the top-down overview scaled into the screen rect (rx, ry, rw, rh).
@@ -307,10 +307,10 @@ function drawWorld(ctx, g) {
   // slide under are drawn over them.
   const low = g.stacks.filter((st) => st.layers.length <= g.hf);
   const high = g.stacks.filter((st) => st.layers.length > g.hf);
-  for (const st of low) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs);
+  for (const st of low) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs, st.pen);
   drawForkliftBody(ctx, g);
   drawTines(ctx, g);
-  for (const st of high) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs);
+  for (const st of high) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs, st.pen);
   drawCarried(ctx, g);
 
   ctx.fillStyle = '#3b3f45';
