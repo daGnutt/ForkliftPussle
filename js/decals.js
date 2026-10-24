@@ -29,23 +29,11 @@ function rect(x, y, w, h, fill) {
 const YELLOW = 'rgba(244,196,20,0.6)';
 const RUBBER = 'rgba(15,15,15,0.22)';
 
+// Random filler per cell (oil stains, dashed lines, hazard patches).
 function cellDecals(cx, cy) {
   const r = hash(cx, cy, 1), out = [];
   const ox = cx * CELL + 0.5 + hash(cx, cy, 2) * (CELL - 1), oy = cy * CELL + 0.5 + hash(cx, cy, 3) * (CELL - 1);
-  if (r < 0.2) { // curving pair of tire marks
-    const a0 = hash(cx, cy, 4) * Math.PI * 2, curve = (hash(cx, cy, 5) - 0.5) * 0.35;
-    for (const side of [-0.28, 0.28]) {
-      const pts = [];
-      let x = ox, y = oy, a = a0;
-      for (let i = 0; i <= 12; i++) {
-        pts.push([x - Math.sin(a) * side, y + Math.cos(a) * side]);
-        a += curve;
-        x += Math.cos(a) * 0.3;
-        y += Math.sin(a) * 0.3;
-      }
-      out.push(...strip(pts, 0.16, RUBBER));
-    }
-  } else if (r < 0.32) { // oil stain
+  if (r < 0.2) { // oil stain
     const rx = 0.35 + hash(cx, cy, 6) * 0.4, ry = 0.25 + hash(cx, cy, 7) * 0.35;
     const pts = [];
     for (let i = 0; i < 14; i++) {
@@ -53,36 +41,119 @@ function cellDecals(cx, cy) {
       pts.push([ox + Math.cos(t) * rx * k, oy + Math.sin(t) * ry * k]);
     }
     out.push({ pts, fill: 'rgba(10,10,15,0.22)' });
-  } else if (r < 0.46) { // dashed yellow lane line
+  } else if (r < 0.38) { // dashed yellow lane line
     const horiz = hash(cx, cy, 8) < 0.5;
     for (let i = 0; i < 4; i++) {
       out.push(horiz ? rect(cx * CELL + i, oy, 0.6, 0.14, YELLOW) : rect(ox, cy * CELL + i, 0.14, 0.6, YELLOW));
     }
-  } else if (r < 0.56) { // yellow/black hazard stripe patch
+  } else if (r < 0.5) { // yellow/black hazard stripe patch
     const horiz = hash(cx, cy, 9) < 0.5, n = 8;
     for (let i = 0; i < n; i++) {
       const s = i * 0.25;
       out.push(horiz ? rect(ox + s, oy, 0.25, 0.5, i & 1 ? 'rgba(20,20,20,0.5)' : YELLOW)
         : rect(ox, oy + s, 0.5, 0.25, i & 1 ? 'rgba(20,20,20,0.5)' : YELLOW));
     }
-  } else if (r < 0.64) { // painted walkway box outline
-    const w = 1.6 + hash(cx, cy, 10), h = 1.2;
-    out.push(...strip([[ox, oy], [ox + w, oy], [ox + w, oy + h], [ox, oy + h], [ox, oy - 0.07]], 0.1, YELLOW));
   }
   return out;
 }
 
-// Floor decals within the tile rectangle [x0,x1]×[y0,y1]; shapes poking outside the level (0,0,w,h) are dropped.
-export function floorDecals(x0, y0, x1, y1, w, h) {
+// Pair of tire tracks: from (x, y) heading a, straight s1, a turn of `turn` radians with radius r, straight s2.
+function tracks(x, y, a, s1, turn, r, s2) {
   const out = [];
-  x0 = Math.max(x0, 0); y0 = Math.max(y0, 0); x1 = Math.min(x1, w); y1 = Math.min(y1, h);
-  for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) {
-    for (let cy = Math.floor(y0 / CELL); cy <= Math.floor(y1 / CELL); cy++) {
-      for (const d of cellDecals(cx, cy)) {
-        if (d.pts.every(([x, y]) => x >= 0.05 && y >= 0.05 && x <= w - 0.05 && y <= h - 0.05)) out.push(d);
+  for (const side of [-0.28, 0.28]) {
+    const pts = [];
+    let px = x, py = y, pa = a;
+    const push = () => pts.push([px - Math.sin(pa) * side, py + Math.cos(pa) * side]);
+    const step = (len, dTurn) => {
+      const n = Math.max(1, Math.ceil(len / 0.3));
+      for (let i = 0; i < n; i++) {
+        push();
+        pa += dTurn / n;
+        px += Math.cos(pa) * (len / n);
+        py += Math.sin(pa) * (len / n);
+      }
+    };
+    step(s1, 0);
+    step(Math.abs(turn) * r, turn);
+    step(s2, 0);
+    push();
+    out.push(pts);
+  }
+  return out;
+}
+
+const bboxHit = (x0, y0, x1, y1, r, m) => x1 > r.x - m && x0 < r.x + r.w + m && y1 > r.y - m && y0 < r.y + r.h + m;
+const ptsBox = (pts) => [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1]))];
+
+const cache = new WeakMap();
+
+// All floor decals of a level, computed once per game state. Tire tracks follow natural turns (into drop-offs and the
+// parking spot, round the ends of dividing walls); yellow squares sit around the drop-offs without touching them.
+// Everything is kept clear of walls and inside the level (0,0,w,h).
+export function floorDecals(g) {
+  if (cache.has(g)) return cache.get(g);
+  const out = [];
+  const walls = g.pillars || [];
+  const inside = (pts, m = 0.05) => pts.every(([x, y]) => x >= m && y >= m && x <= g.w - m && y <= g.h - m);
+  const clearOfWalls = (pts, m) => { const [a, b, c, d] = ptsBox(pts); return !walls.some((r) => bboxHit(a, b, c, d, r, m)); };
+  const trackOk = (list) => list.every((pts) => inside(pts) && pts.every(([x, y]) => !walls.some((r) => bboxHit(x, y, x, y, r, 0.45))));
+  const addTracks = (list) => { if (trackOk(list)) for (const pts of list) out.push(...strip(pts, 0.16, RUBBER)); };
+
+  // Random filler: not on the drop-offs or parking spot.
+  const zoneBoxes = g.zones.map((z) => ({ x: z.x - 0.6, y: z.y - 0.6, w: 1.2, h: 1.2 }));
+  const pk = g.parking, pr = { x: pk.x - 1.8, y: pk.y - 1.8, w: 3.6, h: 3.6 };
+  const keepClear = [...zoneBoxes, pr];
+  const free = (pts, m) => { const [a, b, c, d] = ptsBox(pts); return !keepClear.some((r) => bboxHit(a, b, c, d, r, m)); };
+  for (let cx = 0; cx <= Math.floor(g.w / CELL); cx++) {
+    for (let cy = 0; cy <= Math.floor(g.h / CELL); cy++) {
+      for (const d of cellDecals(cx, cy)) if (inside(d.pts) && free(d.pts, 0.15) && clearOfWalls(d.pts, 0.1)) out.push(d);
+    }
+  }
+
+  // Tracks swinging into each drop-off and the parking spot.
+  const targets = [...g.zones.map((z) => [z.x, z.y]), [pk.x, pk.y]];
+  targets.forEach(([tx, ty], n) => {
+    for (let k = 0; k < 4; k++) {
+      if (hash(tx, ty, 60 + k) > 0.35) continue;
+      const turn = (hash(tx, ty, 70 + k) < 0.5 ? 1 : -1) * (Math.PI / 2);
+      addTracks(tracks(tx, ty, (k * Math.PI) / 2, 0.9, turn, 1.6 + hash(tx, ty, 80 + k) * 0.8, 2 + hash(tx, ty, 90 + k) * 1.5));
+    }
+  });
+
+  // Tracks rounding the ends of dividing walls: along one side, a quarter turn about the corner, away along the end.
+  const M = 1.4, L = 1.6;
+  for (const w of walls) {
+    [[w.x, w.y, -1, -1], [w.x + w.w, w.y, 1, -1], [w.x, w.y + w.h, -1, 1], [w.x + w.w, w.y + w.h, 1, 1]].forEach(([cx, cy, sx, sy], i) => {
+      if (hash(cx, cy, 40 + i) > 0.5) return;
+      const alongY = hash(cx, cy, 50 + i) < 0.5;
+      const [x, y, a] = alongY ? [cx + sx * M, cy - sy * L, sy * Math.PI / 2] : [cx - sx * L, cy + sy * M, sx > 0 ? 0 : Math.PI];
+      // pick the turn direction whose arc centre is the corner
+      const bx = x + Math.cos(a) * L, by = y + Math.sin(a) * L; // where the arc starts
+      const t = [1, -1].map((d) => [d, Math.hypot(bx - d * Math.sin(a) * M - cx, by + d * Math.cos(a) * M - cy)])
+        .sort((p, q) => p[1] - q[1])[0][0];
+      addTracks(tracks(x, y, a, L, t * (Math.PI / 2), M, L));
+    });
+  }
+
+  // Yellow parking squares around the drop-offs (some stay empty); never touching a drop-off, wall, the parking spot or each other.
+  const squares = [];
+  for (const z of g.zones) {
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if ((!dx && !dy) || hash(z.x + dx * 3, z.y + dy * 3, 100) > 0.5) continue;
+        const x = z.x + dx * 1.6, y = z.y + dy * 1.6, box = { x: x - 0.55, y: y - 0.55, w: 1.1, h: 1.1 };
+        const pts = [[box.x, box.y], [box.x + 1.1, box.y], [box.x + 1.1, box.y + 1.1], [box.x, box.y + 1.1]];
+        if (!inside(pts, 0.2) || !clearOfWalls(pts, 0.3)) continue;
+        if (g.zones.some((o) => bboxHit(box.x, box.y, box.x + box.w, box.y + box.h, { x: o.x - 0.6, y: o.y - 0.6, w: 1.2, h: 1.2 }, 0.12))) continue;
+        if (bboxHit(box.x, box.y, box.x + box.w, box.y + box.h, pr, 0)) continue;
+        if (squares.some((q) => Math.abs(q.x - x) < 1.3 && Math.abs(q.y - y) < 1.3)) continue;
+        squares.push({ x, y });
+        out.push(...strip([[box.x, box.y], [box.x + 1.1, box.y], [box.x + 1.1, box.y + 1.1], [box.x, box.y + 1.1], [box.x, box.y - 0.05]], 0.09, YELLOW));
       }
     }
   }
+
+  cache.set(g, out);
   return out;
 }
 

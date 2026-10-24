@@ -323,7 +323,7 @@ function floorOccluded(cam, z, faces) {
 
 function drawFloorDecals(ctx, g, cam) {
   const R = 18;
-  for (const d of floorDecals(cam.x - R, cam.y - R, cam.x + R, cam.y + R, g.w, g.h)) {
+  for (const d of floorDecals(g)) {
     if (Math.hypot(d.pts[0][0] - cam.x, d.pts[0][1] - cam.y) > R) continue;
     floorPoly(ctx, cam, d.pts, d.fill);
   }

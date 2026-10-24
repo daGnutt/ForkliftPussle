@@ -234,7 +234,7 @@ function drawWorld(ctx, g) {
   for (let y = 0; y <= g.h; y++) { ctx.moveTo(0, y); ctx.lineTo(g.w, y); }
   ctx.stroke();
 
-  for (const d of floorDecals(0, 0, g.w, g.h, g.w, g.h)) {
+  for (const d of floorDecals(g)) {
     ctx.fillStyle = d.fill;
     ctx.beginPath();
     d.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
