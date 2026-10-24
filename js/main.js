@@ -3,6 +3,7 @@ import { createInput } from './input.js';
 import { getBest, beats, saveBest, finalScore, timePenalty } from './highscores.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
+import { debugEnabled, createDebug } from './debug.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
 import { startAudio, playFork, playBlocked, playBreak, playSuccess, setEngine, setSilenced, isMusicMuted, setMusicMuted, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
@@ -271,16 +272,21 @@ document.addEventListener('visibilitychange', pauseOnBlur);
 pauseOnBlur();
 applyPause();
 
+const debug = debugEnabled(location.search) ? createDebug() : null;
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 function frame(now) {
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
   if (view.paused) acc = 0;
+  const t0 = performance.now();
+  let steps = 0;
   while (!splashOn && !view.paused && acc >= STEP) {
     update(game, input.state(), STEP);
     acc -= STEP;
+    steps++;
   }
+  const t1 = performance.now();
   checkTutorial();
   checkRecord();
   const st = input.state();
@@ -289,7 +295,13 @@ function frame(now) {
   if (done > doneZones) playSuccess();
   doneZones = done;
   if (game.hitCount !== hitCount) { if (game.hitCount > hitCount) playBreak(); hitCount = game.hitCount; }
+  const t2 = performance.now();
   draw(ctx, game, view);
+  if (debug) {
+    const t3 = performance.now();
+    debug.frame(now, steps, t1 - t0, t3 - t2);
+    debug.draw(ctx, game, view);
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

@@ -32,6 +32,9 @@ Fork level is a whole number 0–5 (height above the floor in box heights), chan
 - **Put down**: lower with **Z** until the carried boxes reach the stack beneath (or the floor, level 0); they are released as soon as they reach it (merge, max 5 layers). At least half of the box must rest on the box below, otherwise it falls off beside the stack and takes maximum damage. Boxes keep the offset they were dropped with, so you can build a crooked tower, or push a box sideways off a stack with the forks or a carried box.
 - The gauge on the right shows the fork level, the stack the forks are in, and what you carry. A stack shows its top colour, plus a coloured number for every box below it (number = layer from the bottom).
 
+## Debug overlay
+Add `?debug` to the URL (e.g. `index.html?debug`) for an FPS counter, frame/update/draw timings, boxes in the right place and other state, for troubleshooting performance.
+
 ## Run / deploy
 No build step. Serve the folder statically (ES modules need http): `python3 -m http.server`, then open http://localhost:8000.
 GitHub Pages: Settings → Pages → deploy from branch, root folder.
