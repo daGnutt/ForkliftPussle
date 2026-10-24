@@ -1,5 +1,6 @@
 import { COLORS } from './level.js';
 import { theme } from './theme.js';
+import { floorDecals, wallDecal, wallBase } from './decals.js';
 import { FL, toWorld } from './forklift.js';
 import { carriedWorldOffs, HIT_LIFE, zoneDone, isSolved, scoreEnough, isParked } from './game.js';
 
@@ -148,6 +149,139 @@ function buildFaces(g, cam) {
   return faces;
 }
 
+
+// Wall decals are drawn in face coordinates: u = 0..1 left to right as seen from outside, v = height in tiles.
+const DECAL_MAX_DIST = 16;
+
+function circlePts(u, v, r, n = 18) {
+  return Array.from({ length: n }, (_, i) => [u + Math.cos((i / n) * Math.PI * 2) * r, v + Math.sin((i / n) * Math.PI * 2) * r]);
+}
+
+function drawWallDecals(ctx, cam, f, dark) {
+  const [q0, q1] = f.side;
+  const len = Math.hypot(q1[0] - q0[0], q1[1] - q0[1]);
+  if (len < 0.9 || f.d > DECAL_MAX_DIST) return;
+  const mx = f.mx, my = f.my;
+  const shape = (uv, fill) => {
+    const pts = project(cam, uv.map(([u, v]) => toCam(cam, q1[0] + (q0[0] - q1[0]) * u, q1[1] + (q0[1] - q1[1]) * u, v)));
+    if (pts.length < 3) return;
+    ctx.beginPath();
+    pts.forEach(([X, Y], i) => (i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y)));
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.fillStyle = `rgba(0,0,0,${Math.max(0, dark)})`;
+    ctx.fill();
+  };
+  const box = (u0, v0, u1, v1, fill) => shape([[u0, v0], [u1, v0], [u1, v1], [u0, v1]], fill);
+  const disc = (u, v, r, fill) => shape(circlePts(u, v, r), fill);
+  const tri = (u, v, r, fill) => shape([[u, v + r], [u + r * 0.95, v - r * 0.55], [u - r * 0.95, v - r * 0.55]], fill);
+  const YEL = '#f4c414', RED = '#c62828', WHITE = '#eeeeee', BLACK = '#1a1a1a';
+
+  const base = wallBase(mx, my);
+  if (base === 1) box(0, 0, 1, 0.12, YEL);
+  else if (base === 2) {
+    for (let i = 0; i < 8; i++) {
+      const a = i * 0.125;
+      shape([[a, 0], [a + 0.0625 + 0.05, 0], [a + 0.0625 + 0.15, 0.2], [a + 0.1, 0.2]], i & 1 ? BLACK : YEL);
+    }
+  }
+
+  switch (wallDecal(mx, my)) {
+    case 'window': {
+      box(0.12, 1.22, 0.88, 2.38, '#2b2e33');
+      box(0.17, 1.27, 0.83, 2.33, theme().skyBottom);
+      shape([[0.17, 1.27], [0.4, 1.27], [0.63, 2.33], [0.4, 2.33]], 'rgba(255,255,255,0.25)');
+      box(0.485, 1.27, 0.515, 2.33, '#2b2e33');
+      box(0.17, 1.78, 0.83, 1.82, '#2b2e33');
+      box(0.1, 1.2, 0.9, 1.24, '#8d949c');
+      break;
+    }
+    case 'door': {
+      box(0.14, 0, 0.86, 2.28, YEL);
+      box(0.19, 0, 0.81, 2.2, '#4d6b5b');
+      box(0.34, 1.4, 0.66, 1.9, '#1f2a30');
+      box(0.36, 1.42, 0.64, 1.88, theme().skyBottom);
+      box(0.68, 0.95, 0.76, 1.05, '#c9ccd1');
+      box(0.22, 0.88, 0.78, 0.92, '#7e8a82');
+      box(0.38, 2.28, 0.62, 2.5, '#2e7d32');
+      box(0.41, 2.31, 0.59, 2.47, WHITE);
+      break;
+    }
+    case 'nosmoking': {
+      disc(0.5, 1.75, 0.3, RED);
+      disc(0.5, 1.75, 0.23, WHITE);
+      box(0.3, 1.72, 0.6, 1.78, '#d8b27a');
+      box(0.6, 1.72, 0.69, 1.78, '#e56a1d');
+      shape([[0.3, 1.52], [0.35, 1.47], [0.7, 1.98], [0.65, 2.03]], RED);
+      break;
+    }
+    case 'exit': {
+      box(0.18, 2.2, 0.82, 2.6, '#1b5e20');
+      box(0.2, 2.22, 0.8, 2.58, '#2e7d32');
+      shape([[0.28, 2.37], [0.5, 2.37], [0.5, 2.3], [0.7, 2.4], [0.5, 2.5], [0.5, 2.43], [0.28, 2.43]], WHITE);
+      disc(0.34, 2.46, 0.04, WHITE);
+      break;
+    }
+    case 'extinguisher': {
+      box(0.3, 1.45, 0.7, 1.95, RED);
+      box(0.47, 1.52, 0.53, 1.88, WHITE);
+      box(0.34, 1.64, 0.66, 1.7, WHITE);
+      box(0.4, 0.55, 0.6, 1.25, '#b71c1c');
+      box(0.45, 1.25, 0.55, 1.32, BLACK);
+      box(0.55, 1.18, 0.65, 1.24, BLACK);
+      break;
+    }
+    case 'hazard': {
+      tri(0.5, 1.8, 0.4, BLACK);
+      tri(0.5, 1.8, 0.34, YEL);
+      box(0.475, 1.74, 0.525, 1.98, BLACK);
+      disc(0.5, 1.64, 0.03, BLACK);
+      break;
+    }
+    case 'electric': {
+      tri(0.5, 1.8, 0.4, BLACK);
+      tri(0.5, 1.8, 0.34, YEL);
+      shape([[0.54, 1.98], [0.42, 1.74], [0.5, 1.74], [0.46, 1.58], [0.6, 1.8], [0.52, 1.8]], BLACK);
+      break;
+    }
+    case 'forklift': {
+      box(0.2, 1.4, 0.8, 2.0, '#1565c0');
+      box(0.27, 1.5, 0.5, 1.75, WHITE);
+      box(0.5, 1.5, 0.55, 1.95, WHITE);
+      box(0.55, 1.5, 0.72, 1.55, WHITE);
+      disc(0.34, 1.47, 0.04, WHITE);
+      disc(0.46, 1.47, 0.04, WHITE);
+      shape([[0.2, 2.0], [0.8, 1.4], [0.8, 1.45], [0.25, 2.0]], RED);
+      break;
+    }
+    case 'ppe': {
+      disc(0.5, 1.75, 0.3, '#1565c0');
+      shape(circlePts(0.5, 1.72, 0.17).filter(([, v]) => v >= 1.72).concat([[0.33, 1.72]]), WHITE);
+      box(0.3, 1.66, 0.7, 1.72, WHITE);
+      break;
+    }
+    case 'speed': {
+      disc(0.5, 1.75, 0.3, RED);
+      disc(0.5, 1.75, 0.23, WHITE);
+      box(0.42, 1.88, 0.58, 1.91, BLACK);
+      box(0.42, 1.75, 0.45, 1.9, BLACK);
+      box(0.42, 1.73, 0.58, 1.76, BLACK);
+      box(0.55, 1.6, 0.58, 1.75, BLACK);
+      box(0.42, 1.58, 0.58, 1.61, BLACK);
+      break;
+    }
+    case 'fire': {
+      box(0.22, 1.2, 0.78, 1.9, RED);
+      disc(0.5, 1.55, 0.2, WHITE);
+      disc(0.5, 1.55, 0.14, '#8e1b1b');
+      disc(0.5, 1.55, 0.05, WHITE);
+      box(0.3, 1.78, 0.7, 1.84, WHITE);
+      break;
+    }
+  }
+}
+
 function drawFace(ctx, cam, f) {
   const pts = project(cam, f.quad.map(([x, y, z]) => toCam(cam, x, y, z)));
   if (pts.length < 3) return;
@@ -160,6 +294,7 @@ function drawFace(ctx, cam, f) {
   ctx.fillStyle = `rgba(0,0,0,${Math.max(0, dark)})`;
   ctx.fill();
   if (f.lit) { ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fill(); }
+  if (f.tile != null && f.side) drawWallDecals(ctx, cam, f, Math.max(0, dark));
   if (f.color && f.color !== PALLET_COLOR) {
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
     ctx.lineWidth = 1;
@@ -184,6 +319,14 @@ function floorOccluded(cam, z, faces) {
     if (zl >= z0 && zl <= z1) return true;
   }
   return false;
+}
+
+function drawFloorDecals(ctx, cam) {
+  const R = 18;
+  for (const d of floorDecals(cam.x - R, cam.y - R, cam.x + R, cam.y + R)) {
+    if (Math.hypot(d.pts[0][0] - cam.x, d.pts[0][1] - cam.y) > R) continue;
+    floorPoly(ctx, cam, d.pts, d.fill);
+  }
 }
 
 function parkingCorners(g) {
@@ -280,6 +423,7 @@ export function drawPov(ctx, g, x, y, w, h, opts = {}) {
   ctx.fillRect(x, y + horizon, w, h - horizon);
 
   floorGrid(ctx, cam);
+  drawFloorDecals(ctx, cam);
   drawFloorMarks(ctx, g, cam);
   const faces = buildFaces(g, cam);
   for (const f of faces) if (f.d < MAX_DIST) drawFace(ctx, cam, f);
