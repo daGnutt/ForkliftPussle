@@ -8,7 +8,7 @@ import { startAudio, playFork, playBlocked, playBreak, playSuccess, setEngine, s
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const view = { width: 0, height: 0, dpr: 1, povBig: false, showSmall: false };
+const view = { width: 0, height: 0, dpr: 1, povBig: localStorage.getItem('forklift-cab-view') === '1', showSmall: false };
 
 function resize() {
   view.dpr = window.devicePixelRatio || 1;
@@ -60,7 +60,11 @@ const input = createInput({
   anyKey: startAudio,
   fullscreen: toggleFullscreen,
   toggleSmall: () => { view.showSmall = !view.showSmall; },
-  swapView: () => { view.povBig = !view.povBig; if (tutStep === 3 && view.povBig) nextTutorial(); },
+  swapView: () => {
+    view.povBig = !view.povBig;
+    localStorage.setItem('forklift-cab-view', view.povBig ? '1' : '0');
+    if (tutStep === 3 && view.povBig) nextTutorial();
+  },
   up: () => { const h = game.H; forkUp(game); if (game.H !== h) playFork(true); },
   down: () => {
     const h = game.H;
