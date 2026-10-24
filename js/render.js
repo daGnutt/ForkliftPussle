@@ -2,7 +2,7 @@ import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
 import { drawPov } from './pov.js';
 import { theme } from './theme.js';
-import { decalsEnabled, floorDecals } from './decals.js';
+import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
 import { carriedWorldOffs, HIT_LIFE, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
 function rotRect(ctx, cx, cy, a, fn) {
@@ -69,6 +69,14 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = []) {
       // tape strip across the lid
       ctx.fillStyle = 'rgba(255,255,255,0.18)';
       ctx.fillRect(-0.07, -h, 0.14, size);
+      if (decalsEnabled()) {
+        for (const d of boxDecalShapes(boxDecalKind(layers[i], i))) {
+          ctx.fillStyle = d.fill;
+          ctx.beginPath();
+          d.pts.forEach(([u, v], k) => (k ? ctx.lineTo(u * 0.4, -v * 0.4) : ctx.moveTo(u * 0.4, -v * 0.4)));
+          ctx.fill();
+        }
+      }
     });
   }
   at(cx, cy, n - 1, () => {

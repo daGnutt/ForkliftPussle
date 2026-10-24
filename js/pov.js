@@ -1,6 +1,6 @@
 import { COLORS } from './level.js';
 import { theme } from './theme.js';
-import { decalsEnabled, floorDecals, wallDecal, wallBase, hash, overheadDecals } from './decals.js';
+import { decalsEnabled, floorDecals, wallDecal, wallBase, hash, overheadDecals, boxDecalKind, boxDecalShapes } from './decals.js';
 import { FL, toWorld } from './forklift.js';
 import { carriedWorldOffs, HIT_LIFE, zoneDone, isSolved, scoreEnough, isParked } from './game.js';
 
@@ -104,7 +104,7 @@ function floorGrid(ctx, cam) {
 // Adds the faces of a rectangular prism (centre x,y, heading a, half sizes hl,hw, heights z0..z1).
 // split: max segment length; long faces are cut up so far-to-near sorting stays right (walls, tines).
 // wall = true: colourless, checker-tinted tiles.
-function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, split = wall ? 1 : 0) {
+function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, split = wall ? 1 : 0, deco = 0) {
   const c = Math.cos(a), s = Math.sin(a);
   const p = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([u, v]) => [x + u * c - v * s, y + u * s + v * c]);
   for (let i = 0; i < 4; i++) {
@@ -120,7 +120,7 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, spli
         quad: [[q0[0], q0[1], z0], [q1[0], q1[1], z0], [q1[0], q1[1], z1], [q0[0], q0[1], z1]],
         mx: (q0[0] + q1[0]) / 2, my: (q0[1] + q1[1]) / 2, mz: (z0 + z1) / 2,
         color, shade, tile: wall ? Math.floor((q0[0] + q0[1] + (q1[0] + q1[1])) / 2) : null,
-        side: [q0, q1, z0, z1], k, n,
+        side: [q0, q1, z0, z1], k, n, deco,
       });
     }
   }
@@ -151,7 +151,7 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
     for (const [u, v] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) {
       addPrism(faces, cam, x + u * cr - v * sr, y + u * sr + v * cr, r, 0.05, 0.05, z, z + PAL, PALLET_COLOR);
     }
-    addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col]);
+    addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? boxDecalKind(col, i) : 0);
   });
 }
 
@@ -365,6 +365,24 @@ function drawWallDecals(ctx, cam, g, f, dark) {
   }
 }
 
+function drawBoxDecal(ctx, cam, f, dark) {
+  const [q0, q1, z0] = f.side;
+  for (const d of boxDecalShapes(f.deco)) {
+    const pts = project(cam, d.pts.map(([u, v]) => {
+      const U = 0.5 - u * 0.45;
+      return toCam(cam, q0[0] + (q1[0] - q0[0]) * U, q0[1] + (q1[1] - q0[1]) * U, z0 + BOX_H / 2 + v * 0.45);
+    }));
+    if (pts.length < 3) continue;
+    ctx.beginPath();
+    pts.forEach(([X, Y], i) => (i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y)));
+    ctx.closePath();
+    ctx.fillStyle = d.fill;
+    ctx.fill();
+    ctx.fillStyle = `rgba(0,0,0,${dark})`;
+    ctx.fill();
+  }
+}
+
 function drawFace(ctx, cam, g, f) {
   const pts = project(cam, f.quad.map(([x, y, z]) => toCam(cam, x, y, z)));
   if (pts.length < 3) return;
@@ -384,6 +402,7 @@ function drawFace(ctx, cam, g, f) {
   ctx.fillStyle = `rgba(0,0,0,${Math.max(0, dark)})`;
   ctx.fill();
   if (f.lit) { ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fill(); }
+  if (f.deco && f.d < DECAL_MAX_DIST) drawBoxDecal(ctx, cam, f, Math.max(0, dark));
   if (f.tile != null && f.side) drawWallDecals(ctx, cam, g, f, Math.max(0, dark));
   if (f.color && f.color !== PALLET_COLOR) {
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';

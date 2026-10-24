@@ -205,3 +205,38 @@ export function overheadDecals(g) {
   overheadCache.set(g, res);
   return res;
 }
+
+// Box decal for the box of colour `col` at stack index `i`: 0 = none, 1 = "this side up" arrows, 2 = fragile glass, 3 = barcode label.
+export function boxDecalKind(col, i) {
+  const r = hash(col, i, 51);
+  return r < 0.25 ? 0 : r < 0.5 ? 1 : r < 0.75 ? 2 : 3;
+}
+
+const INK = 'rgba(25,25,25,0.8)';
+const arrow = (u) => [
+  { pts: [[u - 0.05, -0.35], [u + 0.05, -0.35], [u + 0.05, 0.1], [u - 0.05, 0.1]], fill: INK },
+  { pts: [[u - 0.15, 0.1], [u + 0.15, 0.1], [u, 0.38]], fill: INK },
+];
+
+// Decal shapes in a unit square (u right, v up, both -0.5..0.5), shared by the top-down and cabin renderers.
+export function boxDecalShapes(kind) {
+  if (kind === 1) return [...arrow(-0.2), ...arrow(0.2)];
+  if (kind === 2) {
+    const W = 'rgba(245,245,245,0.95)';
+    return [
+      { pts: [[-0.5, -0.4], [0.5, -0.4], [0.5, 0.4], [-0.5, 0.4]], fill: 'rgba(198,40,40,0.9)' },
+      { pts: [[-0.22, 0.28], [0.22, 0.28], [0.02, -0.02], [-0.02, -0.02]], fill: W },
+      { pts: [[-0.025, -0.02], [0.025, -0.02], [0.025, -0.22], [-0.025, -0.22]], fill: W },
+      { pts: [[-0.16, -0.22], [0.16, -0.22], [0.16, -0.28], [-0.16, -0.28]], fill: W },
+    ];
+  }
+  if (kind === 3) {
+    const out = [{ pts: [[-0.5, -0.3], [0.5, -0.3], [0.5, 0.3], [-0.5, 0.3]], fill: 'rgba(240,240,235,0.95)' }];
+    [-0.38, -0.3, -0.2, -0.14, -0.04, 0.04, 0.14, 0.2, 0.3].forEach((u, k) => {
+      const w = k % 2 ? 0.03 : 0.05;
+      out.push({ pts: [[u, -0.2], [u + w, -0.2], [u + w, 0.18], [u, 0.18]], fill: INK });
+    });
+    return out;
+  }
+  return [];
+}
