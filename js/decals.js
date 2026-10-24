@@ -165,7 +165,7 @@ const WALL_KINDS = ['window', 'window', 'door', 'nosmoking', 'exit', 'extinguish
 // Wall decal for the one-tile wall segment at (mx, my); null for most segments.
 export function wallDecal(mx, my) {
   const r = hash(mx, my, 31);
-  if (r > 0.3) return null;
+  if (r > 0.15) return null;
   return WALL_KINDS[Math.floor(hash(mx, my, 32) * WALL_KINDS.length)];
 }
 

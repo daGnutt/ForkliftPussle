@@ -1,6 +1,6 @@
 import { COLORS } from './level.js';
 import { theme } from './theme.js';
-import { floorDecals, wallDecal, wallBase } from './decals.js';
+import { floorDecals, wallDecal, wallBase, hash } from './decals.js';
 import { FL, toWorld } from './forklift.js';
 import { carriedWorldOffs, HIT_LIFE, zoneDone, isSolved, scoreEnough, isParked } from './game.js';
 
@@ -93,7 +93,7 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, spli
         quad: [[q0[0], q0[1], z0], [q1[0], q1[1], z0], [q1[0], q1[1], z1], [q0[0], q0[1], z1]],
         mx: (q0[0] + q1[0]) / 2, my: (q0[1] + q1[1]) / 2, mz: (z0 + z1) / 2,
         color, shade, tile: wall ? Math.floor((q0[0] + q0[1] + (q1[0] + q1[1])) / 2) : null,
-        side: [q0, q1, z0, z1],
+        side: [q0, q1, z0, z1], k, n,
       });
     }
   }
@@ -177,6 +177,27 @@ function drawWallDecals(ctx, cam, f, dark) {
   const disc = (u, v, r, fill) => shape(circlePts(u, v, r), fill);
   const tri = (u, v, r, fill) => shape([[u, v + r], [u + r * 0.95, v - r * 0.55], [u - r * 0.95, v - r * 0.55]], fill);
   const YEL = '#f4c414', RED = '#c62828', WHITE = '#eeeeee', BLACK = '#1a1a1a';
+
+  // Two-segment roller door: the pair (k even, k + 1) shares the point where the segments meet.
+  if (f.n > 1 && (f.k & 1 ? true : f.k + 1 < f.n)) {
+    const key = f.k & 1 ? q0 : q1;
+    if (hash(key[0], key[1], 34) < 0.1) {
+      const off = f.k & 1 ? 0 : 1; // visually the later segment is the left half
+      const slab = (x0, v0, x1, v1, fill) => {
+        const a = Math.max(0, x0 - off), b = Math.min(1, x1 - off);
+        if (b > a) box(a, v0, b, v1, fill);
+      };
+      slab(0.06, 0, 1.94, 2.7, YEL);
+      slab(0.14, 0, 1.86, 2.6, '#8a9199');
+      for (let v = 0.12; v < 2.5; v += 0.13) slab(0.14, v, 1.86, v + 0.025, '#5f656c');
+      slab(0.14, 2.35, 1.86, 2.6, '#6d737a');
+      slab(0.14, 0, 1.86, 0.1, BLACK);
+      for (let i = 0; i < 7; i++) slab(0.14 + i * 0.246, 0, 0.14 + i * 0.246 + 0.123, 0.1, YEL);
+      slab(0.14, 2.6, 1.86, 2.7, '#3a3f45');
+      slab(0.85, 0.22, 1.15, 0.28, '#c9ccd1');
+      return;
+    }
+  }
 
   const base = wallBase(mx, my);
   if (base === 1) box(0, 0, 1, 0.12, YEL);
