@@ -72,11 +72,16 @@ function cellDecals(cx, cy) {
   return out;
 }
 
-// All floor decals within the tile rectangle [x0,x1]×[y0,y1].
-export function floorDecals(x0, y0, x1, y1) {
+// Floor decals within the tile rectangle [x0,x1]×[y0,y1]; shapes poking outside the level (0,0,w,h) are dropped.
+export function floorDecals(x0, y0, x1, y1, w, h) {
   const out = [];
+  x0 = Math.max(x0, 0); y0 = Math.max(y0, 0); x1 = Math.min(x1, w); y1 = Math.min(y1, h);
   for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) {
-    for (let cy = Math.floor(y0 / CELL); cy <= Math.floor(y1 / CELL); cy++) out.push(...cellDecals(cx, cy));
+    for (let cy = Math.floor(y0 / CELL); cy <= Math.floor(y1 / CELL); cy++) {
+      for (const d of cellDecals(cx, cy)) {
+        if (d.pts.every(([x, y]) => x >= 0.05 && y >= 0.05 && x <= w - 0.05 && y <= h - 0.05)) out.push(d);
+      }
+    }
   }
   return out;
 }

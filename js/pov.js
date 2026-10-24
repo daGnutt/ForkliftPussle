@@ -321,9 +321,9 @@ function floorOccluded(cam, z, faces) {
   return false;
 }
 
-function drawFloorDecals(ctx, cam) {
+function drawFloorDecals(ctx, g, cam) {
   const R = 18;
-  for (const d of floorDecals(cam.x - R, cam.y - R, cam.x + R, cam.y + R)) {
+  for (const d of floorDecals(cam.x - R, cam.y - R, cam.x + R, cam.y + R, g.w, g.h)) {
     if (Math.hypot(d.pts[0][0] - cam.x, d.pts[0][1] - cam.y) > R) continue;
     floorPoly(ctx, cam, d.pts, d.fill);
   }
@@ -423,7 +423,7 @@ export function drawPov(ctx, g, x, y, w, h, opts = {}) {
   ctx.fillRect(x, y + horizon, w, h - horizon);
 
   floorGrid(ctx, cam);
-  drawFloorDecals(ctx, cam);
+  drawFloorDecals(ctx, g, cam);
   drawFloorMarks(ctx, g, cam);
   const faces = buildFaces(g, cam);
   for (const f of faces) if (f.d < MAX_DIST) drawFace(ctx, cam, f);
