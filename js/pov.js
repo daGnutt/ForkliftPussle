@@ -11,7 +11,7 @@ import { carriedWorldOffs, HIT_LIFE, zoneDone, isSolved, scoreEnough, isParked }
 const EYE_X = -0.5; // seat position, local x (origin at the front axle)
 const EYE_Z = 1.45; // eye height with the fork on the floor
 const EYE_FOLLOW = 0.4; // share of the fork height the eye follows
-const WALL_H = 3;
+const WALL_H = 4; // also the ceiling height; clears a 5-box stack (3.0)
 const BOX_H = 0.5; // drawn box height (footprint stays 1×1)
 const PAL = 0.1; // pallet / tine thickness
 const HFOV = Math.PI / 2;
