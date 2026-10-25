@@ -254,6 +254,7 @@ window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
   if (e.code === 'Escape' || (e.code === 'KeyP' && e.target !== menuLevel)) { e.preventDefault(); toggleMenu(false); return; }
+  if (e.code === 'Enter' && e.target !== menuLevel) { e.preventDefault(); toggleMenu(false); return; }
   if (e.target === trackSel && e.code !== 'KeyT') return;
   if (e.target === menuLevel || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
   const toggle = (el) => { el.checked = !el.checked; el.dispatchEvent(new Event('change')); };
