@@ -1,5 +1,4 @@
-// Procedural audio (Web Audio, no asset files): a chill generative background
-// track that can be muted, plus short sound effects. Browser only.
+// Web Audio: public-domain MIDI background songs (muteable) plus procedural sound effects. Browser only.
 import { parseMidi } from './midi.js';
 
 const MUTE_KEY = 'forklift-music-muted';
@@ -10,8 +9,8 @@ const TRACK_KEY = 'forklift-music-track';
 
 let ctx = null, master = null, musicBus = null, sfxBus = null;
 let muted = localStorage.getItem(MUTE_KEY) === '1';
-let nextStep = 0, stepIdx = 0, timer = null, noiseBuf = null;
-let trackIdx = 0, trackBus = null, STEP = 0.15;
+let timer = null, noiseBuf = null;
+let trackIdx = 0, trackBus = null;
 let engine = null;
 let beeper = null;
 const ALL_KEY = 'forklift-all-muted';
@@ -95,163 +94,13 @@ function noise(dest, t, dur, { gain = 0.1, cutoff = 7000, type = 'highpass' } = 
   src.stop(t + dur + 0.02);
 }
 
-function kick(t) {
-  if (thin) return;
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-  o.frequency.setValueAtTime(130, t);
-  o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
-  g.gain.setValueAtTime(0.5, t);
-  g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-  o.connect(g);
-  g.connect(trackBus);
-  o.start(t);
-  o.stop(t + 0.25);
-}
-
-let thin = false; // breakdown: drums drop out
-const T = (m, t, dur, o) => tone(trackBus, mtof(m), t, dur, o);
-const ND = (t, dur, o) => { if (!thin) noise(trackBus, t, dur, o); };
-const pad = (chord, t, len, { gain = 0.05, cutoff = 1200, type = 'triangle' } = {}) => {
-  chord.forEach((m, i) => T(m, t, len, { type: i === 0 ? 'sine' : type, gain: i === 0 ? gain * 2 : gain, attack: 0.8, release: 1.6, cutoff }));
-};
-
-// Each track: 16th-note step scheduler. `chordSteps` steps per chord; `step(k, t, chord, ci, n)`
-// gets the step within the chord, the time, the chord, chord index and the global step number.
-const TRACKS = [
-  {
-    id: 'chill', name: 'Chill: Pallet Pad Lounge (ambient)', bpm: 98, chordSteps: 32,
-    chords: [[57, 60, 64, 67, 71], [53, 60, 64, 67, 69], [48, 55, 64, 67, 71], [55, 59, 62, 64, 69],
-      [50, 57, 60, 64, 69], [46, 53, 57, 60, 64], [53, 60, 64, 67, 69], [52, 59, 62, 66, 68]],
-    step(k, t, chord) {
-      const beat = k % 16;
-      if (k === 0) pad(chord, t, 32 * STEP + 1.2);
-      if (beat % 4 === 0) kick(t);
-      if (beat % 4 === 2) ND(t, 0.05, { gain: 0.05 });
-      if (beat === 4 || beat === 12) ND(t, 0.12, { gain: 0.08, cutoff: 1800, type: 'bandpass' });
-      if ([0, 3, 6, 10, 14].includes(beat)) T(chord[0] - 12, t, STEP * 2.2, { type: 'sawtooth', gain: 0.1, attack: 0.01, release: 0.12, cutoff: 380 });
-      if (k % 2 === 0) {
-        const m = chord[[1, 2, 3, 4, 3, 2, 4, 3][(k / 2) % 8]] + (k >= 16 ? 12 : 0);
-        T(m + 12, t, STEP * 3, { type: 'triangle', gain: 0.06, attack: 0.01, release: 0.25, cutoff: 3000 });
-      }
-    },
-  },
-  {
-    id: 'metal', name: 'Heavy Metal: Fork-Lift of Doom (140 BPM)', bpm: 140, chordSteps: 16,
-    chords: [[40, 47, 52], [36, 43, 48], [38, 45, 50], [35, 42, 47],
-      [40, 47, 52], [43, 50, 55], [41, 48, 53], [39, 46, 51], [38, 45, 50], [36, 43, 48], [35, 42, 47], [35, 42, 47]],
-    step(k, t, chord, ci) {
-      // Palm-muted chugs on the 16ths, open chord stabs on the downbeat, double-bass kick.
-      const chug = [0, 1, 3, 4, 6, 8, 9, 11, 12, 14].includes(k);
-      if (chug) chord.forEach((m) => T(m, t, STEP * (k === 0 ? 3.5 : 0.8), { type: 'sawtooth', gain: 0.07, attack: 0.003, release: 0.05, cutoff: 1500 }));
-      if (k % 2 === 0 || k >= 12) kick(t);
-      if (k === 4 || k === 12) ND(t, 0.15, { gain: 0.14, cutoff: 2200, type: 'bandpass' });
-      if (k % 4 === 2) ND(t, 0.04, { gain: 0.04 });
-      if (k === 0 && ci % 4 === 0) ND(t, 0.9, { gain: 0.08, cutoff: 5000 });
-      // Pentatonic lead screams over the last two chords.
-      if (ci >= 2 && k % 2 === 0) {
-        const lead = [64, 67, 69, 71, 74, 71, 69, 67][(k / 2 + ci) % 8];
-        T(lead + 12, t, STEP * 2, { type: 'square', gain: 0.035, attack: 0.01, release: 0.1, cutoff: 3500 });
-      }
-    },
-  },
-  {
-    // 8 one-bar chords: Gm9 | Ebmaj7 | Cm9 | D7b9, then Cm9 | Dm7b5-G7 | Ebmaj7 | D7b9. Root first, bass plays root - 12.
-    id: 'hiphop', name: 'Hip Hop: Boom-Bap Box Shuffle (92 BPM)', bpm: 92, chordSteps: 16,
-    chords: [[55, 58, 62, 65, 69], [51, 55, 58, 62, 65], [48, 51, 58, 62, 67], [50, 54, 57, 60, 63],
-      [48, 51, 58, 62, 67], [50, 53, 56, 60, 65], [51, 55, 58, 62, 65], [50, 54, 57, 60, 63]],
-    step(k, t, chord, ci) {
-      const sw = k % 2 ? STEP * 0.3 : 0; // lazy MPC swing on the off 16ths
-      const odd = ci % 2 === 1, endBar = ci % 4 === 3;
-      // Drums: kick pattern alternates each bar, snare on 2 and 4 with quiet ghost notes.
-      if ((odd ? [0, 3, 10, 13] : [0, 7, 10]).includes(k)) kick(t);
-      if (k === 4 || k === 12) { ND(t, 0.17, { gain: 0.17, cutoff: 1600, type: 'bandpass' }); ND(t, 0.06, { gain: 0.09, cutoff: 500, type: 'lowpass' }); }
-      if (odd && (k === 7 || k === 15)) ND(t + sw, 0.05, { gain: 0.04, cutoff: 1600, type: 'bandpass' });
-      if (endBar && k >= 12 && k % 1 === 0 && k !== 12) ND(t, 0.06, { gain: 0.05 + (k - 12) * 0.02, cutoff: 1600, type: 'bandpass' });
-      if (k % 2 === 0) ND(t, 0.035, { gain: k % 4 === 0 ? 0.06 : 0.04 });
-      if (k === 14 && !odd) ND(t + sw, 0.14, { gain: 0.05, cutoff: 6000 });
-      // Vinyl crackle.
-      if (Math.random() < 0.25) noise(trackBus, t + Math.random() * STEP, 0.01, { gain: 0.012, cutoff: 4000 });
-      // Round sub bass: root, octave pop, fifth walk.
-      const bass = { 0: 0, 3: 0, 6: 12, 8: 0, 11: 7, 14: 5 }[k];
-      if (bass !== undefined && !(endBar && k >= 12)) T(chord[0] - 12 + bass, t + sw, STEP * 2.6, { type: 'sine', gain: 0.24, attack: 0.008, release: 0.15 });
-      // Dusty electric-piano comping (offbeat stabs) over a soft pad.
-      if (k === 0) pad(chord, t, 16 * STEP + 0.4, { gain: 0.03, cutoff: 800 });
-      if ([0, 5, 10].includes(k) || (odd && k === 13)) {
-        chord.slice(1).forEach((m, i) => T(m + 12, t + sw + i * 0.008, STEP * 2.2, { type: i % 2 ? 'sine' : 'triangle', gain: 0.045, attack: 0.004, release: 0.25, cutoff: 2400 }));
-      }
-      // Four-bar flute-like hook (G minor pentatonic), a bar of rest-and-answer each phrase.
-      const HOOK = [{ 2: 77, 4: 74, 6: 72, 10: 70 }, { 2: 70, 5: 72, 8: 74, 12: 72 }, { 0: 75, 3: 74, 6: 72, 8: 70, 12: 67 }, { 2: 70, 6: 74, 10: 72, 11: 70 }][ci % 4];
-      const hm = HOOK[k];
-      if (hm !== undefined && Math.floor(ci / 4) % 2 === 0) T(hm, t + sw, STEP * 2.4, { type: 'sine', gain: 0.07, attack: 0.03, release: 0.25, cutoff: 3000 });
-      else if (hm !== undefined) T(hm - 5, t + sw, STEP * 2.4, { type: 'triangle', gain: 0.05, attack: 0.03, release: 0.25, cutoff: 2000 });
-    },
-  },
-  {
-    id: 'rap', name: 'Rap: Trap Fork 808 (140 BPM)', bpm: 140, chordSteps: 32,
-    chords: [[45, 48, 52], [41, 45, 48], [43, 46, 50], [40, 44, 47],
-      [45, 48, 52], [43, 46, 50], [41, 45, 48], [40, 44, 47]],
-    step(k, t, chord, ci, n) {
-      const beat = k % 16;
-      if (k === 0) pad(chord.map((m) => m + 12), t, 32 * STEP + 0.5, { gain: 0.03, cutoff: 800 });
-      // Half-time feel: kick on 1 and the "and" of 2, clap on 3, rolling hats with bursts.
-      if (beat === 0 || beat === 7 || beat === 10) kick(t);
-      if (beat === 8) { ND(t, 0.2, { gain: 0.18, cutoff: 1800, type: 'bandpass' }); ND(t + 0.012, 0.15, { gain: 0.1, cutoff: 1400, type: 'bandpass' }); }
-      ND(t, 0.03, { gain: beat % 4 === 0 ? 0.05 : 0.03 });
-      if (k % 16 === 14 || (ci % 2 === 1 && k % 16 === 6)) ND(t + STEP / 2, 0.025, { gain: 0.035 });
-      // Sliding 808 sub.
-      if ([0, 7, 10, 14].includes(beat)) {
-        const o = T(chord[0] - 12, t, STEP * (beat === 0 ? 6 : 2.5), { type: 'sine', gain: 0.3, attack: 0.005, release: 0.2 });
-        if (beat === 14) { o.frequency.setValueAtTime(mtof(chord[0] - 12), t); o.frequency.linearRampToValueAtTime(mtof(chord[0] - 5), t + STEP * 2.5); }
-      }
-      // Eerie bell melody.
-      if (k % 4 === 0 || k % 16 === 11) T(chord[(n >> 2) % 3] + 24, t, STEP * 3, { type: 'sine', gain: 0.05, attack: 0.003, release: 0.5 });
-    },
-  },
-  {
-    id: 'classical', name: 'Classical: Canon in Fork Major (72 BPM)', bpm: 72, chordSteps: 16,
-    chords: [[50, 57, 62, 66], [45, 57, 61, 64], [47, 54, 62, 66], [42, 54, 61, 64], [43, 55, 62, 67], [50, 57, 62, 66], [43, 55, 62, 67], [45, 57, 61, 64],
-      [47, 54, 59, 62], [43, 50, 55, 59], [45, 52, 57, 61], [38, 45, 50, 54], [43, 50, 55, 59], [38, 45, 50, 54], [43, 50, 55, 59], [45, 57, 61, 64]],
-    step(k, t, chord) {
-      if (k === 0) {
-        pad(chord, t, 16 * STEP + 0.6, { gain: 0.045, cutoff: 1800, type: 'sawtooth' });
-        T(chord[0] - 12, t, STEP * 8, { type: 'sine', gain: 0.18, attack: 0.03, release: 0.4 });
-      }
-      if (k === 8) T(chord[0] - 12, t, STEP * 8, { type: 'sine', gain: 0.12, attack: 0.03, release: 0.4 });
-      // Harpsichord-ish plucked arpeggio, bright and short.
-      const m = chord[[1, 2, 3, 2][k % 4]] + 12;
-      T(m + (k % 8 === 4 ? 12 : 0), t, STEP * 1.6, { type: 'sawtooth', gain: 0.045, attack: 0.003, release: 0.25, cutoff: 2800 });
-    },
-  },
-  {
-    id: 'chiptune', name: 'Chiptune: 8-Bit Pallet Hero (150 BPM)', bpm: 150, chordSteps: 32,
-    chords: [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62],
-      [62, 65, 69], [55, 59, 62], [57, 60, 64], [55, 59, 62], [60, 64, 67], [64, 67, 71], [65, 69, 72], [67, 71, 74]],
-    step(k, t, chord) {
-      const beat = k % 16;
-      // Pulse-wave arpeggio, triangle bass, noise drums.
-      T(chord[k % 3] + 12 + (k % 8 >= 4 ? 12 : 0), t, STEP * 0.9, { type: 'square', gain: 0.05, attack: 0.002, release: 0.04 });
-      if (k % 2 === 0) T(chord[0] - 12 + (k % 4 === 2 ? 12 : 0), t, STEP * 1.8, { type: 'triangle', gain: 0.2, attack: 0.002, release: 0.05 });
-      if (beat % 8 === 0) kick(t);
-      if (beat === 4 || beat === 12) ND(t, 0.09, { gain: 0.1, cutoff: 3000, type: 'bandpass' });
-      if (beat % 2 === 0) ND(t, 0.02, { gain: 0.03, cutoff: 9000 });
-      // Heroic lead on the second half of each two-bar phrase.
-      if (k >= 16 && k % 2 === 0) {
-        const mel = [0, 2, 4, 2, 5, 4, 2, 0][(k - 16) / 2];
-        T(chord[0] + 24 + [0, 2, 4, 7, 9, 12][Math.min(mel, 5)], t, STEP * 1.9, { type: 'square', gain: 0.04, attack: 0.002, release: 0.05 });
-      }
-    },
-  },
-];
-
 // Public-domain MIDI songs from the Mutopia Project (see assets/midi/CREDITS.md).
-const MIDI_TRACKS = [
+const TRACKS = [
   { id: 'rag-pineapple', name: 'Ragtime: Pineapple Rag', midi: 'assets/midi/pineapple-rag.mid' },
   { id: 'rag-elite', name: 'Ragtime: Elite Syncopations', midi: 'assets/midi/elite-syncopations.mid' },
   { id: 'rag-strenuous', name: 'Ragtime: The Strenuous Life', midi: 'assets/midi/strenuous-life.mid' },
   { id: 'bach-269', name: 'Bach: Chorale BWV 269', midi: 'assets/midi/bach-bwv269.mid' },
 ];
-TRACKS.push(...MIDI_TRACKS);
 
 const songs = new Map(); // url -> parsed song, or 'loading'
 let song = null, songStart = 0, songIdx = 0;
@@ -301,9 +150,6 @@ function midiTick() {
 export const MUSIC_TRACKS = TRACKS.map(({ id, name }) => ({ id, name }));
 
 function applyTrack() {
-  const tr = TRACKS[trackIdx];
-  STEP = 60 / (tr.bpm || 120) / 4;
-  stepIdx = 0;
   song = null;
   if (!ctx) return;
   const old = trackBus;
@@ -313,13 +159,11 @@ function applyTrack() {
   }
   trackBus = ctx.createGain();
   trackBus.connect(musicBus);
-  nextStep = ctx.currentTime + 0.1;
 }
 
 {
   const saved = TRACKS.findIndex((t) => t.id === localStorage.getItem(TRACK_KEY));
   trackIdx = Math.max(0, saved);
-  STEP = 60 / (TRACKS[trackIdx].bpm || 120) / 4;
 }
 
 export function getMusicTrack() { return TRACKS[trackIdx].id; }
@@ -332,32 +176,8 @@ export function setMusicTrack(id) {
   if (ctx) tick();
 }
 
-function scheduleStep(i, t) {
-  const tr = TRACKS[trackIdx];
-  const loop = tr.chordSteps * tr.chords.length;
-  const ci = Math.floor(i / tr.chordSteps) % tr.chords.length;
-  const sec = Math.floor(i / loop) % 4;
-  const k = i % tr.chordSteps;
-  const chord = tr.chords[ci];
-  // Fourth pass: first half is a drumless breakdown, second half builds back with extra hats.
-  thin = sec === 3 && ci < tr.chords.length / 2;
-  tr.step(k, t, chord, ci, i);
-  if (sec === 3 && !thin && k % 2 === 1) noise(trackBus, t, 0.02, { gain: 0.03, cutoff: 9000 });
-  // Second and third pass: a high countermelody that changes shape each time.
-  if ((sec === 1 || sec === 2) && k % 4 === (sec === 1 ? 2 : 0)) {
-    const m = chord[(k / 2 + ci + sec) % chord.length] + 24;
-    T(m, t, STEP * 3, { type: 'sine', gain: 0.045, attack: 0.01, release: 0.4 });
-  }
-}
-
 function tick() {
-  if (!ctx) return;
-  if (TRACKS[trackIdx].midi) { midiTick(); return; }
-  if (nextStep < ctx.currentTime - 0.5) nextStep = ctx.currentTime + 0.05;
-  while (nextStep < ctx.currentTime + 0.4) {
-    scheduleStep(stepIdx++, nextStep);
-    nextStep += STEP;
-  }
+  if (ctx) midiTick();
 }
 
 // Call from a user gesture (browsers block audio before the first key press).
