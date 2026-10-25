@@ -24,8 +24,8 @@ export function deserializeGame(data) {
   const okCarried = s.carried === null || (Array.isArray(s.carried) && s.carried.length > 0 && s.carried.every(Number.isInteger));
   if (!okFl || !okStacks || !okCarried || !Number.isInteger(s.H) || s.H < 0 || s.H > 5) throw new Error('Corrupt state');
   if (s.status !== 'play' && s.status !== 'won') throw new Error('Corrupt state');
-  const boxes = (a) => a.reduce((n, st) => n + st.layers.length, 0) + (s.carried ? s.carried.length : 0);
-  if (boxes(s.stacks) !== boxes(g.stacks)) throw new Error('State does not match level');
+  const boxes = (stacks, carried) => stacks.reduce((n, st) => n + st.layers.length, 0) + (carried ? carried.length : 0);
+  if (boxes(s.stacks, s.carried) !== boxes(g.stacks, null)) throw new Error('State does not match level');
   Object.assign(g, clone(s));
   if (!num(g.hf)) g.hf = g.H;
   if (!num(g.time)) g.time = 0;
