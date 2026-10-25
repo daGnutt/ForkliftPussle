@@ -180,6 +180,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     hf: 0,
     status: 'play',
     time: 0,
+    started: false,
     clock: 0,
   };
 }
@@ -357,12 +358,13 @@ function wallContact(g, speed, kept) {
 export function update(g, input, dt) {
   const f = g.fl;
   g.clock += dt;
-  if (g.status === 'play') g.time += dt; // the level timer stops once solved
   if (g.hits) g.hits = g.hits.filter((h) => g.clock - h.t < HIT_LIFE);
   const forked = g.hard ? forkedStack(g) : null;
   const forkedY = forked ? toLocal(f, boxPos(forked, g.H).x, boxPos(forked, g.H).y).y : 0;
   const prevA = f.a;
   drive(f, input, dt, g.H);
+  if (f.speed !== 0) g.started = true; // the level timer starts when the truck first moves
+  if (g.status === 'play' && g.started) g.time += dt; // and stops once solved
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;
   g.aligning = new Set();

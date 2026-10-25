@@ -38,7 +38,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 - `H`: logical fork level (integer 0–5); `hf`: smoothed value used only for drawing.
 - `parking`: `{x, y, a}` centre/heading of the parking spot (the forklift's spawn pose; random per level, axis-aligned heading). When the spot turns green it also shows an arrow for the required heading (`render.js`, `pov.js`).
 - `hits`: damage popups `{x, y, z, pts, t}` (z in box heights, `t` = `g.clock` at creation), created by `hurt()` in `game.js` whenever crash points are actually added and dropped after `HIT_LIFE` (1.2 s); `hitCount` increases per popup (`main.js` plays `playBreak` when it rises). Drawn as floating red `−pts` text in the overview (`drawOverview`) and the big cabin view (`drawHits` in `pov.js`).
-- `status`: `'play'` or `'won'`; `time`: level timer in seconds, stops once `status` is `'won'` and restarts at 0 with the next `newGame`; `clock`: always-running animation clock (hit popups, blink).
+- `status`: `'play'` or `'won'`; `time`: level timer in seconds, starts when the truck first moves (`started`), stops once `status` is `'won'` and restarts at 0 with the next `newGame`; `clock`: always-running animation clock (hit popups, blink).
 
 ## Rules (see `game.js`)
 - Fork level `H` = box heights above the floor. A stack of n boxes spans heights 0..n. `forkUp` lifts the box at height `H` and everything above it; level 0 lifts the whole stack.

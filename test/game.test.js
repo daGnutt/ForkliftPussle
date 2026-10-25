@@ -670,6 +670,8 @@ console.log('all tests passed');
 {
   const g = newGame(1);
   run(g, {}, 1);
+  assert.strictEqual(g.time, 0, 'timer waits for first movement');
+  run(g, { up: true }, 1);
   assert(Math.abs(g.time - 1) < 0.05);
   g.status = 'won';
   const t = g.time;
