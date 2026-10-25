@@ -32,39 +32,86 @@ function init() {
   sfxBus.gain.value = 0.5;
   sfxBus.connect(master);
 
-  // Soft feedback delay acts as a cheap reverb for the music.
+  // Music bus: cut low-mid mud, add a little presence, glue with a gentle compressor.
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 35;
+  const mud = ctx.createBiquadFilter();
+  mud.type = 'peaking';
+  mud.frequency.value = 280;
+  mud.Q.value = 0.9;
+  mud.gain.value = -4;
+  const air = ctx.createBiquadFilter();
+  air.type = 'highshelf';
+  air.frequency.value = 4500;
+  air.gain.value = 3;
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -20;
+  comp.ratio.value = 3;
+  comp.attack.value = 0.01;
+  comp.release.value = 0.2;
+  musicBus.connect(hp);
+  hp.connect(mud);
+  mud.connect(air);
+  air.connect(comp);
+  comp.connect(master);
+
+  // Short, dark-but-clear feedback delay as a cheap reverb; lows are removed so it doesn't cloud the mix.
   const delay = ctx.createDelay(1);
-  delay.delayTime.value = 0.42;
+  delay.delayTime.value = 0.3;
   const fb = ctx.createGain();
-  fb.gain.value = 0.4;
+  fb.gain.value = 0.25;
+  const send = ctx.createGain();
+  send.gain.value = 0.5;
+  const wetHp = ctx.createBiquadFilter();
+  wetHp.type = 'highpass';
+  wetHp.frequency.value = 400;
   const damp = ctx.createBiquadFilter();
   damp.type = 'lowpass';
-  damp.frequency.value = 1800;
-  musicBus.connect(master);
-  musicBus.connect(delay);
-  delay.connect(damp);
+  damp.frequency.value = 3200;
+  air.connect(send);
+  send.connect(delay);
+  delay.connect(wetHp);
+  wetHp.connect(damp);
   damp.connect(fb);
   fb.connect(delay);
   damp.connect(master);
   applyTrack();
 }
 
-function tone(dest, freq, t, dur, { type = 'sine', gain = 0.2, attack = 0.02, release = 0.2, cutoff = 0 } = {}) {
+function tone(dest, freq, t, dur, { type = 'sine', gain = 0.2, attack = 0.02, release = 0.2, cutoff = 0, cutoffEnd = 0, q = 0.7, hp = 0, decay = 0, detune = 0 } = {}) {
   const o = ctx.createOscillator();
   const g = ctx.createGain();
   o.type = type;
   o.frequency.setValueAtTime(freq, t);
+  if (detune) o.detune.value = detune;
   g.gain.setValueAtTime(0, t);
   g.gain.linearRampToValueAtTime(gain, t + attack);
-  g.gain.setValueAtTime(gain, t + Math.max(attack, dur - release));
+  if (decay) {
+    // Percussive body: exponential fall towards a quiet sustain, then a short release.
+    g.gain.exponentialRampToValueAtTime(gain * 0.25, t + attack + decay);
+    g.gain.setValueAtTime(gain * 0.25, t + Math.max(attack + decay, dur - release));
+  } else {
+    g.gain.setValueAtTime(gain, t + Math.max(attack, dur - release));
+  }
   g.gain.linearRampToValueAtTime(0, t + dur);
   let out = o;
   if (cutoff) {
     const f = ctx.createBiquadFilter();
     f.type = 'lowpass';
-    f.frequency.value = cutoff;
-    o.connect(f);
+    f.Q.value = q;
+    f.frequency.setValueAtTime(cutoff, t);
+    // Bright attack that mellows out, like a plucked or struck string.
+    if (cutoffEnd) f.frequency.exponentialRampToValueAtTime(cutoffEnd, t + Math.min(dur, 0.4));
+    out.connect(f);
     out = f;
+  }
+  if (hp) {
+    const h = ctx.createBiquadFilter();
+    h.type = 'highpass';
+    h.frequency.value = hp;
+    out.connect(h);
+    out = h;
   }
   out.connect(g);
   g.connect(dest);
@@ -154,28 +201,34 @@ function midiTick() {
 }
 
 // Tiny General MIDI-ish synth: drums from noise/sine, guitars as filtered saws, bass, leads, piano-like default.
+// Voices avoid long sustains and keep lows to the bass/kick so the mix stays clear.
 function voice(n, t) {
-  const g = 0.14 * (0.4 + 0.6 * n.vel / 127);
+  const v = n.vel / 127;
+  const g = 0.14 * (0.4 + 0.6 * v);
   if (n.drum) {
     const k = n.note;
     if (k === 35 || k === 36) {
       const o = ctx.createOscillator(), e = ctx.createGain();
-      o.frequency.setValueAtTime(150, t);
-      o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
-      e.gain.setValueAtTime(g * 2.2, t);
-      e.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      o.frequency.setValueAtTime(160, t);
+      o.frequency.exponentialRampToValueAtTime(48, t + 0.09);
+      e.gain.setValueAtTime(g * 2, t);
+      e.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
       o.connect(e);
       e.connect(trackBus);
       o.start(t);
-      o.stop(t + 0.25);
-    } else if (k === 38 || k === 40 || k === 37 || k === 39) {
-      noise(trackBus, t, 0.14, { gain: g * 1.3, cutoff: 1800, type: 'bandpass' });
+      o.stop(t + 0.2);
+      noise(trackBus, t, 0.015, { gain: g * 0.8, cutoff: 3000 }); // beater click
+    } else if (k === 38 || k === 40) {
+      noise(trackBus, t, 0.16, { gain: g * 1.1, cutoff: 2500, type: 'highpass' });
+      tone(trackBus, 190, t, 0.1, { type: 'triangle', gain: g * 0.9, attack: 0.001, release: 0.09 });
+    } else if (k === 37 || k === 39) {
+      noise(trackBus, t, 0.08, { gain: g * 1.1, cutoff: 2000, type: 'bandpass' });
     } else if (k === 42 || k === 44) {
-      noise(trackBus, t, 0.04, { gain: g * 0.6, cutoff: 8000 });
+      noise(trackBus, t, 0.035, { gain: g * 0.5, cutoff: 8000 });
     } else if (k === 46 || k === 49 || k === 51 || k === 57 || k === 59) {
-      noise(trackBus, t, 0.3, { gain: g * 0.5, cutoff: 7000 });
+      noise(trackBus, t, 0.25, { gain: g * 0.4, cutoff: 7000 });
     } else if (k >= 41 && k <= 50) {
-      tone(trackBus, mtof(36 + (k - 41) * 2), t, 0.2, { type: 'sine', gain: g * 1.5, attack: 0.002, release: 0.18 });
+      tone(trackBus, mtof(40 + (k - 41) * 2.5), t, 0.18, { type: 'sine', gain: g * 1.3, attack: 0.002, release: 0.15 });
     } else {
       noise(trackBus, t, 0.05, { gain: g * 0.5, cutoff: 5000 });
     }
@@ -184,18 +237,29 @@ function voice(n, t) {
   const dur = Math.min(Math.max(n.dur, 0.12), 2.5);
   const f = mtof(n.note);
   const p = n.prog;
-  if (p >= 24 && p <= 31) { // guitars; distorted ones get a harsher saw
+  const bright = 1.5 + 2.5 * v; // harder notes are brighter
+  if (p >= 24 && p <= 31) { // guitars: two detuned saws, lows removed
     const dist = p >= 29;
-    tone(trackBus, f, t, dur + 0.1, { type: 'sawtooth', gain: g * (dist ? 0.7 : 0.5), attack: 0.005, release: 0.1, cutoff: dist ? 2200 : 1600 });
-  } else if (p >= 32 && p <= 39) {
-    tone(trackBus, f, t, dur + 0.05, { type: 'triangle', gain: g * 1.6, attack: 0.005, release: 0.08, cutoff: 900 });
-  } else if (p >= 80 && p <= 103) {
-    tone(trackBus, f, t, dur + 0.05, { type: 'square', gain: g * 0.35, attack: 0.005, release: 0.08, cutoff: 3500 });
-  } else if (p >= 48 && p <= 55) {
-    tone(trackBus, f, t, dur + 0.3, { type: 'sawtooth', gain: g * 0.3, attack: 0.15, release: 0.3, cutoff: 1800 });
-  } else {
-    tone(trackBus, f, t, dur + 0.25, { type: 'triangle', gain: g, attack: 0.008, release: dur + 0.2, cutoff: 3000 });
-    tone(trackBus, f, t, dur * 0.5 + 0.1, { type: 'sine', gain: g * 0.5, attack: 0.005, release: dur * 0.5 });
+    const cut = Math.min(f * (dist ? 8 : 6), 7000);
+    for (const d of [-7, 7]) {
+      tone(trackBus, f, t, dur + 0.08, { type: 'sawtooth', gain: g * (dist ? 0.4 : 0.32), attack: 0.004, release: 0.08, cutoff: cut, cutoffEnd: cut * 0.5, q: dist ? 2 : 1, hp: 110, detune: d, decay: dist ? 0 : 0.35 });
+    }
+  } else if (p >= 32 && p <= 39) { // bass: saw body for definition plus a sine sub
+    tone(trackBus, f, t, dur + 0.04, { type: 'sawtooth', gain: g * 0.55, attack: 0.004, release: 0.06, cutoff: Math.max(f * 5, 500), cutoffEnd: Math.max(f * 2.5, 300), q: 2, decay: 0.25 });
+    tone(trackBus, f, t, dur + 0.04, { type: 'sine', gain: g * 0.9, attack: 0.004, release: 0.06 });
+  } else if (p >= 80 && p <= 103) { // synth leads/pads
+    for (const d of [-6, 6]) {
+      tone(trackBus, f, t, dur + 0.05, { type: 'sawtooth', gain: g * 0.22, attack: 0.006, release: 0.1, cutoff: Math.min(f * 7, 7000), q: 1.2, hp: 150, detune: d });
+    }
+  } else if (p >= 48 && p <= 55) { // strings/ensemble
+    for (const d of [-8, 8]) {
+      tone(trackBus, f, t, dur + 0.2, { type: 'sawtooth', gain: g * 0.2, attack: 0.07, release: 0.2, cutoff: Math.min(f * 5, 5000), hp: 140, detune: d });
+    }
+  } else { // piano-ish: bright struck attack that decays quickly, short release
+    const cut = Math.min(f * bright * 2, 9000);
+    tone(trackBus, f, t, Math.min(dur + 0.15, 1.6), { type: 'sawtooth', gain: g * 0.55, attack: 0.002, release: 0.12, cutoff: cut, cutoffEnd: Math.max(f * 1.5, 500), decay: 0.3, hp: f < 200 ? 0 : 120 });
+    tone(trackBus, f, t, Math.min(dur + 0.1, 1.2), { type: 'triangle', gain: g * 0.5, attack: 0.002, release: 0.1, decay: 0.25 });
+    tone(trackBus, f * 2, t, 0.25, { type: 'sine', gain: g * 0.25, attack: 0.001, release: 0.2 });
   }
 }
 
