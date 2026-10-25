@@ -19,6 +19,7 @@ let ctx = null, master = null, musicBus = null, sfxBus = null;
 let muted = localStorage.getItem(MUTE_KEY) === '1';
 let nextStep = 0, stepIdx = 0, timer = null, noiseBuf = null;
 let engine = null;
+let beeper = null;
 const ALL_KEY = 'forklift-all-muted';
 let allMuted = localStorage.getItem(ALL_KEY) === '1';
 const MASTER_VOL = 0.8;
@@ -192,6 +193,7 @@ export function setEngineOn(on) {
   engineOn = on;
   localStorage.setItem(ENGINE_KEY, on ? '0' : '1');
   if (!on && engine && ctx) engine.g.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+  if (!on && beeper && ctx) beeper.g.gain.setTargetAtTime(0, ctx.currentTime, 0.01);
 }
 
 export function setMusicMuted(m) {
@@ -280,4 +282,22 @@ export function setEngine(speed, throttle) {
   engine.o2.frequency.setTargetAtTime(pitch * 2, t, 0.08);
   engine.f.frequency.setTargetAtTime(500 + v * 1800, t, 0.1);
   engine.g.gain.setTargetAtTime(0.012 + v * 0.05 + (throttle ? 0.01 : 0), t, 0.1);
+  setBeeper(speed < -0.05, t);
+}
+
+// Reversing warning: 1 kHz square beep, 0.4 s on / 0.4 s off while backing up.
+function setBeeper(reversing, t) {
+  if (!beeper) {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'square';
+    o.frequency.value = 1000;
+    g.gain.value = 0;
+    o.connect(g);
+    g.connect(sfxBus);
+    o.start();
+    beeper = { o, g };
+  }
+  const on = reversing && t % 0.8 < 0.4;
+  beeper.g.gain.setTargetAtTime(on ? 0.02 : 0, t, 0.005);
 }
