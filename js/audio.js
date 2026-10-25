@@ -3,21 +3,13 @@
 const MUTE_KEY = 'forklift-music-muted';
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
-// Am9, Fmaj7, Cmaj7, G6 – MIDI notes.
-const CHORDS = [
-  [57, 60, 64, 67, 71],
-  [53, 60, 64, 67, 69],
-  [48, 55, 64, 67, 71],
-  [55, 59, 62, 64, 69],
-];
 const MUSIC_VOL = 0.35;
-const BPM = 98;
-const STEP = 60 / BPM / 4; // 16th note
-const STEPS_PER_CHORD = 32; // two bars
+const TRACK_KEY = 'forklift-music-track';
 
 let ctx = null, master = null, musicBus = null, sfxBus = null;
 let muted = localStorage.getItem(MUTE_KEY) === '1';
 let nextStep = 0, stepIdx = 0, timer = null, noiseBuf = null;
+let trackIdx = 0, trackBus = null, STEP = 0.15;
 let engine = null;
 let beeper = null;
 const ALL_KEY = 'forklift-all-muted';
@@ -53,6 +45,7 @@ function init() {
   damp.connect(fb);
   fb.connect(delay);
   damp.connect(master);
+  applyTrack();
 }
 
 function tone(dest, freq, t, dur, { type = 'sine', gain = 0.2, attack = 0.02, release = 0.2, cutoff = 0 } = {}) {
@@ -108,45 +101,159 @@ function kick(t) {
   g.gain.setValueAtTime(0.5, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
   o.connect(g);
-  g.connect(musicBus);
+  g.connect(trackBus);
   o.start(t);
   o.stop(t + 0.25);
 }
 
-function schedulePad(chord, t) {
-  chord.forEach((m, i) => {
-    tone(musicBus, mtof(m), t, STEPS_PER_CHORD * STEP + 1.2, {
-      type: i === 0 ? 'sine' : 'triangle',
-      gain: i === 0 ? 0.1 : 0.05,
-      attack: 0.8,
-      release: 1.6,
-      cutoff: 1200,
-    });
-  });
+const T = (m, t, dur, o) => tone(trackBus, mtof(m), t, dur, o);
+const N = (t, dur, o) => noise(trackBus, t, dur, o);
+const pad = (chord, t, len, { gain = 0.05, cutoff = 1200, type = 'triangle' } = {}) => {
+  chord.forEach((m, i) => T(m, t, len, { type: i === 0 ? 'sine' : type, gain: i === 0 ? gain * 2 : gain, attack: 0.8, release: 1.6, cutoff }));
+};
+
+// Each track: 16th-note step scheduler. `chordSteps` steps per chord; `step(k, t, chord, ci, n)`
+// gets the step within the chord, the time, the chord, chord index and the global step number.
+const TRACKS = [
+  {
+    id: 'chill', name: 'Chill: Pallet Pad Lounge (ambient)', bpm: 98, chordSteps: 32,
+    chords: [[57, 60, 64, 67, 71], [53, 60, 64, 67, 69], [48, 55, 64, 67, 71], [55, 59, 62, 64, 69]],
+    step(k, t, chord) {
+      const beat = k % 16;
+      if (k === 0) pad(chord, t, 32 * STEP + 1.2);
+      if (beat % 4 === 0) kick(t);
+      if (beat % 4 === 2) N(t, 0.05, { gain: 0.05 });
+      if (beat === 4 || beat === 12) N(t, 0.12, { gain: 0.08, cutoff: 1800, type: 'bandpass' });
+      if ([0, 3, 6, 10, 14].includes(beat)) T(chord[0] - 12, t, STEP * 2.2, { type: 'sawtooth', gain: 0.1, attack: 0.01, release: 0.12, cutoff: 380 });
+      if (k % 2 === 0) {
+        const m = chord[[1, 2, 3, 4, 3, 2, 4, 3][(k / 2) % 8]] + (k >= 16 ? 12 : 0);
+        T(m + 12, t, STEP * 3, { type: 'triangle', gain: 0.06, attack: 0.01, release: 0.25, cutoff: 3000 });
+      }
+    },
+  },
+  {
+    id: 'metal', name: 'Heavy Metal: Fork-Lift of Doom (140 BPM)', bpm: 140, chordSteps: 16,
+    chords: [[40, 47, 52], [36, 43, 48], [38, 45, 50], [35, 42, 47]],
+    step(k, t, chord, ci) {
+      // Palm-muted chugs on the 16ths, open chord stabs on the downbeat, double-bass kick.
+      const chug = [0, 1, 3, 4, 6, 8, 9, 11, 12, 14].includes(k);
+      if (chug) chord.forEach((m) => T(m, t, STEP * (k === 0 ? 3.5 : 0.8), { type: 'sawtooth', gain: 0.07, attack: 0.003, release: 0.05, cutoff: 1500 }));
+      if (k % 2 === 0 || k >= 12) kick(t);
+      if (k === 4 || k === 12) N(t, 0.15, { gain: 0.14, cutoff: 2200, type: 'bandpass' });
+      if (k % 4 === 2) N(t, 0.04, { gain: 0.04 });
+      if (k === 0 && ci % 4 === 0) N(t, 0.9, { gain: 0.08, cutoff: 5000 });
+      // Pentatonic lead screams over the last two chords.
+      if (ci >= 2 && k % 2 === 0) {
+        const lead = [64, 67, 69, 71, 74, 71, 69, 67][(k / 2 + ci) % 8];
+        T(lead + 12, t, STEP * 2, { type: 'square', gain: 0.035, attack: 0.01, release: 0.1, cutoff: 3500 });
+      }
+    },
+  },
+  {
+    id: 'hiphop', name: 'Hip Hop: Boom-Bap Box Shuffle (90 BPM)', bpm: 90, chordSteps: 32,
+    chords: [[50, 53, 57, 60, 64], [43, 46, 50, 53, 57], [46, 50, 53, 57, 62], [45, 49, 52, 55, 60]],
+    step(k, t, chord) {
+      const beat = k % 16, sw = beat % 2 ? STEP * 0.25 : 0; // lazy swing on off-16ths
+      if (k === 0) pad(chord, t, 32 * STEP + 0.5, { gain: 0.045, cutoff: 900 });
+      if ([0, 7, 10].includes(beat)) kick(t);
+      if (beat === 4 || beat === 12) { N(t, 0.16, { gain: 0.16, cutoff: 1500, type: 'bandpass' }); N(t, 0.05, { gain: 0.08, cutoff: 600, type: 'lowpass' }); }
+      if (beat % 2 === 0) N(t + sw, 0.035, { gain: beat % 4 === 0 ? 0.06 : 0.035 });
+      if ([0, 6, 8, 14].includes(beat)) T(chord[0] - 12, t, STEP * 3, { type: 'sine', gain: 0.22, attack: 0.01, release: 0.2 });
+      // Dusty electric-piano licks.
+      if ([2, 5, 9, 13].includes(beat)) T(chord[1 + (k % 3)] + 12, t + sw, STEP * 2.5, { type: 'triangle', gain: 0.06, attack: 0.005, release: 0.3, cutoff: 2200 });
+    },
+  },
+  {
+    id: 'rap', name: 'Rap: Trap Fork 808 (140 BPM)', bpm: 140, chordSteps: 32,
+    chords: [[45, 48, 52], [41, 45, 48], [43, 46, 50], [40, 44, 47]],
+    step(k, t, chord, ci, n) {
+      const beat = k % 16;
+      if (k === 0) pad(chord.map((m) => m + 12), t, 32 * STEP + 0.5, { gain: 0.03, cutoff: 800 });
+      // Half-time feel: kick on 1 and the "and" of 2, clap on 3, rolling hats with bursts.
+      if (beat === 0 || beat === 7 || beat === 10) kick(t);
+      if (beat === 8) { N(t, 0.2, { gain: 0.18, cutoff: 1800, type: 'bandpass' }); N(t + 0.012, 0.15, { gain: 0.1, cutoff: 1400, type: 'bandpass' }); }
+      N(t, 0.03, { gain: beat % 4 === 0 ? 0.05 : 0.03 });
+      if (k % 16 === 14 || (ci % 2 === 1 && k % 16 === 6)) N(t + STEP / 2, 0.025, { gain: 0.035 });
+      // Sliding 808 sub.
+      if ([0, 7, 10, 14].includes(beat)) {
+        const o = T(chord[0] - 12, t, STEP * (beat === 0 ? 6 : 2.5), { type: 'sine', gain: 0.3, attack: 0.005, release: 0.2 });
+        if (beat === 14) { o.frequency.setValueAtTime(mtof(chord[0] - 12), t); o.frequency.linearRampToValueAtTime(mtof(chord[0] - 5), t + STEP * 2.5); }
+      }
+      // Eerie bell melody.
+      if (k % 4 === 0 || k % 16 === 11) T(chord[(n >> 2) % 3] + 24, t, STEP * 3, { type: 'sine', gain: 0.05, attack: 0.003, release: 0.5 });
+    },
+  },
+  {
+    id: 'classical', name: 'Classical: Canon in Fork Major (72 BPM)', bpm: 72, chordSteps: 16,
+    chords: [[50, 57, 62, 66], [45, 57, 61, 64], [47, 54, 62, 66], [42, 54, 61, 64], [43, 55, 62, 67], [50, 57, 62, 66], [43, 55, 62, 67], [45, 57, 61, 64]],
+    step(k, t, chord) {
+      if (k === 0) {
+        pad(chord, t, 16 * STEP + 0.6, { gain: 0.045, cutoff: 1800, type: 'sawtooth' });
+        T(chord[0] - 12, t, STEP * 8, { type: 'sine', gain: 0.18, attack: 0.03, release: 0.4 });
+      }
+      if (k === 8) T(chord[0] - 12, t, STEP * 8, { type: 'sine', gain: 0.12, attack: 0.03, release: 0.4 });
+      // Harpsichord-ish plucked arpeggio, bright and short.
+      const m = chord[[1, 2, 3, 2][k % 4]] + 12;
+      T(m + (k % 8 === 4 ? 12 : 0), t, STEP * 1.6, { type: 'sawtooth', gain: 0.045, attack: 0.003, release: 0.25, cutoff: 2800 });
+    },
+  },
+  {
+    id: 'chiptune', name: 'Chiptune: 8-Bit Pallet Hero (150 BPM)', bpm: 150, chordSteps: 32,
+    chords: [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]],
+    step(k, t, chord) {
+      const beat = k % 16;
+      // Pulse-wave arpeggio, triangle bass, noise drums.
+      T(chord[k % 3] + 12 + (k % 8 >= 4 ? 12 : 0), t, STEP * 0.9, { type: 'square', gain: 0.05, attack: 0.002, release: 0.04 });
+      if (k % 2 === 0) T(chord[0] - 12 + (k % 4 === 2 ? 12 : 0), t, STEP * 1.8, { type: 'triangle', gain: 0.2, attack: 0.002, release: 0.05 });
+      if (beat % 8 === 0) kick(t);
+      if (beat === 4 || beat === 12) N(t, 0.09, { gain: 0.1, cutoff: 3000, type: 'bandpass' });
+      if (beat % 2 === 0) N(t, 0.02, { gain: 0.03, cutoff: 9000 });
+      // Heroic lead on the second half of each two-bar phrase.
+      if (k >= 16 && k % 2 === 0) {
+        const mel = [0, 2, 4, 2, 5, 4, 2, 0][(k - 16) / 2];
+        T(chord[0] + 24 + [0, 2, 4, 7, 9, 12][Math.min(mel, 5)], t, STEP * 1.9, { type: 'square', gain: 0.04, attack: 0.002, release: 0.05 });
+      }
+    },
+  },
+];
+
+export const MUSIC_TRACKS = TRACKS.map(({ id, name }) => ({ id, name }));
+
+function applyTrack() {
+  const tr = TRACKS[trackIdx];
+  STEP = 60 / tr.bpm / 4;
+  stepIdx = 0;
+  if (!ctx) return;
+  const old = trackBus;
+  if (old) {
+    old.gain.setTargetAtTime(0, ctx.currentTime, 0.08);
+    setTimeout(() => old.disconnect(), 1500);
+  }
+  trackBus = ctx.createGain();
+  trackBus.connect(musicBus);
+  nextStep = ctx.currentTime + 0.1;
+}
+
+{
+  const saved = TRACKS.findIndex((t) => t.id === localStorage.getItem(TRACK_KEY));
+  trackIdx = Math.max(0, saved);
+  STEP = 60 / TRACKS[trackIdx].bpm / 4;
+}
+
+export function getMusicTrack() { return TRACKS[trackIdx].id; }
+export function setMusicTrack(id) {
+  const i = TRACKS.findIndex((t) => t.id === id);
+  if (i < 0 || i === trackIdx) return;
+  trackIdx = i;
+  localStorage.setItem(TRACK_KEY, id);
+  applyTrack();
+  if (ctx) tick();
 }
 
 function scheduleStep(i, t) {
-  const chord = CHORDS[Math.floor(i / STEPS_PER_CHORD) % CHORDS.length];
-  const k = i % STEPS_PER_CHORD;
-  const beat = k % 16;
-  if (k === 0) schedulePad(chord, t);
-
-  // Drums: four on the floor-ish kick, off-beat hats, snare-like tick on 2 and 4.
-  if (beat % 4 === 0) kick(t);
-  if (beat % 4 === 2) noise(musicBus, t, 0.05, { gain: 0.05 });
-  if (beat === 4 || beat === 12) noise(musicBus, t, 0.12, { gain: 0.08, cutoff: 1800, type: 'bandpass' });
-
-  // Syncopated bass on the chord root.
-  if ([0, 3, 6, 10, 14].includes(beat)) {
-    tone(musicBus, mtof(chord[0] - 12), t, STEP * 2.2, { type: 'sawtooth', gain: 0.1, attack: 0.01, release: 0.12, cutoff: 380 });
-  }
-
-  // 8th-note arpeggio over the chord tones, with an octave lift on the last bar.
-  if (k % 2 === 0) {
-    const pattern = [1, 2, 3, 4, 3, 2, 4, 3];
-    const m = chord[pattern[(k / 2) % pattern.length]] + (k >= 16 ? 12 : 0);
-    tone(musicBus, mtof(m + 12), t, STEP * 3, { type: 'triangle', gain: 0.06, attack: 0.01, release: 0.25, cutoff: 3000 });
-  }
+  const tr = TRACKS[trackIdx];
+  const ci = Math.floor(i / tr.chordSteps) % tr.chords.length;
+  tr.step(i % tr.chordSteps, t, tr.chords[ci], ci, i);
 }
 
 function tick() {

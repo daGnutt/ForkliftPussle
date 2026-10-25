@@ -5,7 +5,7 @@ import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
-import { startAudio, playFork, playBlocked, playBreak, playSuccess, setEngine, setSilenced, isMusicMuted, setMusicMuted, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playFork, playBlocked, playBreak, playSuccess, setEngine, setSilenced, isMusicMuted, setMusicMuted, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -194,6 +194,10 @@ window.addEventListener('keydown', (e) => {
 const menuEl = document.getElementById('menu');
 const engineOpt = document.getElementById('engineOpt');
 const musicOpt = document.getElementById('musicOpt');
+const trackSel = document.getElementById('trackSel');
+for (const t of MUSIC_TRACKS) trackSel.add(new Option(t.name, t.id));
+trackSel.value = getMusicTrack();
+trackSel.addEventListener('change', () => { setMusicTrack(trackSel.value); startAudio(); });
 const muteOpt = document.getElementById('muteOpt');
 const menuLevel = document.getElementById('menuLevel');
 const decalOpt = document.getElementById('decalOpt');
@@ -242,12 +246,14 @@ window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
   if (e.code === 'Escape' || (e.code === 'KeyP' && e.target !== menuLevel)) { e.preventDefault(); toggleMenu(false); return; }
+  if (e.target === trackSel && e.code !== 'KeyT') return;
   if (e.target === menuLevel || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
   const toggle = (el) => { el.checked = !el.checked; el.dispatchEvent(new Event('change')); };
   const actions = {
     KeyA: () => toggle(muteOpt),
     KeyE: () => toggle(engineOpt),
     KeyM: () => toggle(musicOpt),
+    KeyT: () => trackSel.focus(),
     KeyD: () => toggle(decalOpt),
     KeyH: () => toggle(menuHardOpt),
     KeyG: () => { menuLevel.focus(); menuLevel.select(); },
