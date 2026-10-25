@@ -1,6 +1,6 @@
 import { newGame, update, forkUp, forkDown, zoneDone, score } from './game.js';
 import { createInput } from './input.js';
-import { getBest, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
+import { getBest, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
@@ -232,6 +232,10 @@ document.getElementById('menuGoto').addEventListener('submit', (e) => {
   const n = parseInt(menuLevel.value, 10);
   if (n >= 1) { load(n); toggleMenu(false); }
 });
+document.getElementById('menuLowest').addEventListener('click', () => {
+  load(lowestUnscored(localStorage, seed));
+  toggleMenu(false);
+});
 document.getElementById('menuFullscreen').addEventListener('click', toggleFullscreen);
 document.getElementById('menuResume').addEventListener('click', () => toggleMenu(false));
 document.getElementById('menuRestart').addEventListener('click', () => {
@@ -257,6 +261,7 @@ window.addEventListener('keydown', (e) => {
     KeyD: () => toggle(decalOpt),
     KeyH: () => toggle(menuHardOpt),
     KeyG: () => { menuLevel.focus(); menuLevel.select(); },
+    KeyL: () => document.getElementById('menuLowest').click(),
     KeyF: toggleFullscreen,
     KeyR: () => document.getElementById('menuRestart').click(),
     KeyU: () => toggleMenu(false),
