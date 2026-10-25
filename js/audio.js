@@ -384,11 +384,11 @@ export function playBreak() {
 export function playBonk(power = 0.5) {
   if (!ctx || ctx.state !== 'running') return;
   const t = ctx.currentTime, k = 0.5 + power;
-  const o = tone(sfxBus, 1, t, 0.22, { type: 'sine', gain: 0.3 * k, attack: 0.003, release: 0.15 });
+  const o = tone(sfxBus, 1, t, 0.22, { type: 'sine', gain: 0.7 * k, attack: 0.003, release: 0.15 });
   o.frequency.cancelScheduledValues(t);
   o.frequency.setValueAtTime(150, t);
   o.frequency.exponentialRampToValueAtTime(45, t + 0.18);
-  noise(sfxBus, t, 0.06, { gain: 0.2 * k, cutoff: 900, type: 'lowpass' });
+  noise(sfxBus, t, 0.06, { gain: 0.45 * k, cutoff: 900, type: 'lowpass' });
 }
 
 // Metal scraping along a wall: gritty filtered noise whose level and pitch follow the sliding speed (0 = silent).
