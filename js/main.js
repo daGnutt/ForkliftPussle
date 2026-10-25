@@ -13,9 +13,11 @@ const ctx = canvas.getContext('2d');
 const view = { width: 0, height: 0, dpr: 1, povBig: localStorage.getItem('forklift-cab-view') === '1', showSmall: false };
 
 function resize() {
-  view.dpr = window.devicePixelRatio || 1;
   view.width = canvas.clientWidth;
   view.height = canvas.clientHeight;
+  view.dpr = window.devicePixelRatio || 1;
+  // Phones report a dpr of ~3 (9x the pixels); cap the backing store so drawing stays fast, CSS scales it up.
+  if (matchMedia('(pointer: coarse)').matches) view.dpr = Math.min(view.dpr, 1.5, Math.sqrt(1.2e6 / Math.max(1, view.width * view.height)));
   canvas.width = Math.round(view.width * view.dpr);
   canvas.height = Math.round(view.height * view.dpr);
 }
