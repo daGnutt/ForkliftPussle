@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { generateLevel, parseSeed } from '../js/level.js';
 import { FL, toLocal, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
+import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown } from '../js/game.js';
 
 const NONE = {};
@@ -731,4 +732,29 @@ console.log('all tests passed');
   }
   assert.ok(multi > 0, 'some wall has two doors');
   console.log('multi door ok');
+}
+
+// Save / restore a level in progress through JSON (localStorage and export/import).
+{
+  const g = newGame(3, 7, true);
+  run(g, { up: true }, 1.5);
+  run(g, { left: true, up: true }, 1);
+  forkUp(g);
+  const json = JSON.stringify(serializeGame(g, 'abc'));
+  const r = deserializeGame(JSON.parse(json));
+  assert.equal(r.level, 3);
+  assert.equal(r.seed, 7);
+  assert.equal(r.hard, true);
+  assert.deepEqual(r.fl, g.fl);
+  assert.deepEqual(r.stacks, g.stacks);
+  assert.equal(r.H, g.H);
+  assert.equal(r.time, g.time);
+  assert.equal(r.walls.length, g.walls.length);
+  run(g, { up: true }, 1);
+  run(r, { up: true }, 1);
+  assert.deepEqual(r.fl, g.fl);
+  assert.throws(() => deserializeGame({ version: 99 }));
+  assert.throws(() => deserializeGame({ ...JSON.parse(json), level: 4 }));
+  assert.throws(() => deserializeGame({ ...JSON.parse(json), state: { ...JSON.parse(json).state, fl: null } }));
+  console.log('savestate ok');
 }

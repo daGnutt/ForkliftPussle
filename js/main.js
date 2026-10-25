@@ -1,6 +1,7 @@
 import { newGame, update, forkUp, forkDown, zoneDone, score } from './game.js';
 import { createInput } from './input.js';
 import { getBest, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
+import { serializeGame, deserializeGame } from './savestate.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
@@ -26,6 +27,16 @@ let seedText = localStorage.getItem('forklift-seed') || '';
 let seed = parseSeed(seedText);
 let hard = localStorage.getItem('forklift-hard') === '1';
 let game = newGame(level, seed, hard);
+function loadSaved() {
+  try {
+    const data = JSON.parse(localStorage.getItem('forklift-state'));
+    if (data && data.level === level && data.seed === seed && data.hard === hard) game = deserializeGame(data);
+  } catch { localStorage.removeItem('forklift-state'); }
+}
+loadSaved();
+function saveState() {
+  localStorage.setItem('forklift-state', JSON.stringify(serializeGame(game, seedText)));
+}
 const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
 let doneZones = countDone();
 let hitCount = 0;
@@ -52,6 +63,7 @@ function load(n) {
   hitCount = game.hitCount;
   bonkCount = game.bonks;
   view.best = getBest(localStorage, seed, level);
+  saveState();
 }
 
 function toggleFullscreen() {
@@ -255,6 +267,7 @@ document.getElementById('menuRestart').addEventListener('click', () => {
 window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
+  if (e.target === stateText) { if (e.code === 'Escape') { e.preventDefault(); toggleMenu(false); } return; }
   if (e.code === 'Escape' || (e.code === 'KeyP' && e.target !== menuLevel)) { e.preventDefault(); toggleMenu(false); return; }
   if (e.code === 'Enter' && e.target !== menuLevel) { e.preventDefault(); toggleMenu(false); return; }
   if (e.target === trackSel && e.code !== 'KeyT') return;
@@ -275,6 +288,45 @@ window.addEventListener('keydown', (e) => {
   };
   if (actions[e.code]) { e.preventDefault(); actions[e.code](); }
 }, true);
+
+const stateText = document.getElementById('stateText');
+const stateMsg = document.getElementById('stateMsg');
+document.getElementById('stateExport').addEventListener('click', () => {
+  stateText.value = JSON.stringify(serializeGame(game, seedText));
+  stateText.select();
+  navigator.clipboard?.writeText(stateText.value).then(() => { stateMsg.textContent = 'Exported and copied to clipboard.'; }, () => { stateMsg.textContent = 'Exported; copy the text above.'; });
+  if (!navigator.clipboard) stateMsg.textContent = 'Exported; copy the text above.';
+});
+document.getElementById('stateImport').addEventListener('click', () => {
+  let g, data;
+  try {
+    data = JSON.parse(stateText.value);
+    g = deserializeGame(data);
+  } catch (err) {
+    stateMsg.textContent = `Import failed: ${err.message}`;
+    return;
+  }
+  if (recordOpen) closeRecord();
+  seedText = typeof data.seedText === 'string' ? data.seedText : String(data.seed);
+  seed = data.seed;
+  hard = g.hard;
+  level = g.level;
+  localStorage.setItem('forklift-seed', seedText);
+  localStorage.setItem('forklift-hard', hard ? '1' : '0');
+  localStorage.setItem('forklift-level', String(level));
+  seedInput.value = seedText;
+  hardOpt.checked = hard;
+  game = g;
+  recorded = g.status === 'won';
+  doneZones = countDone();
+  hitCount = g.hitCount;
+  bonkCount = g.bonks;
+  view.best = getBest(localStorage, seed, level);
+  saveState();
+  toggleMenu(false);
+});
+window.addEventListener('pagehide', saveState);
+setInterval(() => { if (!splashOn && !view.paused) saveState(); }, 1000);
 
 const lostFocus = () => document.hidden || !document.hasFocus();
 function applyPause() {

@@ -17,6 +17,9 @@ Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift an
 | Esc / P | Menu (pauses the game and timer; the game also pauses and mutes all sound when the window loses focus): mute all sounds, engine whine and reversing beep on/off, music on/off and track choice (public-domain/CC0 MIDI songs: ragtime, Bach, metal, rock, groove and dance; credits in `assets/midi/CREDITS.md`), decals on/off (less cluttered view), go to a level number, and restart the level with hard mode on or off (these settings are remembered). Each option has an underlined shortcut letter: A mute, E engine, M music, T track, D decals, H hard mode, G level field, L jump to the lowest level without a saved score on the current seed, F full screen, R restart, U resume |
 | Enter | Next level (after winning) |
 
+## Saved progress
+The level in progress (stacks, forklift, forks, timer) is saved in your browser every second, so reloading the page resumes where you left off. The pause menu has **Export state** (fills the text box and copies it to the clipboard) and **Import state** (paste a previously exported state into the box to load it, including its seed, hard mode and level).
+
 ## Seeds
 On the splash screen you can type a seed (a number or any text) and press Enter/Start. The shuffle button fills in a random seed. The same seed and level number always give the same layout; empty = the default levels. Changing the seed resets you to level 1. The seed is remembered between visits.
 
