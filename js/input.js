@@ -2,26 +2,45 @@ const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'S
 
 export function createInput(handlers) {
   const down = new Set();
+  function press(code) {
+    down.add(code);
+    handlers.anyKey?.();
+    if (code === 'KeyA') handlers.up?.();
+    else if (code === 'KeyZ') handlers.down?.();
+    else if (code === 'KeyR') handlers.restart?.();
+    else if (code === 'Enter') handlers.next?.(code);
+    else if (code === 'KeyM' || code === 'Tab') handlers.swapView?.();
+    else if (code === 'KeyC') handlers.toggleSmall?.();
+    else if (code === 'KeyF') handlers.fullscreen?.();
+    else if (code === 'KeyP') handlers.pause?.();
+    else if (code === 'Escape') handlers.menu?.();
+  }
+  // On-screen buttons (#touch [data-key]) act as virtual keys; each pointer is tracked so several can be held at once.
+  const held = new Map();
+  const release = (id) => { const c = held.get(id); if (c) { held.delete(id); if (![...held.values()].includes(c)) down.delete(c); } };
+  document.querySelectorAll('#touch [data-key]').forEach((b) => {
+    b.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      b.setPointerCapture?.(e.pointerId);
+      b.classList.add('on');
+      held.set(e.pointerId, b.dataset.key);
+      press(b.dataset.key);
+    });
+    const up = (e) => { b.classList.remove('on'); release(e.pointerId); };
+    b.addEventListener('pointerup', up);
+    b.addEventListener('pointercancel', up);
+    b.addEventListener('contextmenu', (e) => e.preventDefault());
+  });
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Tab' && e.target !== document.body) return;
     if (GAME_KEYS.has(e.code)) e.preventDefault();
     if (e.repeat) return;
-    down.add(e.code);
-    handlers.anyKey?.();
-    if (e.code === 'KeyA') handlers.up?.();
-    else if (e.code === 'KeyZ') handlers.down?.();
-    else if (e.code === 'KeyR') handlers.restart?.();
-    else if (e.code === 'Enter') handlers.next?.(e.code);
-    else if (e.code === 'KeyM' || e.code === 'Tab') handlers.swapView?.();
-    else if (e.code === 'KeyC') handlers.toggleSmall?.();
-    else if (e.code === 'KeyF') handlers.fullscreen?.();
-    else if (e.code === 'KeyP') handlers.pause?.();
-    else if (e.code === 'Escape') handlers.menu?.();
+    press(e.code);
   });
   window.addEventListener('keyup', (e) => down.delete(e.code));
-  window.addEventListener('blur', () => down.clear());
+  window.addEventListener('blur', () => { down.clear(); held.clear(); });
   return {
-    clear: () => down.clear(),
+    clear: () => { down.clear(); held.clear(); },
     state: () => ({
       up: down.has('ArrowUp'),
       down: down.has('ArrowDown'),

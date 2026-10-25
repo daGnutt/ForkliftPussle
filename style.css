@@ -56,3 +56,20 @@ footer b { color: var(--accent); }
 #menu #menuShare div { display: flex; gap: 8px; }
 #menu #stateMsg { min-height: 1em; opacity: .8; }
 #menu button { padding: 8px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
+
+#touch { display: none; }
+@media (pointer: coarse) {
+  footer { display: none; }
+  canvas { touch-action: none; }
+  #touch { display: block; position: fixed; inset: 0; pointer-events: none; z-index: 5; user-select: none; -webkit-user-select: none; touch-action: none; }
+  #touch .pad { position: absolute; display: flex; gap: 12px; }
+  #touch .left { left: 16px; bottom: 16px; }
+  #touch .right { right: 16px; bottom: 16px; flex-direction: column-reverse; }
+  #touch .mid { right: 110px; bottom: 16px; flex-direction: column-reverse; }
+  #touch .top { top: 8px; left: 50%; transform: translateX(-50%); }
+  #touch button { pointer-events: auto; touch-action: none; font: bold 20px sans-serif; color: #fff; background: rgba(0,0,0,.45); border: 2px solid rgba(255,255,255,.5); border-radius: 14px; width: 84px; height: 84px; opacity: .8; -webkit-tap-highlight-color: transparent; user-select: none; }
+  #touch button.sm { width: auto; height: 40px; padding: 0 12px; font-size: 14px; border-radius: 8px; }
+  #touch button.on { background: rgba(249,168,37,.8); color: #111; }
+  #splash, #menu, #record { touch-action: manipulation; }
+  #menu, #record, #splash { z-index: 30; }
+}
