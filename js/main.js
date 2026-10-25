@@ -292,7 +292,8 @@ window.addEventListener('keydown', (e) => {
 const stateText = document.getElementById('stateText');
 const stateMsg = document.getElementById('stateMsg');
 document.getElementById('stateExport').addEventListener('click', async () => {
-  stateText.value = await encodeState(serializeGame(game, seedText));
+  const snap = serializeGame(game, seedText);
+  stateText.value = debug ? JSON.stringify(snap) : await encodeState(snap);
   stateText.select();
   try {
     await navigator.clipboard.writeText(stateText.value);
