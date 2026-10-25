@@ -267,7 +267,7 @@ const driveUntil = (g, x, brakeAt) => {
   assert.equal(pts(g), 100);
   run(g, { up: true }, 3);
   assert.ok(pts(g) < 100 && pts(g) >= 50, 'crash costs points but not below 50');
-  for (let i = 0; i < 20; i++) { g.time += 1; g.fl.speed = 4; run(g, { up: true }, 0.01); }
+  for (let i = 0; i < 20; i++) { g.clock += 1; g.fl.speed = 4; run(g, { up: true }, 0.01); }
   assert.ok(pts(g) >= 50, 'crash loss capped at 50 per box');
 }
 {
@@ -636,4 +636,16 @@ console.log('all tests passed');
   const N = reverseLight(g);
   assert.ok(N && N.pts.every((p) => p.x <= wall.x + 1e-9), 'light survives wall contact');
   assert.ok(M.pts.some((p) => p.wall && p.climb > 0), 'light climbs wall');
+}
+
+{
+  const g = newGame(1);
+  run(g, {}, 1);
+  assert(Math.abs(g.time - 1) < 0.05);
+  g.status = 'won';
+  const t = g.time;
+  run(g, {}, 1);
+  assert.strictEqual(g.time, t);
+  assert.strictEqual(newGame(2).time, 0);
+  console.log('timer stops on win ok');
 }

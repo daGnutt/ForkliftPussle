@@ -463,7 +463,7 @@ function drawFloorMarks(ctx, g, cam) {
   }
 }
 
-function revAlpha(g) { return 0.45 + 0.2 * Math.sin(g.time * 14); }
+function revAlpha(g) { return 0.45 + 0.2 * Math.sin(g.clock * 14); }
 
 function drawRevFloor(ctx, g, cam) {
   const L = reverseLight(g);
@@ -511,7 +511,7 @@ function drawZoneLabels(ctx, g, cam, faces) {
 // Damage popups floating up from the damaged box.
 function drawHits(ctx, g, cam) {
   for (const h of g.hits || []) {
-    const k = (g.time - h.t) / HIT_LIFE;
+    const k = (g.clock - h.t) / HIT_LIFE;
     const [fw, rt] = toCam(cam, h.x, h.y, 0);
     if (fw <= 0.3) continue;
     const sx = cam.cx + (rt / fw) * cam.f, sy = cam.cy - ((h.z * (BOX_H + PAL) + 0.3 + k * 0.8 - cam.z) / fw) * cam.f;

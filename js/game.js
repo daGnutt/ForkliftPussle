@@ -82,16 +82,16 @@ function hurt(g, pens, pts, x, y, z, owner = null) {
   lost = Math.round(lost);
   if (lost <= 0) return;
   g.hits ||= [];
-  const prev = owner && g.hits.find((h) => h.owner === owner && g.time - h.t < HIT_MERGE);
-  if (prev) { prev.pts += lost; prev.x = x; prev.y = y; prev.z = z; prev.t = g.time; }
-  else g.hits.push({ x, y, z, pts: lost, t: g.time, owner });
+  const prev = owner && g.hits.find((h) => h.owner === owner && g.clock - h.t < HIT_MERGE);
+  if (prev) { prev.pts += lost; prev.x = x; prev.y = y; prev.z = z; prev.t = g.clock; }
+  else g.hits.push({ x, y, z, pts: lost, t: g.clock, owner });
   g.hitCount = (g.hitCount || 0) + 1;
 }
 
 function crash(g, pens, owner, count = pens.length) {
   const speed = Math.abs(g.fl.speed);
-  if (speed < CRASH_MIN_SPEED || g.time - (owner.hitAt ?? -1) < CRASH_COOLDOWN) return;
-  owner.hitAt = g.time;
+  if (speed < CRASH_MIN_SPEED || g.clock - (owner.hitAt ?? -1) < CRASH_COOLDOWN) return;
+  owner.hitAt = g.clock;
   const pts = Math.min(5, Math.max(1, Math.round(speed)));
   const c = owner === g ? toWorld(g.fl, FL.carryX, 0) : owner;
   hurt(g, pens.slice(0, count), pts, c.x, c.y, owner === g ? g.H + pens.length : pens.length, owner);
@@ -169,6 +169,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     hf: 0,
     status: 'play',
     time: 0,
+    clock: 0,
   };
 }
 
@@ -323,8 +324,9 @@ function glideWithForks(g, S, ly, da, from) {
 
 export function update(g, input, dt) {
   const f = g.fl;
-  g.time += dt;
-  if (g.hits) g.hits = g.hits.filter((h) => g.time - h.t < HIT_LIFE);
+  g.clock += dt;
+  if (g.status === 'play') g.time += dt; // the level timer stops once solved
+  if (g.hits) g.hits = g.hits.filter((h) => g.clock - h.t < HIT_LIFE);
   const forked = g.hard ? forkedStack(g) : null;
   const forkedY = forked ? toLocal(f, boxPos(forked, g.H).x, boxPos(forked, g.H).y).y : 0;
   const prevA = f.a;

@@ -222,7 +222,7 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale) {
   ctx.font = 'bold 0.55px sans-serif';
   ctx.lineWidth = 0.1;
   for (const h of g.hits || []) {
-    const k = (g.time - h.t) / HIT_LIFE;
+    const k = (g.clock - h.t) / HIT_LIFE;
     const x = h.x + h.z * PX, y = h.y + h.z * PY - k * 1.2;
     ctx.globalAlpha = Math.max(0, 1 - k * k);
     ctx.strokeStyle = '#000';
@@ -290,7 +290,7 @@ function drawWorld(ctx, g) {
   const rl = reverseLight(g);
   if (rl) {
     ctx.fillStyle = '#2979ff';
-    ctx.globalAlpha = 0.45 + 0.2 * Math.sin(g.time * 14);
+    ctx.globalAlpha = 0.45 + 0.2 * Math.sin(g.clock * 14);
     ctx.beginPath();
     rl.pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
     ctx.fill();
