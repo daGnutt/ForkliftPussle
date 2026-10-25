@@ -34,19 +34,29 @@ export function reversing(g) {
 // { x, y, r, pts: [{x, y, d, wall, climb}] } with pts in angle order.
 export function reverseLight(g) {
   if (!reversing(g)) return null;
-  // Slide the centre back towards the forklift if it would sit inside a wall.
+  // The disc centre is fixed behind the forklift, so walls cut it off ever
+  // more. If the centre is inside a wall, rays start from the nearest free
+  // point towards the forklift and are limited to the disc.
+  const c0 = toWorld(g.fl, FL.back - REV_OFFSET, 0);
   let c = null;
   for (let o = REV_OFFSET; o >= 0 && !c; o -= 0.05) {
     const p = toWorld(g.fl, FL.back - o, 0);
     if (!g.walls.some((w) => p.x > w.x && p.x < w.x + w.w && p.y > w.y && p.y < w.y + w.h)) c = p;
   }
   if (!c) return null;
+  const off = Math.hypot(c.x - c0.x, c.y - c0.y);
+  if (off >= REV_RADIUS) return null;
   const pts = [];
   for (let i = 0; i < RAYS; i++) {
     const a = (i / RAYS) * Math.PI * 2, dx = Math.cos(a), dy = Math.sin(a);
-    const d = rayHit(g, c.x, c.y, dx, dy, REV_RADIUS);
-    const wall = d < REV_RADIUS - 1e-6;
-    pts.push({ x: c.x + dx * d, y: c.y + dy * d, d, wall, climb: wall ? Math.sqrt(REV_RADIUS * REV_RADIUS - d * d) : 0 });
+    // distance along the ray to the disc edge
+    const bx = c.x - c0.x, by = c.y - c0.y, k = bx * dx + by * dy;
+    const edge = -k + Math.sqrt(Math.max(0, k * k - (bx * bx + by * by - REV_RADIUS * REV_RADIUS)));
+    const d = rayHit(g, c.x, c.y, dx, dy, edge);
+    const wall = d < edge - 1e-6;
+    const px = c.x + dx * d, py = c.y + dy * d;
+    const r0 = Math.hypot(px - c0.x, py - c0.y);
+    pts.push({ x: px, y: py, d, wall, climb: wall ? Math.sqrt(Math.max(0, REV_RADIUS * REV_RADIUS - r0 * r0)) : 0 });
   }
-  return { x: c.x, y: c.y, r: REV_RADIUS, pts };
+  return { x: c0.x, y: c0.y, r: REV_RADIUS, pts };
 }
