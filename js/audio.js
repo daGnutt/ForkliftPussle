@@ -1,5 +1,7 @@
 // Procedural audio (Web Audio, no asset files): a chill generative background
 // track that can be muted, plus short sound effects. Browser only.
+import { parseMidi } from './midi.js';
+
 const MUTE_KEY = 'forklift-music-muted';
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -242,12 +244,67 @@ const TRACKS = [
   },
 ];
 
+// Public-domain MIDI songs from the Mutopia Project (see assets/midi/CREDITS.md).
+const MIDI_TRACKS = [
+  { id: 'rag-pineapple', name: 'Ragtime: Pineapple Rag', midi: 'assets/midi/pineapple-rag.mid' },
+  { id: 'rag-elite', name: 'Ragtime: Elite Syncopations', midi: 'assets/midi/elite-syncopations.mid' },
+  { id: 'rag-strenuous', name: 'Ragtime: The Strenuous Life', midi: 'assets/midi/strenuous-life.mid' },
+  { id: 'bach-269', name: 'Bach: Chorale BWV 269', midi: 'assets/midi/bach-bwv269.mid' },
+];
+TRACKS.push(...MIDI_TRACKS);
+
+const songs = new Map(); // url -> parsed song, or 'loading'
+let song = null, songStart = 0, songIdx = 0;
+
+function loadSong(tr) {
+  const got = songs.get(tr.midi);
+  if (got && got !== 'loading') return got;
+  if (!got) {
+    songs.set(tr.midi, 'loading');
+    fetch(tr.midi).then((r) => r.arrayBuffer()).then((b) => {
+      songs.set(tr.midi, parseMidi(b));
+      if (ctx) tick();
+    }).catch(() => songs.delete(tr.midi));
+  }
+  return null;
+}
+
+// Plays notes of the current MIDI track with a soft piano-ish voice, looping at the end.
+function midiTick() {
+  const tr = TRACKS[trackIdx];
+  if (!song) {
+    song = loadSong(tr);
+    if (!song) return;
+    songStart = ctx.currentTime + 0.1;
+    songIdx = 0;
+  }
+  const horizon = ctx.currentTime + 0.4;
+  for (;;) {
+    if (songIdx >= song.notes.length) {
+      const end = songStart + song.duration + 1.5;
+      if (end > horizon) return;
+      songStart = end;
+      songIdx = 0;
+    }
+    const n = song.notes[songIdx];
+    const t = songStart + n.t;
+    if (t >= horizon) return;
+    songIdx++;
+    if (t < ctx.currentTime) continue;
+    const dur = Math.min(Math.max(n.dur, 0.12), 2.5);
+    const g = 0.14 * (0.4 + 0.6 * n.vel / 127);
+    tone(trackBus, mtof(n.note), t, dur + 0.25, { type: 'triangle', gain: g, attack: 0.008, release: dur + 0.2, cutoff: 3000 });
+    tone(trackBus, mtof(n.note), t, dur * 0.5 + 0.1, { type: 'sine', gain: g * 0.5, attack: 0.005, release: dur * 0.5 });
+  }
+}
+
 export const MUSIC_TRACKS = TRACKS.map(({ id, name }) => ({ id, name }));
 
 function applyTrack() {
   const tr = TRACKS[trackIdx];
-  STEP = 60 / tr.bpm / 4;
+  STEP = 60 / (tr.bpm || 120) / 4;
   stepIdx = 0;
+  song = null;
   if (!ctx) return;
   const old = trackBus;
   if (old) {
@@ -262,7 +319,7 @@ function applyTrack() {
 {
   const saved = TRACKS.findIndex((t) => t.id === localStorage.getItem(TRACK_KEY));
   trackIdx = Math.max(0, saved);
-  STEP = 60 / TRACKS[trackIdx].bpm / 4;
+  STEP = 60 / (TRACKS[trackIdx].bpm || 120) / 4;
 }
 
 export function getMusicTrack() { return TRACKS[trackIdx].id; }
@@ -295,6 +352,7 @@ function scheduleStep(i, t) {
 
 function tick() {
   if (!ctx) return;
+  if (TRACKS[trackIdx].midi) { midiTick(); return; }
   if (nextStep < ctx.currentTime - 0.5) nextStep = ctx.currentTime + 0.05;
   while (nextStep < ctx.currentTime + 0.4) {
     scheduleStep(stepIdx++, nextStep);
