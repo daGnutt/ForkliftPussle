@@ -145,12 +145,12 @@ export function newGame(levelNumber, seed = 0, hard = false) {
   const lvl = generateLevel(levelNumber, seed);
   const walls = [];
   const T = 3;
-  const add = (x, y, w, h) => walls.push({ x, y, w, h, poly: rectPoly(x + w / 2, y + h / 2, w / 2, h / 2) });
+  const add = (x, y, w, h, charger) => walls.push({ x, y, w, h, poly: rectPoly(x + w / 2, y + h / 2, w / 2, h / 2), ...(charger && { charger }) });
   add(-T, -T, lvl.w + 2 * T, T);
   add(-T, lvl.h, lvl.w + 2 * T, T);
   add(-T, 0, T, lvl.h);
   add(lvl.w, 0, T, lvl.h);
-  for (const r of lvl.walls) add(r.x, r.y, r.w, r.h);
+  for (const r of lvl.walls) add(r.x, r.y, r.w, r.h, r === lvl.charger);
   return {
     level: levelNumber,
     seed,
@@ -159,6 +159,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     h: lvl.h,
     walls,
     pillars: lvl.walls,
+    charger: lvl.charger,
     zones: lvl.zones,
     areas: lvl.areas,
     stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), pen: s.layers.map((c, i) => newPen(c, Math.floor(s.x * 31 + s.y * 17) + i)), offs: s.layers.map(() => ({ x: 0, y: 0 })), a: 0 })),

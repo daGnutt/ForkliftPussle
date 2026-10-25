@@ -606,6 +606,7 @@ console.log('all tests passed');
     const tx = l.start.x + FL.back * c, ty = l.start.y + FL.back * s;
     const ch = l.walls.find((r) => pointRectDist(tx, ty, r) < 0.1 &&
       (r.x < 0.01 || r.y < 0.01 || r.x + r.w > l.w - 0.01 || r.y + r.h > l.h - 0.01));
+    assert.ok(newGame(n).walls.some((w) => w.charger && w.x === ch.x && w.y === ch.y), 'game marks the charger wall');
     assert.ok(ch, 'tail rests against a charger on an outer wall');
     assert.ok(Math.abs(Math.max(ch.w, ch.h) - FL.halfW) < 1e-9, 'charger is half the truck width');
   }

@@ -216,7 +216,7 @@ function tryGenerate(n, attempt, seed = 0) {
     placed.push({ x: s.x, y: s.y });
   }
 
-  return { n, w, h, walls, zones, areas, stacks, start };
+  return { n, w, h, walls, zones, areas, stacks, start, charger };
 }
 
 // Integer seeds are used as-is; any other text is hashed. Empty/0 = the default layouts.

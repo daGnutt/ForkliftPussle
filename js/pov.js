@@ -12,6 +12,7 @@ import { carriedWorldOffs, HIT_LIFE, zoneDone, isSolved, scoreEnough, isParked }
 const EYE_X = -0.5; // seat position, local x (origin at the front axle)
 const EYE_Z = 1.45; // eye height with the fork on the floor
 const EYE_FOLLOW = 0.4; // share of the fork height the eye follows
+const CHARGER_H = 0.9; // 1.5 boxes
 const WALL_H = 4; // also the ceiling height; clears a 5-box stack (3.0)
 const BOX_H = 0.5; // drawn box height (footprint stays 1×1)
 const PAL = 0.1; // pallet / tine thickness
@@ -181,7 +182,11 @@ function buildFaces(g, cam) {
   const faces = [];
   addOverhead(faces, cam, g);
   for (const w of g.walls) {
-    addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, WALL_H, null, true);
+    if (w.charger) {
+      const n = faces.length;
+      addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, CHARGER_H, '#c62828');
+      for (let i = n; i < faces.length; i++) faces[i].charger = true;
+    } else addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, WALL_H, null, true);
   }
   for (const st of g.stacks) addStack(faces, cam, st.x, st.y, st.rots || [], st.layers, 0, st.offs, st.dropFrom ?? 0,
       st.dropFrom != null ? Math.max(0, g.hf - st.dropFrom) : 0, st.pen);
@@ -384,6 +389,30 @@ function drawBoxDecal(ctx, cam, f, dark) {
   }
 }
 
+// High-voltage warning on a charger side: hazard stripes along the base and a bolt in a yellow triangle.
+function drawChargerDecal(ctx, cam, f, dark) {
+  const [q0, q1] = f.side;
+  const shape = (uv, fill) => {
+    const pts = project(cam, uv.map(([u, v]) => toCam(cam, q0[0] + (q1[0] - q0[0]) * u, q0[1] + (q1[1] - q0[1]) * u, v)));
+    if (pts.length < 3) return;
+    ctx.beginPath();
+    pts.forEach(([X, Y], i) => (i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y)));
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.fillStyle = `rgba(0,0,0,${dark})`;
+    ctx.fill();
+  };
+  shape([[0, 0], [1, 0], [1, 0.1], [0, 0.1]], '#f4c414');
+  for (let i = 0; i < 4; i++) {
+    const a = i * 0.25;
+    shape([[a, 0], [a + 0.125, 0], [a + 0.2, 0.1], [a + 0.075, 0.1]], '#1a1a1a');
+  }
+  shape([[0.5, 0.82], [0.92, 0.2], [0.08, 0.2]], '#1a1a1a');
+  shape([[0.5, 0.74], [0.84, 0.24], [0.16, 0.24]], '#f4c414');
+  shape([[0.55, 0.66], [0.38, 0.45], [0.5, 0.45], [0.44, 0.3], [0.64, 0.52], [0.52, 0.52]], '#1a1a1a');
+}
+
 function drawFace(ctx, cam, g, f) {
   const pts = project(cam, f.quad.map(([x, y, z]) => toCam(cam, x, y, z)));
   if (pts.length < 3) return;
@@ -403,6 +432,7 @@ function drawFace(ctx, cam, g, f) {
   ctx.fillStyle = `rgba(0,0,0,${Math.max(0, dark)})`;
   ctx.fill();
   if (f.lit) { ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fill(); }
+  if (f.charger && f.side) drawChargerDecal(ctx, cam, f, Math.max(0, dark));
   if (f.deco && f.d < DECAL_MAX_DIST) drawBoxDecal(ctx, cam, f, Math.max(0, dark));
   if (f.tile != null && f.side) drawWallDecals(ctx, cam, g, f, Math.max(0, dark));
   if (f.color && f.color !== PALLET_COLOR) {

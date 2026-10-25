@@ -332,9 +332,37 @@ function drawWorld(ctx, g) {
     ctx.lineWidth = 0.06;
     ctx.strokeRect(w.x, w.y, w.w, w.h);
   }
+  if (g.charger) drawCharger(ctx, g.charger);
   ctx.strokeStyle = '#555';
   ctx.lineWidth = 0.3;
   ctx.strokeRect(-0.15, -0.15, g.w + 0.3, g.h + 0.3);
+}
+
+// The truck charger: a red block with a high-voltage warning sign (a bolt in a yellow triangle).
+function drawCharger(ctx, c) {
+  ctx.fillStyle = '#c62828';
+  ctx.fillRect(c.x, c.y, c.w, c.h);
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 0.06;
+  ctx.strokeRect(c.x, c.y, c.w, c.h);
+  const cx = c.x + c.w / 2, cy = c.y + c.h / 2, r = Math.min(c.w, c.h) * 0.38;
+  ctx.fillStyle = '#f4c414';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r);
+  ctx.lineTo(cx + r * 0.95, cy + r * 0.6);
+  ctx.lineTo(cx - r * 0.95, cy + r * 0.6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.moveTo(cx + r * 0.15, cy - r * 0.45);
+  ctx.lineTo(cx - r * 0.3, cy + r * 0.15);
+  ctx.lineTo(cx, cy + r * 0.15);
+  ctx.lineTo(cx - r * 0.15, cy + r * 0.5);
+  ctx.lineTo(cx + r * 0.3, cy - r * 0.1);
+  ctx.lineTo(cx, cy - r * 0.1);
+  ctx.closePath();
+  ctx.fill();
 }
 
 // Mirror showing the area around the forklift, rotated so the forklift's heading is up.
