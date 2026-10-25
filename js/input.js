@@ -30,6 +30,8 @@ export function createInput(handlers) {
     b.addEventListener('pointerup', up);
     b.addEventListener('pointercancel', up);
     b.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Cancelling touchstart stops the browser's long-press handling (context menu / haptic buzz).
+    b.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
   });
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Tab' && e.target !== document.body) return;

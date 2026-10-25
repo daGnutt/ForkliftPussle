@@ -7,6 +7,22 @@ import { theme } from './theme.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
 import { carriedWorldOffs, HIT_LIFE, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
+// Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
+// them every frame for every box is slow in Firefox).
+const gradCache = new Map();
+function shadeGradient(ctx, x0, y0, x1, y1, hi, lo) {
+  const key = `${x0},${y0},${x1},${y1},${hi},${lo}`;
+  let gr = gradCache.get(key);
+  if (!gr) {
+    if (gradCache.size > 200) gradCache.clear();
+    gr = ctx.createLinearGradient(x0, y0, x1, y1);
+    gr.addColorStop(0, `rgba(255,255,255,${hi})`);
+    gr.addColorStop(1, `rgba(0,0,0,${lo})`);
+    gradCache.set(key, gr);
+  }
+  return gr;
+}
+
 function rotRect(ctx, cx, cy, a, fn) {
   ctx.save();
   ctx.translate(cx, cy);
@@ -60,10 +76,7 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
       }
       ctx.fillStyle = col;
       ctx.fillRect(-h, -h, size, size);
-      const gr = ctx.createLinearGradient(-h, -h, h, h);
-      gr.addColorStop(0, 'rgba(255,255,255,0.35)');
-      gr.addColorStop(1, 'rgba(0,0,0,0.18)');
-      ctx.fillStyle = gr;
+      ctx.fillStyle = shadeGradient(ctx, -h, -h, h, h, 0.35, 0.18);
       ctx.fillRect(-h, -h, size, size);
       ctx.strokeStyle = 'rgba(0,0,0,0.65)';
       ctx.lineWidth = 0.05;
@@ -134,10 +147,7 @@ function block(ctx, f, x0, y0, x1, y1, z0, z1, col, rot = 0) {
   }
   ctx.fillStyle = col;
   ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-  const gr = ctx.createLinearGradient(x0, y0, x1, y1);
-  gr.addColorStop(0, 'rgba(255,255,255,0.3)');
-  gr.addColorStop(1, 'rgba(0,0,0,0.15)');
-  ctx.fillStyle = gr;
+  ctx.fillStyle = shadeGradient(ctx, x0, y0, x1, y1, 0.3, 0.15);
   ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
   ctx.strokeStyle = 'rgba(0,0,0,0.55)';
   ctx.lineWidth = 0.03;
@@ -212,9 +222,26 @@ function drawCarried(ctx, g) {
 }
 
 // Draws the top-down overview scaled into the screen rect (rx, ry, rw, rh).
-function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale) {
-  const s = Math.min(maxScale, rw / g.w, rh / g.h);
-  const ox = rx + (rw - g.w * s) / 2, oy = ry + (rh - g.h * s) / 2;
+// With `follow`, a map that would be drawn smaller than MIN_FOLLOW_SCALE px/tile is shown at that scale instead,
+// centred on the forklift and clamped to the map edges; the returned `cam` is the visible world rect (else null).
+const MIN_FOLLOW_SCALE = 30;
+function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false) {
+  const fit = Math.min(maxScale, rw / g.w, rh / g.h);
+  const zoomed = follow && fit < MIN_FOLLOW_SCALE;
+  const s = zoomed ? MIN_FOLLOW_SCALE : fit;
+  let ox = rx + (rw - g.w * s) / 2, oy = ry + (rh - g.h * s) / 2;
+  let cam = null;
+  if (zoomed) {
+    const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0);
+    const axis = (pos, size, len, r0) => (len * s <= size ? r0 + (size - len * s) / 2 : r0 + size / 2 - Math.min(Math.max(pos, size / 2 / s), len - size / 2 / s) * s);
+    ox = axis(c.x, rw, g.w, rx);
+    oy = axis(c.y, rh, g.h, ry);
+    cam = { x: (rx - ox) / s, y: (ry - oy) / s, w: rw / s, h: rh / s };
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(rx, ry, rw, rh);
+    ctx.clip();
+  }
   ctx.setTransform(s * view.dpr, 0, 0, s * view.dpr, ox * view.dpr, oy * view.dpr);
   drawWorld(ctx, g);
   ctx.textAlign = 'center';
@@ -231,6 +258,48 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale) {
     ctx.fillText(`−${h.pts}`, x, y);
   }
   ctx.globalAlpha = 1;
+  if (zoomed) ctx.restore();
+  return cam;
+}
+
+// Very basic whole-map overview (walls, drop points, boxes, parking, forklift, visible area) for the zoomed-in overview.
+function miniSize(g, maxW, maxH) {
+  const s = Math.min(maxW / g.w, maxH / g.h);
+  return { s, w: g.w * s, h: g.h * s };
+}
+function drawMiniMap(ctx, g, cam, x, y, s) {
+  const w = g.w * s, h = g.h * s;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(-3, -3, w + 6, h + 6);
+  ctx.fillStyle = theme().floor;
+  ctx.fillRect(0, 0, w, h);
+  for (const z of g.zones) {
+    ctx.fillStyle = COLORS[z.color];
+    ctx.globalAlpha = zoneDone(g, z) ? 1 : 0.5;
+    ctx.fillRect((z.x - 0.6) * s, (z.y - 0.6) * s, 1.2 * s, 1.2 * s);
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#9e9e9e';
+  ctx.fillRect((g.parking.x - 0.8) * s - 1, (g.parking.y - 0.8) * s - 1, 1.6 * s + 2, 1.6 * s + 2);
+  ctx.fillStyle = '#3b3f45';
+  for (const q of g.pillars) ctx.fillRect(q.x * s, q.y * s, Math.max(1.5, q.w * s), Math.max(1.5, q.h * s));
+  const dot = Math.max(3, s * 0.9);
+  for (const st of g.stacks) {
+    ctx.fillStyle = COLORS[st.layers[st.layers.length - 1]];
+    ctx.fillRect(st.x * s - dot / 2, st.y * s - dot / 2, dot, dot);
+  }
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(g.fl.x * s, g.fl.y * s, Math.max(3, s * 0.7), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = '#f9a825';
+  ctx.strokeRect(cam.x * s, cam.y * s, cam.w * s, cam.h * s);
+  ctx.restore();
 }
 
 // Top-down world in simulation units; the caller sets the transform.
@@ -308,11 +377,14 @@ function drawWorld(ctx, g) {
     ctx.setLineDash(done ? [] : [0.2, 0.15]);
     ctx.strokeRect(z.x - 0.6, z.y - 0.6, 1.2, 1.2);
     ctx.setLineDash([]);
-    ctx.font = 'bold 0.3px sans-serif';
+    ctx.font = 'bold 0.5px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.lineWidth = 0.1;
+    ctx.strokeStyle = '#fff';
+    ctx.strokeText(`×${z.count}`, z.x, z.y + 0.92);
     ctx.fillStyle = '#000';
-    ctx.fillText(`×${z.count}`, z.x, z.y + 0.78);
+    ctx.fillText(`×${z.count}`, z.x, z.y + 0.92);
   }
 
   // Stacks whose top is below the tines are drawn first; stacks the tines
@@ -419,8 +491,22 @@ export function draw(ctx, g, view) {
       ctx.strokeRect(10, 10, POV_W, POV_H);
     }
   } else {
-    drawOverview(ctx, g, view, 20, 50, width - 40, height - 70, 48);
+    // On touch the control buttons take the bottom 208px (two 84px fork buttons + gap + margin), so the field ends above them.
+    const bottom = view.touch ? 208 : 20;
+    let rx = 20, ry = 50, rw = width - 40, rh = height - 50 - bottom;
+    // When the map doesn't fit, reserve room for the minimap (above the field in portrait, left of it in landscape)
+    // so it never covers the playing field.
+    const zoomedIn = Math.min(48, rw / g.w, rh / g.h) < MIN_FOLLOW_SCALE;
+    const portrait = height > width;
+    const mm = miniSize(g, portrait ? Math.min(220, width - 40) : 180, portrait ? 110 : 140);
+    const mmX = 13, mmY = (view.showSmall ? 190 : 100) + 6;
+    if (zoomedIn) {
+      if (portrait) { ry = Math.max(ry, mmY + mm.h + 12); rh = height - ry - bottom; }
+      else { rx = mmX + mm.w + 16; rw = width - rx - 90; }
+    }
+    const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+    if (cam) drawMiniMap(ctx, g, cam, mmX, mmY, mm.s);
     if (view.showSmall) drawPov(ctx, g, 10, 10, POV_W, POV_H);
   }
   // screen-space HUD
@@ -511,6 +597,6 @@ export function draw(ctx, g, view) {
     ctx.font = 'bold 22px sans-serif';
     ctx.fillText(`Final score: ${finalScore(pts, g.time)}`, width / 2, height / 2 + 30);
     ctx.font = '20px sans-serif';
-    ctx.fillText('Press Enter for the next level', width / 2, height / 2 + 70);
+    ctx.fillText(view.touch ? 'Tap to continue to the next level' : 'Press Enter for the next level', width / 2, height / 2 + 70);
   }
 }

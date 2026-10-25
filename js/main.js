@@ -10,7 +10,8 @@ import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, play
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
-const view = { width: 0, height: 0, dpr: 1, povBig: localStorage.getItem('forklift-cab-view') === '1', showSmall: false };
+const isTouch = matchMedia('(pointer: coarse)').matches;
+const view = { width: 0, height: 0, dpr: 1, povBig: !isTouch && localStorage.getItem('forklift-cab-view') === '1', showSmall: false, touch: isTouch };
 
 function resize() {
   view.width = canvas.clientWidth;
@@ -18,6 +19,8 @@ function resize() {
   view.dpr = window.devicePixelRatio || 1;
   // Phones report a dpr of ~3 (9x the pixels); cap the backing store so drawing stays fast, CSS scales it up.
   if (matchMedia('(pointer: coarse)').matches) view.dpr = Math.min(view.dpr, 1, Math.sqrt(0.9e6 / Math.max(1, view.width * view.height)));
+  // Desktop: keep the backing store under ~3M pixels (big high-DPI windows are slow, especially in Firefox).
+  view.dpr = Math.min(view.dpr, Math.sqrt(3e6 / Math.max(1, view.width * view.height)));
   canvas.width = Math.round(view.width * view.dpr);
   canvas.height = Math.round(view.height * view.dpr);
 }
@@ -73,11 +76,14 @@ function toggleFullscreen() {
   else document.documentElement.requestFullscreen?.().catch(() => {});
 }
 
+function handlersNext() { if (game.status === 'won') load(level + 1); }
+
 const input = createInput({
   anyKey: startAudio,
   fullscreen: toggleFullscreen,
   toggleSmall: () => { view.showSmall = !view.showSmall; },
   swapView: () => {
+    if (isTouch) return;
     view.povBig = !view.povBig;
     localStorage.setItem('forklift-cab-view', view.povBig ? '1' : '0');
     if (tutStep === 3 && view.povBig) nextTutorial();
@@ -93,10 +99,13 @@ const input = createInput({
     else if (game.H !== h) playFork(false);
   },
   restart: () => load(level),
-  next: () => { if (game.status === 'won') load(level + 1); },
+  next: () => handlersNext(),
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
 });
+
+// On touch, tapping the "Level complete" board goes to the next level.
+if (isTouch) canvas.addEventListener('pointerdown', () => { if (!splashOn && !recordOpen && !view.menuOpen) handlersNext(); });
 
 const pending = {};
 recordName.addEventListener('keydown', (e) => e.stopPropagation());
@@ -134,6 +143,7 @@ const TUTORIAL = [
   'Drive the forks under a stack, lift it, and set it down on the matching coloured zone. Then park on the marked spot.',
   'If you want an more immersive experience, press <b>Tab</b> or <b>M</b> to switch to the cab view (and again to return to the overview).',
 ];
+if (isTouch) TUTORIAL.pop();
 const tutorialEl = document.getElementById('tutorial');
 let tutStep = localStorage.getItem('forklift-tutorial-done') ? -1 : 0;
 function showTutorial() {
@@ -348,7 +358,6 @@ pauseOnBlur();
 applyPause();
 
 const debug = debugEnabled(location.search) ? createDebug() : null;
-const touchEl = document.getElementById('touch');
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 function frame(now) {
@@ -365,7 +374,6 @@ function frame(now) {
   const t1 = performance.now();
   checkTutorial();
   checkRecord();
-  touchEl.classList.toggle('won', game.status === 'won' && !recordOpen);
   const st = input.state();
   setEngine(game.fl.speed, st.up || st.down);
   const done = countDone();
