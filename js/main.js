@@ -307,8 +307,8 @@ document.getElementById('stateImport').addEventListener('click', () => {
     return;
   }
   if (recordOpen) closeRecord();
-  seedText = typeof data.seedText === 'string' ? data.seedText : String(data.seed);
-  seed = data.seed;
+  seed = g.seed;
+  seedText = typeof data.seedText === 'string' && parseSeed(data.seedText) === seed ? data.seedText : String(seed);
   hard = g.hard;
   level = g.level;
   localStorage.setItem('forklift-seed', seedText);
