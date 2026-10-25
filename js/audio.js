@@ -346,34 +346,34 @@ export function toggleMusic() {
   return muted;
 }
 
-// Hydraulic whine sweeping up (raise) or down (lower).
+// Soft hydraulic hum with a little fluid hiss, sweeping up (raise) or down (lower).
 export function playFork(up) {
   if (!ctx || ctx.state !== 'running') return;
-  const t = ctx.currentTime, dur = 0.32;
-  const o = tone(sfxBus, 1, t, dur, { type: 'sawtooth', gain: 0.12, attack: 0.04, release: 0.1, cutoff: 1100 });
+  const t = ctx.currentTime, dur = 0.34;
+  const o = tone(sfxBus, 1, t, dur, { type: 'triangle', gain: 0.1, attack: 0.06, release: 0.14, cutoff: 700 });
   o.frequency.cancelScheduledValues(t);
-  o.frequency.setValueAtTime(up ? 140 : 260, t);
-  o.frequency.linearRampToValueAtTime(up ? 260 : 140, t + dur);
-  tone(sfxBus, up ? 90 : 70, t, dur, { type: 'square', gain: 0.05, attack: 0.02, release: 0.1, cutoff: 400 });
+  o.frequency.setValueAtTime(up ? 110 : 190, t);
+  o.frequency.linearRampToValueAtTime(up ? 190 : 110, t + dur);
+  noise(sfxBus, t, dur, { gain: 0.05, cutoff: 1800, type: 'bandpass' });
 }
 
 // Descending buzz when the forks are refused a move through a box.
 export function playBlocked() {
   if (!ctx || ctx.state !== 'running') return;
   const t = ctx.currentTime, dur = 0.35;
-  const o = tone(sfxBus, 1, t, dur, { type: 'sawtooth', gain: 0.14, attack: 0.01, release: 0.1, cutoff: 900 });
+  const o = tone(sfxBus, 1, t, dur, { type: 'triangle', gain: 0.16, attack: 0.01, release: 0.12, cutoff: 600 });
   o.frequency.cancelScheduledValues(t);
-  o.frequency.setValueAtTime(220, t);
-  o.frequency.exponentialRampToValueAtTime(70, t + dur);
+  o.frequency.setValueAtTime(200, t);
+  o.frequency.exponentialRampToValueAtTime(80, t + dur);
 }
 
 // Splintering crack of a damaged box: noise burst plus a few woody clicks.
 export function playBreak() {
   if (!ctx || ctx.state !== 'running') return;
   const t = ctx.currentTime;
-  noise(sfxBus, t, 0.18, { gain: 0.3, cutoff: 1400, type: 'bandpass' });
+  noise(sfxBus, t, 0.18, { gain: 0.22, cutoff: 1400, type: 'bandpass' });
   for (let i = 0; i < 3; i++) {
-    const o = tone(sfxBus, 1, t + i * 0.035, 0.08, { type: 'square', gain: 0.1, attack: 0.002, release: 0.05, cutoff: 1500 });
+    const o = tone(sfxBus, 1, t + i * 0.035, 0.08, { type: 'triangle', gain: 0.14, attack: 0.002, release: 0.05, cutoff: 1500 });
     o.frequency.cancelScheduledValues(t);
     o.frequency.setValueAtTime(260 - i * 50, t + i * 0.035);
     o.frequency.exponentialRampToValueAtTime(60, t + i * 0.035 + 0.08);
@@ -403,7 +403,7 @@ export function setScrape(speed) {
     src.loop = true;
     const f = ctx.createBiquadFilter();
     f.type = 'bandpass';
-    f.Q.value = 2;
+    f.Q.value = 1;
     const g = ctx.createGain();
     g.gain.value = 0;
     src.connect(f);
@@ -413,8 +413,8 @@ export function setScrape(speed) {
     scrapeNode = { f, g };
   }
   const t = ctx.currentTime, v = Math.min(1, speed / 4);
-  scrapeNode.f.frequency.setTargetAtTime(1200 + v * 2200, t, 0.05);
-  scrapeNode.g.gain.setTargetAtTime(speed > 0 ? 0.08 + v * 0.18 : 0, t, 0.04);
+  scrapeNode.f.frequency.setTargetAtTime(900 + v * 1300, t, 0.05);
+  scrapeNode.g.gain.setTargetAtTime(speed > 0 ? 0.05 + v * 0.12 : 0, t, 0.04);
 }
 
 // Cheerful rising arpeggio when a zone is filled.
@@ -422,20 +422,22 @@ export function playSuccess() {
   if (!ctx || ctx.state !== 'running') return;
   const t = ctx.currentTime;
   [72, 76, 79, 84].forEach((m, i) => {
-    tone(sfxBus, mtof(m), t + i * 0.09, 0.5, { type: 'triangle', gain: 0.16, attack: 0.01, release: 0.35 });
+    tone(sfxBus, mtof(m), t + i * 0.09, 0.5, { type: 'sine', gain: 0.14, attack: 0.008, release: 0.4 });
+    tone(sfxBus, mtof(m) * 2, t + i * 0.09, 0.35, { type: 'sine', gain: 0.04, attack: 0.005, release: 0.3 });
   });
 }
 
-// Electric motor: a thin whine whose pitch and level follow the forklift speed.
+// Electric motor: a low, soft hum (triangle + sub sine) whose pitch and level follow the forklift speed.
 function startEngine() {
   const o = ctx.createOscillator();
   const o2 = ctx.createOscillator();
   const f = ctx.createBiquadFilter();
   const g = ctx.createGain();
-  o.type = 'sawtooth';
+  o.type = 'triangle';
   o2.type = 'sine';
   f.type = 'lowpass';
-  f.frequency.value = 900;
+  f.frequency.value = 350;
+  f.Q.value = 0.5;
   g.gain.value = 0;
   o.connect(f);
   o2.connect(f);
@@ -452,21 +454,21 @@ export function setEngine(speed, throttle) {
   if (!engine) startEngine();
   const v = Math.min(1, Math.abs(speed) / 4);
   const t = ctx.currentTime;
-  const pitch = 110 + v * 520 + (throttle ? 25 : 0);
-  engine.o.frequency.setTargetAtTime(pitch, t, 0.08);
-  engine.o2.frequency.setTargetAtTime(pitch * 2, t, 0.08);
-  engine.f.frequency.setTargetAtTime(500 + v * 1800, t, 0.1);
-  engine.g.gain.setTargetAtTime(0.012 + v * 0.05 + (throttle ? 0.01 : 0), t, 0.1);
+  const pitch = 55 + v * 80 + (throttle ? 6 : 0);
+  engine.o.frequency.setTargetAtTime(pitch, t, 0.15);
+  engine.o2.frequency.setTargetAtTime(pitch * 0.5, t, 0.15);
+  engine.f.frequency.setTargetAtTime(250 + v * 350, t, 0.15);
+  engine.g.gain.setTargetAtTime(v < 0.02 && !throttle ? 0.008 : 0.02 + v * 0.05, t, 0.15);
   setBeeper(speed < -0.05, t);
 }
 
-// Reversing warning: 1 kHz square beep, 0.4 s on / 0.4 s off while backing up.
+// Reversing warning: 880 Hz soft sine beep, 0.4 s on / 0.4 s off while backing up.
 function setBeeper(reversing, t) {
   if (!beeper) {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
-    o.type = 'square';
-    o.frequency.value = 1000;
+    o.type = 'sine';
+    o.frequency.value = 880;
     g.gain.value = 0;
     o.connect(g);
     g.connect(sfxBus);
@@ -474,5 +476,5 @@ function setBeeper(reversing, t) {
     beeper = { o, g };
   }
   const on = reversing && t % 0.8 < 0.4;
-  beeper.g.gain.setTargetAtTime(on ? 0.02 : 0, t, 0.005);
+  beeper.g.gain.setTargetAtTime(on ? 0.035 : 0, t, 0.01);
 }
