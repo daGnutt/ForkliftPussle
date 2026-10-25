@@ -5,8 +5,8 @@ import { FL, toWorld } from './forklift.js';
 // never leaks through or past walls. Rays that hit a wall within the radius
 // carry `wall: true`; the cabin view lets the light climb the wall there
 // (height `climb`, a spherical falloff).
-export const REV_RADIUS = 1.4;
-const REV_OFFSET = 0.5; // centre distance behind the rear of the forklift
+export const REV_RADIUS = 0.9;
+const REV_OFFSET = 1.0; // centre distance behind the rear of the forklift
 const RAYS = 56;
 
 function rayHit(g, ox, oy, dx, dy, max) {

@@ -629,7 +629,7 @@ console.log('all tests passed');
   // Light centre 0.5 from the right border wall, rear pointing at it.
   const wall = g.walls.reduce((b, w) => (w.x > b.x ? w : b));
   g.fl.a = Math.PI; g.fl.y = g.h / 2; g.fl.speed = -1;
-  g.fl.x = wall.x - 0.5 + (FL.back - 0.5);
+  g.fl.x = wall.x - 0.5 + (FL.back - 1.0);
   const M = reverseLight(g);
   assert.ok(M.pts.every((p) => p.x <= wall.x + 1e-9), 'light stops at wall');
   assert.ok(M.pts.some((p) => p.wall && p.climb > 0), 'light climbs wall');
