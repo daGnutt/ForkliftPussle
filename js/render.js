@@ -1,5 +1,6 @@
 import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
+import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
@@ -284,6 +285,16 @@ function drawWorld(ctx, g) {
         ctx.fill();
       }
     });
+  }
+
+  const rl = reverseLight(g);
+  if (rl) {
+    ctx.fillStyle = '#2979ff';
+    ctx.globalAlpha = 0.45 + 0.2 * Math.sin(g.time * 14);
+    ctx.beginPath();
+    rl.pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   for (const z of g.zones) {

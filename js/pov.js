@@ -2,6 +2,7 @@ import { COLORS } from './level.js';
 import { theme } from './theme.js';
 import { decalsEnabled, floorDecals, wallDecal, wallBase, hash, overheadDecals, boxDecalKind, boxDecalShapes } from './decals.js';
 import { FL, toWorld } from './forklift.js';
+import { reverseLight } from './revlight.js';
 import { carriedWorldOffs, HIT_LIFE, zoneDone, isSolved, scoreEnough, isParked } from './game.js';
 
 // Cabin view: a small polygon-projection 3D renderer. Everything is built from
@@ -462,6 +463,32 @@ function drawFloorMarks(ctx, g, cam) {
   }
 }
 
+function revAlpha(g) { return 0.45 + 0.2 * Math.sin(g.time * 14); }
+
+function drawRevFloor(ctx, g, cam) {
+  const L = reverseLight(g);
+  if (!L) return;
+  floorPoly(ctx, cam, L.pts.map((p) => [p.x, p.y]), `rgba(41,121,255,${revAlpha(g)})`);
+  floorPoly(ctx, cam, L.pts.map((p) => [L.x + (p.x - L.x) * 0.45, L.y + (p.y - L.y) * 0.45]), `rgba(144,202,249,${revAlpha(g)})`);
+}
+
+// Where the light touches a wall it climbs up it (drawn over the faces).
+function drawRevWalls(ctx, g, cam) {
+  const L = reverseLight(g);
+  if (!L) return;
+  ctx.fillStyle = `rgba(41,121,255,${revAlpha(g) * 0.8})`;
+  const n = L.pts.length;
+  for (let i = 0; i < n; i++) {
+    const a = L.pts[i], b = L.pts[(i + 1) % n];
+    if (!a.wall || !b.wall) continue;
+    if (Math.abs(a.x - b.x) > 0.5 || Math.abs(a.y - b.y) > 0.5) continue;
+    fillPoly(ctx, project(cam, [
+      toCam(cam, a.x, a.y, 0), toCam(cam, b.x, b.y, 0),
+      toCam(cam, b.x, b.y, b.climb), toCam(cam, a.x, a.y, a.climb),
+    ]), ctx.fillStyle);
+  }
+}
+
 // Floating "×count" over each unfinished zone, drawn over the scene; hidden when the zone floor is out of sight.
 function drawZoneLabels(ctx, g, cam, faces) {
   for (const z of g.zones) {
@@ -536,8 +563,10 @@ export function drawPov(ctx, g, x, y, w, h, opts = {}) {
   floorGrid(ctx, cam);
   drawFloorDecals(ctx, g, cam);
   drawFloorMarks(ctx, g, cam);
+  drawRevFloor(ctx, g, cam);
   const faces = buildFaces(g, cam);
   for (const f of faces) if (f.d < MAX_DIST) drawFace(ctx, cam, g, f);
+  drawRevWalls(ctx, g, cam);
   if (!opts.rear) drawZoneLabels(ctx, g, cam, faces);
   if (!opts.rear) drawHits(ctx, g, cam);
   ctx.restore();

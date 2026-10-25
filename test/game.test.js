@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateLevel, parseSeed } from '../js/level.js';
 import { FL, toLocal, maxSteerFor } from '../js/forklift.js';
+import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown } from '../js/game.js';
 
 const NONE = {};
@@ -614,4 +615,22 @@ console.log('all tests passed');
   const lines = d.lines(newGame(1), { width: 800, height: 600, dpr: 1 });
   assert.ok(lines[0].startsWith('FPS 60'), lines[0]);
   assert.ok(lines[3].includes('boxes in place 0/'), lines[3]);
+}
+
+// Reversing light: only when reversing, and never reaches past a wall.
+{
+  const g = newGame(1);
+  assert.equal(reverseLight(g), null, 'no light when stationary');
+  g.fl.speed = -1;
+  const L = reverseLight(g);
+  assert.ok(L && L.pts.every((p) => Math.hypot(p.x - L.x, p.y - L.y) <= REV_RADIUS + 1e-9));
+  g.fl.speed = 1;
+  assert.equal(reverseLight(g), null, 'no light driving forward');
+  // Light centre 0.5 from the right border wall, rear pointing at it.
+  const wall = g.walls.reduce((b, w) => (w.x > b.x ? w : b));
+  g.fl.a = Math.PI; g.fl.y = g.h / 2; g.fl.speed = -1;
+  g.fl.x = wall.x - 0.5 + (FL.back - 0.5);
+  const M = reverseLight(g);
+  assert.ok(M.pts.every((p) => p.x <= wall.x + 1e-9), 'light stops at wall');
+  assert.ok(M.pts.some((p) => p.wall && p.climb > 0), 'light climbs wall');
 }
