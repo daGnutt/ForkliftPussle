@@ -51,4 +51,8 @@ footer b { color: var(--accent); }
 #menu label { cursor: pointer; } #menu label input { vertical-align: middle; }
 #menu #menuGoto { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
 #menu #menuLevel { width: 4.5em; font: inherit; }
+#menu #menuShare { display: flex; flex-direction: column; gap: 6px; }
+#menu #stateText { font: 12px monospace; resize: vertical; width: 100%; box-sizing: border-box; }
+#menu #menuShare div { display: flex; gap: 8px; }
+#menu #stateMsg { min-height: 1em; opacity: .8; }
 #menu button { padding: 8px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
