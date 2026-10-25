@@ -33,3 +33,25 @@ export function deserializeGame(data) {
   g.started = !!g.started;
   return g;
 }
+
+async function pipe(bytes, stream) {
+  const out = new Blob([bytes]).stream().pipeThrough(stream);
+  return new Uint8Array(await new Response(out).arrayBuffer());
+}
+
+// Snapshot -> deflate-compressed, base64 text for sharing.
+export async function encodeState(data) {
+  const bytes = await pipe(new TextEncoder().encode(JSON.stringify(data)), new CompressionStream('deflate-raw'));
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+// Inverse of encodeState; plain JSON text is accepted too.
+export async function decodeState(text) {
+  const t = text.trim();
+  if (t.startsWith('{')) return JSON.parse(t);
+  const bin = atob(t.replace(/\s+/g, ''));
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(await pipe(bytes, new DecompressionStream('deflate-raw'))));
+}

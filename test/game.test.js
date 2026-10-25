@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { generateLevel, parseSeed } from '../js/level.js';
 import { FL, toLocal, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
-import { serializeGame, deserializeGame } from '../js/savestate.js';
+import { serializeGame, deserializeGame, encodeState, decodeState } from '../js/savestate.js';
 import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown } from '../js/game.js';
 
 const NONE = {};
@@ -756,5 +756,11 @@ console.log('all tests passed');
   assert.throws(() => deserializeGame({ version: 99 }));
   assert.throws(() => deserializeGame({ ...JSON.parse(json), level: 4 }));
   assert.throws(() => deserializeGame({ ...JSON.parse(json), state: { ...JSON.parse(json).state, fl: null } }));
+  const snap = serializeGame(r, 'abc');
+  const enc = await encodeState(snap);
+  assert.match(enc, /^[A-Za-z0-9+/]+=*$/);
+  assert.ok(enc.length < JSON.stringify(snap).length / 2, 'compressed');
+  assert.deepEqual(await decodeState(enc), snap);
+  assert.deepEqual(await decodeState(JSON.stringify(snap)), snap);
   console.log('savestate ok');
 }

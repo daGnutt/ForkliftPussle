@@ -1,7 +1,7 @@
 import { newGame, update, forkUp, forkDown, zoneDone, score } from './game.js';
 import { createInput } from './input.js';
 import { getBest, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
-import { serializeGame, deserializeGame } from './savestate.js';
+import { serializeGame, deserializeGame, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
@@ -291,16 +291,18 @@ window.addEventListener('keydown', (e) => {
 
 const stateText = document.getElementById('stateText');
 const stateMsg = document.getElementById('stateMsg');
-document.getElementById('stateExport').addEventListener('click', () => {
-  stateText.value = JSON.stringify(serializeGame(game, seedText));
+document.getElementById('stateExport').addEventListener('click', async () => {
+  stateText.value = await encodeState(serializeGame(game, seedText));
   stateText.select();
-  navigator.clipboard?.writeText(stateText.value).then(() => { stateMsg.textContent = 'Exported and copied to clipboard.'; }, () => { stateMsg.textContent = 'Exported; copy the text above.'; });
-  if (!navigator.clipboard) stateMsg.textContent = 'Exported; copy the text above.';
+  try {
+    await navigator.clipboard.writeText(stateText.value);
+    stateMsg.textContent = 'Exported and copied to clipboard.';
+  } catch { stateMsg.textContent = 'Exported; copy the text above.'; }
 });
-document.getElementById('stateImport').addEventListener('click', () => {
+document.getElementById('stateImport').addEventListener('click', async () => {
   let g, data;
   try {
-    data = JSON.parse(stateText.value);
+    data = await decodeState(stateText.value);
     g = deserializeGame(data);
   } catch (err) {
     stateMsg.textContent = `Import failed: ${err.message}`;
