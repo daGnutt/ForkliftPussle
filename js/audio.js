@@ -154,18 +154,35 @@ const TRACKS = [
     },
   },
   {
-    id: 'hiphop', name: 'Hip Hop: Boom-Bap Box Shuffle (90 BPM)', bpm: 90, chordSteps: 32,
-    chords: [[50, 53, 57, 60, 64], [43, 46, 50, 53, 57], [46, 50, 53, 57, 62], [45, 49, 52, 55, 60],
-      [53, 57, 60, 64, 67], [52, 55, 59, 62, 66], [50, 53, 57, 60, 64], [45, 49, 52, 55, 60]],
-    step(k, t, chord) {
-      const beat = k % 16, sw = beat % 2 ? STEP * 0.25 : 0; // lazy swing on off-16ths
-      if (k === 0) pad(chord, t, 32 * STEP + 0.5, { gain: 0.045, cutoff: 900 });
-      if ([0, 7, 10].includes(beat)) kick(t);
-      if (beat === 4 || beat === 12) { ND(t, 0.16, { gain: 0.16, cutoff: 1500, type: 'bandpass' }); ND(t, 0.05, { gain: 0.08, cutoff: 600, type: 'lowpass' }); }
-      if (beat % 2 === 0) ND(t + sw, 0.035, { gain: beat % 4 === 0 ? 0.06 : 0.035 });
-      if ([0, 6, 8, 14].includes(beat)) T(chord[0] - 12, t, STEP * 3, { type: 'sine', gain: 0.22, attack: 0.01, release: 0.2 });
-      // Dusty electric-piano licks.
-      if ([2, 5, 9, 13].includes(beat)) T(chord[1 + (k % 3)] + 12, t + sw, STEP * 2.5, { type: 'triangle', gain: 0.06, attack: 0.005, release: 0.3, cutoff: 2200 });
+    // 8 one-bar chords: Gm9 | Ebmaj7 | Cm9 | D7b9, then Cm9 | Dm7b5-G7 | Ebmaj7 | D7b9. Root first, bass plays root - 12.
+    id: 'hiphop', name: 'Hip Hop: Boom-Bap Box Shuffle (92 BPM)', bpm: 92, chordSteps: 16,
+    chords: [[55, 58, 62, 65, 69], [51, 55, 58, 62, 65], [48, 51, 58, 62, 67], [50, 54, 57, 60, 63],
+      [48, 51, 58, 62, 67], [50, 53, 56, 60, 65], [51, 55, 58, 62, 65], [50, 54, 57, 60, 63]],
+    step(k, t, chord, ci) {
+      const sw = k % 2 ? STEP * 0.3 : 0; // lazy MPC swing on the off 16ths
+      const odd = ci % 2 === 1, endBar = ci % 4 === 3;
+      // Drums: kick pattern alternates each bar, snare on 2 and 4 with quiet ghost notes.
+      if ((odd ? [0, 3, 10, 13] : [0, 7, 10]).includes(k)) kick(t);
+      if (k === 4 || k === 12) { ND(t, 0.17, { gain: 0.17, cutoff: 1600, type: 'bandpass' }); ND(t, 0.06, { gain: 0.09, cutoff: 500, type: 'lowpass' }); }
+      if (odd && (k === 7 || k === 15)) ND(t + sw, 0.05, { gain: 0.04, cutoff: 1600, type: 'bandpass' });
+      if (endBar && k >= 12 && k % 1 === 0 && k !== 12) ND(t, 0.06, { gain: 0.05 + (k - 12) * 0.02, cutoff: 1600, type: 'bandpass' });
+      if (k % 2 === 0) ND(t, 0.035, { gain: k % 4 === 0 ? 0.06 : 0.04 });
+      if (k === 14 && !odd) ND(t + sw, 0.14, { gain: 0.05, cutoff: 6000 });
+      // Vinyl crackle.
+      if (Math.random() < 0.25) noise(trackBus, t + Math.random() * STEP, 0.01, { gain: 0.012, cutoff: 4000 });
+      // Round sub bass: root, octave pop, fifth walk.
+      const bass = { 0: 0, 3: 0, 6: 12, 8: 0, 11: 7, 14: 5 }[k];
+      if (bass !== undefined && !(endBar && k >= 12)) T(chord[0] - 12 + bass, t + sw, STEP * 2.6, { type: 'sine', gain: 0.24, attack: 0.008, release: 0.15 });
+      // Dusty electric-piano comping (offbeat stabs) over a soft pad.
+      if (k === 0) pad(chord, t, 16 * STEP + 0.4, { gain: 0.03, cutoff: 800 });
+      if ([0, 5, 10].includes(k) || (odd && k === 13)) {
+        chord.slice(1).forEach((m, i) => T(m + 12, t + sw + i * 0.008, STEP * 2.2, { type: i % 2 ? 'sine' : 'triangle', gain: 0.045, attack: 0.004, release: 0.25, cutoff: 2400 }));
+      }
+      // Four-bar flute-like hook (G minor pentatonic), a bar of rest-and-answer each phrase.
+      const HOOK = [{ 2: 77, 4: 74, 6: 72, 10: 70 }, { 2: 70, 5: 72, 8: 74, 12: 72 }, { 0: 75, 3: 74, 6: 72, 8: 70, 12: 67 }, { 2: 70, 6: 74, 10: 72, 11: 70 }][ci % 4];
+      const hm = HOOK[k];
+      if (hm !== undefined && Math.floor(ci / 4) % 2 === 0) T(hm, t + sw, STEP * 2.4, { type: 'sine', gain: 0.07, attack: 0.03, release: 0.25, cutoff: 3000 });
+      else if (hm !== undefined) T(hm - 5, t + sw, STEP * 2.4, { type: 'triangle', gain: 0.05, attack: 0.03, release: 0.25, cutoff: 2000 });
     },
   },
   {
