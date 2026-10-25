@@ -16,6 +16,8 @@ const CRASH_MIN_SPEED = 0.8;
 const CRASH_COOLDOWN = 0.4;
 const FORK_PUSH_FAST = 2; // above this speed a fork push damages the whole stack, not just the boxes below the forks
 const FORK_BLOCK_POINTS = 10;
+const CEILING_LEVELS = 6; // the carried stack's top (H + boxes) may not go above this many box heights
+const CEILING_POINTS = 10; // crash points per box on the forks each time they hit the ceiling
 const PALLET_INERTIA = 0.17; // radius of gyration squared of a unit box
 const ALIGN_MIN_SPEED = 0.05;
 const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
@@ -378,8 +380,15 @@ function forkedStack(g) {
   return S && S.layers.length > g.H ? S : null;
 }
 
+// Raising carried boxes into the ceiling is refused ('blocked') and damages every carried box.
 export function forkUp(g) {
   if (g.carried) {
+    if (g.H + g.carried.length >= CEILING_LEVELS) {
+      while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen(g.carried[g.carriedPen.length], g.carriedPen.length));
+      const c = toWorld(g.fl, FL.carryX, 0);
+      hurt(g, g.carriedPen, CEILING_POINTS, c.x, c.y, g.H + g.carried.length, g);
+      return 'blocked';
+    }
     g.H = Math.min(MAX_H, g.H + 1);
     return;
   }

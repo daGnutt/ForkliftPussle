@@ -407,6 +407,24 @@ console.log('all tests passed');
   console.log('fork-blocked ok');
 }
 
+// Raising a carried stack into the ceiling is blocked and damages every carried box.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1] }];
+  const f = g.fl;
+  f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
+  driveUntil(g, 10, 8);
+  forkUp(g);
+  assert.equal(g.carried.length, 2);
+  while (g.H < 4) assert.equal(forkUp(g), undefined);
+  assert.equal(forkUp(g), 'blocked');
+  assert.equal(g.H, 4, 'forks stay put');
+  assert.deepEqual(g.carriedPen.map((p) => p.crash), [10, 10], 'every carried box is damaged');
+  assert.equal(g.hitCount, 1);
+  console.log('ceiling ok');
+}
+
 // seeds: deterministic, differ from default, 0 = default
 {
   assert.deepEqual(generateLevel(3, 42), generateLevel(3, 42), 'seeded level deterministic');

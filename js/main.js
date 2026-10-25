@@ -66,7 +66,11 @@ const input = createInput({
     localStorage.setItem('forklift-cab-view', view.povBig ? '1' : '0');
     if (tutStep === 3 && view.povBig) nextTutorial();
   },
-  up: () => { const h = game.H; forkUp(game); if (game.H !== h) playFork(true); },
+  up: () => {
+    const h = game.H;
+    if (forkUp(game) === 'blocked') playBlocked();
+    else if (game.H !== h) playFork(true);
+  },
   down: () => {
     const h = game.H;
     if (forkDown(game) === 'blocked') playBlocked();
