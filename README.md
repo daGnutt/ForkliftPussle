@@ -4,7 +4,7 @@ Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift an
 
 ## Controls
 
-On touch devices, on-screen buttons replace the keyboard (steer left, drive/reverse right, fork up/down, plus View, Brake, Next and Menu).
+On touch devices, on-screen buttons replace the keyboard (steer left, drive/reverse right, fork up/down, plus View, Brake and Menu, plus Next after a win).
 | Key | Action |
 |-----|--------|
 | ↑ / ↓ | Drive forward / reverse |

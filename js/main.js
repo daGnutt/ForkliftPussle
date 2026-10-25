@@ -346,6 +346,7 @@ pauseOnBlur();
 applyPause();
 
 const debug = debugEnabled(location.search) ? createDebug() : null;
+const touchEl = document.getElementById('touch');
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 function frame(now) {
@@ -362,6 +363,7 @@ function frame(now) {
   const t1 = performance.now();
   checkTutorial();
   checkRecord();
+  touchEl.classList.toggle('won', game.status === 'won' && !recordOpen);
   const st = input.state();
   setEngine(game.fl.speed, st.up || st.down);
   const done = countDone();

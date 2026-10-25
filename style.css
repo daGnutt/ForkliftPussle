@@ -73,3 +73,5 @@ footer b { color: var(--accent); }
   #splash, #menu, #record { touch-action: manipulation; }
   #menu, #record, #splash { z-index: 30; }
 }
+#touch button[data-key="Enter"] { display: none; }
+#touch.won button[data-key="Enter"] { display: block; }
