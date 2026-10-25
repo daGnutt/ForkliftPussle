@@ -113,11 +113,22 @@ function buildRooms(rnd, w, h, count, start) {
 function tryGenerate(n, attempt, seed = 0) {
   const rnd = mulberry32(n * 7919 + attempt * 104729 + 17 + Math.imul(seed, 2654435761));
   const { w, h, maxH, colors, total, dividers } = levelParams(n);
-  const start = {
-    x: 3.2 + rnd() * (w - 6.4),
-    y: 3.2 + rnd() * (h - 6.4),
-    a: Math.floor(rnd() * 4) * (Math.PI / 2),
-  };
+  // The truck's tail rests against a charger: a half-truck-width stub jutting from an outer wall.
+  const side = Math.floor(rnd() * 4), along = rnd();
+  const CHARGER_D = 0.45, TAIL = 1.9, CHARGER_W = 0.55;
+  const dist = CHARGER_D + TAIL;
+  const a = side * (Math.PI / 2);
+  const start = { x: 0, y: 0, a };
+  let charger;
+  if (side % 2 === 0) {
+    start.y = 2.2 + along * (h - 4.4);
+    start.x = side === 0 ? dist : w - dist;
+    charger = { x: side === 0 ? 0 : w - CHARGER_D, y: start.y - CHARGER_W / 2, w: CHARGER_D, h: CHARGER_W };
+  } else {
+    start.x = 2.2 + along * (w - 4.4);
+    start.y = side === 1 ? dist : h - dist;
+    charger = { x: start.x - CHARGER_W / 2, y: side === 1 ? 0 : h - CHARGER_D, w: CHARGER_W, h: CHARGER_D };
+  }
 
   const boxes = [];
   for (let c = 0; c < colors; c++) boxes.push(c);
@@ -145,6 +156,7 @@ function tryGenerate(n, attempt, seed = 0) {
   }
 
   const walls = buildRooms(rnd, w, h, dividers, start);
+  walls.push(charger);
 
   const placed = [];
   const areas = [];

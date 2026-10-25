@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { generateLevel, parseSeed } from '../js/level.js';
+import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState } from '../js/savestate.js';
@@ -360,17 +361,19 @@ const driveUntil = (g, x, brakeAt) => {
 {
   const g = newGame(1);
   flatWorld(g);
+  g.stacks = [];
   const f = g.fl;
-  f.x = 5; f.y = 5; f.a = 0; f.speed = 0;
-  run(g, { up: true }, 5);
+  f.x = 3; f.y = 5; f.a = 0; f.speed = 0;
+  run(g, { up: true }, 2.5);
   const lowSpeed = f.speed;
 
   const h = newGame(1);
   flatWorld(h);
+  h.stacks = [];
   h.H = 5;
   const hf = h.fl;
-  hf.x = 5; hf.y = 5; hf.a = 0; hf.speed = 0;
-  run(h, { up: true }, 5);
+  hf.x = 3; hf.y = 5; hf.a = 0; hf.speed = 0;
+  run(h, { up: true }, 2.5);
   const highSpeed = hf.speed;
 
   assert.ok(highSpeed < lowSpeed, 'fully raised forks cap speed below level-0 top speed');
@@ -598,6 +601,13 @@ console.log('all tests passed');
     starts.add(`${l.start.x.toFixed(1)},${l.start.y.toFixed(1)}`);
     assert.ok(Math.abs(Math.sin(2 * l.start.a)) < 1e-9, 'start heading is axis-aligned');
     assert.ok(newGame(n) && isParked(newGame(n)), 'spawns parked');
+    // Tail against a half-width charger stub that juts from an outer wall.
+    const c = Math.cos(l.start.a), s = Math.sin(l.start.a);
+    const tx = l.start.x + FL.back * c, ty = l.start.y + FL.back * s;
+    const ch = l.walls.find((r) => pointRectDist(tx, ty, r) < 0.1 &&
+      (r.x < 0.01 || r.y < 0.01 || r.x + r.w > l.w - 0.01 || r.y + r.h > l.h - 0.01));
+    assert.ok(ch, 'tail rests against a charger on an outer wall');
+    assert.ok(Math.abs(Math.max(ch.w, ch.h) - FL.halfW) < 1e-9, 'charger is half the truck width');
   }
   assert.ok(starts.size > 1, 'spawn point varies');
   console.log('spawn ok');
@@ -651,6 +661,7 @@ console.log('all tests passed');
 {
   const g = newGame(1);
   assert.equal(reverseLight(g), null, 'no light when stationary');
+  g.fl.x = g.w / 2; g.fl.y = g.h / 2; g.fl.a = 0;
   g.fl.speed = -1;
   const L = reverseLight(g);
   assert.ok(L && L.pts.every((p) => Math.hypot(p.x - L.x, p.y - L.y) <= REV_RADIUS + 1e-9));
