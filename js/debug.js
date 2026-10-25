@@ -10,7 +10,7 @@ const pct = (ms, total) => (total ? `${(100 * ms / total).toFixed(0)}%` : '–')
 
 // Rolling frame/update/draw timings plus a snapshot of game state, drawn as a text overlay.
 export function createDebug() {
-  const frames = [], updates = [], draws = [], steps = [];
+  const frames = [], updates = [], draws = [], steps = [], overheads = [];
   let lastNow = 0, longFrames = 0, worst = 0, lastReset = 0;
   return {
     frame(now, stepCount, updateMs, drawMs) {
@@ -26,6 +26,8 @@ export function createDebug() {
       push(updates, updateMs);
       push(draws, drawMs);
     },
+    // Time spent producing the overlay itself (lines + drawing), reported by main.js after draw().
+    overhead(ms) { push(overheads, ms); },
     lines(g, view) {
       const ft = avg(frames);
       const zonesDone = g.zones.filter((z) => zoneDone(g, z));
@@ -35,8 +37,8 @@ export function createDebug() {
       const mem = performance.memory ? `${(performance.memory.usedJSHeapSize / 1048576).toFixed(1)} MB` : 'n/a';
       return [
         `FPS ${ft ? (1000 / ft).toFixed(0) : '–'}  frame ${ft.toFixed(1)} ms (worst ${worst.toFixed(0)} ms, ${longFrames} > 25 ms)`,
-        `update ${avg(updates).toFixed(2)} ms  draw ${avg(draws).toFixed(2)} ms  steps/frame ${avg(steps).toFixed(1)}`,
-        `time share  update ${pct(avg(updates), ft)}  draw ${pct(avg(draws), ft)}  idle ${pct(Math.max(0, ft - avg(updates) - avg(draws)), ft)}`,
+        `update ${avg(updates).toFixed(2)} ms  draw ${avg(draws).toFixed(2)} ms  debug ${avg(overheads).toFixed(2)} ms  steps/frame ${avg(steps).toFixed(1)}`,
+        `time share  update ${pct(avg(updates), ft)}  draw ${pct(avg(draws), ft)}  debug ${pct(avg(overheads), ft)}  idle ${pct(Math.max(0, ft - avg(updates) - avg(draws) - avg(overheads)), ft)}`,
         `canvas ${view.width}×${view.height} @${view.dpr}x (${Math.round(view.width * view.dpr)}×${Math.round(view.height * view.dpr)} px)`,
         `boxes in place ${placed}/${zoneBoxes}  zones ${zonesDone.length}/${g.zones.length}  boxes ${total}`,
         `stacks ${g.stacks.length}  carried ${g.carried ? g.carried.length : 0}  walls ${g.walls.length}`,

@@ -619,11 +619,12 @@ console.log('all tests passed');
   assert.strictEqual(debugEnabled('?x=1&debug=1'), true);
   assert.strictEqual(debugEnabled(''), false);
   const d = createDebug();
-  for (let i = 0; i < 10; i++) d.frame(i * 16.7, 2, 0.5, 1);
+  for (let i = 0; i < 10; i++) { d.frame(i * 16.7, 2, 0.5, 1); d.overhead(0.5); }
   const lines = d.lines(newGame(1), { width: 800, height: 600, dpr: 1 });
   assert.ok(lines[0].startsWith('FPS 60'), lines[0]);
   assert.ok(lines[2].startsWith('time share'), lines[2]);
-  assert.ok(lines[2].includes('update   3%') && lines[2].includes('draw   6%') && lines[2].includes('idle  91%'), lines[2]);
+  assert.ok(lines[1].includes('debug 0.50 ms'), lines[1]);
+  assert.ok(lines[2].includes('update   3%') && lines[2].includes('draw   6%') && lines[2].includes('debug   3%') && lines[2].includes('idle  88%'), lines[2]);
   assert.ok(lines[4].includes('boxes in place 0/'), lines[4]);
 }
 

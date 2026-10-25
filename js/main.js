@@ -312,6 +312,7 @@ function frame(now) {
     const t3 = performance.now();
     debug.frame(now, steps, t1 - t0, t3 - t2);
     debug.draw(ctx, game, view);
+    debug.overhead(performance.now() - t3);
   }
   requestAnimationFrame(frame);
 }
