@@ -711,3 +711,22 @@ console.log('all tests passed');
   assert.ok(drums > 1000, 'percussion channel kept');
   console.log('midi parser ok');
 }
+
+// Some dividing walls have two openings (collinear wall pieces with two gaps between them).
+{
+  let multi = 0;
+  for (let n = 4; n <= 14; n++) {
+    const { walls } = generateLevel(n);
+    for (const a of walls) for (const b of walls) {
+      if (a === b) continue;
+      const v = a.w === 1 && b.w === 1 && a.x === b.x;
+      const hz = a.h === 1 && b.h === 1 && a.y === b.y;
+      if ((v && b.y > a.y + a.h) || (hz && b.x > a.x + a.w)) {
+        const c = walls.find((m) => m !== a && m !== b && (v ? m.w === 1 && m.x === a.x && m.y >= a.y + a.h && m.y + m.h <= b.y : m.h === 1 && m.y === a.y && m.x >= a.x + a.w && m.x + m.w <= b.x));
+        if (c) multi++;
+      }
+    }
+  }
+  assert.ok(multi > 0, 'some wall has two doors');
+  console.log('multi door ok');
+}

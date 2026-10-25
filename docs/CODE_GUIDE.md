@@ -61,7 +61,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 
 ## Level generation (`level.js`)
 - Deterministic per (level number, seed) via `mulberry32`; `generateLevel(n, seed = 0)`, seed 0 = the default layouts. `parseSeed(text)` maps splash input to an int (integers as-is, other text hashed). `newGame(n, seed)` stores `g.seed`; retries up to 300 attempts and falls back to level 1 if placement keeps failing.
-- Order: choose boxes and zone counts per colour → rooms (`buildRooms`: recursive splits into rooms/corridors by thickness-1 dividing walls, each with a 3.6-wide door; later walls keep clear of earlier doors so everything stays connected; `levelParams.dividers`, 0 on level 1) → per-colour zone area (preferably flush against an outer wall, 0.5 gap) → stack placement avoiding areas, walls and the start.
+- Order: choose boxes and zone counts per colour → rooms (`buildRooms`: recursive splits into rooms/corridors by thickness-1 dividing walls, each with one 3.6-wide door, or two (40% chance when the wall is long enough, ≥1.5 of wall between them); later walls keep clear of earlier doors so everything stays connected; `levelParams.dividers`, 0 on level 1) → per-colour zone area (preferably flush against an outer wall, 0.5 gap) → stack placement avoiding areas, walls and the start.
 - Guarantees valid placement and matching box/zone counts, **not** solvability. Difficulty scales in `levelParams`.
 
 ## Rendering (`render.js`)

@@ -33,7 +33,7 @@ function rectGap(a, b) {
   return Math.hypot(dx, dy);
 }
 
-// Splits the level into rooms and corridors with dividing walls (thickness 1), each with a door gap.
+// Splits the level into rooms and corridors with dividing walls (thickness 1), each with one or two door gaps.
 // Later walls keep clear of earlier doors so every room stays reachable.
 const WALL_T = 1, DOOR_W = 3.6, MIN_ROOM = 7, CORRIDOR_W = 3.4;
 
@@ -66,14 +66,34 @@ function buildRooms(rnd, w, h, count, start) {
           ? { x: reg.x + c, y: reg.y, w: WALL_T, h: cross }
           : { x: reg.x, y: reg.y + c, w: cross, h: WALL_T };
         if (!clear(wallRect)) continue;
-        const door = vertical
-          ? { x: wallRect.x, y: reg.y + d, w: WALL_T, h: DOOR_W }
-          : { x: reg.x + d, y: wallRect.y, w: DOOR_W, h: WALL_T };
-        const pieces = vertical
-          ? [{ ...wallRect, h: d }, { ...wallRect, y: door.y + DOOR_W, h: cross - d - DOOR_W }]
-          : [{ ...wallRect, w: d }, { ...wallRect, x: door.x + DOOR_W, w: cross - d - DOOR_W }];
-        for (const p of pieces) if (p.w > 0 && p.h > 0) walls.push(p);
-        doors.push({ x: door.x - 1.2, y: door.y - 1.2, w: door.w + 2.4, h: door.h + 2.4 });
+        // A second opening when the wall is long enough (at least 1.5 of wall between the doors).
+        const offs = [d];
+        if (cross >= 2 * DOOR_W + 3.5 && rnd() < 0.4) {
+          const lo = d + DOOR_W + 1.5, hi = cross - DOOR_W - 0.5;
+          const lo2 = 0.5, hi2 = d - DOOR_W - 1.5;
+          const opts = [];
+          if (hi >= lo) opts.push([lo, hi]);
+          if (hi2 >= lo2) opts.push([lo2, hi2]);
+          if (opts.length) {
+            const [a, b] = opts[Math.floor(rnd() * opts.length)];
+            offs.push(Math.round((a + rnd() * (b - a)) * 2) / 2);
+          }
+        }
+        offs.sort((p, q) => p - q);
+        let pos = 0;
+        for (const o of offs) {
+          const door = vertical
+            ? { x: wallRect.x, y: reg.y + o, w: WALL_T, h: DOOR_W }
+            : { x: reg.x + o, y: wallRect.y, w: DOOR_W, h: WALL_T };
+          const p = vertical ? { ...wallRect, h: o - pos } : { ...wallRect, w: o - pos };
+          if (vertical) p.y = reg.y + pos; else p.x = reg.x + pos;
+          if (p.w > 0 && p.h > 0) walls.push(p);
+          doors.push({ x: door.x - 1.2, y: door.y - 1.2, w: door.w + 2.4, h: door.h + 2.4 });
+          pos = o + DOOR_W;
+        }
+        const last = vertical ? { ...wallRect, y: reg.y + pos, h: cross - pos }
+          : { ...wallRect, x: reg.x + pos, w: cross - pos };
+        if (last.w > 0 && last.h > 0) walls.push(last);
         regions.splice(ri, 1);
         if (vertical) {
           regions.push({ x: reg.x, y: reg.y, w: c, h: reg.h },
