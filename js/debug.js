@@ -6,6 +6,8 @@ const WINDOW = 120;
 const avg = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0);
 const push = (a, v) => { a.push(v); if (a.length > WINDOW) a.shift(); };
 
+const pct = (ms, total) => (total ? `${(100 * ms / total).toFixed(0)}%` : '–').padStart(4);
+
 // Rolling frame/update/draw timings plus a snapshot of game state, drawn as a text overlay.
 export function createDebug() {
   const frames = [], updates = [], draws = [], steps = [];
@@ -34,6 +36,7 @@ export function createDebug() {
       return [
         `FPS ${ft ? (1000 / ft).toFixed(0) : '–'}  frame ${ft.toFixed(1)} ms (worst ${worst.toFixed(0)} ms, ${longFrames} > 25 ms)`,
         `update ${avg(updates).toFixed(2)} ms  draw ${avg(draws).toFixed(2)} ms  steps/frame ${avg(steps).toFixed(1)}`,
+        `time share  update ${pct(avg(updates), ft)}  draw ${pct(avg(draws), ft)}  idle ${pct(Math.max(0, ft - avg(updates) - avg(draws)), ft)}`,
         `canvas ${view.width}×${view.height} @${view.dpr}x (${Math.round(view.width * view.dpr)}×${Math.round(view.height * view.dpr)} px)`,
         `boxes in place ${placed}/${zoneBoxes}  zones ${zonesDone.length}/${g.zones.length}  boxes ${total}`,
         `stacks ${g.stacks.length}  carried ${g.carried ? g.carried.length : 0}  walls ${g.walls.length}`,
