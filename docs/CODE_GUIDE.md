@@ -75,6 +75,9 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 
 The splash has a `.scoring` paragraph explaining the score; the 'Level complete!' overlay in `render.js` shows the breakdown (box points − crash − squareness, time penalty, final score via `finalScore`).
 
+## PWA
+- `manifest.webmanifest` (fullscreen/standalone, landscape, icons in `icons/` rendered from `favicon.svg`) and `sw.js` (precaches core files in `CORE`, network-first with cache fallback for everything else, so MIDI is cached on first play). `index.html` registers the worker. Add new JS modules to `CORE` in `sw.js` and bump `CACHE` when shipping changes.
+
 ## Tests
 - `test/game.test.js` is a sequence of independent blocks (plain `node:assert`). Helpers: `run` (simulate seconds of input), `driveUntil`, `flatWorld` (clears zones and pillars). Any game-logic change needs a scenario here.
 
