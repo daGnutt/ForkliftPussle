@@ -632,5 +632,8 @@ console.log('all tests passed');
   g.fl.x = wall.x - 0.5 + (FL.back - 1.0);
   const M = reverseLight(g);
   assert.ok(M.pts.every((p) => p.x <= wall.x + 1e-9), 'light stops at wall');
+  g.fl.x += 0.9; // centre would be inside the wall: light must still show
+  const N = reverseLight(g);
+  assert.ok(N && N.pts.every((p) => p.x <= wall.x + 1e-9), 'light survives wall contact');
   assert.ok(M.pts.some((p) => p.wall && p.climb > 0), 'light climbs wall');
 }

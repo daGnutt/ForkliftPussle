@@ -5,7 +5,7 @@ import { FL, toWorld } from './forklift.js';
 // never leaks through or past walls. Rays that hit a wall within the radius
 // carry `wall: true`; the cabin view lets the light climb the wall there
 // (height `climb`, a spherical falloff).
-export const REV_RADIUS = 0.9;
+export const REV_RADIUS = 0.6;
 const REV_OFFSET = 1.0; // centre distance behind the rear of the forklift
 const RAYS = 56;
 
@@ -34,13 +34,18 @@ export function reversing(g) {
 // { x, y, r, pts: [{x, y, d, wall, climb}] } with pts in angle order.
 export function reverseLight(g) {
   if (!reversing(g)) return null;
-  const c = toWorld(g.fl, FL.back - REV_OFFSET, 0);
+  // Slide the centre back towards the forklift if it would sit inside a wall.
+  let c = null;
+  for (let o = REV_OFFSET; o >= 0 && !c; o -= 0.05) {
+    const p = toWorld(g.fl, FL.back - o, 0);
+    if (!g.walls.some((w) => p.x > w.x && p.x < w.x + w.w && p.y > w.y && p.y < w.y + w.h)) c = p;
+  }
+  if (!c) return null;
   const pts = [];
   for (let i = 0; i < RAYS; i++) {
     const a = (i / RAYS) * Math.PI * 2, dx = Math.cos(a), dy = Math.sin(a);
     const d = rayHit(g, c.x, c.y, dx, dy, REV_RADIUS);
     const wall = d < REV_RADIUS - 1e-6;
-    if (wall && d < 1e-6) return null;
     pts.push({ x: c.x + dx * d, y: c.y + dy * d, d, wall, climb: wall ? Math.sqrt(REV_RADIUS * REV_RADIUS - d * d) : 0 });
   }
   return { x: c.x, y: c.y, r: REV_RADIUS, pts };
