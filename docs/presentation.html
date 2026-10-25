@@ -21,6 +21,11 @@
   .bar { display: flex; gap: .6vw; margin-top: 4vh; }
   .bar div { flex: 1; height: .8vh; background: #2a313b; border-radius: 4px; }
   .bar div.on { background: #ffc933; }
+  .row { display: flex; gap: 3vw; align-items: center; }
+  .row ul { flex: 1; font-size: 1.8vw; }
+  .row figure { flex: 1.2; margin: 0; }
+  figure img { width: 100%; border-radius: 8px; border: 1px solid #2a313b; box-shadow: 0 6px 24px #0008; display: block; }
+  figcaption { font-size: 1.1vw; color: #9aa4b2; margin-top: 1vh; }
   #nav { position: fixed; right: 2vw; bottom: 2vh; font-size: 1.2vw; color: #6b7684; }
 </style>
 </head>
@@ -52,6 +57,7 @@
 <section class="slide">
   <div class="date">Day 1 · 21 Oct · Morning</div>
   <h2>Core mechanics: forks &amp; stacks</h2>
+  <div class="row">
   <ul>
     <li>First playable browser game: forklift, boxes, zones, levels</li>
     <li>Fork heights went from half-steps to whole levels 0–5</li>
@@ -59,11 +65,14 @@
     <li>Lowering a carried stack releases it at resting height</li>
     <li>Boxes rotate with the forklift and remember their rotation</li>
   </ul>
+  <figure><img src="shots/01-first-prototype.png" alt=""><figcaption>First prototype (commit 6974f64)</figcaption></figure>
+  </div>
 </section>
 
 <section class="slide">
   <div class="date">Day 1 · 21 Oct · Midday</div>
   <h2>Rules, scoring &amp; polish</h2>
+  <div class="row">
   <ul>
     <li>Per-box scoring: crash and squareness deductions (5° allowance)</li>
     <li>Parking spot; finishing needs parking and ≥ 50% score</li>
@@ -72,17 +81,22 @@
     <li>Custom level seeds, random-seed button</li>
     <li>Project docs: Copilot instructions and <code>CODE_GUIDE.md</code></li>
   </ul>
+  <figure><img src="shots/02-graphical-overhaul.png" alt=""><figcaption>After the graphical overhaul (ca4b8d9)</figcaption></figure>
+  </div>
 </section>
 
 <section class="slide">
   <div class="date">Day 1 · 21 Oct · Afternoon</div>
   <h2>Cabin (first-person) view</h2>
+  <div class="row">
   <ul>
     <li>Polygon-projected FPV with forks, pallets, zones and parking</li>
     <li>Occlusion clipping, lids, undersides and pallets open on all sides</li>
     <li>Camera follows fork height; rear-view and side mirrors</li>
     <li>Floor grid and wall textures; dark mode</li>
   </ul>
+  <figure><img src="shots/03-first-cabin-view.png" alt=""><figcaption>First cabin view (e16cdf4)</figcaption></figure>
+  </div>
 </section>
 
 <section class="slide">
@@ -100,6 +114,7 @@
 <section class="slide">
   <div class="date">Day 3 · 23 Oct</div>
   <h2>Hard mode &amp; physics depth</h2>
+  <div class="row">
   <ul>
     <li>Pallets glide, split or get pushed when turning with forks inside</li>
     <li>Hard mode: tines collide with pallet runners; push torque turns boxes</li>
@@ -107,6 +122,8 @@
     <li>Rooms-and-corridors level generator replaces random pillars</li>
     <li>Cab view rewritten as a polygon-projection renderer</li>
   </ul>
+  <figure><img src="shots/04-rooms-corridors.png" alt=""><figcaption>Rooms-and-corridors levels (c328e96)</figcaption></figure>
+  </div>
 </section>
 
 <section class="slide">
@@ -123,6 +140,7 @@
 <section class="slide">
   <div class="date">Day 4 · 24 Oct</div>
   <h2>Handling &amp; factory atmosphere</h2>
+  <div class="row">
   <ul>
     <li>Height-based speed limit for raised forks</li>
     <li>Larger steering lock, tapered by speed and fork height</li>
@@ -131,11 +149,14 @@
     <li>Ceiling, factory lights, fans; walls raised to clear a 5-box stack</li>
     <li>Box decals; <code>?debug</code> overlay with FPS and state</li>
   </ul>
+  <figure><img src="shots/05-decals.png" alt=""><figcaption>Floor and wall decals (aed730f)</figcaption></figure>
+  </div>
 </section>
 
 <section class="slide">
   <div class="date">Day 5 · 25 Oct</div>
   <h2>Sound &amp; final touches</h2>
+  <div class="row">
   <ul>
     <li>Reversing beep and a blue reversing light that walls cut off</li>
     <li>Selectable music: generated tracks, then public-domain and CC0 MIDI songs with a drum synth</li>
@@ -144,6 +165,13 @@
     <li>Level timer stops on completion; jump to lowest unscored level</li>
     <li>Debug overlay shows update/draw/idle share</li>
   </ul>
+  <figure><img src="shots/06-overview-latest.png" alt=""><figcaption>Latest overview, with damage popups and tutorial</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <h2>Where it ended up: the cabin view</h2>
+  <figure style="margin:0;max-height:70vh"><img src="shots/07-cabin-latest.png" alt="" style="max-height:68vh;width:auto;margin:0 auto"><figcaption style="text-align:center">Latest cabin view: mirrors, decals, zone labels and damage popups (HEAD)</figcaption></figure>
 </section>
 
 <section class="slide">
