@@ -70,6 +70,8 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 ## Branding / splash
 - Game name: Forklift Frenzy. `favicon.svg` is the tab icon; `#splash` in `index.html` (styled in `style.css`) has a seed text box and a shuffle-icon button (fills a random integer) (persisted in `localStorage` `forklift-seed`; submitting with Enter/Start applies it and restarts at level 1). The splash also shows a credits line (designed by Gnutt, coded by Copilot for GitHub). It is dismissed by the first key press outside the box (handled in `main.js`, which pauses the simulation until then and swallows that key).
 
+The splash has a `.scoring` paragraph explaining the score; the 'Level complete!' overlay in `render.js` shows the breakdown (box points − crash − squareness, time penalty, final score via `finalScore`).
+
 ## Tests
 - `test/game.test.js` is a sequence of independent blocks (plain `node:assert`). Helpers: `run` (simulate seconds of input), `driveUntil`, `flatWorld` (clears zones and pillars). Any game-logic change needs a scenario here.
 

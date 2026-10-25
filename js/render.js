@@ -1,7 +1,7 @@
 import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
 import { drawPov } from './pov.js';
-import { formatTime } from './highscores.js';
+import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
 import { carriedWorldOffs, HIT_LIFE, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
@@ -458,13 +458,20 @@ export function draw(ctx, g, view) {
     ctx.fillRect(0, 0, width, height);
   }
   if (g.status === 'won') {
+    const lost = lostBreakdown(g);
+    const pts = score(g);
     ctx.fillStyle = 'rgba(0,0,0,0.65)';
-    ctx.fillRect(0, height / 2 - 60, width, 120);
+    ctx.fillRect(0, height / 2 - 110, width, 220);
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.font = 'bold 36px sans-serif';
-    ctx.fillText('Level complete!', width / 2, height / 2 - 14);
+    ctx.fillText('Level complete!', width / 2, height / 2 - 64);
+    ctx.font = '18px sans-serif';
+    ctx.fillText(`Boxes in zones: ${pts + lost.crash + lost.square} − crashes ${lost.crash} − squareness ${lost.square} = ${pts}`, width / 2, height / 2 - 28);
+    ctx.fillText(`Time ${formatTime(g.time)}: −${timePenalty(g.time)} (1 point per 10 s)`, width / 2, height / 2 - 2);
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillText(`Final score: ${finalScore(pts, g.time)}`, width / 2, height / 2 + 30);
     ctx.font = '20px sans-serif';
-    ctx.fillText('Press Enter for the next level', width / 2, height / 2 + 28);
+    ctx.fillText('Press Enter for the next level', width / 2, height / 2 + 70);
   }
 }
