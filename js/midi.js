@@ -1,5 +1,6 @@
 // Minimal Standard MIDI File parser (formats 0/1). DOM-free so it can be tested in Node.
-// parseMidi(bytes) -> { duration (s), notes: [{ t, dur, note, vel }] } sorted by start time.
+// parseMidi(bytes) -> { duration (s), notes: [{ t, dur, note, vel, prog, drum }] } sorted by start time.
+// `prog` is the General MIDI program of the channel; `drum` marks percussion-channel (9) hits.
 export function parseMidi(bytes) {
   const u = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const str = (p, n) => String.fromCharCode(...u.subarray(p, p + n));
@@ -11,17 +12,18 @@ export function parseMidi(bytes) {
   if (division & 0x8000) throw new Error('SMPTE timing unsupported');
 
   const tempos = [{ tick: 0, uspq: 500000 }];
-  const raw = []; // { tick, dur(ticks), note, vel }
+  const raw = []; // { tick, dur(ticks), note, vel, prog, drum }
   let p = 8 + u32(4);
   for (let tr = 0; tr < ntrk && p < u.length; tr++) {
     const end = p + 8 + u32(p + 4);
     p += 8;
     let tick = 0, status = 0;
     const open = new Map();
+    const progs = new Array(16).fill(0);
     const vlq = () => { let v = 0, b; do { b = u[p++]; v = (v << 7) | (b & 0x7f); } while (b & 0x80); return v; };
     const close = (ch, note) => {
       const k = ch * 128 + note, o = open.get(k);
-      if (o) { raw.push({ tick: o.tick, dur: Math.max(1, tick - o.tick), note, vel: o.vel }); open.delete(k); }
+      if (o) { raw.push({ tick: o.tick, dur: Math.max(1, tick - o.tick), note, vel: o.vel, prog: o.prog, drum: ch === 9 }); open.delete(k); }
     };
     while (p < end) {
       tick += vlq();
@@ -38,8 +40,8 @@ export function parseMidi(bytes) {
         status = s;
         const ch = s & 15, hi = s & 0xf0;
         const a = u[p++], b = (hi === 0xc0 || hi === 0xd0) ? 0 : u[p++];
-        if (ch === 9) continue; // percussion channel
-        if (hi === 0x90 && b > 0) { close(ch, a); open.set(ch * 128 + a, { tick, vel: b }); }
+        if (hi === 0xc0) progs[ch] = a;
+        else if (hi === 0x90 && b > 0) { close(ch, a); open.set(ch * 128 + a, { tick, vel: b, prog: progs[ch] }); }
         else if (hi === 0x80 || hi === 0x90) close(ch, a);
       }
     }
@@ -59,7 +61,7 @@ export function parseMidi(bytes) {
   };
   const notes = raw.map((n) => {
     const t = secAt(n.tick);
-    return { t, dur: secAt(n.tick + n.dur) - t, note: n.note, vel: n.vel };
+    return { t, dur: secAt(n.tick + n.dur) - t, note: n.note, vel: n.vel, prog: n.prog, drum: n.drum };
   }).sort((x, y) => x.t - y.t);
   const duration = notes.reduce((m, n) => Math.max(m, n.t + n.dur), 0);
   return { duration, notes };

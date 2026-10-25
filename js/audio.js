@@ -94,12 +94,21 @@ function noise(dest, t, dur, { gain = 0.1, cutoff = 7000, type = 'highpass' } = 
   src.stop(t + dur + 0.02);
 }
 
-// Public-domain MIDI songs from the Mutopia Project (see assets/midi/CREDITS.md).
+// Public-domain / CC0 MIDI songs (sources in assets/midi/CREDITS.md).
 const TRACKS = [
   { id: 'rag-pineapple', name: 'Ragtime: Pineapple Rag', midi: 'assets/midi/pineapple-rag.mid' },
   { id: 'rag-elite', name: 'Ragtime: Elite Syncopations', midi: 'assets/midi/elite-syncopations.mid' },
   { id: 'rag-strenuous', name: 'Ragtime: The Strenuous Life', midi: 'assets/midi/strenuous-life.mid' },
   { id: 'bach-269', name: 'Bach: Chorale BWV 269', midi: 'assets/midi/bach-bwv269.mid' },
+  { id: 'metal-endless-pain', name: 'Metal: Endless Pain of Nightmares', midi: 'assets/midi/endless-pain.mid' },
+  { id: 'metal-pandemia', name: 'Metal: Pandemia', midi: 'assets/midi/pandemia.mid' },
+  { id: 'hardcore-knockout', name: 'Hardcore: Knockout', midi: 'assets/midi/knockout.mid' },
+  { id: 'rock-theme', name: 'Rock: Rock Theme Song', midi: 'assets/midi/rock-theme-song.mid' },
+  { id: 'rock-neon-flames', name: 'Rock: Neon Flames', midi: 'assets/midi/neon-flames.mid' },
+  { id: 'groove-bounce', name: 'Groove: Bounce Style', midi: 'assets/midi/bounce-style.mid' },
+  { id: 'dance-groovy', name: 'Dance: Everything Is Groovy', midi: 'assets/midi/helice-groovy.mid' },
+  { id: 'dance-disco', name: 'Dance: Disco Challenge', midi: 'assets/midi/helice-disco.mid' },
+  { id: 'dance-pop-city', name: 'Dance: Pop City', midi: 'assets/midi/helice-pop-city.mid' },
 ];
 
 const songs = new Map(); // url -> parsed song, or 'loading'
@@ -140,10 +149,53 @@ function midiTick() {
     if (t >= horizon) return;
     songIdx++;
     if (t < ctx.currentTime) continue;
-    const dur = Math.min(Math.max(n.dur, 0.12), 2.5);
-    const g = 0.14 * (0.4 + 0.6 * n.vel / 127);
-    tone(trackBus, mtof(n.note), t, dur + 0.25, { type: 'triangle', gain: g, attack: 0.008, release: dur + 0.2, cutoff: 3000 });
-    tone(trackBus, mtof(n.note), t, dur * 0.5 + 0.1, { type: 'sine', gain: g * 0.5, attack: 0.005, release: dur * 0.5 });
+    voice(n, t);
+  }
+}
+
+// Tiny General MIDI-ish synth: drums from noise/sine, guitars as filtered saws, bass, leads, piano-like default.
+function voice(n, t) {
+  const g = 0.14 * (0.4 + 0.6 * n.vel / 127);
+  if (n.drum) {
+    const k = n.note;
+    if (k === 35 || k === 36) {
+      const o = ctx.createOscillator(), e = ctx.createGain();
+      o.frequency.setValueAtTime(150, t);
+      o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+      e.gain.setValueAtTime(g * 2.2, t);
+      e.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      o.connect(e);
+      e.connect(trackBus);
+      o.start(t);
+      o.stop(t + 0.25);
+    } else if (k === 38 || k === 40 || k === 37 || k === 39) {
+      noise(trackBus, t, 0.14, { gain: g * 1.3, cutoff: 1800, type: 'bandpass' });
+    } else if (k === 42 || k === 44) {
+      noise(trackBus, t, 0.04, { gain: g * 0.6, cutoff: 8000 });
+    } else if (k === 46 || k === 49 || k === 51 || k === 57 || k === 59) {
+      noise(trackBus, t, 0.3, { gain: g * 0.5, cutoff: 7000 });
+    } else if (k >= 41 && k <= 50) {
+      tone(trackBus, mtof(36 + (k - 41) * 2), t, 0.2, { type: 'sine', gain: g * 1.5, attack: 0.002, release: 0.18 });
+    } else {
+      noise(trackBus, t, 0.05, { gain: g * 0.5, cutoff: 5000 });
+    }
+    return;
+  }
+  const dur = Math.min(Math.max(n.dur, 0.12), 2.5);
+  const f = mtof(n.note);
+  const p = n.prog;
+  if (p >= 24 && p <= 31) { // guitars; distorted ones get a harsher saw
+    const dist = p >= 29;
+    tone(trackBus, f, t, dur + 0.1, { type: 'sawtooth', gain: g * (dist ? 0.7 : 0.5), attack: 0.005, release: 0.1, cutoff: dist ? 2200 : 1600 });
+  } else if (p >= 32 && p <= 39) {
+    tone(trackBus, f, t, dur + 0.05, { type: 'triangle', gain: g * 1.6, attack: 0.005, release: 0.08, cutoff: 900 });
+  } else if (p >= 80 && p <= 103) {
+    tone(trackBus, f, t, dur + 0.05, { type: 'square', gain: g * 0.35, attack: 0.005, release: 0.08, cutoff: 3500 });
+  } else if (p >= 48 && p <= 55) {
+    tone(trackBus, f, t, dur + 0.3, { type: 'sawtooth', gain: g * 0.3, attack: 0.15, release: 0.3, cutoff: 1800 });
+  } else {
+    tone(trackBus, f, t, dur + 0.25, { type: 'triangle', gain: g, attack: 0.008, release: dur + 0.2, cutoff: 3000 });
+    tone(trackBus, f, t, dur * 0.5 + 0.1, { type: 'sine', gain: g * 0.5, attack: 0.005, release: dur * 0.5 });
   }
 }
 

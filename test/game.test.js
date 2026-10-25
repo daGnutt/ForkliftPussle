@@ -654,11 +654,14 @@ console.log('all tests passed');
   const { parseMidi } = await import('../js/midi.js');
   const { readFileSync, readdirSync } = await import('node:fs');
   const files = readdirSync(new URL('../assets/midi/', import.meta.url)).filter((f) => f.endsWith('.mid'));
-  assert.ok(files.length >= 4);
+  assert.ok(files.length >= 13);
+  let drums = 0;
   for (const f of files) {
     const s = parseMidi(readFileSync(new URL(`../assets/midi/${f}`, import.meta.url)));
+    drums += s.notes.filter((n) => n.drum).length;
     assert.ok(s.notes.length > 50 && s.duration > 20 && s.duration < 600, `${f} parses`);
     assert.ok(s.notes.every((n) => n.dur > 0 && n.note >= 0 && n.note < 128), `${f} notes valid`);
   }
+  assert.ok(drums > 1000, 'percussion channel kept');
   console.log('midi parser ok');
 }
