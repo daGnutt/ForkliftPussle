@@ -380,6 +380,43 @@ export function playBreak() {
   }
 }
 
+// Dull thud of hitting a wall head-on; power 0..1.
+export function playBonk(power = 0.5) {
+  if (!ctx || ctx.state !== 'running') return;
+  const t = ctx.currentTime, k = 0.5 + power;
+  const o = tone(sfxBus, 1, t, 0.22, { type: 'sine', gain: 0.3 * k, attack: 0.003, release: 0.15 });
+  o.frequency.cancelScheduledValues(t);
+  o.frequency.setValueAtTime(150, t);
+  o.frequency.exponentialRampToValueAtTime(45, t + 0.18);
+  noise(sfxBus, t, 0.06, { gain: 0.2 * k, cutoff: 900, type: 'lowpass' });
+}
+
+// Metal scraping along a wall: gritty filtered noise whose level and pitch follow the sliding speed (0 = silent).
+let scrapeNode = null;
+export function setScrape(speed) {
+  if (!ctx || ctx.state !== 'running') return;
+  if (!scrapeNode) {
+    if (speed <= 0) return;
+    if (!noiseBuf) noise(sfxBus, ctx.currentTime, 0.01, { gain: 0 });
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    src.loop = true;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 2;
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    src.connect(f);
+    f.connect(g);
+    g.connect(sfxBus);
+    src.start();
+    scrapeNode = { f, g };
+  }
+  const t = ctx.currentTime, v = Math.min(1, speed / 4);
+  scrapeNode.f.frequency.setTargetAtTime(1200 + v * 2200, t, 0.05);
+  scrapeNode.g.gain.setTargetAtTime(speed > 0 ? 0.08 + v * 0.18 : 0, t, 0.04);
+}
+
 // Cheerful rising arpeggio when a zone is filled.
 export function playSuccess() {
   if (!ctx || ctx.state !== 'running') return;

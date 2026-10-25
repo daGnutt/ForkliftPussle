@@ -680,6 +680,23 @@ console.log('all tests passed');
 }
 
 {
+  // head-on wall hit bonks; sliding along a wall scrapes
+  let g = newGame(2);
+  g.stacks = [];
+  g.fl.x = g.w / 2; g.fl.y = 1.5; g.fl.a = -Math.PI / 2; g.fl.speed = 4;
+  run(g, {}, 1);
+  assert.ok(g.bonks >= 1 && g.bonkPower > 0.2, 'head-on hit bonks');
+  g = newGame(2);
+  g.stacks = [];
+  g.walls = g.walls.slice(0, 4);
+  g.fl.x = g.w / 2; g.fl.y = 1; g.fl.a = -0.15; g.fl.speed = 3;
+  let scraped = false;
+  for (let i = 0; i < 180; i++) { update(g, { up: true }, 1 / 120); scraped ||= g.scrape > 0.3; }
+  assert.ok(scraped && g.bonks === 0, 'glancing contact scrapes without bonk');
+  console.log('wall sounds ok');
+}
+
+{
   const { parseMidi } = await import('../js/midi.js');
   const { readFileSync, readdirSync } = await import('node:fs');
   const files = readdirSync(new URL('../assets/midi/', import.meta.url)).filter((f) => f.endsWith('.mid'));
