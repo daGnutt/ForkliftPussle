@@ -80,3 +80,4 @@ The splash has a `.scoring` paragraph explaining the score; the 'Level complete!
 ## Workflow conventions
 - Each fix or feature goes on its own local branch (not pushed); never merge into `main` unless the user explicitly asks; delete the branch only after such a merge.
 - Update `README.md` when controls or rules change, and this guide when structure changes.
+- `docs/presentation.html` (+ `docs/shots/`) is the development-timeline slide deck; `docs/PRESENTATION_GUIDE.md` explains how to regenerate/update it. Update it on merges that add notable features.

@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Forklift Frenzy – Development Timeline</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; height: 100%; background: #14171c; color: #eee; font-family: system-ui, sans-serif; overflow: hidden; }
+  .slide { display: none; position: absolute; inset: 0; padding: 6vh 8vw; box-sizing: border-box; flex-direction: column; justify-content: center; }
+  .slide.active { display: flex; }
+  h1 { font-size: 5vw; margin: 0 0 2vh; color: #ffc933; }
+  h2 { font-size: 3.4vw; margin: 0 0 3vh; color: #ffc933; }
+  .sub { font-size: 2vw; color: #9aa4b2; }
+  .date { font-size: 1.6vw; color: #6fb1ff; margin-bottom: 1vh; letter-spacing: .1em; text-transform: uppercase; }
+  ul { font-size: 2.1vw; line-height: 1.55; margin: 0; padding-left: 2vw; }
+  li::marker { color: #ffc933; }
+  .stats { display: flex; gap: 3vw; flex-wrap: wrap; margin-top: 4vh; }
+  .stat { background: #1f242c; border-radius: 12px; padding: 2vh 2vw; text-align: center; }
+  .stat b { display: block; font-size: 3.6vw; color: #ffc933; }
+  .stat span { font-size: 1.4vw; color: #9aa4b2; }
+  .bar { display: flex; gap: .6vw; margin-top: 4vh; }
+  .bar div { flex: 1; height: .8vh; background: #2a313b; border-radius: 4px; }
+  .bar div.on { background: #ffc933; }
+  .row { display: flex; gap: 3vw; align-items: center; }
+  .row ul { flex: 1; font-size: 1.8vw; }
+  .row figure { flex: 1.2; margin: 0; }
+  figure img { width: 100%; border-radius: 8px; border: 1px solid #2a313b; box-shadow: 0 6px 24px #0008; display: block; }
+  figcaption { font-size: 1.1vw; color: #9aa4b2; margin-top: 1vh; }
+  #nav { position: fixed; right: 2vw; bottom: 2vh; font-size: 1.2vw; color: #6b7684; }
+</style>
+</head>
+<body>
+
+<section class="slide">
+  <h1>Forklift Frenzy</h1>
+  <div class="sub">The development timeline of a top-down, keyboard-only forklift puzzle</div>
+  <div class="sub" style="margin-top:3vh">21 – 25 October 2026 · 158 commits · vanilla JS + Canvas 2D · no build, no dependencies</div>
+  <div class="sub" style="margin-top:6vh;font-size:1.4vw">← / → or Space to navigate</div>
+</section>
+
+<section class="slide">
+  <h2>The idea &amp; the stack</h2>
+  <ul>
+    <li>Stack coloured boxes in matching drop zones, then park the forklift</li>
+    <li>Rear-wheel-steering bicycle model: the tail swings out</li>
+    <li>Deterministic seeded level generator (<code>mulberry32</code>)</li>
+    <li>DOM-free game logic, so tests run in plain Node</li>
+    <li>Static files on GitHub Pages; Firefox is the primary target</li>
+  </ul>
+  <div class="stats">
+    <div class="stat"><b>~3.3k</b><span>lines of JS</span></div>
+    <div class="stat"><b>0</b><span>dependencies</span></div>
+    <div class="stat"><b>5</b><span>days of development</span></div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="date">Day 1 · 21 Oct · Morning</div>
+  <h2>Core mechanics: forks &amp; stacks</h2>
+  <div class="row">
+  <ul>
+    <li>First playable browser game: forklift, boxes, zones, levels</li>
+    <li>Fork heights went from half-steps to whole levels 0–5</li>
+    <li>Tines never collide; the body and carried stack do</li>
+    <li>Lowering a carried stack releases it at resting height</li>
+    <li>Boxes rotate with the forklift and remember their rotation</li>
+  </ul>
+  <figure><img src="shots/01-first-prototype.png" alt=""><figcaption>First prototype (commit 6974f64)</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="date">Day 1 · 21 Oct · Midday</div>
+  <h2>Rules, scoring &amp; polish</h2>
+  <div class="row">
+  <ul>
+    <li>Per-box scoring: crash and squareness deductions (5° allowance)</li>
+    <li>Parking spot; finishing needs parking and ≥ 50% score</li>
+    <li>Procedural audio: engine whine, music, fork sounds, success chime</li>
+    <li>Rebrand to “Forklift Frenzy”: splash screen, favicon, 3D boxes</li>
+    <li>Custom level seeds, random-seed button</li>
+    <li>Project docs: Copilot instructions and <code>CODE_GUIDE.md</code></li>
+  </ul>
+  <figure><img src="shots/02-graphical-overhaul.png" alt=""><figcaption>After the graphical overhaul (ca4b8d9)</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="date">Day 1 · 21 Oct · Afternoon</div>
+  <h2>Cabin (first-person) view</h2>
+  <div class="row">
+  <ul>
+    <li>Polygon-projected FPV with forks, pallets, zones and parking</li>
+    <li>Occlusion clipping, lids, undersides and pallets open on all sides</li>
+    <li>Camera follows fork height; rear-view and side mirrors</li>
+    <li>Floor grid and wall textures; dark mode</li>
+  </ul>
+  <figure><img src="shots/03-first-cabin-view.png" alt=""><figcaption>First cabin view (e16cdf4)</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="date">Day 1 · 21 Oct · Evening</div>
+  <h2>Onboarding &amp; progression</h2>
+  <ul>
+    <li>Nudging a box slowly squares it to the forklift</li>
+    <li>Local high scores per level and seed; time penalty</li>
+    <li>Pause on lost focus</li>
+    <li>Step-by-step, action-dismissed tutorial</li>
+    <li>Drop-off areas favour outer walls</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="date">Day 3 · 23 Oct</div>
+  <h2>Hard mode &amp; physics depth</h2>
+  <div class="row">
+  <ul>
+    <li>Pallets glide, split or get pushed when turning with forks inside</li>
+    <li>Hard mode: tines collide with pallet runners; push torque turns boxes</li>
+    <li>Boxes need 50% support or fall beside the stack; crooked towers</li>
+    <li>Rooms-and-corridors level generator replaces random pillars</li>
+    <li>Cab view rewritten as a polygon-projection renderer</li>
+  </ul>
+  <figure><img src="shots/04-rooms-corridors.png" alt=""><figcaption>Rooms-and-corridors levels (c328e96)</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="date">Day 3 · 23 Oct</div>
+  <h2>Menus &amp; feedback</h2>
+  <ul>
+    <li>Escape menu: engine whine, music, restart, hard mode, go to level</li>
+    <li>Full screen, mute-all, underlined keyboard shortcuts</li>
+    <li>Parking spot shows the required heading arrow; random spawn</li>
+    <li>Floating damage popups and a break sound</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="date">Day 4 · 24 Oct</div>
+  <h2>Handling &amp; factory atmosphere</h2>
+  <div class="row">
+  <ul>
+    <li>Height-based speed limit for raised forks</li>
+    <li>Larger steering lock, tapered by speed and fork height</li>
+    <li>Overview becomes the default view; view mode is remembered</li>
+    <li>Floor decals: tire marks, yellow markings, windows, doors, signs</li>
+    <li>Ceiling, factory lights, fans; walls raised to clear a 5-box stack</li>
+    <li>Box decals; <code>?debug</code> overlay with FPS and state</li>
+  </ul>
+  <figure><img src="shots/05-decals.png" alt=""><figcaption>Floor and wall decals (aed730f)</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="date">Day 5 · 25 Oct</div>
+  <h2>Sound &amp; final touches</h2>
+  <div class="row">
+  <ul>
+    <li>Reversing beep and a blue reversing light that walls cut off</li>
+    <li>Selectable music: generated tracks, then public-domain and CC0 MIDI songs with a drum synth</li>
+    <li>Clearer MIDI voices (EQ, brighter instruments, tighter reverb)</li>
+    <li>Score explanations on splash and level-complete screens</li>
+    <li>Level timer stops on completion; jump to lowest unscored level</li>
+    <li>Debug overlay shows update/draw/idle share</li>
+  </ul>
+  <figure><img src="shots/06-overview-latest.png" alt=""><figcaption>Latest overview, with damage popups and tutorial</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <h2>Where it ended up: the cabin view</h2>
+  <figure style="margin:0;max-height:70vh"><img src="shots/07-cabin-latest.png" alt="" style="max-height:68vh;width:auto;margin:0 auto"><figcaption style="text-align:center">Latest cabin view: mirrors, decals, zone labels and damage popups (HEAD)</figcaption></figure>
+</section>
+
+<section class="slide">
+  <h2>Timeline at a glance</h2>
+  <ul>
+    <li><b>21 Oct</b> – core game, scoring, audio, branding, cabin view, tutorial (~80 commits)</li>
+    <li><b>23 Oct</b> – hard mode, stacking physics, room levels, menus</li>
+    <li><b>24 Oct</b> – handling, decals, factory look, debug tools</li>
+    <li><b>25 Oct</b> – reversing aids, music library, scoring UX</li>
+  </ul>
+  <div class="bar"><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div></div>
+  <div class="sub" style="margin-top:1vh;font-size:1.3vw">21 · 22 · 23 · 24 · 25 Oct (no commits on the 22nd)</div>
+</section>
+
+<section class="slide">
+  <h1>Thank you</h1>
+  <div class="sub">Built with vanilla JS, Canvas 2D and a lot of boxes.</div>
+</section>
+
+<div id="nav"></div>
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  let i = Math.min(slides.length - 1, Math.max(0, parseInt(location.hash.slice(1), 10) - 1 || 0));
+  function show() {
+    slides.forEach((s, n) => s.classList.toggle('active', n === i));
+    document.getElementById('nav').textContent = (i + 1) + ' / ' + slides.length;
+    history.replaceState(null, '', '#' + (i + 1));
+  }
+  function go(d) { i = Math.min(slides.length - 1, Math.max(0, i + d)); show(); }
+  addEventListener('keydown', e => {
+    if (['ArrowRight', 'ArrowDown', ' ', 'PageDown'].includes(e.key)) go(1);
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) go(-1);
+    else if (e.key === 'Home') { i = 0; show(); }
+    else if (e.key === 'End') { i = slides.length - 1; show(); }
+    else if (e.key === 'f') document.documentElement.requestFullscreen?.();
+  });
+  addEventListener('click', () => go(1));
+  show();
+</script>
+</body>
+</html>
