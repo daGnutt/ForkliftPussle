@@ -454,6 +454,14 @@ console.log('all tests passed');
   assert.equal(finalScore(500, 9.9), 500);
   assert.equal(finalScore(500, 100), 490);
   assert.equal(finalScore(5, 1000), 0);
+  const { lowestUnscored } = await import('../js/highscores.js');
+  const st2 = { d: {}, getItem(k) { return this.d[k] ?? null; }, setItem(k, v) { this.d[k] = v; } };
+  assert.strictEqual(lowestUnscored(st2, 5), 1);
+  saveBest(st2, 5, 1, { score: 10, time: 5, name: 'a' });
+  saveBest(st2, 5, 3, { score: 10, time: 5, name: 'a' });
+  saveBest(st2, 6, 2, { score: 10, time: 5, name: 'a' });
+  assert.strictEqual(lowestUnscored(st2, 5), 2);
+  assert.strictEqual(lowestUnscored(st2, 6), 1);
   console.log('highscores ok');
 }
 

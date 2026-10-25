@@ -10,6 +10,14 @@ export function getBest(store, seed, level) {
   return read(store)[keyOf(seed, level)] || null;
 }
 
+// Lowest level number (from 1) with no saved score for this seed.
+export function lowestUnscored(store, seed) {
+  const all = read(store);
+  let n = 1;
+  while (all[keyOf(seed, n)]) n++;
+  return n;
+}
+
 // Higher score wins; on equal score, less time wins.
 export function beats(result, best) {
   return !best || result.score > best.score || (result.score === best.score && result.time < best.time);
