@@ -14,9 +14,10 @@ const SQUARE_POINTS = 50;
 const SQUARE_ALLOWANCE = (5 * Math.PI) / 180;
 const CRASH_MIN_SPEED = 0.8;
 const CRASH_COOLDOWN = 0.4;
-const BONK_MIN_SPEED = 1.2; // speed into a wall that counts as a bonk
+const BONK_MIN_SPEED = 1.2;
+const BONK_LOSS = 0.4; // fraction of forward motion lost in one step that counts as a bonk
 const BONK_COOLDOWN = 0.2;
-const SCRAPE_MIN_SPEED = 0.3; // speed along a wall that scrapes
+const SCRAPE_MIN_SPEED = 0.3; // speed while touching a wall that scrapes
 const FORK_PUSH_FAST = 2; // above this speed a fork push damages the whole stack, not just the boxes below the forks
 const FORK_BLOCK_POINTS = 10;
 const CEILING_LEVELS = 6; // the carried stack's top (H + boxes) may not go above this many box heights
@@ -335,23 +336,21 @@ function glideWithForks(g, S, ly, da, from) {
   if (from === 0) S.a = (S.a || 0) + da;
 }
 
-// Classifies this step's wall contact for sound: a head-on impact counts a bonk (g.bonks, g.bonkPower 0..1),
-// sliding along a wall sets g.scrape (tangential speed in tiles/s, 0 when not touching).
-function wallContact(g, speed) {
+// Classifies this step's wall contact for sound. `kept` is the fraction of the intended forward motion that survived
+// the collision: a big loss of speed counts a bonk (g.bonks, g.bonkPower 0..1), otherwise touching a wall while
+// moving sets g.scrape (speed in tiles/s, 0 when not touching).
+function wallContact(g, speed, kept) {
   g.scrape = 0;
-  const p = g.wallPush;
-  const len = p ? Math.hypot(p.x, p.y) : 0;
-  if (len < 1e-9) return;
-  const nx = p.x / len, ny = p.y / len;
-  const vx = Math.cos(g.fl.a) * speed, vy = Math.sin(g.fl.a) * speed;
-  const into = -(vx * nx + vy * ny);
-  const slide = Math.abs(vx * ny - vy * nx);
-  if (into > BONK_MIN_SPEED && g.clock - g.bonkAt > BONK_COOLDOWN) {
-    g.bonkAt = g.clock;
-    g.bonks++;
-    g.bonkPower = Math.min(1, into / 4);
-  } else if (slide > SCRAPE_MIN_SPEED) {
-    g.scrape = slide;
+  if (!g.wallPush) return;
+  const v = Math.abs(speed), lost = 1 - kept;
+  if (lost > BONK_LOSS && v > BONK_MIN_SPEED) {
+    if (g.clock - g.bonkAt > BONK_COOLDOWN) {
+      g.bonkAt = g.clock;
+      g.bonks++;
+      g.bonkPower = Math.min(1, v * lost / 4);
+    }
+  } else if (v > SCRAPE_MIN_SPEED) {
+    g.scrape = v;
   }
 }
 
@@ -369,13 +368,15 @@ export function update(g, input, dt) {
   g.aligning = new Set();
   if (forked && f.a !== prevA) glideWithForks(g, forked, forkedY, f.a - prevA, g.H);
   resolve(g);
-  wallContact(g, f.speed);
   for (const s of g.aligning) alignStack(g, s, dt);
 
   if (Math.abs(intended) > 1e-6) {
     const actual = (f.x - driven.x) * Math.cos(f.a) + (f.y - driven.y) * Math.sin(f.a) + intended;
     const r = Math.max(0, Math.min(1, actual / intended));
+    wallContact(g, f.speed, r);
     f.speed *= 1 - (1 - r) * Math.min(1, dt / 0.15);
+  } else {
+    g.scrape = 0;
   }
 
   g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
