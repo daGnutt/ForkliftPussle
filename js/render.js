@@ -507,7 +507,7 @@ export function draw(ctx, g, view) {
     let mmX = 13, mmY = (view.showSmall ? 190 : 100) + 6;
     if (strip) {
       const sx = LANDSCAPE_SIDE, sw = width - 2 * sx - 16;
-      Object.assign(mm, miniSize(g, sw, LANDSCAPE_STRIP - 16));
+      Object.assign(mm, miniSize(g, Math.min(sw, 120), 70));
       mmX = (width - mm.w) / 2;
       mmY = height - LANDSCAPE_STRIP + (LANDSCAPE_STRIP - mm.h) / 2;
     } else if (zoomedIn) {
