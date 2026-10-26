@@ -267,6 +267,8 @@ function miniSize(g, maxW, maxH) {
   const s = Math.min(maxW / g.w, maxH / g.h);
   return { s, w: g.w * s, h: g.h * s };
 }
+// Touch landscape layout (keep in sync with style.css): height of the bottom control strip, and width taken by each pad.
+const LANDSCAPE_STRIP = 152, LANDSCAPE_SIDE = 160;
 function drawMiniMap(ctx, g, cam, x, y, s) {
   const w = g.w * s, h = g.h * s;
   ctx.save();
@@ -492,21 +494,29 @@ export function draw(ctx, g, view) {
     }
   } else {
     // On touch the control buttons take the bottom 208px (two 84px fork buttons + gap + margin), so the field ends above them.
-    const bottom = view.touch ? 208 : 20;
+    // In landscape the buttons are smaller (see style.css) and sit in a bottom strip: steering left, drive/forks right,
+    // the minimap between them, so the field gets the whole area above.
+    const portrait = height > width;
+    const strip = view.touch && !portrait;
+    const bottom = strip ? LANDSCAPE_STRIP : view.touch ? 208 : 20;
     let rx = 20, ry = 50, rw = width - 40, rh = height - 50 - bottom;
     // When the map doesn't fit, reserve room for the minimap (above the field in portrait, left of it in landscape)
     // so it never covers the playing field.
     const zoomedIn = Math.min(48, rw / g.w, rh / g.h) < MIN_FOLLOW_SCALE;
-    const portrait = height > width;
     const mm = miniSize(g, portrait ? Math.min(220, width - 40) : 180, portrait ? 110 : 140);
-    const mmX = 13, mmY = (view.showSmall ? 190 : 100) + 6;
-    if (zoomedIn) {
+    let mmX = 13, mmY = (view.showSmall ? 190 : 100) + 6;
+    if (strip) {
+      const sx = LANDSCAPE_SIDE, sw = width - 2 * sx - 16;
+      Object.assign(mm, miniSize(g, sw, LANDSCAPE_STRIP - 16));
+      mmX = (width - mm.w) / 2;
+      mmY = height - LANDSCAPE_STRIP + (LANDSCAPE_STRIP - mm.h) / 2;
+    } else if (zoomedIn) {
       if (portrait) { ry = Math.max(ry, mmY + mm.h + 12); rh = height - ry - bottom; }
       else { rx = mmX + mm.w + 16; rw = width - rx - 90; }
     }
     const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-    if (cam) drawMiniMap(ctx, g, cam, mmX, mmY, mm.s);
+    if (strip || cam) drawMiniMap(ctx, g, cam || { x: 0, y: 0, w: g.w, h: g.h }, mmX, mmY, mm.s);
     if (view.showSmall) drawPov(ctx, g, 10, 10, POV_W, POV_H);
   }
   // screen-space HUD
