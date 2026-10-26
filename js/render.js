@@ -463,11 +463,49 @@ function drawProximityMirror(ctx, g, view, x, y, w, h) {
   ctx.fillText('SIDE MIRROR', x + 6, y + 5);
 }
 
+// Landscape touch: status text on both sides of the minimap, between the control pads.
+function drawStatusStrip(ctx, g, view, mm, title, bestText, hint, width, height) {
+  const PAD = 156, lost = lostBreakdown(g);
+  const done = g.zones.filter((z) => zoneDone(g, z)).length;
+  const bottom = height - 10, lh = 17;
+  const line = (text, x, row, color, align, w, bold) => {
+    ctx.font = `${bold ? 'bold ' : ''}13px sans-serif`;
+    ctx.textAlign = align;
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, bottom - row * lh, w);
+  };
+  ctx.textBaseline = 'middle';
+  const lx = mm.x - 8, rx = mm.x + mm.w + 8;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(PAD - 4, bottom - 3 * lh - 9, lx - PAD + 4, 3 * lh + 14);
+  ctx.fillRect(rx - 4, bottom - 3 * lh - 9, width - PAD - rx + 8, 3 * lh + 14);
+  const lw = lx - PAD, rw = width - PAD - rx;
+  line(`Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`, lx, 2, '#eee', 'right', lw, true);
+  line(`Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}`, lx, 1, '#eee', 'right', lw);
+  line(formatTime(g.time), lx, 0, '#eee', 'right', lw);
+  line(bestText, rx, 2, '#b3e5fc', 'left', rw);
+  line(`Damage −${lost.crash} (locked)`, rx, 1, '#ef9a9a', 'left', rw);
+  line(`Placement −${lost.square} (fixable)`, rx, 0, '#ffe082', 'left', rw);
+  if (hint) {
+    ctx.font = 'bold 14px sans-serif';
+    const tw = Math.min(width - 2 * PAD, ctx.measureText(hint).width);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect((width - tw) / 2 - 6, mm.y - 28, tw + 12, 22);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffe082';
+    ctx.fillText(hint, width / 2, mm.y - 17, width - 2 * PAD);
+  }
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#eee';
+}
+
 export function draw(ctx, g, view) {
   const { width, height } = view;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = theme().bg;
   ctx.fillRect(0, 0, width, height);
+  const strip = view.touch && !view.povBig && width > height;
+  let mmBox = null;
   const POV_W = 300, POV_H = 170, hx0 = view.showSmall ? 20 + POV_W + 16 : 20;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   if (view.povBig) {
@@ -492,21 +530,28 @@ export function draw(ctx, g, view) {
     }
   } else {
     // On touch the control buttons take the bottom 208px (two 84px fork buttons + gap + margin), so the field ends above them.
-    const bottom = view.touch ? 208 : 20;
-    let rx = 20, ry = 50, rw = width - 40, rh = height - 50 - bottom;
+    // In landscape the buttons are smaller (see style.css): steering bottom left, drive/forks bottom right, a small minimap
+    // between them; the field extends down between the pads and the (translucent) pads overlay its bottom corners.
+    const portrait = height > width;
+    const mm = miniSize(g, portrait ? Math.min(220, width - 40) : 180, portrait ? 110 : 140);
+    if (strip) Object.assign(mm, miniSize(g, 120, 70));
+    const bottom = strip ? mm.h + 16 : view.touch ? 208 : 20;
+    let rx = 20, ry = strip ? 8 : 50, rw = width - 40, rh = height - ry - bottom;
     // When the map doesn't fit, reserve room for the minimap (above the field in portrait, left of it in landscape)
     // so it never covers the playing field.
     const zoomedIn = Math.min(48, rw / g.w, rh / g.h) < MIN_FOLLOW_SCALE;
-    const portrait = height > width;
-    const mm = miniSize(g, portrait ? Math.min(220, width - 40) : 180, portrait ? 110 : 140);
-    const mmX = 13, mmY = (view.showSmall ? 190 : 100) + 6;
-    if (zoomedIn) {
+    let mmX = 13, mmY = (view.showSmall ? 190 : 100) + 6;
+    if (strip) {
+      mmX = (width - mm.w) / 2;
+      mmY = height - 8 - mm.h;
+      mmBox = { x: mmX, w: mm.w, y: mmY };
+    } else if (zoomedIn) {
       if (portrait) { ry = Math.max(ry, mmY + mm.h + 12); rh = height - ry - bottom; }
       else { rx = mmX + mm.w + 16; rw = width - rx - 90; }
     }
     const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-    if (cam) drawMiniMap(ctx, g, cam, mmX, mmY, mm.s);
+    if (strip || cam) drawMiniMap(ctx, g, cam || { x: 0, y: 0, w: g.w, h: g.h }, mmX, mmY, mm.s);
     if (view.showSmall) drawPov(ctx, g, 10, 10, POV_W, POV_H);
   }
   // screen-space HUD
@@ -517,34 +562,37 @@ export function draw(ctx, g, view) {
   const hint = g.status === 'play' && isSolved(g)
     ? (scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish')
     : '';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.font = 'bold 20px sans-serif';
-  let boxW = ctx.measureText(title).width;
-  ctx.font = '14px sans-serif';
-  boxW = Math.max(boxW, 380 + ctx.measureText(bestText).width);
-  ctx.font = 'bold 16px sans-serif';
-  if (hint) boxW = Math.max(boxW, ctx.measureText(hint).width);
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(hx0 - 8, 8, boxW + 16, hint ? 102 : 84);
-  ctx.fillStyle = '#eee';
-  ctx.font = 'bold 20px sans-serif';
-  ctx.fillText(title, hx0, 25);
-  ctx.font = '14px sans-serif';
-  ctx.fillStyle = '#b3e5fc';
-  ctx.fillText(bestText, hx0 + 380, 48);
-  const lost = lostBreakdown(g);
-  ctx.font = '14px sans-serif';
-  ctx.fillStyle = '#ef9a9a';
-  ctx.fillText(`Damage −${lost.crash} (locked)`, hx0, 48);
-  ctx.fillStyle = '#ffe082';
-  ctx.fillText(`Placement −${lost.square} (fixable)`, hx0, 68);
-  ctx.fillStyle = '#eee';
-
-  if (hint) {
+  if (mmBox) drawStatusStrip(ctx, g, view, mmBox, title, bestText, hint, width, height);
+  else {
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 20px sans-serif';
+    let boxW = ctx.measureText(title).width;
+    ctx.font = '14px sans-serif';
+    boxW = Math.max(boxW, 380 + ctx.measureText(bestText).width);
     ctx.font = 'bold 16px sans-serif';
+    if (hint) boxW = Math.max(boxW, ctx.measureText(hint).width);
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(hx0 - 8, 8, boxW + 16, hint ? 102 : 84);
+    ctx.fillStyle = '#eee';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(title, hx0, 25);
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#b3e5fc';
+    ctx.fillText(bestText, hx0 + 380, 48);
+    const lost = lostBreakdown(g);
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#ef9a9a';
+    ctx.fillText(`Damage −${lost.crash} (locked)`, hx0, 48);
     ctx.fillStyle = '#ffe082';
-    ctx.fillText(hint, hx0, 92);
+    ctx.fillText(`Placement −${lost.square} (fixable)`, hx0, 68);
+    ctx.fillStyle = '#eee';
+
+    if (hint) {
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillStyle = '#ffe082';
+      ctx.fillText(hint, hx0, 92);
+    }
   }
 
   // fork height gauge: 0 = floor; box layer i fills the cell at height i-1
