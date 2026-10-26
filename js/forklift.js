@@ -12,7 +12,7 @@ export const FL = {
   carryX: 1.0,
   // Full steering lock: tight enough that the rear wheels swing past the
   // front axle, letting the forklift all but pivot in place when crawling
-  // with empty forks. Actual available lock is tapered by speed and height
+  // with empty forks. Actual available lock is tapered by speed
   // below (see maxSteerFor).
   maxSteer: 1.2,
 };
@@ -33,24 +33,18 @@ export function heightSpeedFactor(h) {
   return 1 - (1 - MIN_SPEED_FACTOR) * Math.max(0, Math.min(1, h / MAX_H));
 }
 
-// Steering lock tapers off with both road speed and fork height, so the full,
-// near-pivot lock is only available standing still with the forks down; at
-// top speed or full height it's clamped to a much shallower angle, like a
-// real forklift's speed-sensitive steering.
+// Steering lock tapers off with road speed only (not fork height): the full,
+// near-pivot lock is only available standing still; at top speed it's clamped
+// to a much shallower angle, like a real forklift's speed-sensitive steering.
 const MIN_STEER_SPEED_FACTOR = 0.4;
-const MIN_STEER_HEIGHT_FACTOR = 0.55;
 
 export function steerSpeedFactor(speed) {
   const s = Math.max(0, Math.min(1, Math.abs(speed) / MAX_FWD));
   return 1 - (1 - MIN_STEER_SPEED_FACTOR) * s;
 }
 
-export function steerHeightFactor(h) {
-  return 1 - (1 - MIN_STEER_HEIGHT_FACTOR) * Math.max(0, Math.min(1, h / MAX_H));
-}
-
-export function maxSteerFor(speed, h) {
-  return FL.maxSteer * steerSpeedFactor(speed) * steerHeightFactor(h);
+export function maxSteerFor(speed) {
+  return FL.maxSteer * steerSpeedFactor(speed);
 }
 
 export function makeForklift(x, y, a) {
@@ -92,7 +86,7 @@ export function drive(f, inp, dt, h = 0) {
   }
   f.speed -= f.speed * 0.1 * dt;
 
-  const steerCap = maxSteerFor(f.speed, h);
+  const steerCap = maxSteerFor(f.speed);
   const target = ((inp.right ? 1 : 0) - (inp.left ? 1 : 0)) * steerCap;
   const dSteer = Math.max(-STEER_RATE * dt, Math.min(STEER_RATE * dt, target - f.steer));
   f.steer = Math.max(-steerCap, Math.min(steerCap, f.steer + dSteer));

@@ -70,12 +70,11 @@ for (let n = 1; n <= 40; n++) {
   assert.ok(f.a > a0, 'turns clockwise (right)');
 }
 
-// Steering lock: full lock standing still with forks down, clamped down by speed and by fork height.
+// Steering lock: full lock standing still, clamped down by speed (not by fork height).
 {
   assert.equal(maxSteerFor(0, 0), FL.maxSteer, 'full lock at rest');
   assert.ok(maxSteerFor(4, 0) < maxSteerFor(0, 0), 'speed narrows the lock');
-  assert.ok(maxSteerFor(0, 5) < maxSteerFor(0, 0), 'fork height narrows the lock');
-
+  
   const g = newGame(1);
   g.stacks = [];
   const f = g.fl;
@@ -83,7 +82,11 @@ for (let n = 1; n <= 40; n++) {
   g.H = 5;
   run(g, { up: true }, 1);
   run(g, { up: true, right: true }, 1);
-  assert.ok(f.steer <= maxSteerFor(f.speed, g.H) + 1e-9, 'steer stays within the tapered lock');
+  assert.ok(f.steer <= maxSteerFor(f.speed) + 1e-9, 'steer stays within the tapered lock');
+  const g2 = newGame(1); g2.stacks = []; g2.H = 5;
+  g2.fl.x = 10; g2.fl.y = 7; g2.fl.a = 0;
+  run(g2, { right: true }, 1);
+  assert.equal(g2.fl.steer, FL.maxSteer, 'raised forks keep full lock at rest');
 }
 
 // Wall collision + brake.
