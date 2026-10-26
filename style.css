@@ -80,6 +80,7 @@ footer b { color: var(--accent); }
   #touch button { width: 64px; height: 64px; font-size: 15px; border-radius: 12px; }
   #touch .left button { height: 136px; }
   #touch button.sm { width: auto; height: 36px; }
+  #touch .top { right: 96px; }
   #tutorial { bottom: 8px; width: calc(100vw - 2 * 172px); max-width: none; max-height: 80px; box-sizing: border-box; overflow: hidden; padding: 6px 10px; font-size: 13px; }
 }
 @media (orientation: landscape) and (max-height: 600px) {
