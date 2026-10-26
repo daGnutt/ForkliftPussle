@@ -73,14 +73,14 @@ footer b { color: var(--accent); }
   #touch button.on { background: rgba(249,168,37,.8); color: #111; }
   #splash, #menu, #record { touch-action: manipulation; }
 }
-/* Landscape touch: bottom strip (height = LANDSCAPE_STRIP in render.js) with steering left, drive/forks right, minimap between. */
+/* Landscape touch: steering bottom left, drive/forks bottom right, minimap (drawn in render.js) between; the field extends down between them. */
 @media (pointer: coarse) and (orientation: landscape) {
   #touch .left { left: 12px; bottom: 8px; gap: 8px; }
   #touch .right { right: 12px; bottom: 8px; gap: 8px; grid-template-columns: repeat(2, 64px); }
   #touch button { width: 64px; height: 64px; font-size: 15px; border-radius: 12px; }
   #touch .left button { height: 136px; }
   #touch button.sm { width: auto; height: 36px; }
-  #tutorial { bottom: 8px; width: calc(100vw - 2 * 172px); max-width: none; max-height: 136px; box-sizing: border-box; overflow: hidden; padding: 6px 10px; font-size: 13px; }
+  #tutorial { bottom: 8px; width: calc(100vw - 2 * 172px); max-width: none; max-height: 80px; box-sizing: border-box; overflow: hidden; padding: 6px 10px; font-size: 13px; }
 }
 @media (orientation: landscape) and (max-height: 600px) {
   #splash { justify-content: safe center; overflow-y: auto; gap: 8px; padding: 8px 0; box-sizing: border-box; }
