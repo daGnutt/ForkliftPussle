@@ -127,9 +127,12 @@ export function maxScore(g) {
 // Points lost to crashes (permanent) and to crooked placement (recoverable).
 export function lostBreakdown(g) {
   let crashLost = 0, squareLost = 0;
-  const add = (pens) => { for (const p of pens) { crashLost += p.crash; squareLost += p.sq; } };
-  for (const S of g.stacks) { refreshSquare(S); add(S.pen); }
-  add(g.carriedPen);
+  for (const S of g.stacks) {
+    refreshSquare(S);
+    for (const p of S.pen) crashLost += p.crash;
+    if (g.zones.some((z) => stackFillsZone(S, z))) for (const p of S.pen) squareLost += p.sq;
+  }
+  for (const p of g.carriedPen) crashLost += p.crash;
   return { crash: Math.round(crashLost), square: Math.round(squareLost) };
 }
 

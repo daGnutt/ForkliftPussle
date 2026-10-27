@@ -279,6 +279,7 @@ const driveUntil = (g, x, brakeAt) => {
 {
   const g = newGame(1);
   flatWorld(g);
+  g.zones = [{ x: 10, y: 5, color: 0, count: 1 }];
   g.stacks = [{ x: 10, y: 5, layers: [0], rots: [Math.PI / 4], a: Math.PI / 4 }];
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
@@ -296,6 +297,7 @@ const driveUntil = (g, x, brakeAt) => {
 {
   const g = newGame(1);
   flatWorld(g);
+  g.zones = [{ x: 10, y: 5, color: 0, count: 1 }];
   g.stacks = [{ x: 10, y: 5, layers: [0], rots: [Math.PI / 4], a: Math.PI / 4 }];
   const f = g.fl;
   f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
@@ -315,6 +317,7 @@ const driveUntil = (g, x, brakeAt) => {
   const place = (ang) => {
     const g = newGame(1);
     flatWorld(g);
+    g.zones = [{ x: 10, y: 5, color: 0, count: 1 }];
     g.stacks = [{ x: 10, y: 5, layers: [0], rots: [ang], a: ang }];
     const f = g.fl;
     f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
@@ -787,13 +790,18 @@ console.log('all tests passed');
   console.log('savestate ok');
 }
 
-// Crookedness is judged by the resting angle, so rotating a placed stack updates the score.
+// Placement loss follows the resting angle and only counts stacks sitting in a complete zone.
 {
   const g = newGame(1);
-  const S = g.stacks[0];
-  const base = lostBreakdown(g).square;
-  S.rots = S.rots.map(() => Math.PI / 4);
-  assert.ok(lostBreakdown(g).square > base, 'rotated stack loses points');
-  S.rots = S.rots.map(() => 0);
-  assert.equal(lostBreakdown(g).square, base, 'straightened stack recovers them');
+  flatWorld(g);
+  g.zones = [{ x: 12, y: 5, color: 0, count: 1 }];
+  g.stacks = [{ x: 8, y: 5, layers: [0], rots: [Math.PI / 4], a: Math.PI / 4 }];
+  assert.equal(lostBreakdown(g).square, 0, 'outside a zone does not count');
+  g.stacks[0].x = 12;
+  assert.ok(lostBreakdown(g).square > 0, 'nudged into the zone, crooked');
+  g.stacks[0].rots = [0];
+  assert.equal(lostBreakdown(g).square, 0, 'straightened');
+  g.stacks[0].rots = [Math.PI / 4];
+  g.stacks[0].x = 8;
+  assert.equal(lostBreakdown(g).square, 0, 'nudged out of the zone');
 }
