@@ -9,7 +9,6 @@ On touch devices, on-screen buttons replace the keyboard (big steer left/right b
 |-----|--------|
 | ↑ / ↓ | Drive forward / reverse |
 | ← / → | Steer (rear wheels steer, so the tail swings out) |
-| Space | Brake |
 | A / Z | Forks up / down one level |
 | C | Show / hide the small corner window (cabin view, or the overview while the big view is the cabin) |
 | H | Replay the on-screen tutorial (shown once on first play: drive, forks, place a stack, cab view; each step disappears when you do it) |

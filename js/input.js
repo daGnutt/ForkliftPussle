@@ -48,7 +48,6 @@ export function createInput(handlers) {
       down: down.has('ArrowDown'),
       left: down.has('ArrowLeft'),
       right: down.has('ArrowRight'),
-      brake: down.has('Space'),
     }),
   };
 }

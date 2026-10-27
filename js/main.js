@@ -138,7 +138,7 @@ const seedInput = document.getElementById('seed');
 seedInput.value = seedText;
 
 const TUTORIAL = [
-  'Use <b>↑/↓</b> to drive and <b>←/→</b> to steer (the rear wheels steer!). <b>Space</b> brakes.',
+  'Use <b>↑/↓</b> to drive and <b>←/→</b> to steer (the rear wheels steer!).  Release the throttle to engine-brake.',
   'Press <b>A</b> to raise the forks and <b>Z</b> to lower them.',
   'Drive the forks under a stack, lift it, and set it down on the matching coloured zone. Then park on the marked spot.',
   'If you want an more immersive experience, press <b>Tab</b> or <b>M</b> to switch to the cab view (and again to return to the overview).',
