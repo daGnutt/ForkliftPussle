@@ -225,6 +225,7 @@ function drawCarried(ctx, g) {
 // With `follow`, a map that would be drawn smaller than MIN_FOLLOW_SCALE px/tile is shown at that scale instead,
 // centred on the forklift and clamped to the map edges; the returned `cam` is the visible world rect (else null).
 const MIN_FOLLOW_SCALE = 30;
+const PAN_MARGIN = 2;
 function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false) {
   const fit = Math.min(maxScale, rw / g.w, rh / g.h);
   const zoomed = follow && fit < MIN_FOLLOW_SCALE;
@@ -233,7 +234,9 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false) {
   let cam = null;
   if (zoomed) {
     const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0);
-    const axis = (pos, size, len, r0) => (len * s <= size ? r0 + (size - len * s) / 2 : r0 + size / 2 - Math.min(Math.max(pos, size / 2 / s), len - size / 2 / s) * s);
+    // On touch the camera may pan up to PAN_MARGIN tiles past the map edge so edge content can leave the controls' area.
+    const m = view.touch ? PAN_MARGIN : 0;
+    const axis = (pos, size, len, r0) => (len * s <= size - 2 * m * s ? r0 + (size - len * s) / 2 : r0 + size / 2 - Math.min(Math.max(pos, size / 2 / s - m), len - size / 2 / s + m) * s);
     ox = axis(c.x, rw, g.w, rx);
     oy = axis(c.y, rh, g.h, ry);
     cam = { x: (rx - ox) / s, y: (ry - oy) / s, w: rw / s, h: rh / s };
@@ -539,6 +542,8 @@ export function draw(ctx, g, view) {
     let rx = 20, ry = strip ? 8 : 50, rw = width - 40, rh = height - ry - bottom;
     // When the map doesn't fit, reserve room for the minimap (above the field in portrait, left of it in landscape)
     // so it never covers the playing field.
+    // Touch landscape: keep the field clear of the fork gauge at the right edge even when the whole map fits.
+    if (view.touch && !portrait) rw = width - rx - 90;
     const zoomedIn = Math.min(48, rw / g.w, rh / g.h) < MIN_FOLLOW_SCALE;
     let mmX = 13, mmY = (view.showSmall ? 190 : 100) + 6;
     if (strip) {
