@@ -18,7 +18,6 @@ export const FL = {
 };
 
 const ACC = 3.2;
-const BRAKE = 12;
 const ROLL = 1.4;
 const MAX_FWD = 4;
 const MAX_REV = 2.5;
@@ -71,9 +70,7 @@ export function drive(f, inp, dt, h = 0) {
   const capFwd = MAX_FWD * hsf, capRev = MAX_REV * hsf;
   const th = (inp.up ? 1 : 0) - (inp.down ? 1 : 0);
   const overCap = f.speed > capFwd || f.speed < -capRev;
-  if (inp.brake) {
-    f.speed = approachZero(f.speed, BRAKE * dt);
-  } else if (overCap) {
+  if (overCap) {
     // Raising the forks past the current speed's cap bleeds speed off like releasing
     // the throttle (even while still holding it), until back within the new cap.
     if (f.speed > capFwd) f.speed = Math.max(capFwd, f.speed - ROLL * dt);

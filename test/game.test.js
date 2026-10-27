@@ -89,7 +89,7 @@ for (let n = 1; n <= 40; n++) {
   assert.equal(g2.fl.steer, FL.maxSteer, 'raised forks keep full lock at rest');
 }
 
-// Wall collision + brake.
+// Wall collision + engine braking.
 {
   const g = newGame(1);
   g.stacks = [];
@@ -109,8 +109,9 @@ const faceStack = (g, ang) => {
 const flatWorld = (g) => { g.zones = []; g.walls = g.walls.slice(0, 4); };
 const driveUntil = (g, x, brakeAt) => {
   const f = g.fl;
-  while (f.x + FL.carryX < x) update(g, { up: true, brake: f.speed > 1 && f.x > brakeAt }, 1 / 120);
-  run(g, { brake: true }, 0.8);
+  while (f.x + FL.carryX < x) update(g, { up: f.speed <= 1 || f.x <= brakeAt, down: f.speed > 1 && f.x > brakeAt }, 1 / 120);
+  while (f.speed > 0.05) update(g, { down: true }, 1 / 120);
+  run(g, {}, 0.5);
 };
 
 // Pick up from the floor (level 0), carry over a stack, merge, then split again.
