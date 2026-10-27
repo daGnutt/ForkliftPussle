@@ -225,8 +225,8 @@ function drawCarried(ctx, g) {
 // With `follow`, a map that would be drawn smaller than MIN_FOLLOW_SCALE px/tile is shown at that scale instead,
 // centred on the forklift and clamped to the map edges; the returned `cam` is the visible world rect (else null).
 const MIN_FOLLOW_SCALE = 30;
-const PAN_MARGIN = 2;
-function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false) {
+const GAUGE_W = 90;
+function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, panRight = 0) {
   const fit = Math.min(maxScale, rw / g.w, rh / g.h);
   const zoomed = follow && fit < MIN_FOLLOW_SCALE;
   const s = zoomed ? MIN_FOLLOW_SCALE : fit;
@@ -234,16 +234,20 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false) {
   let cam = null;
   if (zoomed) {
     const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0);
-    // On touch the camera may pan up to PAN_MARGIN tiles past the map edge so edge content can leave the controls' area.
-    const m = view.touch ? PAN_MARGIN : 0;
-    const axis = (pos, size, len, r0) => (len * s <= size - 2 * m * s ? r0 + (size - len * s) / 2 : r0 + size / 2 - Math.min(Math.max(pos, size / 2 / s - m), len - size / 2 / s + m) * s);
-    ox = axis(c.x, rw, g.w, rx);
+    // On touch landscape the camera may pan `panRight` px past the right map edge (shown black) so the fork gauge doesn't hide map.
+    const axis = (pos, size, len, r0, m = 0) => (len * s <= size ? r0 + (size - len * s) / 2 : r0 + size / 2 - Math.min(Math.max(pos, size / 2 / s), len - size / 2 / s + m / s) * s);
+    ox = axis(c.x, rw, g.w, rx, panRight);
     oy = axis(c.y, rh, g.h, ry);
     cam = { x: (rx - ox) / s, y: (ry - oy) / s, w: rw / s, h: rh / s };
     ctx.save();
     ctx.beginPath();
     ctx.rect(rx, ry, rw, rh);
     ctx.clip();
+    if (panRight) {
+      ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(rx, ry, rw, rh);
+    }
   }
   ctx.setTransform(s * view.dpr, 0, 0, s * view.dpr, ox * view.dpr, oy * view.dpr);
   drawWorld(ctx, g);
@@ -543,8 +547,9 @@ export function draw(ctx, g, view) {
     // When the map doesn't fit, reserve room for the minimap (above the field in portrait, left of it in landscape)
     // so it never covers the playing field.
     // Touch landscape: keep the field clear of the fork gauge at the right edge even when the whole map fits.
-    if (view.touch && !portrait) rw = width - rx - 90;
+    const touchLand = view.touch && !portrait;
     const zoomedIn = Math.min(48, rw / g.w, rh / g.h) < MIN_FOLLOW_SCALE;
+    if (touchLand && !zoomedIn) rw = width - rx - GAUGE_W;
     let mmX = 13, mmY = (view.showSmall ? 190 : 100) + 6;
     if (strip) {
       mmX = (width - mm.w) / 2;
@@ -552,9 +557,9 @@ export function draw(ctx, g, view) {
       mmBox = { x: mmX, w: mm.w, y: mmY };
     } else if (zoomedIn) {
       if (portrait) { ry = Math.max(ry, mmY + mm.h + 12); rh = height - ry - bottom; }
-      else { rx = mmX + mm.w + 16; rw = width - rx - 90; }
+      else { rx = mmX + mm.w + 16; rw = width - rx - (touchLand ? 20 : GAUGE_W); }
     }
-    const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true);
+    const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true, touchLand && zoomedIn ? GAUGE_W : 0);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
     if (strip || cam) drawMiniMap(ctx, g, cam || { x: 0, y: 0, w: g.w, h: g.h }, mmX, mmY, mm.s);
     if (view.showSmall) drawPov(ctx, g, 10, 10, POV_W, POV_H);
