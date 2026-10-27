@@ -26,6 +26,14 @@
   .row figure { flex: 1.2; margin: 0; }
   figure img { width: 100%; border-radius: 8px; border: 1px solid #2a313b; box-shadow: 0 6px 24px #0008; display: block; }
   figcaption { font-size: 1.1vw; color: #9aa4b2; margin-top: 1vh; }
+  .chart { display: flex; gap: 1.6vw; align-items: flex-end; justify-content: center; height: 52vh; margin-top: 1vh; }
+  .col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 9vw; }
+  .col .n { font-size: 2.2vw; font-weight: bold; color: #ffc933; margin-bottom: .6vh; }
+  .col .stack { display: flex; flex-direction: column-reverse; width: 100%; border-bottom: 3px solid #6b7684; padding-bottom: 2px; }
+  .col .stack i { display: block; width: 100%; margin-top: 1px; border-radius: 2px; box-sizing: border-box; border: 1px solid #0006; box-shadow: inset 0 -2px #0004, inset 0 2px #fff3; }
+  .col .d { font-size: 1.2vw; color: #9aa4b2; margin-top: .8vh; text-align: center; line-height: 1.3; }
+  .legend { display: flex; gap: 1.4vw; justify-content: center; font-size: 1.1vw; white-space: nowrap; color: #9aa4b2; margin-top: 1.5vh; }
+  .legend i { display: inline-block; width: 1.2vw; height: 1.2vw; border-radius: 2px; vertical-align: middle; margin-right: .5vw; }
   #nav { position: fixed; right: 2vw; bottom: 2vh; font-size: 1.2vw; color: #6b7684; }
 </style>
 </head>
@@ -34,7 +42,7 @@
 <section class="slide">
   <h1>Forklift Frenzy</h1>
   <div class="sub">The development timeline of a top-down, keyboard-only forklift puzzle</div>
-  <div class="sub" style="margin-top:3vh">21 – 27 October 2026 · 199 commits · vanilla JS + Canvas 2D · no build, no dependencies</div>
+  <div class="sub" style="margin-top:3vh">21 – 27 October 2026 · 202 commits · vanilla JS + Canvas 2D · no build, no dependencies</div>
   <div class="sub" style="margin-top:6vh;font-size:1.4vw">← / → or Space to navigate</div>
 </section>
 
@@ -189,6 +197,20 @@
 </section>
 
 <section class="slide">
+  <div class="date">Commits per day</div>
+  <h2>Stacking up the work: one box per commit</h2>
+  <div class="chart" id="chart"></div>
+  <div class="legend">
+    <span><i style="background:#ffc933"></i>&gt; 200 lines</span>
+    <span><i style="background:#ff7a59"></i>50–199</span>
+    <span><i style="background:#6fb1ff"></i>10–49</span>
+    <span><i style="background:#5fd38d"></i>1–9</span>
+    <span><i style="background:#555d69"></i>0 lines</span>
+    <span>· taller box = more lines</span>
+  </div>
+</section>
+
+<section class="slide">
   <h2>Timeline at a glance</h2>
   <ul>
     <li><b>21 Oct</b> – core game, scoring, audio, branding, cabin view, tutorial (~80 commits)</li>
@@ -198,7 +220,7 @@
     <li><b>26 – 27 Oct</b> – landscape PWA layout, steering fix, brake removed, full screen on touch</li>
   </ul>
   <div class="bar"><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div></div>
-  <div class="sub" style="margin-top:1vh;font-size:1.3vw">21 · 22 · 23 · 24 · 25 · 26 · 27 Oct (no commits on the 22nd)</div>
+  <div class="sub" style="margin-top:1vh;font-size:1.3vw">21 · 22 · 23 · 24 · 25 · 26 · 27 Oct (no commits on the 22nd) · activity peaked on day 1, then ramped down to a few tiny tweaks by the 27th</div>
 </section>
 
 <section class="slide">
@@ -208,6 +230,23 @@
 
 <div id="nav"></div>
 <script>
+  const perDay = {"21 Oct":[851,243,23,147,109,14,24,65,40,57,56,1,54,2,4,121,33,23,35,28,35,63,78,169,141,2,86,50,87,10,7,6,12,104,118,83,18,43,21,14,7,39,15,3,0,41,13,44,2,18,40,17,106,19,19,52,78,14,4,7,0,11,0,52,11,13,12,4,25,6,29,55,7,0,39,8,2,4,2],"22 Oct":[],"23 Oct":[100,46,48,35,30,29,53,0,86,0,67,176,2,0,105,35,84,21,16,29,11,22,399,55,25,35,88,17],"24 Oct":[50,0,19,0,51,0,16,0,250,21,129,39,29,75,2,0,19,25,31,2,10,74,44,90,36,23],"25 Oct":[20,26,107,6,14,20,202,62,41,42,156,194,96,28,0,132,7,4,18,36,3,96,41,4,58,187,28,28,0,3,59,8,126,4,50,10,7,0,43,70,72,6,6,9,152,8,2,57,4],"26 Oct":[33,0,48,6,21,100,1,0],"27 Oct":[8,8,0,11,0,20,0,2,2,14,0]};
+  const chart = document.getElementById('chart');
+  for (const [day, commits] of Object.entries(perDay)) {
+    const total = commits.reduce((a, b) => a + b, 0);
+    const col = document.createElement('div');
+    col.className = 'col';
+    col.innerHTML = '<div class="n">' + commits.length + '</div><div class="stack"></div><div class="d">' + day + '<br>' + total + ' lines</div>';
+    const stack = col.querySelector('.stack');
+    for (const n of commits) {
+      const b = document.createElement('i');
+      b.style.height = (0.3 + Math.min(0.9, Math.sqrt(n) * 0.045)) + 'vh';
+      b.style.background = n > 200 ? '#ffc933' : n >= 50 ? '#ff7a59' : n >= 10 ? '#6fb1ff' : n > 0 ? '#5fd38d' : '#555d69';
+      b.title = n + ' lines';
+      stack.appendChild(b);
+    }
+    chart.appendChild(col);
+  }
   const slides = [...document.querySelectorAll('.slide')];
   let i = Math.min(slides.length - 1, Math.max(0, parseInt(location.hash.slice(1), 10) - 1 || 0));
   function show() {
