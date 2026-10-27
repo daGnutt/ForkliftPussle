@@ -34,7 +34,7 @@
 <section class="slide">
   <h1>Forklift Frenzy</h1>
   <div class="sub">The development timeline of a top-down, keyboard-only forklift puzzle</div>
-  <div class="sub" style="margin-top:3vh">21 – 25 October 2026 · 158 commits · vanilla JS + Canvas 2D · no build, no dependencies</div>
+  <div class="sub" style="margin-top:3vh">21 – 27 October 2026 · 199 commits · vanilla JS + Canvas 2D · no build, no dependencies</div>
   <div class="sub" style="margin-top:6vh;font-size:1.4vw">← / → or Space to navigate</div>
 </section>
 
@@ -48,7 +48,7 @@
     <li>Static files on GitHub Pages; Firefox is the primary target</li>
   </ul>
   <div class="stats">
-    <div class="stat"><b>~3.3k</b><span>lines of JS</span></div>
+    <div class="stat"><b>~3.7k</b><span>lines of JS</span></div>
     <div class="stat"><b>0</b><span>dependencies</span></div>
     <div class="stat"><b>5</b><span>days of development</span></div>
   </div>
@@ -143,7 +143,7 @@
   <div class="row">
   <ul>
     <li>Height-based speed limit for raised forks</li>
-    <li>Larger steering lock, tapered by speed and fork height</li>
+    <li>Larger steering lock, tapered by speed (later no longer limited by fork height)</li>
     <li>Overview becomes the default view; view mode is remembered</li>
     <li>Floor decals: tire marks, yellow markings, windows, doors, signs</li>
     <li>Ceiling, factory lights, fans; walls raised to clear a 5-box stack</li>
@@ -175,6 +175,7 @@
   <ul style="font-size:1.6vw;margin:0 0 2vh">
     <li>On-screen buttons, tap to continue, a zoomed follow-camera overview with a minimap</li>
     <li>Rotatable PWA: landscape layout with the field up top, steering bottom left, drive/forks bottom right, minimap and status between</li>
+    <li>Brake removed: engine braking does the slowing; touch start goes full screen</li>
   </ul>
   <div style="display:flex;gap:3vw;align-items:center;justify-content:center">
     <figure style="margin:0;flex:2.2;max-width:60vw"><img src="shots/08-touch-landscape.png" alt=""><figcaption style="text-align:center">Landscape: steering left, drive and forks right, minimap and status between</figcaption></figure>
@@ -193,10 +194,11 @@
     <li><b>21 Oct</b> – core game, scoring, audio, branding, cabin view, tutorial (~80 commits)</li>
     <li><b>23 Oct</b> – hard mode, stacking physics, room levels, menus</li>
     <li><b>24 Oct</b> – handling, decals, factory look, debug tools</li>
-    <li><b>25 Oct</b> – reversing aids, music library, scoring UX</li>
+    <li><b>25 Oct</b> – reversing aids, music library, scoring UX, touch controls</li>
+    <li><b>26 – 27 Oct</b> – landscape PWA layout, steering fix, brake removed, full screen on touch</li>
   </ul>
-  <div class="bar"><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div></div>
-  <div class="sub" style="margin-top:1vh;font-size:1.3vw">21 · 22 · 23 · 24 · 25 Oct (no commits on the 22nd)</div>
+  <div class="bar"><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div></div>
+  <div class="sub" style="margin-top:1vh;font-size:1.3vw">21 · 22 · 23 · 24 · 25 · 26 · 27 Oct (no commits on the 22nd)</div>
 </section>
 
 <section class="slide">
