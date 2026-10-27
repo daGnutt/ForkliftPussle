@@ -71,6 +71,6 @@
     <b>A</b> forks up &nbsp; <b>Z</b> forks down &nbsp; <b>R</b> restart &nbsp; <b>Esc</b>/<b>P</b> menu (pause) &nbsp;  <b>M</b>/<b>Tab</b> overview/cab view &nbsp; <b>F</b> full screen &nbsp; <b>H</b> replay tutorial
   </footer>
   <script type="module" src="js/main.js"></script>
-  <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js'));</script>
+  <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((r) => document.addEventListener('visibilitychange', () => { if (!document.hidden) r.update(); })));</script>
 </body>
 </html>
