@@ -114,6 +114,12 @@ function squareLoss(a) {
   return Math.floor((t * SQUARE_POINTS) / 5) * 5;
 }
 
+// Crookedness of resting boxes is always judged by their current angle, so nudging a stack straight or crooked counts.
+function refreshSquare(S) {
+  ensure(S);
+  S.pen.forEach((p, i) => { p.sq = squareLoss(S.rots[i]); });
+}
+
 export function maxScore(g) {
   return BOX_POINTS * (g.stacks.reduce((n, s) => n + s.layers.length, 0) + (g.carried ? g.carried.length : 0));
 }
@@ -122,7 +128,7 @@ export function maxScore(g) {
 export function lostBreakdown(g) {
   let crashLost = 0, squareLost = 0;
   const add = (pens) => { for (const p of pens) { crashLost += p.crash; squareLost += p.sq; } };
-  for (const S of g.stacks) { ensure(S); add(S.pen); }
+  for (const S of g.stacks) { refreshSquare(S); add(S.pen); }
   add(g.carriedPen);
   return { crash: Math.round(crashLost), square: Math.round(squareLost) };
 }
@@ -135,7 +141,7 @@ export function score(g) {
     const S = g.stacks.find((s) => stackFillsZone(s, z));
     if (!S || counted.has(S)) continue;
     counted.add(S);
-    ensure(S);
+    refreshSquare(S);
     for (const p of S.pen) pts += BOX_POINTS - p.crash - p.sq;
   }
   return Math.round(pts);

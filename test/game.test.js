@@ -338,7 +338,7 @@ const driveUntil = (g, x, brakeAt) => {
   assert.equal(score(g), 0, 'not in zone yet');
   g.stacks[0].x = 12;
   assert.equal(score(g), 100, 'in zone');
-  g.stacks[0].pen = [{ crash: 10, sq: 5 }];
+  g.stacks[0].pen = [{ crash: 15, sq: 0 }];
   assert.equal(score(g), 85);
 }
 
@@ -349,7 +349,7 @@ const driveUntil = (g, x, brakeAt) => {
   g.stacks = [{ x: 12, y: 5, layers: [0], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
   g.zones = [{ x: 12, y: 5, color: 0, count: 1 }];
   assert.ok(isFinished(g), 'solved and parked');
-  g.stacks[0].pen = [{ crash: 50, sq: 50 }];
+  g.stacks[0].pen = [{ crash: 60, sq: 0 }];
   assert.ok(!isFinished(g), 'score below 50%');
   g.stacks[0].pen = [{ crash: 0, sq: 0 }];
   g.fl.x += 3;
@@ -785,4 +785,15 @@ console.log('all tests passed');
   assert.deepEqual(await decodeState(enc), snap);
   assert.deepEqual(await decodeState(JSON.stringify(snap)), snap);
   console.log('savestate ok');
+}
+
+// Crookedness is judged by the resting angle, so rotating a placed stack updates the score.
+{
+  const g = newGame(1);
+  const S = g.stacks[0];
+  const base = lostBreakdown(g).square;
+  S.rots = S.rots.map(() => Math.PI / 4);
+  assert.ok(lostBreakdown(g).square > base, 'rotated stack loses points');
+  S.rots = S.rots.map(() => 0);
+  assert.equal(lostBreakdown(g).square, base, 'straightened stack recovers them');
 }
