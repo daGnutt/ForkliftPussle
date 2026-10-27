@@ -208,7 +208,7 @@ seedInput.addEventListener('keydown', (e) => {
   e.stopPropagation();
   if (e.key === 'Enter') { e.preventDefault(); startAudio(); startGame(); }
 });
-document.getElementById('seedForm').addEventListener('submit', (e) => { e.preventDefault(); startAudio(); startGame(); });
+document.getElementById('seedForm').addEventListener('submit', (e) => { e.preventDefault(); startAudio(); if (isTouch && !document.fullscreenElement) toggleFullscreen(); startGame(); });
 window.addEventListener('keydown', (e) => {
   if (splashOn || recordOpen || view.menuOpen || e.target === seedInput || e.code !== 'KeyH' || e.repeat) return;
   e.stopImmediatePropagation();
