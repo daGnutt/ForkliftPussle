@@ -102,6 +102,7 @@ const input = createInput({
   next: () => handlersNext(),
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
+  blocked: () => !!view.menuOpen,
 });
 
 // On touch, tapping the "Level complete" board goes to the next level.
