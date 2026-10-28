@@ -15,15 +15,15 @@ function mulberry32(seed) {
 }
 
 export function levelParams(n) {
-  const w = Math.min(30, 14 + Math.floor(n * 1.4));
+  const w = Math.min(44, 14 + Math.floor(n * 1.4));
   const h = Math.max(11, Math.round(w * 0.7));
   return {
     w,
     h,
     maxH: Math.min(5, 2 + Math.floor((n - 1) / 2)),
     colors: Math.min(5, 2 + Math.floor((n - 1) / 2)),
-    total: Math.min(28, 4 + n * 2),
-    dividers: n < 2 ? 0 : Math.min(7, 1 + Math.floor(n / 2)),
+    total: Math.min(40, 4 + n * 2),
+    dividers: n < 2 ? 0 : Math.min(10, 1 + Math.floor(n / 2)),
   };
 }
 
