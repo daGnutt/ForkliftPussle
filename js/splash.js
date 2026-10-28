@@ -3,7 +3,6 @@
 const W = 440, H = 190;
 const A = 165, B = 90; // x = A sin t, y = B sin t cos t (Gerono lemniscate)
 const SPEED = 210;     // px/s along the path
-const FADE = 6;        // seconds until skidmarks and smoke are gone
 
 function pathAt(t) {
   const s = Math.sin(t), c = Math.cos(t);
@@ -71,53 +70,62 @@ export function startSplashAnimation(canvas, isActive) {
   canvas.width = W * dpr;
   canvas.height = H * dpr;
   const ctx = canvas.getContext('2d');
-  const marks = []; // {x0,y0,x1,y1,born}
+  // Skidmarks are permanent: every lap adds to this layer, and a few laps are pre-driven so it already looks used.
+  const skid = document.createElement('canvas');
+  skid.width = W * dpr;
+  skid.height = H * dpr;
+  const sctx = skid.getContext('2d');
+  sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  sctx.lineWidth = 4;
+  sctx.strokeStyle = 'rgba(20,20,20,.13)';
   const smoke = []; // {x,y,vx,vy,born,r}
-  let t = 0, slip = 0, last = null, markAcc = 0;
-  let prev = null;
+  let t = 0, slip = 0, last = null, markAcc = 0, clock = 0;
+  let prev = null, f = null;
+
+  function step(dt) {
+    clock += dt;
+    const p = pathAt(t);
+    t += SPEED * dt / p.v;
+    const target = Math.sign(p.k) * Math.min(0.75, Math.max(0, (Math.abs(p.k) - 0.013) * 60));
+    slip += (target - slip) * Math.min(1, dt * 8);
+    f = { x: W / 2 + p.x, y: H / 2 + p.y, h: p.ang + slip };
+
+    const rear = [wheel(f, -12, -11), wheel(f, -12, 11)];
+    if (prev && Math.abs(slip) > 0.15) {
+      sctx.beginPath();
+      rear.forEach((w, i) => { sctx.moveTo(prev[i].x, prev[i].y); sctx.lineTo(w.x, w.y); });
+      sctx.stroke();
+      markAcc += dt;
+      if (markAcc > 0.03) {
+        markAcc = 0;
+        for (const w of rear) smoke.push({ x: w.x, y: w.y, vx: (Math.random() - 0.5) * 18, vy: (Math.random() - 0.5) * 18 - 6, born: clock, r: 4 + Math.random() * 3 });
+      }
+    }
+    prev = rear;
+    while (smoke.length && clock - smoke[0].born > 2) smoke.shift();
+  }
+
+  for (let i = 0; i < 60 * 14; i++) step(1 / 60);
+  smoke.length = 0;
+  prev = null;
 
   function frame(now) {
     if (!isActive()) return;
     requestAnimationFrame(frame);
     const dt = last === null ? 0 : Math.min(0.05, (now - last) / 1000);
     last = now;
-    const time = now / 1000;
-
-    const p = pathAt(t);
-    t += SPEED * dt / p.v;
-    const target = Math.sign(p.k) * Math.min(0.75, Math.max(0, (Math.abs(p.k) - 0.013) * 60));
-    slip += (target - slip) * Math.min(1, dt * 8);
-    const f = { x: W / 2 + p.x, y: H / 2 + p.y, h: p.ang + slip };
-    const drifting = Math.abs(slip) > 0.15;
-
-    const rear = [wheel(f, -12, -11), wheel(f, -12, 11)];
-    if (prev && drifting) {
-      rear.forEach((w, i) => marks.push({ x0: prev[i].x, y0: prev[i].y, x1: w.x, y1: w.y, born: time }));
-      markAcc += dt;
-      if (markAcc > 0.03) {
-        markAcc = 0;
-        for (const w of rear) smoke.push({ x: w.x, y: w.y, vx: (Math.random() - 0.5) * 18, vy: (Math.random() - 0.5) * 18 - 6, born: time, r: 4 + Math.random() * 3 });
-      }
-    }
-    prev = rear;
-    while (marks.length && time - marks[0].born > FADE) marks.shift();
-    while (smoke.length && time - smoke[0].born > 2) smoke.shift();
+    step(dt);
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    ctx.lineCap = 'round';
-    ctx.lineWidth = 4;
-    for (const m of marks) {
-      ctx.strokeStyle = `rgba(20,20,20,${0.55 * (1 - (time - m.born) / FADE)})`;
-      ctx.beginPath(); ctx.moveTo(m.x0, m.y0); ctx.lineTo(m.x1, m.y1); ctx.stroke();
-    }
+    ctx.drawImage(skid, 0, 0, W, H);
     drawBoxes(ctx);
     drawForklift(ctx, f);
     for (const s of smoke) {
-      const a = (time - s.born) / 2;
+      const a = (clock - s.born) / 2;
       ctx.fillStyle = `rgba(200,200,200,${0.5 * (1 - a)})`;
       ctx.beginPath();
-      ctx.arc(s.x + s.vx * (time - s.born), s.y + s.vy * (time - s.born), s.r + a * 14, 0, Math.PI * 2);
+      ctx.arc(s.x + s.vx * (clock - s.born), s.y + s.vy * (clock - s.born), s.r + a * 14, 0, Math.PI * 2);
       ctx.fill();
     }
   }

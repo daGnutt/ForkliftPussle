@@ -71,7 +71,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 - `drawStack(ctx, layers, x, y, z0, rots)` draws boxes as extruded cubes (shaded side faces facing the floor-ward parallax direction, gradient lid with tape strip), each with its own angle from `rots`; the top box shows its colour and the boxes below appear as coloured numbers.
 
 ## Branding / splash
-- `js/splash.js` (`startSplashAnimation(canvas, isActive)`) animates `#splashAnim` on the splash: a forklift driving a figure eight (Gerono lemniscate), drifting (extra body yaw) through the end turns with rear-wheel skidmarks and smoke. Decorative only; stops when `isActive()` returns false.
+- `js/splash.js` (`startSplashAnimation(canvas, isActive)`) animates `#splashAnim` on the splash: a forklift driving a figure eight (Gerono lemniscate), drifting (extra body yaw) through the end turns with rear-wheel permanent skidmarks (pre-driven for a few laps at load) and smoke. Decorative only; stops when `isActive()` returns false.
 - Game name: Forklift Frenzy. `favicon.svg` is the tab icon; `#splash` in `index.html` (styled in `style.css`) has a seed text box and a shuffle-icon button (fills a random integer) (persisted in `localStorage` `forklift-seed`; submitting with Enter/Start applies it and restarts at level 1). The splash also shows a credits line (designed by Gnutt, coded by Copilot for GitHub). It is dismissed only by Enter or the Start button (handled in `main.js`, which pauses the simulation until then and swallows other keys).
 
 The splash has a `.scoring` paragraph explaining the score; the 'Level complete!' overlay in `render.js` shows the breakdown (box points − crash − squareness, time penalty, final score via `finalScore`).
