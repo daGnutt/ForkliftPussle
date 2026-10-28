@@ -280,7 +280,7 @@ document.getElementById('menuLowest').addEventListener('click', () => {
 });
 const menuTutorial = document.getElementById('menuTutorial');
 function updateTutorialBtn() {
-  menuTutorial.innerHTML = tutStep >= 0 ? 'Stop tut<u>o</u>rial' : 'Restart tut<u>o</u>rial';
+  menuTutorial.innerHTML = tutStep >= 0 ? 'Stop tutorial' : 'Restart tutorial';
 }
 menuTutorial.addEventListener('click', () => {
   if (tutStep >= 0) {
@@ -319,14 +319,10 @@ window.addEventListener('keydown', (e) => {
     KeyM: () => toggle(musicOpt),
     KeyT: () => trackSel.focus(),
     KeyD: () => toggle(decalOpt),
-    KeyH: () => toggle(menuHardOpt),
     KeyG: () => { menuLevel.focus(); menuLevel.select(); },
     KeyL: () => document.getElementById('menuLowest').click(),
     KeyF: toggleFullscreen,
-    KeyS: () => toggle(autoFsOpt),
-    KeyO: () => menuTutorial.click(),
     KeyR: () => document.getElementById('menuRestart').click(),
-    KeyU: () => toggleMenu(false),
   };
   if (actions[e.code]) { e.preventDefault(); actions[e.code](); }
 }, true);
@@ -380,7 +376,7 @@ function applyPause() {
   view.paused = p;
   setSilenced(p);
 }
-// Losing focus opens the same pause menu as Esc/P; the player must click Resume (or press U/Esc/P) to continue, just like any other pause.
+// Losing focus opens the same pause menu as Esc/P; the player must click Resume (or press Esc/P) to continue, just like any other pause.
 const pauseOnBlur = () => { if (!splashOn && !recordOpen && lostFocus()) toggleMenu(true); };
 window.addEventListener('blur', pauseOnBlur);
 window.addEventListener('focus', applyPause);
