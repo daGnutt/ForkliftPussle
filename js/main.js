@@ -72,7 +72,9 @@ function load(n) {
   saveState();
 }
 
+let autoFs = localStorage.getItem('forklift-auto-fullscreen') === '1';
 function setFullscreen(on) {
+  if (!autoFs) return;
   if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
   else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
 }
@@ -241,6 +243,12 @@ const menuLevel = document.getElementById('menuLevel');
 const decalOpt = document.getElementById('decalOpt');
 setDecalsEnabled(localStorage.getItem('forklift-decals-off') !== '1');
 const menuHardOpt = document.getElementById('menuHardOpt');
+const autoFsOpt = document.getElementById('autoFsOpt');
+autoFsOpt.checked = autoFs;
+autoFsOpt.addEventListener('change', () => {
+  autoFs = autoFsOpt.checked;
+  localStorage.setItem('forklift-auto-fullscreen', autoFs ? '1' : '0');
+});
 function toggleMenu(open) {
   view.menuOpen = open;
   setFullscreen(!open);
@@ -304,6 +312,7 @@ window.addEventListener('keydown', (e) => {
     KeyG: () => { menuLevel.focus(); menuLevel.select(); },
     KeyL: () => document.getElementById('menuLowest').click(),
     KeyF: toggleFullscreen,
+    KeyS: () => toggle(autoFsOpt),
     KeyR: () => document.getElementById('menuRestart').click(),
     KeyU: () => toggleMenu(false),
   };
