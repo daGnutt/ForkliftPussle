@@ -6,6 +6,7 @@ import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
+import { startSplashAnimation } from './splash.js';
 import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, setEngine, setSilenced, isMusicMuted, setMusicMuted, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
@@ -139,6 +140,7 @@ function checkRecord() {
 
 const splash = document.getElementById('splash');
 let splashOn = true;
+startSplashAnimation(document.getElementById('splashAnim'), () => splashOn);
 const seedInput = document.getElementById('seed');
 seedInput.value = seedText;
 
