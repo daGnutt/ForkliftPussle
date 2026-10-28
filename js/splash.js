@@ -14,6 +14,30 @@ function pathAt(t) {
   return { x, y, v, ang: Math.atan2(dy, dx), k: (dx * ddy - dy * ddx) / (v * v * v) };
 }
 
+// Static boxes (centre offset from the canvas centre, colour, rotation), all well outside the track.
+const BOXES = [
+  [-130, -76, '#e53935', 0.1], [-106, -78, '#1e88e5', -0.08], [-118, -76, '#43a047', 0, 1],
+  [128, 78, '#1e88e5', -0.1], [152, 76, '#e53935', 0.12],
+  [-186, 66, '#43a047', 0.2], [190, -64, '#f9a825', -0.15], [-196, 40, '#1e88e5', 0.05],
+];
+
+function drawBoxes(ctx) {
+  for (const [bx, by, col, rot, lift] of BOXES) {
+    ctx.save();
+    ctx.translate(W / 2 + bx, H / 2 + by - (lift ? 5 : 0));
+    ctx.rotate(rot);
+    ctx.fillStyle = 'rgba(0,0,0,.25)';
+    ctx.fillRect(-9, -7, 22, 22);
+    ctx.fillStyle = col;
+    ctx.fillRect(-11, -11, 22, 22);
+    ctx.fillStyle = 'rgba(255,255,255,.22)';
+    ctx.fillRect(-11, -11, 22, 8);
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,.65)';
+    ctx.strokeRect(-11, -11, 22, 22);
+    ctx.restore();
+  }
+}
+
 function wheel(f, lx, ly) {
   const c = Math.cos(f.h), s = Math.sin(f.h);
   return { x: f.x + lx * c - ly * s, y: f.y + lx * s + ly * c };
@@ -86,6 +110,7 @@ export function startSplashAnimation(canvas, isActive) {
       ctx.strokeStyle = `rgba(20,20,20,${0.55 * (1 - (time - m.born) / FADE)})`;
       ctx.beginPath(); ctx.moveTo(m.x0, m.y0); ctx.lineTo(m.x1, m.y1); ctx.stroke();
     }
+    drawBoxes(ctx);
     drawForklift(ctx, f);
     for (const s of smoke) {
       const a = (time - s.born) / 2;
