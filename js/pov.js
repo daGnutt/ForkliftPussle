@@ -106,7 +106,7 @@ function floorGrid(ctx, cam) {
 // Adds the faces of a rectangular prism (centre x,y, heading a, half sizes hl,hw, heights z0..z1).
 // split: max segment length; long faces are cut up so far-to-near sorting stays right (walls, tines).
 // wall = true: colourless, checker-tinted tiles.
-function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, split = wall ? 1 : 0, deco = 0) {
+function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, split = wall ? 1 : 0, deco = 0, skipTop = false, skipBottom = false) {
   const c = Math.cos(a), s = Math.sin(a);
   const p = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([u, v]) => [x + u * c - v * s, y + u * s + v * c]);
   for (let i = 0; i < 4; i++) {
@@ -138,8 +138,8 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, spli
       });
     }
   };
-  if (cam.z > z1) flat(z1, 1, true);
-  else if (cam.z < z0) flat(z0, 0.5, false);
+  if (cam.z > z1) { if (!skipTop) flat(z1, 1, true); }
+  else if (cam.z < z0 && !skipBottom) flat(z0, 0.5, false);
 }
 
 // Stack with a pallet under every box; level h sits at height h * (BOX_H + PAL).
@@ -149,9 +149,9 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
     const x = x0 + (offs[i]?.x || 0), y = y0 + (offs[i]?.y || 0);
     const z = (level + i + (i >= from ? extra : 0)) * (BOX_H + PAL), r = rots[i] ?? 0;
     const cr = Math.cos(r), sr = Math.sin(r);
-    addPrism(faces, cam, x, y, r, 0.2, 0.2, z, z + PAL, PALLET_COLOR);
+    addPrism(faces, cam, x, y, r, 0.2, 0.2, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
     for (const [u, v] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) {
-      addPrism(faces, cam, x + u * cr - v * sr, y + u * sr + v * cr, r, 0.05, 0.05, z, z + PAL, PALLET_COLOR);
+      addPrism(faces, cam, x + u * cr - v * sr, y + u * sr + v * cr, r, 0.05, 0.05, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
     }
     addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? pens[i]?.deco ?? boxDecalKind(col, i) : 0);
   });
