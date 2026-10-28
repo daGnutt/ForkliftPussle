@@ -291,7 +291,7 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   ctx.globalAlpha = 1;
   ctx.fillStyle = '#9e9e9e';
   ctx.fillRect((g.parking.x - 0.8) * s - 1, (g.parking.y - 0.8) * s - 1, 1.6 * s + 2, 1.6 * s + 2);
-  ctx.fillStyle = '#3b3f45';
+  ctx.fillStyle = theme().wall;
   for (const q of g.pillars) ctx.fillRect(q.x * s, q.y * s, Math.max(1.5, q.w * s), Math.max(1.5, q.h * s));
   const dot = Math.max(3, s * 0.9);
   for (const st of g.stacks) {
@@ -405,10 +405,10 @@ function drawWorld(ctx, g) {
   for (const st of high) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs, st.pen);
   drawCarried(ctx, g);
 
-  ctx.fillStyle = '#3b3f45';
+  ctx.fillStyle = theme().wall;
   for (const w of g.pillars) {
     ctx.fillRect(w.x, w.y, w.w, w.h);
-    ctx.strokeStyle = '#111';
+    ctx.strokeStyle = theme().wallEdge;
     ctx.lineWidth = 0.06;
     ctx.strokeRect(w.x, w.y, w.w, w.h);
   }
