@@ -1,17 +1,15 @@
 # MIDI credits
 
-All files are Public Domain / CC0. The first four are from the [Mutopia Project](https://www.mutopiaproject.org/) (marked Public Domain on their piece pages); the rest are CC0 uploads on [OpenGameArt](https://opengameart.org/).
+All files are Public Domain / CC0. The two classical pieces are from the [Mutopia Project](https://www.mutopiaproject.org/) (marked Public Domain on their piece pages); the rest are CC0.
 
-| File | Piece | Mutopia id |
-|------|-------|-----------|
-| `pineapple-rag.mid` | Scott Joplin, Pineapple Rag | 1899 |
-| `elite-syncopations.mid` | Scott Joplin, Elite Syncopations | 1540 |
-| `strenuous-life.mid` | Scott Joplin, The Strenuous Life | 1542 |
-| `bach-bwv269.mid` | J. S. Bach, Chorale BWV 269 | 378 |
-| `endless-pain.mid` | nene, Endless Pain of Nightmares | OGA `endless-pain-of-nightmares` |
-| `pandemia.mid` | nene, Pandemia | OGA `pandemia` |
-| `knockout.mid` | Knockout | OGA `knockout-midi-song` |
-| `rock-theme-song.mid` | Umplix, Rock Theme Song | OGA `rock-theme-song` |
-| `neon-flames.mid` | northivanastan, Neon Flames | OGA `neon-flames` |
-| `bounce-style.mid` | Tozan, Bouncestyle1 | OGA `bouncestyle1` |
-| `helice-groovy.mid`, `helice-disco.mid`, `helice-pop-city.mid` | Komiku, Hélice (Everything is groovy, Disco Challenge, Pop City) | OGA `helice-incredible-adventure-fantasy-disco-rpg-battle-music-and-midi-files-pack` |
+| File | Track name | Source |
+|------|-----------|--------|
+| `hoedown.mid` | Hee-Haw Hoedown | Original, written for this game (CC0) |
+| `fur-elise.mid` | Für Forklift | Beethoven, Für Elise WoO 59, Mutopia (`BeethovenLv/WoO59/fur_Elise_WoO59`) |
+| `rondo-alla-turca.mid` | Rondo alla Turbo | Mozart, Rondo alla Turca KV 331, Mutopia (`MozartWA/KV331/KV331_3_RondoAllaTurca`) |
+| `death-waltz.mid` | Dance of the Dead Pallets | northivanastan, Death Waltz, OGA `death-waltz` |
+| `gears.mid` | Gears of Grind | [m-malandro/CC0-midis](https://github.com/m-malandro/CC0-midis) |
+| `math-metal.mid` | Pallet Algebra | [m-malandro/CC0-midis](https://github.com/m-malandro/CC0-midis) |
+| `gods-of-trance.mid` | Trance of the Pallet Gods | northivanastan, Gods of Trance, OGA `gods-of-trance` |
+| `vaporwave.mid` | Neon Warehouse | Dizzy Crow, Trance / trap / electronic [2:37], OGA `trance-trap-electronic-237` |
+| `arena-rock.mid` | Stadium Forklift | [m-malandro/CC0-midis](https://github.com/m-malandro/CC0-midis) |

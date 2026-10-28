@@ -722,7 +722,7 @@ console.log('all tests passed');
   const { parseMidi } = await import('../js/midi.js');
   const { readFileSync, readdirSync } = await import('node:fs');
   const files = readdirSync(new URL('../assets/midi/', import.meta.url)).filter((f) => f.endsWith('.mid'));
-  assert.ok(files.length >= 13);
+  assert.ok(files.length >= 9);
   let drums = 0;
   for (const f of files) {
     const s = parseMidi(readFileSync(new URL(`../assets/midi/${f}`, import.meta.url)));

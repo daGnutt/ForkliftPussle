@@ -143,19 +143,15 @@ function noise(dest, t, dur, { gain = 0.1, cutoff = 7000, type = 'highpass' } = 
 
 // Public-domain / CC0 MIDI songs (sources in assets/midi/CREDITS.md).
 const TRACKS = [
-  { id: 'rag-pineapple', name: 'Ragtime: Pineapple Rag', midi: 'assets/midi/pineapple-rag.mid' },
-  { id: 'rag-elite', name: 'Ragtime: Elite Syncopations', midi: 'assets/midi/elite-syncopations.mid' },
-  { id: 'rag-strenuous', name: 'Ragtime: The Strenuous Life', midi: 'assets/midi/strenuous-life.mid' },
-  { id: 'bach-269', name: 'Bach: Chorale BWV 269', midi: 'assets/midi/bach-bwv269.mid' },
-  { id: 'metal-endless-pain', name: 'Metal: Endless Pain of Nightmares', midi: 'assets/midi/endless-pain.mid' },
-  { id: 'metal-pandemia', name: 'Metal: Pandemia', midi: 'assets/midi/pandemia.mid' },
-  { id: 'hardcore-knockout', name: 'Hardcore: Knockout', midi: 'assets/midi/knockout.mid' },
-  { id: 'rock-theme', name: 'Rock: Rock Theme Song', midi: 'assets/midi/rock-theme-song.mid' },
-  { id: 'rock-neon-flames', name: 'Rock: Neon Flames', midi: 'assets/midi/neon-flames.mid' },
-  { id: 'groove-bounce', name: 'Groove: Bounce Style', midi: 'assets/midi/bounce-style.mid' },
-  { id: 'dance-groovy', name: 'Dance: Everything Is Groovy', midi: 'assets/midi/helice-groovy.mid' },
-  { id: 'dance-disco', name: 'Dance: Disco Challenge', midi: 'assets/midi/helice-disco.mid' },
-  { id: 'dance-pop-city', name: 'Dance: Pop City', midi: 'assets/midi/helice-pop-city.mid' },
+  { id: 'country-hoedown', name: 'Country: Hee-Haw Hoedown', midi: 'assets/midi/hoedown.mid' },
+  { id: 'classical-elise', name: 'Classical: Für Forklift', midi: 'assets/midi/fur-elise.mid' },
+  { id: 'classical-turca', name: 'Classical: Rondo alla Turbo', midi: 'assets/midi/rondo-alla-turca.mid' },
+  { id: 'waltz-dead-pallets', name: 'Gothic Waltz: Dance of the Dead Pallets', midi: 'assets/midi/death-waltz.mid' },
+  { id: 'industrial-gears', name: 'Industrial Metal: Gears of Grind', midi: 'assets/midi/gears.mid' },
+  { id: 'metal-math', name: 'Math Metal: Pallet Algebra', midi: 'assets/midi/math-metal.mid' },
+  { id: 'techno-trance', name: 'Techno: Trance of the Pallet Gods', midi: 'assets/midi/gods-of-trance.mid' },
+  { id: 'synthwave-neon', name: 'Synthwave: Neon Warehouse', midi: 'assets/midi/vaporwave.mid' },
+  { id: 'rock-arena', name: 'Arena Rock: Stadium Forklift', midi: 'assets/midi/arena-rock.mid' },
 ];
 
 const songs = new Map(); // url -> parsed song, or 'loading'
