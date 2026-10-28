@@ -226,7 +226,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keydown', (e) => {
   if (!splashOn || e.target === seedInput) return;
   e.stopImmediatePropagation();
-  startGame();
+  if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); startAudio(); startGame(); }
 }, true);
 
 const menuEl = document.getElementById('menu');

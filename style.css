@@ -25,7 +25,7 @@ footer b { color: var(--accent); }
 #splash button { padding: 6px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
 #splash button svg { display: block; }
 @keyframes blink { 50% { opacity: .25; } }
-#splashAnim { width: 440px; height: 190px; max-width: 94vw; }
+#splashAnim { width: 440px; height: 190px; flex: none; }
 
 #record { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); color: var(--fg); z-index: 20; }
 #record.hide { display: none; }
