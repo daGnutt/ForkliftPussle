@@ -134,7 +134,7 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, spli
       const um = (u0 + u1) / 2;
       faces.push({
         quad: [at(u0, -hw), at(u1, -hw), at(u1, hw), at(u0, hw)],
-        mx: x + um * c, my: y + um * s, mz: z, color, shade, lit,
+        mx: x + um * c, my: y + um * s, mz: z, color, shade, lit, boxFlat: !wall && hl === 0.5 && hw === 0.5,
       });
     }
   };
@@ -199,7 +199,7 @@ function buildFaces(g, cam) {
     const t = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, side * FL.tineOff);
     addPrism(faces, cam, t.x, t.y, g.fl.a, len, FL.tineHalf, tz, tz + PAL, theme().tine, false, 0.2);
   }
-  for (const f of faces) f.d = Math.hypot(f.mx - cam.x, f.my - cam.y, f.mz - cam.z);
+  for (const f of faces) f.d = Math.hypot(f.mx - cam.x, f.my - cam.y, f.mz - cam.z) + (f.boxFlat ? 0.6 : 0); // lids/undersides sit behind the pallet parts touching them
   faces.sort((a, b) => b.d - a.d);
   return faces;
 }
