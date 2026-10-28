@@ -5,6 +5,7 @@ const MUTE_KEY = 'forklift-music-muted';
 
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const MUSIC_VOL = 0.35;
+const SFX_VOL = 0.5;
 const TRACK_KEY = 'forklift-music-track';
 
 let ctx = null, master = null, musicBus = null, sfxBus = null;
@@ -29,7 +30,7 @@ function init() {
   musicBus = ctx.createGain();
   musicBus.gain.value = muted ? 0 : MUSIC_VOL;
   sfxBus = ctx.createGain();
-  sfxBus.gain.value = 0.5;
+  sfxBus.gain.value = SFX_VOL;
   sfxBus.connect(master);
 
   // Music bus: cut low-mid mud, add a little presence, glue with a gentle compressor.
@@ -305,10 +306,12 @@ export function startAudio() {
 
 // Silence everything (focus lost / manual pause) by suspending the audio clock.
 let silenced = false;
-export function setSilenced(s) {
-  silenced = s;
+// With keepMusic (pause menu) only the sound effects are muted and the music keeps playing.
+export function setSilenced(s, keepMusic = false) {
+  silenced = s && !keepMusic;
   if (!ctx) return;
-  if (s) ctx.suspend(); else ctx.resume();
+  sfxBus.gain.setTargetAtTime(s ? 0 : SFX_VOL, ctx.currentTime, 0.02);
+  if (silenced) ctx.suspend(); else ctx.resume();
 }
 
 export function isAllMuted() { return allMuted; }
