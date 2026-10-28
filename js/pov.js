@@ -106,7 +106,7 @@ function floorGrid(ctx, cam) {
 // Adds the faces of a rectangular prism (centre x,y, heading a, half sizes hl,hw, heights z0..z1).
 // split: max segment length; long faces are cut up so far-to-near sorting stays right (walls, tines).
 // wall = true: colourless, checker-tinted tiles.
-function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, split = wall ? 1 : 0, deco = 0) {
+function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, split = wall ? 1 : 0, deco = 0, skipTop = false, skipBottom = false) {
   const c = Math.cos(a), s = Math.sin(a);
   const p = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([u, v]) => [x + u * c - v * s, y + u * s + v * c]);
   for (let i = 0; i < 4; i++) {
@@ -134,12 +134,12 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, spli
       const um = (u0 + u1) / 2;
       faces.push({
         quad: [at(u0, -hw), at(u1, -hw), at(u1, hw), at(u0, hw)],
-        mx: x + um * c, my: y + um * s, mz: z, color, shade, lit,
+        mx: x + um * c, my: y + um * s, mz: z, color, shade, lit, boxFlat: !wall && hl === 0.5 && hw === 0.5,
       });
     }
   };
-  if (cam.z > z1) flat(z1, 1, true);
-  else if (cam.z < z0) flat(z0, 0.5, false);
+  if (cam.z > z1) { if (!skipTop) flat(z1, 1, true); }
+  else if (cam.z < z0 && !skipBottom) flat(z0, 0.5, false);
 }
 
 // Stack with a pallet under every box; level h sits at height h * (BOX_H + PAL).
@@ -149,9 +149,9 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
     const x = x0 + (offs[i]?.x || 0), y = y0 + (offs[i]?.y || 0);
     const z = (level + i + (i >= from ? extra : 0)) * (BOX_H + PAL), r = rots[i] ?? 0;
     const cr = Math.cos(r), sr = Math.sin(r);
-    addPrism(faces, cam, x, y, r, 0.2, 0.2, z, z + PAL, PALLET_COLOR);
+    addPrism(faces, cam, x, y, r, 0.2, 0.2, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
     for (const [u, v] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) {
-      addPrism(faces, cam, x + u * cr - v * sr, y + u * sr + v * cr, r, 0.05, 0.05, z, z + PAL, PALLET_COLOR);
+      addPrism(faces, cam, x + u * cr - v * sr, y + u * sr + v * cr, r, 0.05, 0.05, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
     }
     addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? pens[i]?.deco ?? boxDecalKind(col, i) : 0);
   });
@@ -199,7 +199,7 @@ function buildFaces(g, cam) {
     const t = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, side * FL.tineOff);
     addPrism(faces, cam, t.x, t.y, g.fl.a, len, FL.tineHalf, tz, tz + PAL, theme().tine, false, 0.2);
   }
-  for (const f of faces) f.d = Math.hypot(f.mx - cam.x, f.my - cam.y, f.mz - cam.z);
+  for (const f of faces) f.d = Math.hypot(f.mx - cam.x, f.my - cam.y, f.mz - cam.z) + (f.boxFlat ? 0.6 : 0); // lids/undersides sit behind the pallet parts touching them
   faces.sort((a, b) => b.d - a.d);
   return faces;
 }
