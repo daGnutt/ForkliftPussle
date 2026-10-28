@@ -180,7 +180,7 @@ function midiTick() {
     songStart = ctx.currentTime + 0.1;
     songIdx = 0;
   }
-  const horizon = ctx.currentTime + 0.4;
+  const horizon = ctx.currentTime + 1.5; // look-ahead long enough for throttled timers in background tabs
   for (;;) {
     if (songIdx >= song.notes.length) {
       const end = songStart + song.duration + 1.5;
@@ -297,7 +297,7 @@ function tick() {
 export function startAudio() {
   init();
   if (!ctx) return;
-  if (ctx.state === 'suspended' && !silenced) ctx.resume();
+  if (ctx.state === 'suspended') ctx.resume();
   if (!timer) {
     tick();
     timer = setInterval(tick, 100);
@@ -305,13 +305,10 @@ export function startAudio() {
 }
 
 // Silence everything (focus lost / manual pause) by suspending the audio clock.
-let silenced = false;
-// With keepMusic (pause menu) only the sound effects are muted and the music keeps playing.
-export function setSilenced(s, keepMusic = false) {
-  silenced = s && !keepMusic;
+// Mutes the sound effects (pause menu / focus lost); the music keeps playing.
+export function setSilenced(s) {
   if (!ctx) return;
   sfxBus.gain.setTargetAtTime(s ? 0 : SFX_VOL, ctx.currentTime, 0.02);
-  if (silenced) ctx.suspend(); else ctx.resume();
 }
 
 export function isAllMuted() { return allMuted; }

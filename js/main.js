@@ -366,7 +366,7 @@ function applyPause() {
   const p = !!view.menuOpen;
   if (!p && view.paused) last = performance.now();
   view.paused = p;
-  setSilenced(p, !lostFocus());
+  setSilenced(p);
 }
 // Losing focus opens the same pause menu as Esc/P; the player must click Resume (or press U/Esc/P) to continue, just like any other pause.
 const pauseOnBlur = () => { if (!splashOn && !recordOpen && lostFocus()) toggleMenu(true); };
