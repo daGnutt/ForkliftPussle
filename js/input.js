@@ -22,7 +22,7 @@ export function createInput(handlers) {
   const buttonAt = (x, y) => buttons.find((b) => { const r = b.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; });
   buttons.forEach((b) => {
     b.addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'touch') return; // touches are handled by the touch listeners below
+      if (e.pointerType === 'touch' || handlers.blocked?.()) return; // touches are handled by the touch listeners below
       e.preventDefault();
       b.setPointerCapture?.(e.pointerId);
       b.classList.add('on');
@@ -40,6 +40,10 @@ export function createInput(handlers) {
   const padTouches = new Set();
   const touchKeys = new Set();
   const syncTouches = (e) => {
+    if (handlers.blocked?.()) { // menu open: drop all pad touches so they neither steer nor steal taps from the menu
+      if (padTouches.size || touchKeys.size) { padTouches.clear(); touchKeys.clear(); down.clear(); buttons.forEach((b) => b.classList.remove('on')); }
+      return;
+    }
     const live = new Map();
     for (const t of e.touches) live.set(t.identifier, t);
     for (const t of e.changedTouches) {
