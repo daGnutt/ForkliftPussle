@@ -220,12 +220,6 @@ seedInput.addEventListener('keydown', (e) => {
 });
 document.getElementById('seedForm').addEventListener('submit', (e) => { e.preventDefault(); startAudio(); startGame(); });
 window.addEventListener('keydown', (e) => {
-  if (splashOn || recordOpen || view.menuOpen || e.target === seedInput || e.code !== 'KeyH' || e.repeat) return;
-  e.stopImmediatePropagation();
-  tutStep = 0;
-  showTutorial();
-}, true);
-window.addEventListener('keydown', (e) => {
   if (!splashOn || e.target === seedInput) return;
   e.stopImmediatePropagation();
   if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); startAudio(); startGame(); }
@@ -260,6 +254,7 @@ function toggleMenu(open) {
     decalOpt.checked = decalsEnabled();
     menuHardOpt.checked = hard;
     menuLevel.value = level;
+    updateTutorialBtn();
     document.getElementById('menuResume').focus();
   } else {
     document.activeElement?.blur();
@@ -281,6 +276,22 @@ document.getElementById('menuGoto').addEventListener('submit', (e) => {
 });
 document.getElementById('menuLowest').addEventListener('click', () => {
   load(lowestUnscored(localStorage, seed));
+  toggleMenu(false);
+});
+const menuTutorial = document.getElementById('menuTutorial');
+function updateTutorialBtn() {
+  menuTutorial.innerHTML = tutStep >= 0 ? 'Stop tut<u>o</u>rial' : 'Restart tut<u>o</u>rial';
+}
+menuTutorial.addEventListener('click', () => {
+  if (tutStep >= 0) {
+    tutStep = -1;
+    localStorage.setItem('forklift-tutorial-done', '1');
+  } else {
+    tutStep = 0;
+    localStorage.removeItem('forklift-tutorial-done');
+    tutStart = { x: game.fl.x, y: game.fl.y, g: game };
+  }
+  showTutorial();
   toggleMenu(false);
 });
 document.getElementById('menuFullscreen').addEventListener('click', toggleFullscreen);
@@ -313,6 +324,7 @@ window.addEventListener('keydown', (e) => {
     KeyL: () => document.getElementById('menuLowest').click(),
     KeyF: toggleFullscreen,
     KeyS: () => toggle(autoFsOpt),
+    KeyO: () => menuTutorial.click(),
     KeyR: () => document.getElementById('menuRestart').click(),
     KeyU: () => toggleMenu(false),
   };
