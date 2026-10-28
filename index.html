@@ -71,6 +71,15 @@
     <b>A</b> forks up &nbsp; <b>Z</b> forks down &nbsp; <b>R</b> restart &nbsp; <b>Esc</b>/<b>P</b> menu (pause) &nbsp;  <b>M</b>/<b>Tab</b> overview/cab view &nbsp; <b>F</b> full screen &nbsp; <b>H</b> replay tutorial
   </footer>
   <script type="module" src="js/main.js"></script>
-  <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((r) => document.addEventListener('visibilitychange', () => { if (!document.hidden) r.update(); })));</script>
+  <script>if ('serviceWorker' in navigator) addEventListener('load', () => {
+    // Reload once when a new worker takes over (state autosaves); skip the first install.
+    let reloaded = false, had = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !reloaded) { reloaded = true; location.reload(); } had = true; });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((r) => {
+      const check = () => { if (!document.hidden) r.update(); };
+      document.addEventListener('visibilitychange', check);
+      addEventListener('pageshow', check);
+    });
+  });</script>
 </body>
 </html>
