@@ -26,7 +26,7 @@
   .row figure { flex: 1.2; margin: 0; }
   figure img { width: 100%; border-radius: 8px; border: 1px solid #2a313b; box-shadow: 0 6px 24px #0008; display: block; }
   figcaption { font-size: 1.1vw; color: #9aa4b2; margin-top: 1vh; }
-  .chart { display: flex; gap: 1.6vw; align-items: flex-end; justify-content: center; height: 52vh; margin-top: 1vh; }
+  .chart { display: flex; gap: 1.2vw; align-items: flex-end; justify-content: center; height: 52vh; margin-top: 1vh; }
   .col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 9vw; }
   .col .n { font-size: 2.2vw; font-weight: bold; color: #ffc933; margin-bottom: .6vh; }
   .col .stack { display: flex; flex-direction: column-reverse; width: 100%; border-bottom: 3px solid #6b7684; padding-bottom: 2px; }
@@ -42,7 +42,7 @@
 <section class="slide">
   <h1>Forklift Frenzy</h1>
   <div class="sub">The development timeline of a top-down, keyboard-only forklift puzzle</div>
-  <div class="sub" style="margin-top:3vh">21 – 27 October 2026 · 202 commits · vanilla JS + Canvas 2D · no build, no dependencies</div>
+  <div class="sub" style="margin-top:3vh">21 – 28 October 2026 · 235 commits · vanilla JS + Canvas 2D · no build, no dependencies</div>
   <div class="sub" style="margin-top:6vh;font-size:1.4vw">← / → or Space to navigate</div>
 </section>
 
@@ -52,13 +52,14 @@
     <li>Stack coloured boxes in matching drop zones, then park the forklift</li>
     <li>Rear-wheel-steering bicycle model: the tail swings out</li>
     <li>Deterministic seeded level generator (<code>mulberry32</code>)</li>
-    <li>DOM-free game logic, so tests run in plain Node</li>
-    <li>Static files on GitHub Pages; Firefox is the primary target</li>
+    <li>DOM-free game logic, so the tests run in plain Node</li>
+    <li>Static files on GitHub Pages (and an installable PWA); Firefox is the primary target</li>
   </ul>
   <div class="stats">
-    <div class="stat"><b>~3.7k</b><span>lines of JS</span></div>
+    <div class="stat"><b>~3.9k</b><span>lines of JS</span></div>
+    <div class="stat"><b>235</b><span>commits</span></div>
     <div class="stat"><b>0</b><span>dependencies</span></div>
-    <div class="stat"><b>5</b><span>days of development</span></div>
+    <div class="stat"><b>8</b><span>days (7 with commits)</span></div>
   </div>
 </section>
 
@@ -79,70 +80,47 @@
 
 <section class="slide">
   <div class="date">Day 1 · 21 Oct · Midday</div>
-  <h2>Rules, scoring &amp; polish</h2>
+  <h2>Rules, scoring &amp; branding</h2>
   <div class="row">
   <ul>
     <li>Per-box scoring: crash and squareness deductions (5° allowance)</li>
     <li>Parking spot; finishing needs parking and ≥ 50% score</li>
     <li>Procedural audio: engine whine, music, fork sounds, success chime</li>
     <li>Rebrand to “Forklift Frenzy”: splash screen, favicon, 3D boxes</li>
-    <li>Custom level seeds, random-seed button</li>
-    <li>Project docs: Copilot instructions and <code>CODE_GUIDE.md</code></li>
+    <li>Custom level seeds and a random-seed button</li>
   </ul>
   <figure><img src="shots/02-graphical-overhaul.png" alt=""><figcaption>After the graphical overhaul (ca4b8d9)</figcaption></figure>
   </div>
 </section>
 
 <section class="slide">
-  <div class="date">Day 1 · 21 Oct · Afternoon</div>
-  <h2>Cabin (first-person) view</h2>
+  <div class="date">Day 1 · 21 Oct · Afternoon &amp; evening</div>
+  <h2>Cabin view, tutorial &amp; high scores</h2>
   <div class="row">
   <ul>
-    <li>Polygon-projected FPV with forks, pallets, zones and parking</li>
-    <li>Occlusion clipping, lids, undersides and pallets open on all sides</li>
+    <li>Polygon-projected first-person view with forks, pallets, zones and parking</li>
     <li>Camera follows fork height; rear-view and side mirrors</li>
-    <li>Floor grid and wall textures; dark mode</li>
+    <li>Nudging a box slowly squares it to the forklift</li>
+    <li>Local high scores per level and seed, with a time penalty</li>
+    <li>Step-by-step, action-dismissed tutorial; pause on lost focus</li>
   </ul>
   <figure><img src="shots/03-first-cabin-view.png" alt=""><figcaption>First cabin view (e16cdf4)</figcaption></figure>
   </div>
 </section>
 
 <section class="slide">
-  <div class="date">Day 1 · 21 Oct · Evening</div>
-  <h2>Onboarding &amp; progression</h2>
-  <ul>
-    <li>Nudging a box slowly squares it to the forklift</li>
-    <li>Local high scores per level and seed; time penalty</li>
-    <li>Pause on lost focus</li>
-    <li>Step-by-step, action-dismissed tutorial</li>
-    <li>Drop-off areas favour outer walls</li>
-  </ul>
-</section>
-
-<section class="slide">
   <div class="date">Day 3 · 23 Oct</div>
-  <h2>Hard mode &amp; physics depth</h2>
+  <h2>Physics depth &amp; new levels</h2>
   <div class="row">
   <ul>
-    <li>Pallets glide, split or get pushed when turning with forks inside</li>
-    <li>Hard mode: tines collide with pallet runners; push torque turns boxes</li>
+    <li>Hard mode: pallets glide, split or get pushed; tines hit pallet runners</li>
     <li>Boxes need 50% support or fall beside the stack; crooked towers</li>
     <li>Rooms-and-corridors level generator replaces random pillars</li>
-    <li>Cab view rewritten as a polygon-projection renderer</li>
+    <li>Escape menu with full screen, mute, go-to-level and shortcuts</li>
+    <li>Floating damage popups and a break sound</li>
   </ul>
   <figure><img src="shots/04-rooms-corridors.png" alt=""><figcaption>Rooms-and-corridors levels (c328e96)</figcaption></figure>
   </div>
-</section>
-
-<section class="slide">
-  <div class="date">Day 3 · 23 Oct</div>
-  <h2>Menus &amp; feedback</h2>
-  <ul>
-    <li>Escape menu: engine whine, music, restart, hard mode, go to level</li>
-    <li>Full screen, mute-all, underlined keyboard shortcuts</li>
-    <li>Parking spot shows the required heading arrow; random spawn</li>
-    <li>Floating damage popups and a break sound</li>
-  </ul>
 </section>
 
 <section class="slide">
@@ -150,12 +128,11 @@
   <h2>Handling &amp; factory atmosphere</h2>
   <div class="row">
   <ul>
-    <li>Height-based speed limit for raised forks</li>
-    <li>Larger steering lock, tapered by speed (later no longer limited by fork height)</li>
-    <li>Overview becomes the default view; view mode is remembered</li>
-    <li>Floor decals: tire marks, yellow markings, windows, doors, signs</li>
-    <li>Ceiling, factory lights, fans; walls raised to clear a 5-box stack</li>
-    <li>Box decals; <code>?debug</code> overlay with FPS and state</li>
+    <li>Height-based speed limit for raised forks; larger, speed-tapered steering lock</li>
+    <li>Overview becomes the default view and is remembered</li>
+    <li>Floor and wall decals: tire marks, yellow markings, windows, doors, signs</li>
+    <li>Ceiling, factory lights and fans; walls raised to clear a 5-box stack</li>
+    <li>Box decals and a <code>?debug</code> overlay</li>
   </ul>
   <figure><img src="shots/05-decals.png" alt=""><figcaption>Floor and wall decals (aed730f)</figcaption></figure>
   </div>
@@ -163,35 +140,25 @@
 
 <section class="slide">
   <div class="date">Day 5 · 25 Oct</div>
-  <h2>Sound &amp; music</h2>
+  <h2>Sound, saves &amp; touch</h2>
   <ul>
     <li>Reversing beep and a blue reversing light that walls cut off</li>
-    <li>Selectable music: generated tracks, then public-domain and CC0 MIDI songs with a drum synth</li>
-    <li>Clearer MIDI voices (EQ, brighter instruments, tighter reverb)</li>
-    <li>New music library: country, classical, industrial metal, techno and more, all CC0/public domain with quirky names</li>
+    <li>Selectable MIDI music (public domain / CC0) with a drum synth; wall bonk and scrape sounds</li>
+    <li>Progress saved in <code>localStorage</code>; export/import of level state</li>
+    <li>Wall-mounted charger to park against; carried stacks can't be lifted into the ceiling</li>
+    <li>On-screen touch controls and an installable PWA</li>
+    <li>First version of this presentation</li>
   </ul>
 </section>
 
 <section class="slide">
-  <div class="date">Day 5 · 25 Oct</div>
-  <h2>Final touches</h2>
-  <div class="row">
-  <ul>
-    <li>Score explanations on splash and level-complete screens</li>
-    <li>Level timer stops on completion; jump to lowest unscored level</li>
-    <li>Debug overlay shows update/draw/idle share</li>
-  </ul>
-  <figure><img src="shots/06-overview-latest.png" alt=""><figcaption>Latest overview, with damage popups and tutorial</figcaption></figure>
-  </div>
-</section>
-
-<section class="slide">
-  <div class="date">Day 5 · 25 Oct</div>
-  <h2>On the phone: touch controls</h2>
+  <div class="date">Days 6–7 · 26 – 27 Oct</div>
+  <h2>On the phone</h2>
   <ul style="font-size:1.6vw;margin:0 0 2vh">
-    <li>On-screen buttons, tap to continue, a zoomed follow-camera overview with a minimap</li>
-    <li>Rotatable PWA: landscape layout with the field up top, steering bottom left, drive/forks bottom right, minimap and status between</li>
-    <li>Brake removed: engine braking does the slowing; touch start goes full screen</li>
+    <li>Rotatable landscape layout: field on top, steering bottom left, drive/forks bottom right, minimap and status between</li>
+    <li>Zoomed follow-camera overview; the map pans past its edges so pads never hide it</li>
+    <li>Brake removed (engine braking does the slowing); touch start enters full screen</li>
+    <li>Touch state derived from live touches (fixes flaky PWA steering); service worker bypasses the HTTP cache</li>
   </ul>
   <div style="display:flex;gap:3vw;align-items:center;justify-content:center">
     <figure style="margin:0;flex:2.2;max-width:60vw"><img src="shots/08-touch-landscape.png" alt=""><figcaption style="text-align:center">Landscape: steering left, drive and forks right, minimap and status between</figcaption></figure>
@@ -200,8 +167,37 @@
 </section>
 
 <section class="slide">
-  <h2>Where it ended up: the cabin view</h2>
-  <figure style="margin:0;max-height:70vh"><img src="shots/07-cabin-latest.png" alt="" style="max-height:68vh;width:auto;margin:0 auto"><figcaption style="text-align:center">Latest cabin view: mirrors, decals, zone labels and damage popups (HEAD)</figcaption></figure>
+  <div class="date">Day 8 · 28 Oct</div>
+  <h2>A splash with style</h2>
+  <div class="row">
+  <ul>
+    <li>Splash: a forklift drifting a figure eight with smoke, boxes and permanent skidmarks</li>
+    <li>Higher wall/floor contrast; the in-game forklift restyled to match the splash</li>
+    <li>Bigger levels now that the map pans</li>
+    <li>Fullscreen is an opt-in menu setting; pause-menu touches no longer reach the pad</li>
+    <li>Service worker auto-reloads on a new version</li>
+  </ul>
+  <figure><img src="shots/10-splash-figure-eight.png" alt=""><figcaption>The new splash screen (HEAD)</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="date">Day 8 · 28 Oct</div>
+  <h2>New soundtrack &amp; calmer menus</h2>
+  <ul>
+    <li>Music library replaced: country, classical, industrial metal, techno and more, all CC0 / public domain</li>
+    <li>Music keeps playing in the pause menu and when focus is lost</li>
+    <li>Tutorial restart moved from the <code>H</code> key to a pause-menu button</li>
+    <li>Pause-menu shortcuts for tutorial, resume, auto-fullscreen and hard mode dropped</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <h2>Where it ended up</h2>
+  <div style="display:flex;gap:2vw;align-items:flex-start;justify-content:center">
+    <figure style="margin:0;flex:1"><img src="shots/06-overview-latest.png" alt=""><figcaption style="text-align:center">Overview: tutorial, fork gauge, yellow drop-off outlines</figcaption></figure>
+    <figure style="margin:0;flex:1"><img src="shots/07-cabin-latest.png" alt=""><figcaption style="text-align:center">Cabin view: mirrors, ceiling lights, decals and zone labels</figcaption></figure>
+  </div>
 </section>
 
 <section class="slide">
@@ -221,14 +217,15 @@
 <section class="slide">
   <h2>Timeline at a glance</h2>
   <ul>
-    <li><b>21 Oct</b> – core game, scoring, audio, branding, cabin view, tutorial (~80 commits)</li>
+    <li><b>21 Oct</b> – core game, scoring, audio, branding, cabin view, tutorial (79 commits)</li>
     <li><b>23 Oct</b> – hard mode, stacking physics, room levels, menus</li>
     <li><b>24 Oct</b> – handling, decals, factory look, debug tools</li>
-    <li><b>25 Oct</b> – reversing aids, music library, scoring UX, touch controls</li>
-    <li><b>26 – 27 Oct</b> – landscape PWA layout, steering fix, brake removed, full screen on touch</li>
+    <li><b>25 Oct</b> – reversing aids, music, saves, touch controls, PWA</li>
+    <li><b>26 – 27 Oct</b> – landscape layout, brake removed, touch fixes</li>
+    <li><b>28 Oct</b> – animated splash, new soundtrack, menu cleanup</li>
   </ul>
-  <div class="bar"><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div></div>
-  <div class="sub" style="margin-top:1vh;font-size:1.3vw">21 · 22 · 23 · 24 · 25 · 26 · 27 Oct (no commits on the 22nd) · activity peaked on day 1, then ramped down to a few tiny tweaks by the 27th</div>
+  <div class="bar"><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div></div>
+  <div class="sub" style="margin-top:1vh;font-size:1.3vw">21 · 22 · 23 · 24 · 25 · 26 · 27 · 28 Oct (no commits on the 22nd) · biggest day was day 1, then steady polish</div>
 </section>
 
 <section class="slide">
@@ -238,7 +235,7 @@
 
 <div id="nav"></div>
 <script>
-  const perDay = {"21 Oct":[851,243,23,147,109,14,24,65,40,57,56,1,54,2,4,121,33,23,35,28,35,63,78,169,141,2,86,50,87,10,7,6,12,104,118,83,18,43,21,14,7,39,15,3,0,41,13,44,2,18,40,17,106,19,19,52,78,14,4,7,0,11,0,52,11,13,12,4,25,6,29,55,7,0,39,8,2,4,2],"22 Oct":[],"23 Oct":[100,46,48,35,30,29,53,0,86,0,67,176,2,0,105,35,84,21,16,29,11,22,399,55,25,35,88,17],"24 Oct":[50,0,19,0,51,0,16,0,250,21,129,39,29,75,2,0,19,25,31,2,10,74,44,90,36,23],"25 Oct":[20,26,107,6,14,20,202,62,41,42,156,194,96,28,0,132,7,4,18,36,3,96,41,4,58,187,28,28,0,3,59,8,126,4,50,10,7,0,43,70,72,6,6,9,152,8,2,57,4],"26 Oct":[33,0,48,6,21,100,1,0],"27 Oct":[8,8,0,11,0,20,0,2,2,14,0]};
+  const perDay = {"21 Oct":[851,243,23,147,109,14,24,65,40,57,56,1,54,2,4,121,33,23,35,28,35,63,78,169,141,2,86,50,87,10,7,6,12,104,118,83,18,43,21,14,7,39,15,3,0,41,13,44,2,18,40,17,106,19,19,52,78,14,4,7,0,11,0,52,11,13,12,4,25,6,29,55,7,0,39,8,2,4,2],"22 Oct":[],"23 Oct":[100,46,48,35,30,29,53,0,86,0,67,176,2,0,105,35,84,21,16,29,11,22,399,55,25,35,88,17],"24 Oct":[50,0,19,0,51,0,16,0,250,21,129,39,29,75,2,0,19,25,31,2,10,74,44,90,36,23],"25 Oct":[20,26,107,6,14,20,202,62,41,42,156,194,96,28,0,132,7,4,18,36,3,96,41,4,58,187,28,28,0,3,59,8,126,4,50,10,7,0,43,70,72,6,6,9,152,8,2,57,4],"26 Oct":[33,0,48,6,21,100,1,0],"27 Oct":[8,8,0,11,0,20,0,2,2,14,0,43,2,2,6,6,4,27,33,11,25,15,41,9],"28 Oct":[9,0,12,0,10,8,23,112,8,25,1,62,16,53,18,17,31,20,2,11,11]};
   const chart = document.getElementById('chart');
   for (const [day, commits] of Object.entries(perDay)) {
     const total = commits.reduce((a, b) => a + b, 0);
