@@ -292,7 +292,7 @@ menuTutorial.addEventListener('click', () => {
     tutStart = { x: game.fl.x, y: game.fl.y, g: game };
   }
   showTutorial();
-  toggleMenu(false);
+  updateTutorialBtn();
 });
 document.getElementById('menuFullscreen').addEventListener('click', toggleFullscreen);
 document.getElementById('menuResume').addEventListener('click', () => toggleMenu(false));
