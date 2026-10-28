@@ -71,6 +71,10 @@ function load(n) {
   saveState();
 }
 
+function setFullscreen(on) {
+  if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+  else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
 function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen?.().catch(() => {});
@@ -193,6 +197,7 @@ function startGame() {
     localStorage.setItem('forklift-tutorial-done', '1');
   }
   showTutorial();
+  setFullscreen(true);
   splashOn = false;
   splash.classList.add('hide');
   seedInput.blur();
@@ -209,7 +214,7 @@ seedInput.addEventListener('keydown', (e) => {
   e.stopPropagation();
   if (e.key === 'Enter') { e.preventDefault(); startAudio(); startGame(); }
 });
-document.getElementById('seedForm').addEventListener('submit', (e) => { e.preventDefault(); startAudio(); if (isTouch && !document.fullscreenElement) toggleFullscreen(); startGame(); });
+document.getElementById('seedForm').addEventListener('submit', (e) => { e.preventDefault(); startAudio(); startGame(); });
 window.addEventListener('keydown', (e) => {
   if (splashOn || recordOpen || view.menuOpen || e.target === seedInput || e.code !== 'KeyH' || e.repeat) return;
   e.stopImmediatePropagation();
@@ -236,6 +241,7 @@ setDecalsEnabled(localStorage.getItem('forklift-decals-off') !== '1');
 const menuHardOpt = document.getElementById('menuHardOpt');
 function toggleMenu(open) {
   view.menuOpen = open;
+  setFullscreen(!open);
   menuEl.classList.toggle('hide', !open);
   if (open) {
     muteOpt.checked = isAllMuted();
