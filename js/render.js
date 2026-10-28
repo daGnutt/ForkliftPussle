@@ -175,17 +175,16 @@ function drawForkliftBody(ctx, g) {
   drawWheel(ctx, f, -FL.L, W - 0.08, -f.steer);
   // chassis, rear counterweight, hood, seat
   block(ctx, f, FL.back, -W, FL.front, W, 0.15, 0.5, '#f9a825');
-  block(ctx, f, FL.back, -W, FL.back + 0.55, W, 0.5, 0.85, '#8d6e63');
-  block(ctx, f, -0.75, -0.4, -0.1, 0.4, 0.5, 0.62, '#37474f');
-  block(ctx, f, -1.2, -0.3, -0.85, 0.3, 0.5, 0.78, '#263238');
+  block(ctx, f, FL.back, -W, FL.back + 0.55, W, 0.5, 0.85, '#6d4c00');
   // mast uprights at the front
   for (const s of [-1, 1]) block(ctx, f, FL.front - 0.12, s * 0.38 - 0.06, FL.front + 0.02, s * 0.38 + 0.06, 0.5, 1.5, '#555');
-  block(ctx, f, FL.front - 0.12, -0.38, FL.front + 0.02, 0.38, 1.3, 1.5, '#444');
-  // overhead guard: four posts and a roof
+  block(ctx, f, FL.front - 0.12, -0.38, FL.front + 0.02, 0.38, 1.3, 1.5, '#555');
+  // overhead guard: four posts, a dark roof and a cream seat panel (as on the splash screen)
   for (const px of [-1.1, -0.05]) for (const s of [-1, 1]) {
     block(ctx, f, px - 0.04, s * 0.42 - 0.04, px + 0.04, s * 0.42 + 0.04, 0.5, 1.15, '#37474f');
   }
-  block(ctx, f, -1.2, -0.5, 0.05, 0.5, 1.15, 1.25, '#f9a825');
+  block(ctx, f, -1.2, -0.5, 0.05, 0.5, 1.15, 1.25, '#a1730f');
+  block(ctx, f, -1.0, -0.33, -0.1, 0.33, 1.25, 1.27, '#fff3c4');
   ctx.save();
   ctx.translate(f.x + 1.25 * PX, f.y + 1.25 * PY);
   ctx.rotate(f.a);
