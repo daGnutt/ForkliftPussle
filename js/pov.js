@@ -4,7 +4,7 @@ import { makeCamera, EYE_X, EYE_Z, EYE_FOLLOW, HFOV, REAR_HFOV, BOX_H, PAL, MAX_
 import { buildFaces } from './pov/scene.js';
 import { drawFace } from './pov/face.js';
 import { drawCeiling, drawFloorGrid, drawFloorDecals, drawFloorMarks, drawRevFloor, drawRevWalls } from './pov/floor.js';
-import { drawZoneLabels, drawHits } from './pov/overlay.js';
+import { zoneLabelItems, drawHits } from './pov/overlay.js';
 
 // Cabin view: a small polygon-projection 3D renderer (see docs/CODE_GUIDE.md, js/pov/).
 
@@ -39,10 +39,15 @@ export function drawPov(ctx, g, x, y, w, h, opts = {}) {
   drawFloorMarks(ctx, g, cam);
   drawRevFloor(ctx, g, cam);
   const faces = buildFaces(g, cam);
-  for (const f of faces) if (f.d < MAX_DIST) drawFace(ctx, cam, g, f);
+  const labels = opts.rear ? [] : zoneLabelItems(g, cam).sort((a, b) => b.d - a.d);
+  let li = 0;
+  for (const f of faces) {
+    while (li < labels.length && labels[li].d >= f.d) labels[li++].draw(ctx);
+    if (f.d < MAX_DIST) drawFace(ctx, cam, g, f);
+  }
+  while (li < labels.length) labels[li++].draw(ctx);
   drawRevWalls(ctx, g, cam);
   if (!opts.rear) {
-    drawZoneLabels(ctx, g, cam, faces);
     drawHits(ctx, g, cam);
   }
   ctx.restore();
