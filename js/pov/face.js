@@ -139,18 +139,23 @@ function acUnit({ box, disc }) {
   box(0.78, 2.1, 0.84, 2.14, '#43a047');
 }
 
-// A roller door spans two segments around the junction `key`; skip it unless the whole width is free wall face
-// (no perpendicular wall abutting the face within the span).
-function doorFits(g, key, q0, q1) {
+// Whether the wall face is free of perpendicular walls abutting it within `half` segment lengths of `c`
+// (just past the ends, so a decoration never sits directly in a corner).
+function faceFree(g, c, q0, q1, half) {
   const L = Math.hypot(q1[0] - q0[0], q1[1] - q0[1]);
   const dx = (q1[0] - q0[0]) / L, dy = (q1[1] - q0[1]) / L;
   const nx = dy, ny = -dx;
-  for (let t = -1.9; t <= 1.9; t += 0.2) {
-    const x = key[0] + dx * L * t + nx * 0.1, y = key[1] + dy * L * t + ny * 0.1;
+  const n = Math.ceil(half * 10);
+  for (let i = -n; i <= n; i++) {
+    const t = (i / n) * half * L;
+    const x = c[0] + dx * t + nx * 0.1, y = c[1] + dy * t + ny * 0.1;
     if (g.walls.some((w) => x > w.x && x < w.x + w.w && y > w.y && y < w.y + w.h)) return false;
   }
   return true;
 }
+
+// A roller door spans two segments around the junction `key`; skip it unless the whole width is free wall face.
+const doorFits = (g, key, q0, q1) => faceFree(g, key, q0, q1, 2.02);
 
 function rollerDoor({ box, shape }, off) {
   const slab = (x0, v0, x1, v1, fill) => {
@@ -295,6 +300,7 @@ function drawWallDecals(ctx, cam, g, f, dark) {
     }
   }
   const kind = wallDecal(f.mx, f.my);
+  if (kind && !faceFree(g, [f.mx, f.my], q0, q1, 0.52)) return;
   if (kind === 'poster') {
     poster(dropped(p, SIGN_DROP), Math.floor(hash(f.mx, f.my, 35) * SLOGANS.length));
     return;
