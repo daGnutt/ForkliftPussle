@@ -38,7 +38,7 @@ const RUBBER = 'rgba(15,15,15,0.22)';
 function cellDecals(cx, cy) {
   const r = hash(cx, cy, 1), out = [];
   const ox = cx * CELL + 0.5 + hash(cx, cy, 2) * (CELL - 1), oy = cy * CELL + 0.5 + hash(cx, cy, 3) * (CELL - 1);
-  if (r < 0.2) { // oil stain
+  if (r < 0.14) { // oil stain
     const rx = 0.35 + hash(cx, cy, 6) * 0.4, ry = 0.25 + hash(cx, cy, 7) * 0.35;
     const pts = [];
     for (let i = 0; i < 14; i++) {
@@ -46,16 +46,16 @@ function cellDecals(cx, cy) {
       pts.push([ox + Math.cos(t) * rx * k, oy + Math.sin(t) * ry * k]);
     }
     out.push({ pts, fill: 'rgba(10,10,15,0.22)' });
-  } else if (r < 0.38) { // dashed yellow lane line
+  } else if (r < 0.26) { // dashed yellow lane line
     const horiz = hash(cx, cy, 8) < 0.5;
     for (let i = 0; i < 4; i++) {
       out.push(horiz ? rect(cx * CELL + i, oy, 0.6, 0.14, YELLOW) : rect(ox, cy * CELL + i, 0.14, 0.6, YELLOW));
     }
-  } else if (r >= 0.5 && r < 0.56) { // floor grate: dark frame with lighter slots
+  } else if (r >= 0.5 && r < 0.54) { // floor grate: dark frame with lighter slots
     const x = Math.floor(ox * 2) / 2, y = Math.floor(oy * 2) / 2;
     out.push(rect(x, y, 0.8, 0.8, 'rgba(35,38,42,0.75)'));
     for (let i = 0; i < 5; i++) out.push(rect(x + 0.08, y + 0.08 + i * 0.145, 0.64, 0.07, 'rgba(120,126,132,0.55)'));
-  } else if (r < 0.5) { // yellow/black hazard stripe patch
+  } else if (r < 0.33) { // yellow/black hazard stripe patch
     const horiz = hash(cx, cy, 9) < 0.5, n = 8;
     for (let i = 0; i < n; i++) {
       const s = i * 0.25;
@@ -157,7 +157,7 @@ export function floorDecals(g) {
     if (inside([[b.x, b.y], [b.x + b.w, b.y + b.h]], 0.1)) outline(b.x, b.y, b.w, b.h);
   }
   const hit = (b, r, m) => bboxHit(b.x, b.y, b.x + b.w, b.y + b.h, r, m);
-  const spare = Math.max(1, Math.round((g.w * g.h) / 90));
+  const spare = Math.round((g.w * g.h) / 220);
   for (let t = 0, made = 0; t < 60 && made < spare; t++) {
     const w = 2 + Math.floor(hash(g.w, t, 110) * 3), h = 1 + Math.floor(hash(g.h, t, 111) * 3);
     const b = { x: 1 + Math.floor(hash(t, g.h, 112) * (g.w - w - 2)), y: 1 + Math.floor(hash(t, g.w, 113) * (g.h - h - 2)), w, h };
