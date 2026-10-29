@@ -11,7 +11,7 @@ export const HFOV = Math.PI / 2;
 export const REAR_HFOV = (130 * Math.PI) / 180;
 export const MAX_DIST = 60;
 export const FAR_DARK = 28;
-export const DECAL_MAX_DIST = 30;
+export const DECAL_MAX_DIST = 60;
 export const PALLET_COLOR = '#9a7040';
 
 const NEAR = 0.08;
