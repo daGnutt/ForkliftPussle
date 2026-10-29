@@ -51,6 +51,10 @@ function cellDecals(cx, cy) {
     for (let i = 0; i < 4; i++) {
       out.push(horiz ? rect(cx * CELL + i, oy, 0.6, 0.14, YELLOW) : rect(ox, cy * CELL + i, 0.14, 0.6, YELLOW));
     }
+  } else if (r >= 0.5 && r < 0.56) { // floor grate: dark frame with lighter slots
+    const x = Math.floor(ox * 2) / 2, y = Math.floor(oy * 2) / 2;
+    out.push(rect(x, y, 0.8, 0.8, 'rgba(35,38,42,0.75)'));
+    for (let i = 0; i < 5; i++) out.push(rect(x + 0.08, y + 0.08 + i * 0.145, 0.64, 0.07, 'rgba(120,126,132,0.55)'));
   } else if (r < 0.5) { // yellow/black hazard stripe patch
     const horiz = hash(cx, cy, 9) < 0.5, n = 8;
     for (let i = 0; i < n; i++) {
@@ -161,11 +165,25 @@ export function floorDecals(g) {
     made++;
   }
 
+  // Doorways ("portals"): hazard-striped thresholds on both mouths and a dashed lane line through and beyond.
+  for (const d of g.doors || []) {
+    const vert = d.h > d.w, len = vert ? d.h : d.w, th = vert ? d.w : d.h;
+    const at = (u, v, du, dv) => (vert ? rect(d.x + v, d.y + u, dv, du, '') : rect(d.x + u, d.y + v, du, dv, ''));
+    const add = (r, fill) => { if (inside(r.pts) && clearOfWalls(r.pts, 0.05)) out.push({ pts: r.pts, fill }); };
+    const n = Math.floor(len / 0.3);
+    for (const v0 of [0, th - 0.3]) {
+      for (let i = 0; i < n; i++) add(at(i * 0.3, v0, 0.3, 0.3), i & 1 ? 'rgba(20,20,20,0.5)' : YELLOW);
+    }
+    const mid = len / 2 - 0.07;
+    for (let v = -1.8; v < th + 1.8; v += 0.7) add(at(mid, v, 0.14, 0.4), YELLOW);
+  }
+
   cache.set(g, out);
   return out;
 }
 
-const WALL_KINDS = ['window', 'window', 'door', 'nosmoking', 'exit', 'extinguisher', 'hazard', 'forklift', 'electric', 'ppe', 'speed', 'fire'];
+const WALL_KINDS = ['window', 'window', 'door', 'nosmoking', 'exit', 'extinguisher', 'hazard', 'forklift', 'electric', 'ppe', 'speed', 'fire',
+  'ac', 'ac', 'toiletM', 'toiletW', 'deer', 'poster', 'poster', 'poster', 'firstaid', 'stairs'];
 
 // Wall decal for the one-tile wall segment at (mx, my); null for most segments.
 export function wallDecal(mx, my) {

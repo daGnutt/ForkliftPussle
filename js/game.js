@@ -171,6 +171,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     charger: lvl.charger,
     zones: lvl.zones,
     areas: lvl.areas,
+    doors: lvl.doors,
     stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), pen: s.layers.map((c, i) => newPen(c, Math.floor(s.x * 31 + s.y * 17) + i)), offs: s.layers.map(() => ({ x: 0, y: 0 })), a: 0 })),
     parking: { ...toWorld(lvl.start, (FL.back + FL.front) / 2, 0), a: lvl.start.a },
     fl: makeForklift(lvl.start.x, lvl.start.y, lvl.start.a),
@@ -188,6 +189,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     wallPush: null,
     H: 0,
     hf: 0,
+    ef: 0,
     status: 'play',
     time: 0,
     started: false,
@@ -392,6 +394,7 @@ export function update(g, input, dt) {
   }
 
   g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
+  g.ef += (g.hf - g.ef) * (1 - Math.exp(-dt / 0.22)); // cabin eye trails the forks
   // visual lowering of a just-released stack ends when the forks reach it
   for (const s of g.stacks) if (s.dropFrom != null && (g.hf <= s.dropFrom + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;
 
