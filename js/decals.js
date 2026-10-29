@@ -104,8 +104,8 @@ export function floorDecals(g) {
   const out = [];
   const walls = g.pillars || [];
   const doors = g.doors || [];
-  // Yellow markings never run through a doorway (only its own hazard stripes do).
-  const inDoor = (pts) => { const [a, b, c, d] = ptsBox(pts); return doors.some((r) => bboxHit(a, b, c, d, r, 0.3)); };
+  // Yellow markings never run through a doorway (only its own hazard stripes and centre lane line do); bay outlines keep 1.2 away.
+  const inDoor = (pts, m = 0.3) => { const [a, b, c, d] = ptsBox(pts); return doors.some((r) => bboxHit(a, b, c, d, r, m)); };
   const inside = (pts, m = 0.05) => pts.every(([x, y]) => x >= m && y >= m && x <= g.w - m && y <= g.h - m);
   const clearOfWalls = (pts, m) => { const [a, b, c, d] = ptsBox(pts); return !walls.some((r) => bboxHit(a, b, c, d, r, m)); };
   const trackOk = (list) => list.every((pts) => inside(pts) && pts.every(([x, y]) => !walls.some((r) => bboxHit(x, y, x, y, r, 0.45))));
@@ -148,7 +148,7 @@ export function floorDecals(g) {
   }
 
   // Yellow bays: one outline around each whole drop-off area, plus a few unused empty bays elsewhere.
-  const outline = (x, y, w, h) => !inDoor([[x, y], [x + w, y + h]]) && out.push(...strip([[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y - 0.045]], 0.09, YELLOW));
+  const outline = (x, y, w, h) => !inDoor([[x, y], [x + w, y + h]], 1.2) && out.push(...strip([[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y - 0.045]], 0.09, YELLOW));
   const bays = [];
   for (const a of g.areas) {
     const b = { x: a.x - 0.3, y: a.y - 0.3, w: a.w + 0.6, h: a.h + 0.6 };
@@ -161,14 +161,14 @@ export function floorDecals(g) {
     const w = 2 + Math.floor(hash(g.w, t, 110) * 3), h = 1 + Math.floor(hash(g.h, t, 111) * 3);
     const b = { x: 1 + Math.floor(hash(t, g.h, 112) * (g.w - w - 2)), y: 1 + Math.floor(hash(t, g.w, 113) * (g.h - h - 2)), w, h };
     const pts = [[b.x, b.y], [b.x + w, b.y + h]];
-    if (!inside(pts, 0.5) || !clearOfWalls(pts, 0.8) || hit(b, pr, 0.3)) continue;
+    if (!inside(pts, 0.5) || !clearOfWalls(pts, 0.8) || hit(b, pr, 0.3) || inDoor(pts, 1.2)) continue;
     if (bays.some((o) => hit(b, o, 0.6)) || g.zones.some((z) => hit(b, { x: z.x - 0.6, y: z.y - 0.6, w: 1.2, h: 1.2 }, 0.6))) continue;
     bays.push(b);
     outline(b.x, b.y, b.w, b.h);
     made++;
   }
 
-  // Doorways ("portals"): hazard-striped thresholds on both mouths; no other yellow markings.
+  // Doorways ("portals"): hazard-striped thresholds on both mouths and a dashed centre lane line through and beyond.
   for (const d of g.doors || []) {
     const vert = d.h > d.w, len = vert ? d.h : d.w, th = vert ? d.w : d.h;
     const at = (u, v, du, dv) => (vert ? rect(d.x + v, d.y + u, dv, du, '') : rect(d.x + u, d.y + v, du, dv, ''));
@@ -177,6 +177,9 @@ export function floorDecals(g) {
     for (const v0 of [0, th - 0.3]) {
       for (let i = 0; i < n; i++) add(at(i * 0.3, v0, 0.3, 0.3), i & 1 ? 'rgba(20,20,20,0.5)' : YELLOW);
     }
+    // Dashed centre line through and beyond the doorway, separating the left and right driving sides.
+    const mid = len / 2 - 0.07;
+    for (let v = -1.8; v < th + 1.8; v += 0.7) add(at(mid, v, 0.14, 0.4), YELLOW);
   }
 
   cache.set(g, out);
