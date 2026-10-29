@@ -32,7 +32,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 
 ## Game state `g` (from `newGame`)
 - `walls`: border + interior wall rects with a `poly` (collision). `pillars`: the raw interior wall rects (for drawing).
-- `zones`: `{x, y, color, count}` targets. `areas`: `{color, x, y, w, h}` tinted regions; all zones of a colour sit in one area.
+- `doors`: `{x,y,w,h}` doorway gaps in the dividing walls (cosmetic; decals only). - `zones`: `{x, y, color, count}` targets. `areas`: `{color, x, y, w, h}` tinted regions; all zones of a colour sit in one area.
 - `stacks`: floor stacks `{x, y, layers, a}`; `layers` are colour indices into `COLORS` (bottom → top); `rots` is a parallel array with each box's own world angle (remembered through lift/drop/merge); `a` is the bottom box's angle, used for collision. `offs` is a parallel array of each box's world offset `{x, y}` from the stack position (`offs[0]` = 0), so towers can be crooked; `pen` is a parallel array of `{crash, sq, deco}` per box (point deductions and decal kind).
 - `fl`: forklift `{x, y, a, speed, steer}`.
 - `carried`: array of layers being carried, or `null`; `carriedRots`: each carried box's angle relative to the forklift (so they turn with it, and keep their world angle when dropped); `carriedOffs`: each carried box's offset from the carried bottom box in the forklift's frame (`carriedWorldOffs(g)` rotates it to world); `carriedRel` = `carriedRots[0]`, used for collision. `carriedPen`: the carried boxes' `pen` entries.

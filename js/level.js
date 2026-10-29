@@ -40,6 +40,7 @@ const WALL_T = 1, DOOR_W = 3.6, MIN_ROOM = 7, CORRIDOR_W = 3.4;
 function buildRooms(rnd, w, h, count, start) {
   const walls = [];
   const doors = [];
+  const gaps = [];
   const regions = [{ x: 0, y: 0, w, h }];
   const clear = (r) => !doors.some((d) => rectGap(d, r) === 0) &&
     pointRectDist(start.x, start.y, r) >= 3;
@@ -88,6 +89,7 @@ function buildRooms(rnd, w, h, count, start) {
           const p = vertical ? { ...wallRect, h: o - pos } : { ...wallRect, w: o - pos };
           if (vertical) p.y = reg.y + pos; else p.x = reg.x + pos;
           if (p.w > 0 && p.h > 0) walls.push(p);
+          gaps.push(door);
           doors.push({ x: door.x - 1.2, y: door.y - 1.2, w: door.w + 2.4, h: door.h + 2.4 });
           pos = o + DOOR_W;
         }
@@ -107,7 +109,7 @@ function buildRooms(rnd, w, h, count, start) {
     }
     if (!done) break;
   }
-  return walls;
+  return { walls, doors: gaps };
 }
 
 function tryGenerate(n, attempt, seed = 0) {
@@ -155,7 +157,7 @@ function tryGenerate(n, attempt, seed = 0) {
     i += k;
   }
 
-  const walls = buildRooms(rnd, w, h, dividers, start);
+  const { walls, doors } = buildRooms(rnd, w, h, dividers, start);
   walls.push(charger);
 
   const placed = [];
@@ -216,7 +218,7 @@ function tryGenerate(n, attempt, seed = 0) {
     placed.push({ x: s.x, y: s.y });
   }
 
-  return { n, w, h, walls, zones, areas, stacks, start, charger };
+  return { n, w, h, walls, doors, zones, areas, stacks, start, charger };
 }
 
 // Integer seeds are used as-is; any other text is hashed. Empty/0 = the default layouts.

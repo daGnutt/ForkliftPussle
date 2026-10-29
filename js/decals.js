@@ -165,6 +165,19 @@ export function floorDecals(g) {
     made++;
   }
 
+  // Doorways ("portals"): hazard-striped thresholds on both mouths and a dashed lane line through and beyond.
+  for (const d of g.doors || []) {
+    const vert = d.h > d.w, len = vert ? d.h : d.w, th = vert ? d.w : d.h;
+    const at = (u, v, du, dv) => (vert ? rect(d.x + v, d.y + u, dv, du, '') : rect(d.x + u, d.y + v, du, dv, ''));
+    const add = (r, fill) => { if (inside(r.pts) && clearOfWalls(r.pts, 0.05)) out.push({ pts: r.pts, fill }); };
+    const n = Math.floor(len / 0.3);
+    for (const v0 of [0, th - 0.3]) {
+      for (let i = 0; i < n; i++) add(at(i * 0.3, v0, 0.3, 0.3), i & 1 ? 'rgba(20,20,20,0.5)' : YELLOW);
+    }
+    const mid = len / 2 - 0.07;
+    for (let v = -1.8; v < th + 1.8; v += 0.7) add(at(mid, v, 0.14, 0.4), YELLOW);
+  }
+
   cache.set(g, out);
   return out;
 }
