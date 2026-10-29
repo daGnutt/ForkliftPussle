@@ -99,19 +99,12 @@ export function buildFaces(g, cam) {
     const p = toWorld(g.fl, FL.carryX, 0);
     addStack(faces, cam, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, carriedWorldOffs(g), 0, 0, g.carriedPen);
   }
-  const stackPos = g.stacks.map((st) => st).concat(g.carried ? [toWorld(g.fl, FL.carryX, 0)] : []);
   const len = (FL.tineX1 - FL.tineX0) / 2, tz = g.hf * (BOX_H + PAL);
   for (const side of [-1, 1]) {
     const t = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, side * FL.tineOff);
-    const n = faces.length;
     addPrism(faces, cam, t.x, t.y, g.fl.a, len, FL.tineHalf, tz, tz + PAL, theme().tine, false, 0.2);
-    for (let i = n; i < faces.length; i++) {
-      const f = faces[i];
-      // a tine segment under a box is hidden by it, so paint it before the box parts
-      if (stackPos.some((p) => Math.abs(f.mx - p.x) < 0.55 && Math.abs(f.my - p.y) < 0.55)) f.underBox = true;
-    }
   }
-  for (const f of faces) f.d = Math.hypot(f.mx - cam.x, f.my - cam.y, f.mz - cam.z) + (f.boxFlat ? 0.6 : 0) + (f.underBox ? 2 : 0); // lids/undersides sit behind the pallet parts touching them
+  for (const f of faces) f.d = Math.hypot(f.mx - cam.x, f.my - cam.y, f.mz - cam.z) + (f.boxFlat ? 0.6 : 0); // lids/undersides sit behind the pallet parts touching them
   faces.sort((a, b) => b.d - a.d);
   return faces;
 }
