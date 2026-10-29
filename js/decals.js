@@ -118,7 +118,7 @@ export function floorDecals(g) {
   const free = (pts, m) => { const [a, b, c, d] = ptsBox(pts); return !keepClear.some((r) => bboxHit(a, b, c, d, r, m)); };
   for (let cx = 0; cx <= Math.floor(g.w / CELL); cx++) {
     for (let cy = 0; cy <= Math.floor(g.h / CELL); cy++) {
-      for (const d of cellDecals(cx, cy)) if (!(d.fill === YELLOW && inDoor(d.pts)) && inside(d.pts) && free(d.pts, 0.15) && clearOfWalls(d.pts, 0.1)) out.push(d);
+      for (const d of cellDecals(cx, cy)) if (!(d.fill === YELLOW && inDoor(d.pts, 2.5)) && inside(d.pts) && free(d.pts, 0.15) && clearOfWalls(d.pts, 0.1)) out.push(d);
     }
   }
 
