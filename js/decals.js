@@ -51,6 +51,10 @@ function cellDecals(cx, cy) {
     for (let i = 0; i < 4; i++) {
       out.push(horiz ? rect(cx * CELL + i, oy, 0.6, 0.14, YELLOW) : rect(ox, cy * CELL + i, 0.14, 0.6, YELLOW));
     }
+  } else if (r >= 0.5 && r < 0.56) { // floor grate: dark frame with lighter slots
+    const x = Math.floor(ox * 2) / 2, y = Math.floor(oy * 2) / 2;
+    out.push(rect(x, y, 0.8, 0.8, 'rgba(35,38,42,0.75)'));
+    for (let i = 0; i < 5; i++) out.push(rect(x + 0.08, y + 0.08 + i * 0.145, 0.64, 0.07, 'rgba(120,126,132,0.55)'));
   } else if (r < 0.5) { // yellow/black hazard stripe patch
     const horiz = hash(cx, cy, 9) < 0.5, n = 8;
     for (let i = 0; i < n; i++) {
@@ -165,7 +169,8 @@ export function floorDecals(g) {
   return out;
 }
 
-const WALL_KINDS = ['window', 'window', 'door', 'nosmoking', 'exit', 'extinguisher', 'hazard', 'forklift', 'electric', 'ppe', 'speed', 'fire'];
+const WALL_KINDS = ['window', 'window', 'door', 'nosmoking', 'exit', 'extinguisher', 'hazard', 'forklift', 'electric', 'ppe', 'speed', 'fire',
+  'ac', 'ac', 'toiletM', 'toiletW', 'deer', 'poster', 'poster', 'poster', 'firstaid', 'stairs'];
 
 // Wall decal for the one-tile wall segment at (mx, my); null for most segments.
 export function wallDecal(mx, my) {

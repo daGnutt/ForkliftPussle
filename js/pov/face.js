@@ -33,6 +33,112 @@ function circlePts(u, v, r, n = 18) {
   return Array.from({ length: n }, (_, i) => [u + Math.cos((i / n) * Math.PI * 2) * r, v + Math.sin((i / n) * Math.PI * 2) * r]);
 }
 
+// 3×5 pixel font (rows top to bottom) for the slogan posters.
+const FONT = {
+  A: '010101111101101', B: '110101110101110', C: '011100100100011', D: '110101101101110', E: '111100110100111',
+  F: '111100110100100', G: '011100101101011', H: '101101111101101', I: '111010010010111', J: '001001001101010',
+  K: '101101110101101', L: '100100100100111', M: '101111111101101', N: '110101101101101', O: '010101101101010',
+  P: '110101110100100', Q: '010101101110011', R: '110101110101101', S: '011100010001110', T: '111010010010010',
+  U: '101101101101111', V: '101101101101010', W: '101101111111101', X: '101101010101101', Y: '101101010010010',
+  Z: '111001010100111', '!': '010010010000010', '-': '000000111000000',
+};
+
+const SLOGANS = [
+  { bg: '#1565c0', fg: WHITE, lines: ['FORKLIFT', 'FRENZY IS', 'GREAT!'] },
+  { bg: '#2e7d32', fg: WHITE, lines: ['BEST JOB', 'EVER!'] },
+  { bg: YEL, fg: BLACK, lines: ['SAFETY', 'FIRST'] },
+  { bg: '#6a1b9a', fg: WHITE, lines: ['WE LOVE', 'FORKLIFT', 'FRENZY'] },
+  { bg: RED, fg: WHITE, lines: ['NO BOX', 'LEFT', 'BEHIND'] },
+  { bg: '#ef6c00', fg: BLACK, lines: ['STACK IT', 'LIKE YOU', 'MEAN IT'] },
+  { bg: '#00695c', fg: WHITE, lines: ['WORK', 'HARD', 'LIFT HIGH'] },
+  { bg: '#263238', fg: YEL, lines: ['HAPPY', 'FORKS', 'HAPPY LIFE'] },
+];
+
+function poster({ box }, s) {
+  const { bg, fg, lines } = SLOGANS[s % SLOGANS.length];
+  const cols = Math.max(...lines.map((l) => l.length)) * 4 - 1;
+  const px = Math.min(0.045, 0.74 / cols);
+  const h = lines.length * 6 * px + 0.1;
+  const top = 1.8 + h / 2;
+  box(0.1, top - h, 0.9, top, '#2b2e33');
+  box(0.12, top - h + 0.02, 0.88, top - 0.02, bg);
+  lines.forEach((line, li) => {
+    const x0 = 0.5 - (line.length * 4 - 1) * px / 2;
+    const y0 = top - 0.07 - li * 6 * px;
+    [...line].forEach((ch, ci) => {
+      const bits = FONT[ch];
+      if (!bits) return;
+      for (let i = 0; i < 15; i++) {
+        if (bits[i] !== '1') continue;
+        const u = x0 + (ci * 4 + (i % 3)) * px, v = y0 - Math.floor(i / 3) * px;
+        box(u, v - px, u + px, v, fg);
+      }
+    });
+  });
+}
+
+// Pictogram person: head, body and (for a woman) a skirt, standing on v0 with u as centre.
+function person({ box, disc, shape }, u, v0, fill, skirt) {
+  disc(u, v0 + 0.36, 0.045, fill);
+  if (skirt) shape([[u - 0.02, v0 + 0.3], [u + 0.02, v0 + 0.3], [u + 0.07, v0 + 0.12], [u - 0.07, v0 + 0.12]], fill);
+  else box(u - 0.05, v0 + 0.14, u + 0.05, v0 + 0.3, fill);
+  box(u - 0.035, v0, u - 0.005, v0 + 0.14, fill);
+  box(u + 0.005, v0, u + 0.035, v0 + 0.14, fill);
+}
+
+function toiletDoor(p, woman) {
+  const { box } = p;
+  box(0.14, 0, 0.86, 1.7, '#7e8a82');
+  box(0.19, 0, 0.81, 1.64, woman ? '#9c5a7a' : '#4f6f93');
+  box(0.68, 0.7, 0.76, 0.78, '#c9ccd1');
+  box(0.3, 1.0, 0.7, 1.5, '#1565c0');
+  box(0.32, 1.02, 0.68, 1.48, '#1e88e5');
+  person(p, 0.5, 1.07, WHITE, woman);
+}
+
+function deerSign({ box, shape, tri }) {
+  shape([[0.5, 2.1], [0.9, 1.7], [0.5, 1.3], [0.1, 1.7]], BLACK);
+  shape([[0.5, 2.05], [0.85, 1.7], [0.5, 1.35], [0.15, 1.7]], YEL);
+  box(0.36, 1.62, 0.6, 1.72, BLACK); // body
+  box(0.38, 1.5, 0.41, 1.62, BLACK);
+  box(0.43, 1.5, 0.46, 1.62, BLACK);
+  box(0.52, 1.5, 0.55, 1.62, BLACK);
+  box(0.57, 1.5, 0.6, 1.62, BLACK);
+  shape([[0.55, 1.7], [0.6, 1.7], [0.68, 1.86], [0.62, 1.88]], BLACK); // neck
+  shape([[0.6, 1.84], [0.72, 1.84], [0.74, 1.8], [0.62, 1.78]], BLACK); // head
+  shape([[0.6, 1.88], [0.57, 1.97], [0.59, 1.97], [0.63, 1.9]], BLACK); // antlers
+  shape([[0.66, 1.86], [0.7, 1.97], [0.72, 1.96], [0.69, 1.86]], BLACK);
+  box(0.34, 1.68, 0.37, 1.74, BLACK); // tail
+}
+
+// Green cross box.
+function firstAid({ box }) {
+  box(0.2, 1.4, 0.8, 2.0, '#2e7d32');
+  box(0.24, 1.44, 0.76, 1.96, WHITE);
+  box(0.44, 1.5, 0.56, 1.9, '#2e7d32');
+  box(0.34, 1.64, 0.66, 1.76, '#2e7d32');
+}
+
+function stairsSign({ box, shape }) {
+  box(0.2, 1.4, 0.8, 2.0, '#2e7d32');
+  shape([[0.28, 1.48], [0.28, 1.58], [0.4, 1.58], [0.4, 1.7], [0.52, 1.7], [0.52, 1.82], [0.64, 1.82], [0.64, 1.94], [0.72, 1.94], [0.72, 1.48]], WHITE);
+}
+
+// Wall-mounted air conditioner: casing, slatted grille, fan and a pipe going up to the ceiling.
+function acUnit({ box, disc }) {
+  box(0.46, 2.62, 0.54, 3.2, '#9aa1a8');
+  box(0.1, 2.0, 0.9, 2.62, '#c9ccd1');
+  box(0.1, 2.54, 0.9, 2.62, '#aeb3b9');
+  box(0.14, 2.06, 0.86, 2.5, '#8d949c');
+  disc(0.5, 2.28, 0.19, '#2b2e33');
+  disc(0.5, 2.28, 0.14, '#555b62');
+  box(0.485, 2.12, 0.515, 2.44, '#2b2e33');
+  box(0.34, 2.265, 0.66, 2.295, '#2b2e33');
+  disc(0.5, 2.28, 0.03, '#c9ccd1');
+  for (let i = 0; i < 4; i++) box(0.16, 2.1 + i * 0.03, 0.84, 2.115 + i * 0.03, '#7a8087');
+  box(0.78, 2.1, 0.84, 2.14, '#43a047');
+}
+
 // A roller door spans two segments around the junction `key`; skip it unless the whole width is free wall face
 // (no perpendicular wall abutting the face within the span).
 function doorFits(g, key, q0, q1) {
@@ -63,7 +169,7 @@ function rollerDoor({ box, shape }, off) {
 
 // Signs are hung around the eye height of a person: the cabin eye with the forks at level 1 (0.95 + 0.55·0.6).
 const SIGN_DROP = 0.3;
-const FIXED_SIGNS = new Set(['door', 'exit']); // anchored to the floor / above the door
+const FIXED_SIGNS = new Set(['door', 'exit', 'ac', 'toiletM', 'toiletW']); // anchored to the floor / above the door
 
 function dropped({ shape }, dv) {
   const sh = (uv, fill) => shape(uv.map(([u, v]) => [u, v - dv]), fill);
@@ -76,6 +182,12 @@ function dropped({ shape }, dv) {
 }
 
 const WALL_SIGNS = {
+  ac: acUnit,
+  toiletM: (p) => toiletDoor(p, false),
+  toiletW: (p) => toiletDoor(p, true),
+  deer: deerSign,
+  firstaid: firstAid,
+  stairs: stairsSign,
   window({ box, shape }) {
     box(0.12, 1.22, 0.88, 2.38, '#2b2e33');
     box(0.17, 1.27, 0.83, 2.33, theme().skyBottom);
@@ -183,6 +295,10 @@ function drawWallDecals(ctx, cam, g, f, dark) {
     }
   }
   const kind = wallDecal(f.mx, f.my);
+  if (kind === 'poster') {
+    poster(dropped(p, SIGN_DROP), Math.floor(hash(f.mx, f.my, 35) * SLOGANS.length));
+    return;
+  }
   WALL_SIGNS[kind]?.(FIXED_SIGNS.has(kind) ? p : dropped(p, SIGN_DROP));
 }
 
