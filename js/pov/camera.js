@@ -12,14 +12,14 @@ export const HFOV = Math.PI / 2;
 export const REAR_HFOV = (130 * Math.PI) / 180;
 export const MAX_DIST = 60;
 export const FAR_DARK = 28;
-export const DECAL_MAX_DIST = 60;
+export const DECAL_MAX_DIST = 20; // signs and labels further away are only a few pixels
 export const PALLET_COLOR = '#9a7040';
 
 const NEAR = 0.08;
 
 // Camera at world (eye.x, eye.y, z) looking along `yaw`; (x, y, w) is the screen box and `horizon` the horizon row inside it.
 export function makeCamera(eye, z, yaw, fov, x, y, w, horizon) {
-  return { x: eye.x, y: eye.y, z, c: Math.cos(yaw), s: Math.sin(yaw), f: w / 2 / Math.tan(fov / 2), cx: x + w / 2, cy: y + horizon };
+  return { x: eye.x, y: eye.y, z, c: Math.cos(yaw), s: Math.sin(yaw), f: w / 2 / Math.tan(fov / 2), cx: x + w / 2, hw: w / 2, cy: y + horizon };
 }
 
 // World point + height -> camera space.
@@ -89,4 +89,18 @@ export function strokeLines(ctx, cam, segs, z, style, width) {
   ctx.strokeStyle = style;
   ctx.lineWidth = width;
   ctx.stroke();
+}
+
+// True if the horizontal footprint (world points [x, y]) is wholly behind the eye or outside the left/right view planes.
+export function offscreen(cam, pts) {
+  let behind = true, left = true, right = true;
+  for (const [px, py] of pts) {
+    const [fw, rt] = toCam(cam, px, py, 0);
+    const side = rt * cam.f, lim = fw * cam.hw;
+    if (fw > 0) behind = false;
+    if (side - lim <= 0) right = false;
+    if (-side - lim <= 0) left = false;
+    if (!behind && !right && !left) return false;
+  }
+  return behind || left || right;
 }

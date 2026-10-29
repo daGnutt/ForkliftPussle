@@ -7,15 +7,46 @@ import { project, pathPoly, toCam, BOX_H, DECAL_MAX_DIST, FAR_DARK, PALLET_COLOR
 
 const YEL = '#f4c414', RED = '#c62828', WHITE = '#eeeeee', BLACK = '#1a1a1a';
 
+const rgbCache = new Map();
+function parseHex(c) {
+  let v = rgbCache.get(c);
+  if (v === undefined) {
+    const m = /^#([0-9a-f]{6})$/i.exec(c);
+    v = m ? [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16)] : null;
+    rgbCache.set(c, v);
+  }
+  return v;
+}
+
+// Opaque `fill` darkened by `dark` (0..1) as a single colour, so a face needs one fill instead of two. null if not a #rrggbb colour.
+const shadeCache = new Map();
+function darkened(fill, dark, lift = 0) {
+  const rgb = parseHex(fill);
+  if (!rgb) return null;
+  const step = Math.round(dark * 48) + (lift ? 100 : 0);
+  const key = fill + step;
+  let out = shadeCache.get(key);
+  if (out === undefined) {
+    const k = 1 - (step % 100) / 48;
+    const f = (c) => Math.round(Math.min(255, c * k + lift * (255 - c * k)));
+    out = `rgb(${f(rgb[0])},${f(rgb[1])},${f(rgb[2])})`;
+    shadeCache.set(key, out);
+  }
+  return out;
+}
+
 // Fills a polygon given as world points [x, y, z] with `fill`, darkened by `dark`.
 function decalPoly(ctx, cam, world, fill, dark) {
   const pts = project(cam, world.map(([x, y, z]) => toCam(cam, x, y, z)));
   if (pts.length < 3) return;
   pathPoly(ctx, pts);
-  ctx.fillStyle = fill;
+  const flat = darkened(fill, dark);
+  ctx.fillStyle = flat || fill;
   ctx.fill();
-  ctx.fillStyle = `rgba(0,0,0,${dark})`;
-  ctx.fill();
+  if (!flat) {
+    ctx.fillStyle = `rgba(0,0,0,${dark})`;
+    ctx.fill();
+  }
 }
 
 // Shape painter for a face from `a` (u = 0) to `b` (u = 1).
@@ -335,6 +366,15 @@ function drawChargerDecal(ctx, cam, f, dark) {
 export function drawFace(ctx, cam, g, f) {
   const pts = project(cam, f.quad.map(([x, y, z]) => toCam(cam, x, y, z)));
   if (pts.length < 3) return;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    if (p[0] < minX) minX = p[0];
+    if (p[0] > maxX) maxX = p[0];
+    if (p[1] < minY) minY = p[1];
+    if (p[1] > maxY) maxY = p[1];
+  }
+  if (maxX < cam.cx - cam.hw || minX > cam.cx + cam.hw) return; // fully outside the view
+  if (maxX - minX < 1 && maxY - minY < 1) return; // sub-pixel
   const dark = Math.min(0.75, f.d / FAR_DARK) + (1 - f.shade) * 0.6;
   pathPoly(ctx, pts);
   if (f.glow) {
@@ -344,16 +384,20 @@ export function drawFace(ctx, cam, g, f) {
     ctx.fill();
     return;
   }
-  ctx.fillStyle = f.color || ((f.tile ?? 0) & 1 ? '#5d646e' : '#555b64');
-  ctx.fill();
-  ctx.fillStyle = `rgba(0,0,0,${Math.max(0, dark)})`;
-  ctx.fill();
-  if (f.lit) { ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fill(); }
   const d = Math.max(0, dark);
+  const base = f.color || ((f.tile ?? 0) & 1 ? '#5d646e' : '#555b64');
+  const flat = darkened(base, d, f.lit ? 0.18 : 0);
+  ctx.fillStyle = flat || base;
+  ctx.fill();
+  if (!flat) {
+    ctx.fillStyle = `rgba(0,0,0,${d})`;
+    ctx.fill();
+    if (f.lit) { ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fill(); }
+  }
   if (f.charger && f.side) drawChargerDecal(ctx, cam, f, d);
   if (f.deco && f.d < DECAL_MAX_DIST) drawBoxDecal(ctx, cam, f, d);
   if (f.tile != null && f.side) drawWallDecals(ctx, cam, g, f, d);
-  if (f.color && f.color !== PALLET_COLOR) {
+  if (f.color && f.color !== PALLET_COLOR && f.d < 14) {
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
     ctx.lineWidth = 1;
     ctx.stroke();

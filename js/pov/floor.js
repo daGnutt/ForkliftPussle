@@ -4,11 +4,13 @@ import { decalsEnabled, floorDecals } from '../decals.js';
 import { FL } from '../forklift.js';
 import { reverseLight } from '../revlight.js';
 import { zoneDone, isSolved, scoreEnough, isParked } from '../game.js';
-import { project, fillPoly, floorPoly, strokeLines, toCam, WALL_H } from './camera.js';
+import { project, offscreen, fillPoly, floorPoly, strokeLines, toCam, WALL_H } from './camera.js';
 
 // Everything painted before the 3D faces: ceiling, floor grid, decals, zone/parking marks, reversing light.
 
 const GRID_R = 40;
+const GRID_DECAL = 16; // floor decals are small; further away they only cost time
+const GRID_FAR = 28; // the tile grid fades into the distance shading anyway
 
 // Ceiling plane over the whole level with steel joists every 4 tiles.
 export function drawCeiling(ctx, g, cam) {
@@ -21,18 +23,34 @@ export function drawCeiling(ctx, g, cam) {
 }
 
 export function drawFloorGrid(ctx, cam) {
-  const x0 = Math.floor(cam.x - GRID_R), x1 = Math.ceil(cam.x + GRID_R), y0 = Math.floor(cam.y - GRID_R), y1 = Math.ceil(cam.y + GRID_R);
+  const x0 = Math.floor(cam.x - GRID_FAR), x1 = Math.ceil(cam.x + GRID_FAR), y0 = Math.floor(cam.y - GRID_FAR), y1 = Math.ceil(cam.y + GRID_FAR);
   const segs = [];
   for (let gx = x0; gx <= x1; gx++) segs.push([gx, y0, gx, y1]);
   for (let gy = y0; gy <= y1; gy++) segs.push([x0, gy, x1, gy]);
   strokeLines(ctx, cam, segs, 0, theme().povGrid, 1);
 }
 
+// Decals sharing a fill colour are filled as one path (there are ~2000 of them).
 export function drawFloorDecals(ctx, g, cam) {
   if (!decalsEnabled()) return;
+  const byFill = new Map();
   for (const d of floorDecals(g)) {
-    if (Math.hypot(d.pts[0][0] - cam.x, d.pts[0][1] - cam.y) > GRID_R) continue;
-    floorPoly(ctx, cam, d.pts, d.fill);
+    if (Math.hypot(d.pts[0][0] - cam.x, d.pts[0][1] - cam.y) > GRID_DECAL || offscreen(cam, d.pts)) continue;
+    const pts = project(cam, d.pts.map(([x, y]) => toCam(cam, x, y, 0)));
+    if (pts.length < 3) continue;
+    let list = byFill.get(d.fill);
+    if (!list) byFill.set(d.fill, (list = []));
+    list.push(pts);
+  }
+  for (const [fill, polys] of byFill) {
+    ctx.beginPath();
+    for (const pts of polys) {
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      ctx.closePath();
+    }
+    ctx.fillStyle = fill;
+    ctx.fill();
   }
 }
 

@@ -3,7 +3,7 @@ import { theme } from '../theme.js';
 import { decalsEnabled, overheadDecals, boxDecalKind } from '../decals.js';
 import { FL, toWorld } from '../forklift.js';
 import { carriedWorldOffs } from '../game.js';
-import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR } from './camera.js';
+import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam } from './camera.js';
 
 // Scene geometry: everything is a prism (walls, pallets, boxes, tines, fixtures) split into
 // faces, back-face culled and sorted far to near (painter's algorithm).
@@ -14,6 +14,7 @@ import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR } from './camera.js';
 export function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, split = wall ? 1 : 0, deco = 0, skipTop = false, skipBottom = false) {
   const c = Math.cos(a), s = Math.sin(a);
   const p = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([u, v]) => [x + u * c - v * s, y + u * s + v * c]);
+  if (Math.hypot(x - cam.x, y - cam.y) - Math.hypot(hl, hw) > MAX_DIST || offscreen(cam, p)) return;
   for (let i = 0; i < 4; i++) {
     const [ax, ay] = p[i], [bx, by] = p[(i + 1) % 4];
     const ex = bx - ax, ey = by - ay, len = Math.hypot(ex, ey);
@@ -55,24 +56,29 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
     const z = (level + i + (i >= from ? extra : 0)) * (BOX_H + PAL), r = rots[i] ?? 0;
     const cr = Math.cos(r), sr = Math.sin(r);
     addPrism(faces, cam, x, y, r, 0.2, 0.2, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
-    for (const [u, v] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) {
+    if (Math.hypot(x - cam.x, y - cam.y) < 12) for (const [u, v] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) {
       addPrism(faces, cam, x + u * cr - v * sr, y + u * sr + v * cr, r, 0.05, 0.05, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
     }
     addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? pens[i]?.deco ?? boxDecalKind(col, i) : 0);
   });
 }
 
+const OVERHEAD_R = 20; // fixtures further away are tiny and fogged
+
 // Ceiling fixtures as prisms so walls and boxes occlude them correctly.
 function addOverhead(faces, cam, g) {
   if (!decalsEnabled()) return;
   const { lights, fans } = overheadDecals(g);
+  const near = (o, r) => Math.hypot(o.x - cam.x, o.y - cam.y) < r;
   for (const l of lights) {
+    if (!near(l, OVERHEAD_R)) continue;
     addPrism(faces, cam, l.x, l.y, l.a, 0.9, 0.14, WALL_H - 0.1, WALL_H - 0.02, '#4a4f57');
     const n = faces.length;
     addPrism(faces, cam, l.x, l.y, l.a, 0.84, 0.1, WALL_H - 0.12, WALL_H - 0.1, '#fff8d6');
     for (let i = n; i < faces.length; i++) faces[i].glow = true;
   }
   for (const f of fans) {
+    if (!near(f, OVERHEAD_R)) continue;
     addPrism(faces, cam, f.x, f.y, 0, 0.025, 0.025, WALL_H - 0.35, WALL_H, '#2c3036');
     addPrism(faces, cam, f.x, f.y, 0, 0.12, 0.12, WALL_H - 0.45, WALL_H - 0.33, '#2c3036');
     for (let i = 0; i < 4; i++) {
@@ -125,6 +131,41 @@ function addForks(faces, cam, g) {
   addPrism(faces, cam, plate.x, plate.y, a, 0.03, off + hw, tz + 0.3, tz + 0.4, col, false, 0.3);
 }
 
+const COLS = 256;
+
+// Wall faces span floor to ceiling, so anything inside the building that lies further away along the same
+// view columns is hidden. Per screen column we keep the depth of the nearest wall covering it fully and drop
+// faces that lie wholly behind that depth (conservatively: whole columns only, forward depth only).
+function dropHidden(faces, cam) {
+  const left = cam.cx - cam.hw, colW = (2 * cam.hw) / COLS;
+  const block = new Float64Array(COLS).fill(Infinity);
+  const info = faces.map((f) => {
+    let lo = Infinity, hi = -Infinity, dmin = Infinity, dmax = -Infinity;
+    for (const [x, y, z] of f.quad) {
+      const [fw, rt] = toCam(cam, x, y, z);
+      if (fw < 0.2) return null;
+      const X = cam.cx + (rt / fw) * cam.f;
+      if (X < lo) lo = X;
+      if (X > hi) hi = X;
+      if (fw < dmin) dmin = fw;
+      if (fw > dmax) dmax = fw;
+    }
+    return { c0: Math.floor((lo - left) / colW), c1: Math.floor((hi - left) / colW), dmin, dmax, lo, hi };
+  });
+  faces.forEach((f, i) => {
+    const v = info[i];
+    if (!v || f.tile == null || !f.side) return;
+    const a = Math.ceil((v.lo - left) / colW), b = Math.floor((v.hi - left) / colW) - 1;
+    for (let c = Math.max(0, a); c <= Math.min(COLS - 1, b); c++) if (v.dmax < block[c]) block[c] = v.dmax;
+  });
+  return faces.filter((f, i) => {
+    const v = info[i];
+    if (!v) return true;
+    for (let c = Math.max(0, v.c0); c <= Math.min(COLS - 1, v.c1); c++) if (!(block[c] < v.dmin)) return true;
+    return false;
+  });
+}
+
 // All faces of the level seen from `cam`, sorted far to near.
 export function buildFaces(g, cam) {
   const faces = [];
@@ -146,5 +187,5 @@ export function buildFaces(g, cam) {
   addForks(faces, cam, g);
   for (const f of faces) f.d = Math.hypot(f.mx - cam.x, f.my - cam.y, f.mz - cam.z) + (f.boxFlat ? 0.6 : 0); // lids/undersides sit behind the pallet parts touching them
   faces.sort((a, b) => b.d - a.d);
-  return faces;
+  return dropHidden(faces, cam);
 }
