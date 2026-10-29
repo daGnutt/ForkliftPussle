@@ -310,17 +310,22 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
 }
 
 // Top-down world in simulation units; the caller sets the transform.
-function drawWorld(ctx, g) {
+// vis (optional world AABB {x0,y0,x1,y1}): only things touching it are drawn (partial render for the small windows).
+function drawWorld(ctx, g, vis) {
+  const seen = (x, y, w, h) => !vis || (x + w >= vis.x0 && x <= vis.x1 && y + h >= vis.y0 && y <= vis.y1);
   ctx.fillStyle = theme().floor;
   ctx.fillRect(0, 0, g.w, g.h);
   ctx.strokeStyle = theme().grid;
   ctx.lineWidth = 0.03;
   ctx.beginPath();
-  for (let x = 0; x <= g.w; x++) { ctx.moveTo(x, 0); ctx.lineTo(x, g.h); }
-  for (let y = 0; y <= g.h; y++) { ctx.moveTo(0, y); ctx.lineTo(g.w, y); }
+  const gx0 = vis ? Math.max(0, Math.floor(vis.x0)) : 0, gx1 = vis ? Math.min(g.w, Math.ceil(vis.x1)) : g.w;
+  const gy0 = vis ? Math.max(0, Math.floor(vis.y0)) : 0, gy1 = vis ? Math.min(g.h, Math.ceil(vis.y1)) : g.h;
+  for (let x = gx0; x <= gx1; x++) { ctx.moveTo(x, gy0); ctx.lineTo(x, gy1); }
+  for (let y = gy0; y <= gy1; y++) { ctx.moveTo(gx0, y); ctx.lineTo(gx1, y); }
   ctx.stroke();
 
   for (const d of decalsEnabled() ? floorDecals(g) : []) {
+    if (vis && !d.pts.some(([x, y]) => seen(x - 1, y - 1, 2, 2))) continue;
     ctx.fillStyle = d.fill;
     ctx.beginPath();
     d.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
@@ -328,6 +333,7 @@ function drawWorld(ctx, g) {
   }
 
   for (const a of g.areas) {
+    if (!seen(a.x - 0.3, a.y - 0.3, a.w + 0.6, a.h + 0.6)) continue;
     ctx.fillStyle = COLORS[a.color];
     ctx.globalAlpha = 0.12;
     ctx.fillRect(a.x - 0.3, a.y - 0.3, a.w + 0.6, a.h + 0.6);
@@ -374,6 +380,7 @@ function drawWorld(ctx, g) {
   }
 
   for (const z of g.zones) {
+    if (!seen(z.x - 0.6, z.y - 0.6, 1.2, 1.4)) continue;
     const done = zoneDone(g, z);
     ctx.fillStyle = COLORS[z.color];
     ctx.globalAlpha = done ? 0.75 : 0.4;
@@ -396,8 +403,9 @@ function drawWorld(ctx, g) {
 
   // Stacks whose top is below the tines are drawn first; stacks the tines
   // slide under are drawn over them.
-  const low = g.stacks.filter((st) => st.layers.length <= g.hf);
-  const high = g.stacks.filter((st) => st.layers.length > g.hf);
+  const shown = g.stacks.filter((st) => seen(st.x - 1.2, st.y - 1.2, 2.4, 2.4));
+  const low = shown.filter((st) => st.layers.length <= g.hf);
+  const high = shown.filter((st) => st.layers.length > g.hf);
   for (const st of low) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs, st.pen);
   drawForkliftBody(ctx, g);
   drawTines(ctx, g);
@@ -406,12 +414,13 @@ function drawWorld(ctx, g) {
 
   ctx.fillStyle = theme().wall;
   for (const w of g.pillars) {
+    if (!seen(w.x, w.y, w.w, w.h)) continue;
     ctx.fillRect(w.x, w.y, w.w, w.h);
     ctx.strokeStyle = theme().wallEdge;
     ctx.lineWidth = 0.06;
     ctx.strokeRect(w.x, w.y, w.w, w.h);
   }
-  if (g.charger) drawCharger(ctx, g.charger);
+  if (g.charger && seen(g.charger.x, g.charger.y, g.charger.w, g.charger.h)) drawCharger(ctx, g.charger);
   ctx.strokeStyle = '#555';
   ctx.lineWidth = 0.3;
   ctx.strokeRect(-0.15, -0.15, g.w + 0.3, g.h + 0.3);
@@ -444,10 +453,15 @@ function drawCharger(ctx, c) {
   ctx.fill();
 }
 
-// Mirror showing the area around the forklift, rotated so the forklift's heading is up.
-function drawProximityMirror(ctx, g, view, x, y, w, h) {
-  const scale = w / 4.5;
-  const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0);
+// Small top-down window just in front of (or, with back, just behind) the forklift, heading up/down the screen.
+// Only the part of the world inside the window is drawn (culled via drawWorld's vis box).
+function drawLookWindow(ctx, g, x, y, w, h, back) {
+  const scale = w / 4.5, wT = w / scale, hT = h / scale;
+  const c = toWorld(g.fl, back ? FL.back + 0.5 - hT / 2 : FL.front - 0.5 + hT / 2, 0);
+  const rot = (back ? Math.PI / 2 : -Math.PI / 2) - g.fl.a;
+  const ext = Math.abs(Math.cos(rot)) * wT / 2 + Math.abs(Math.sin(rot)) * hT / 2;
+  const exy = Math.abs(Math.sin(rot)) * wT / 2 + Math.abs(Math.cos(rot)) * hT / 2;
+  const vis = { x0: c.x - ext, x1: c.x + ext, y0: c.y - exy, y1: c.y + exy };
   ctx.save();
   ctx.beginPath();
   ctx.rect(x, y, w, h);
@@ -455,10 +469,10 @@ function drawProximityMirror(ctx, g, view, x, y, w, h) {
   ctx.fillStyle = theme().bg;
   ctx.fillRect(x, y, w, h);
   ctx.translate(x + w / 2, y + h / 2);
-  ctx.rotate(-Math.PI / 2 - g.fl.a);
+  ctx.rotate(rot);
   ctx.scale(scale, scale);
   ctx.translate(-c.x, -c.y);
-  drawWorld(ctx, g);
+  drawWorld(ctx, g, vis);
   ctx.restore();
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 3;
@@ -467,7 +481,7 @@ function drawProximityMirror(ctx, g, view, x, y, w, h) {
   ctx.font = '10px sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('SIDE MIRROR', x + 6, y + 5);
+  ctx.fillText(back ? 'REAR' : 'FRONT', x + 6, y + 5);
 }
 
 // Landscape touch: status text on both sides of the minimap, between the control pads.
@@ -517,9 +531,9 @@ export function draw(ctx, g, view) {
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   if (view.povBig) {
     drawPov(ctx, g, 0, 0, width, height);
-    const mw = Math.min(340, width * 0.3);
-    drawPov(ctx, g, (width - mw) / 2, 8, mw, mw * 0.28, { rear: true });
-    drawProximityMirror(ctx, g, view, width - 70 - 20 - 190, 8, 190, 150);
+    const mw = Math.min(150, width * 0.14), mh = mw * 0.75;
+    drawLookWindow(ctx, g, width / 2 - mw - 4, 8, mw, mh, true);
+    drawLookWindow(ctx, g, width / 2 + 4, 8, mw, mh, false);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
     if (view.showSmall) {
       ctx.fillStyle = theme().bg;
