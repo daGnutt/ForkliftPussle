@@ -600,6 +600,24 @@ console.log('all tests passed');
   assert.equal(h.stacks[0].x, 10, 'tines pass through');
 }
 
+// Start stacks are clustered into bays (big yellow squares) clear of walls, doorways and drop-off areas.
+{
+  const rectGap = (a, b) => Math.hypot(Math.max(0, a.x - b.x - b.w, b.x - a.x - a.w), Math.max(0, a.y - b.y - b.h, b.y - a.y - a.h));
+  for (let n = 1; n <= 30; n++) {
+    const l = generateLevel(n);
+    assert.equal(l.n, n, `level ${n} generated without fallback`);
+    for (const st of l.stacks) {
+      assert.ok(l.bays.some((b) => st.x > b.x && st.x < b.x + b.w && st.y > b.y && st.y < b.y + b.h), `level ${n} stack in a bay`);
+    }
+    for (const b of l.bays) {
+      assert.ok(l.stacks.some((st) => st.x > b.x && st.x < b.x + b.w && st.y > b.y && st.y < b.y + b.h), `level ${n} no empty bay`);
+      assert.ok(!l.walls.some((r) => rectGap(r, b) < 1), `level ${n} bay clear of walls`);
+      assert.ok(!l.doors.some((r) => rectGap(r, b) < 1), `level ${n} bay clear of doors`);
+    }
+  }
+  console.log('bays ok');
+}
+
 // Spawn/parking varies per level and is axis-aligned and inside the walls.
 {
   const starts = new Set();
@@ -624,6 +642,7 @@ console.log('all tests passed');
 // A released stack is drawn lowering (dropFrom) until the forks reach the floor.
 {
   const g = newGame(1);
+  g.fl.a = 0;
   g.stacks = [{ x: g.fl.x + 1, y: g.fl.y, layers: [0], rots: [g.fl.a], pen: [{ crash: 0, sq: 0 }], offs: [{ x: 0, y: 0 }], a: g.fl.a }];
   forkUp(g);
   assert.ok(g.carried, 'picked up');

@@ -171,6 +171,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     charger: lvl.charger,
     zones: lvl.zones,
     areas: lvl.areas,
+    bays: lvl.bays,
     doors: lvl.doors,
     stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), pen: s.layers.map((c, i) => newPen(c, Math.floor(s.x * 31 + s.y * 17) + i)), offs: s.layers.map(() => ({ x: 0, y: 0 })), a: 0 })),
     parking: { ...toWorld(lvl.start, (FL.back + FL.front) / 2, 0), a: lvl.start.a },
