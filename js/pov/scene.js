@@ -82,6 +82,31 @@ function addOverhead(faces, cam, g) {
   }
 }
 
+// Doorway trim: hazard-striped jamb posts up to 2 high on both sides of each opening and a header beam under the ceiling.
+// Purely visual; no collision. Posts hug the jambs so the passable width is unchanged.
+function addDoorways(faces, cam, g) {
+  if (!decalsEnabled()) return;
+  for (const d of g.doors || []) {
+    const cx = d.x + d.w / 2, cy = d.y + d.h / 2;
+    if (Math.hypot(cx - cam.x, cy - cam.y) > 24) continue;
+    const vert = d.h > d.w, len = vert ? d.h : d.w, th = vert ? d.w : d.h;
+    const place = (u, v) => (vert ? [cx + v, cy + u] : [cx + u, cy + v]);
+    const sz = (a, b) => (vert ? [b, a] : [a, b]);
+    for (const su of [-1, 1]) for (const sv of [-1, 1]) {
+      const [x, y] = place(su * (len / 2 - 0.07), sv * (th / 2 - 0.07));
+      const [hx, hy] = sz(0.07, 0.07);
+      for (let i = 0; i < 4; i++) addPrism(faces, cam, x, y, 0, hx, hy, i * 0.5, i * 0.5 + 0.5, i & 1 ? '#262626' : '#f4c414');
+    }
+    const [hx, hy] = sz(len / 2, th / 2);
+    const n = Math.floor(len / 0.6);
+    for (let i = 0; i < n; i++) {
+      const [x, y] = place(-len / 2 + (i + 0.5) * (len / n), 0);
+      const [bx, by] = sz(len / n / 2, th / 2);
+      addPrism(faces, cam, x, y, 0, bx, by, WALL_H - 0.35, WALL_H - 0.05, i & 1 ? '#262626' : '#f4c414', false, 0, 0, true);
+    }
+  }
+}
+
 // Fork carriage: a plate on the mast, an upright shank and a blade with a tapered, thinner tip per tine.
 function addForks(faces, cam, g) {
   const tz = g.hf * (BOX_H + PAL), col = theme().tine;
@@ -104,6 +129,7 @@ function addForks(faces, cam, g) {
 export function buildFaces(g, cam) {
   const faces = [];
   addOverhead(faces, cam, g);
+  addDoorways(faces, cam, g);
   for (const w of g.walls) {
     if (w.charger) {
       const n = faces.length;
