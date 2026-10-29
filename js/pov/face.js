@@ -61,6 +61,20 @@ function rollerDoor({ box, shape }, off) {
   slab(0.85, 0.22, 1.15, 0.28, '#c9ccd1');
 }
 
+// Signs are hung around the eye height of a person: the cabin eye with the forks at level 1 (0.95 + 0.55·0.6).
+const SIGN_DROP = 0.3;
+const FIXED_SIGNS = new Set(['door', 'exit']); // anchored to the floor / above the door
+
+function dropped({ shape }, dv) {
+  const sh = (uv, fill) => shape(uv.map(([u, v]) => [u, v - dv]), fill);
+  return {
+    shape: sh,
+    box: (u0, v0, u1, v1, fill) => sh([[u0, v0], [u1, v0], [u1, v1], [u0, v1]], fill),
+    disc: (u, v, r, fill) => sh(circlePts(u, v, r), fill),
+    tri: (u, v, r, fill) => sh([[u, v + r], [u + r * 0.95, v - r * 0.55], [u - r * 0.95, v - r * 0.55]], fill),
+  };
+}
+
 const WALL_SIGNS = {
   window({ box, shape }) {
     box(0.12, 1.22, 0.88, 2.38, '#2b2e33');
@@ -73,10 +87,10 @@ const WALL_SIGNS = {
   door({ box }) {
     box(0.14, 0, 0.86, 2.28, YEL);
     box(0.19, 0, 0.81, 2.2, '#4d6b5b');
-    box(0.34, 1.4, 0.66, 1.9, '#1f2a30');
-    box(0.36, 1.42, 0.64, 1.88, theme().skyBottom);
-    box(0.68, 0.95, 0.76, 1.05, '#c9ccd1');
-    box(0.22, 0.88, 0.78, 0.92, '#7e8a82');
+    box(0.34, 1.1, 0.66, 1.6, '#1f2a30');
+    box(0.36, 1.12, 0.64, 1.58, theme().skyBottom);
+    box(0.68, 0.8, 0.76, 0.9, '#c9ccd1');
+    box(0.22, 0.7, 0.78, 0.74, '#7e8a82');
     box(0.38, 2.28, 0.62, 2.5, '#2e7d32');
     box(0.41, 2.31, 0.59, 2.47, WHITE);
   },
@@ -168,7 +182,8 @@ function drawWallDecals(ctx, cam, g, f, dark) {
       p.shape([[a, 0], [a + 0.0625 + 0.05, 0], [a + 0.0625 + 0.15, 0.2], [a + 0.1, 0.2]], i & 1 ? BLACK : YEL);
     }
   }
-  WALL_SIGNS[wallDecal(f.mx, f.my)]?.(p);
+  const kind = wallDecal(f.mx, f.my);
+  WALL_SIGNS[kind]?.(FIXED_SIGNS.has(kind) ? p : dropped(p, SIGN_DROP));
 }
 
 function drawBoxDecal(ctx, cam, f, dark) {
