@@ -114,7 +114,7 @@ export function floorDecals(g) {
   // Random filler: not on the drop-offs or parking spot.
   const zoneBoxes = g.zones.map((z) => ({ x: z.x - 0.6, y: z.y - 0.6, w: 1.2, h: 1.2 }));
   const pk = g.parking, pr = { x: pk.x - 1.8, y: pk.y - 1.8, w: 3.6, h: 3.6 };
-  const keepClear = [...zoneBoxes, pr, ...g.areas.map((a) => ({ x: a.x - 0.3, y: a.y - 0.3, w: a.w + 0.6, h: a.h + 0.6 }))];
+  const keepClear = [...zoneBoxes, pr, ...g.areas.map((a) => ({ x: a.x - 0.3, y: a.y - 0.3, w: a.w + 0.6, h: a.h + 0.6 })), ...(g.bays || [])];
   const free = (pts, m) => { const [a, b, c, d] = ptsBox(pts); return !keepClear.some((r) => bboxHit(a, b, c, d, r, m)); };
   for (let cx = 0; cx <= Math.floor(g.w / CELL); cx++) {
     for (let cy = 0; cy <= Math.floor(g.h / CELL); cy++) {
@@ -149,7 +149,8 @@ export function floorDecals(g) {
 
   // Yellow bays: one outline around each whole drop-off area, plus a few unused empty bays elsewhere.
   const outline = (x, y, w, h) => !inDoor([[x, y], [x + w, y + h]], 1.2) && out.push(...strip([[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y - 0.045]], 0.09, YELLOW));
-  const bays = [];
+  const bays = [...(g.bays || [])];
+  for (const b of g.bays || []) if (inside([[b.x, b.y], [b.x + b.w, b.y + b.h]], 0.1)) outline(b.x, b.y, b.w, b.h);
   for (const a of g.areas) {
     const b = { x: a.x - 0.3, y: a.y - 0.3, w: a.w + 0.6, h: a.h + 0.6 };
     bays.push(b);
