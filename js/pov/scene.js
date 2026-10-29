@@ -82,6 +82,24 @@ function addOverhead(faces, cam, g) {
   }
 }
 
+// Fork carriage: a plate on the mast, an upright shank and a blade with a tapered, thinner tip per tine.
+function addForks(faces, cam, g) {
+  const tz = g.hf * (BOX_H + PAL), col = theme().tine;
+  const { tineX0: x0, tineX1: x1, tineOff: off, tineHalf: hw } = FL;
+  const at = (u, v) => toWorld(g.fl, u, v), a = g.fl.a;
+  const tipX = x1 - 0.3, bodyLen = (tipX - x0) / 2;
+  for (const side of [-1, 1]) {
+    const b = at(x0 + bodyLen, side * off);
+    addPrism(faces, cam, b.x, b.y, a, bodyLen, hw, tz, tz + PAL, col, false, 0.2);
+    const tip = at((tipX + x1) / 2, side * off);
+    addPrism(faces, cam, tip.x, tip.y, a, 0.15, hw * 0.55, tz, tz + PAL * 0.5, col, false, 0);
+    const sh = at(x0 + 0.05, side * off);
+    addPrism(faces, cam, sh.x, sh.y, a, 0.05, hw, tz, tz + 0.5, col, false, 0.2);
+  }
+  const plate = at(x0 - 0.05, 0);
+  addPrism(faces, cam, plate.x, plate.y, a, 0.03, off + hw, tz + 0.3, tz + 0.4, col, false, 0.3);
+}
+
 // All faces of the level seen from `cam`, sorted far to near.
 export function buildFaces(g, cam) {
   const faces = [];
@@ -99,11 +117,7 @@ export function buildFaces(g, cam) {
     const p = toWorld(g.fl, FL.carryX, 0);
     addStack(faces, cam, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, carriedWorldOffs(g), 0, 0, g.carriedPen);
   }
-  const len = (FL.tineX1 - FL.tineX0) / 2, tz = g.hf * (BOX_H + PAL);
-  for (const side of [-1, 1]) {
-    const t = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, side * FL.tineOff);
-    addPrism(faces, cam, t.x, t.y, g.fl.a, len, FL.tineHalf, tz, tz + PAL, theme().tine, false, 0.2);
-  }
+  addForks(faces, cam, g);
   for (const f of faces) f.d = Math.hypot(f.mx - cam.x, f.my - cam.y, f.mz - cam.z) + (f.boxFlat ? 0.6 : 0); // lids/undersides sit behind the pallet parts touching them
   faces.sort((a, b) => b.d - a.d);
   return faces;

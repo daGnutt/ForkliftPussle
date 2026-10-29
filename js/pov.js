@@ -1,6 +1,6 @@
 import { theme } from './theme.js';
 import { toWorld } from './forklift.js';
-import { makeCamera, EYE_X, EYE_Z, EYE_FOLLOW, HFOV, REAR_HFOV, BOX_H, PAL, MAX_DIST } from './pov/camera.js';
+import { makeCamera, EYE_X, EYE_Z, EYE_FOLLOW, EYE_TILT, HFOV, REAR_HFOV, BOX_H, PAL, MAX_DIST } from './pov/camera.js';
 import { buildFaces } from './pov/scene.js';
 import { drawFace } from './pov/face.js';
 import { drawCeiling, drawFloorGrid, drawFloorDecals, drawFloorMarks, drawRevFloor, drawRevWalls } from './pov/floor.js';
@@ -12,8 +12,8 @@ import { zoneLabelItems, drawHits } from './pov/overlay.js';
 // opts.rear: look backwards, mirrored left-right (rear-view mirror).
 export function drawPov(ctx, g, x, y, w, h, opts = {}) {
   const yaw = g.fl.a + (opts.rear ? Math.PI : 0);
-  const horizon = h * 0.35;
-  const cam = makeCamera(toWorld(g.fl, EYE_X, 0), EYE_Z + EYE_FOLLOW * g.hf * (BOX_H + PAL), yaw,
+  const horizon = h * (0.35 + (opts.rear ? 0 : EYE_TILT * (g.ef - g.hf)));
+  const cam = makeCamera(toWorld(g.fl, EYE_X, 0), EYE_Z + EYE_FOLLOW * g.ef * (BOX_H + PAL), yaw,
     opts.rear ? REAR_HFOV : HFOV, x, y, w, horizon);
 
   ctx.save();
