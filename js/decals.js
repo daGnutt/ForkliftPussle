@@ -103,6 +103,9 @@ export function floorDecals(g) {
   if (cache.has(g)) return cache.get(g);
   const out = [];
   const walls = g.pillars || [];
+  const doors = g.doors || [];
+  // Yellow markings never run through a doorway (only its own hazard stripes do).
+  const inDoor = (pts) => { const [a, b, c, d] = ptsBox(pts); return doors.some((r) => bboxHit(a, b, c, d, r, 0.3)); };
   const inside = (pts, m = 0.05) => pts.every(([x, y]) => x >= m && y >= m && x <= g.w - m && y <= g.h - m);
   const clearOfWalls = (pts, m) => { const [a, b, c, d] = ptsBox(pts); return !walls.some((r) => bboxHit(a, b, c, d, r, m)); };
   const trackOk = (list) => list.every((pts) => inside(pts) && pts.every(([x, y]) => !walls.some((r) => bboxHit(x, y, x, y, r, 0.45))));
@@ -115,7 +118,7 @@ export function floorDecals(g) {
   const free = (pts, m) => { const [a, b, c, d] = ptsBox(pts); return !keepClear.some((r) => bboxHit(a, b, c, d, r, m)); };
   for (let cx = 0; cx <= Math.floor(g.w / CELL); cx++) {
     for (let cy = 0; cy <= Math.floor(g.h / CELL); cy++) {
-      for (const d of cellDecals(cx, cy)) if (inside(d.pts) && free(d.pts, 0.15) && clearOfWalls(d.pts, 0.1)) out.push(d);
+      for (const d of cellDecals(cx, cy)) if (!(d.fill === YELLOW && inDoor(d.pts)) && inside(d.pts) && free(d.pts, 0.15) && clearOfWalls(d.pts, 0.1)) out.push(d);
     }
   }
 
@@ -145,7 +148,7 @@ export function floorDecals(g) {
   }
 
   // Yellow bays: one outline around each whole drop-off area, plus a few unused empty bays elsewhere.
-  const outline = (x, y, w, h) => out.push(...strip([[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y - 0.045]], 0.09, YELLOW));
+  const outline = (x, y, w, h) => !inDoor([[x, y], [x + w, y + h]]) && out.push(...strip([[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y - 0.045]], 0.09, YELLOW));
   const bays = [];
   for (const a of g.areas) {
     const b = { x: a.x - 0.3, y: a.y - 0.3, w: a.w + 0.6, h: a.h + 0.6 };
@@ -165,7 +168,7 @@ export function floorDecals(g) {
     made++;
   }
 
-  // Doorways ("portals"): hazard-striped thresholds on both mouths and a dashed lane line through and beyond.
+  // Doorways ("portals"): hazard-striped thresholds on both mouths; no other yellow markings.
   for (const d of g.doors || []) {
     const vert = d.h > d.w, len = vert ? d.h : d.w, th = vert ? d.w : d.h;
     const at = (u, v, du, dv) => (vert ? rect(d.x + v, d.y + u, dv, du, '') : rect(d.x + u, d.y + v, du, dv, ''));
@@ -174,8 +177,6 @@ export function floorDecals(g) {
     for (const v0 of [0, th - 0.3]) {
       for (let i = 0; i < n; i++) add(at(i * 0.3, v0, 0.3, 0.3), i & 1 ? 'rgba(20,20,20,0.5)' : YELLOW);
     }
-    const mid = len / 2 - 0.07;
-    for (let v = -1.8; v < th + 1.8; v += 0.7) add(at(mid, v, 0.14, 0.4), YELLOW);
   }
 
   cache.set(g, out);
