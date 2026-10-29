@@ -8,7 +8,7 @@ import { project, fillPoly, floorPoly, strokeLines, toCam, WALL_H } from './came
 
 // Everything painted before the 3D faces: ceiling, floor grid, decals, zone/parking marks, reversing light.
 
-const GRID_R = 18;
+const GRID_R = 40;
 
 // Ceiling plane over the whole level with steel joists every 4 tiles.
 export function drawCeiling(ctx, g, cam) {

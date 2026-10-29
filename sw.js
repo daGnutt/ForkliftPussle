@@ -1,5 +1,5 @@
 // Bump CACHE when shipping changes so clients drop stale files.
-const CACHE = 'forklift-v8';
+const CACHE = 'forklift-v9';
 const CORE = [
   './', 'index.html', 'style.css', 'favicon.svg', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png',
