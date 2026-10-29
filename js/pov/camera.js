@@ -1,7 +1,7 @@
 // Cabin-view constants and projection maths. Camera space: fw = forward, rt = right, z = up.
 
 export const EYE_X = -0.5; // seat position, local x (origin at the front axle)
-export const EYE_Z = 1.45; // eye height with the fork on the floor
+export const EYE_Z = 0.95; // eye height with the fork on the floor
 export const EYE_FOLLOW = 0.55; // share of the (smoothed) fork height the eye follows
 export const EYE_TILT = 0.045; // horizon shift (share of view height) per level the forks lead the eye
 export const CHARGER_H = 0.9; // 1.5 boxes

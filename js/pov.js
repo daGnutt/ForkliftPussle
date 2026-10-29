@@ -12,7 +12,7 @@ import { zoneLabelItems, drawHits } from './pov/overlay.js';
 // opts.rear: look backwards, mirrored left-right (rear-view mirror).
 export function drawPov(ctx, g, x, y, w, h, opts = {}) {
   const yaw = g.fl.a + (opts.rear ? Math.PI : 0);
-  const horizon = h * (0.35 + (opts.rear ? 0 : EYE_TILT * (g.ef - g.hf)));
+  const horizon = h * (0.32 + (opts.rear ? 0 : EYE_TILT * (g.ef - g.hf)));
   const cam = makeCamera(toWorld(g.fl, EYE_X, 0), EYE_Z + EYE_FOLLOW * g.ef * (BOX_H + PAL), yaw,
     opts.rear ? REAR_HFOV : HFOV, x, y, w, horizon);
 
