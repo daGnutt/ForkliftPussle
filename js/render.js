@@ -250,7 +250,7 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
     }
   }
   ctx.setTransform(s * view.dpr, 0, 0, s * view.dpr, ox * view.dpr, oy * view.dpr);
-  drawWorld(ctx, g);
+  drawWorld(ctx, g, s * view.dpr);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = 'bold 0.55px sans-serif';
@@ -310,7 +310,31 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
 }
 
 // Top-down world in simulation units; the caller sets the transform.
-function drawWorld(ctx, g) {
+// With `pxPerTile`, the static floor (colour, grid, decals) is blitted from an offscreen canvas cached per game state.
+const MAX_FLOOR_PX = 16e6;
+let floorCache = null;
+function drawFloor(ctx, g, pxPerTile) {
+  if (!pxPerTile || g.w * g.h * pxPerTile * pxPerTile > MAX_FLOOR_PX) return paintFloor(ctx, g);
+  const key = [theme(), decalsEnabled(), Math.round(pxPerTile * 100)];
+  const c = floorCache;
+  if (!c || c.g !== g || c.key.some((k, i) => k !== key[i])) {
+    const cv = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(1, 1) : document.createElement('canvas');
+    cv.width = Math.ceil(g.w * pxPerTile);
+    cv.height = Math.ceil(g.h * pxPerTile);
+    const cc = cv.getContext('2d');
+    cc.scale(pxPerTile, pxPerTile);
+    paintFloor(cc, g);
+    floorCache = { g, key, cv, px: pxPerTile };
+  }
+  ctx.drawImage(floorCache.cv, 0, 0, floorCache.cv.width / floorCache.px, floorCache.cv.height / floorCache.px);
+}
+
+function drawWorld(ctx, g, pxPerTile = 0) {
+  drawFloor(ctx, g, pxPerTile);
+  drawWorldObjects(ctx, g);
+}
+
+function paintFloor(ctx, g) {
   ctx.fillStyle = theme().floor;
   ctx.fillRect(0, 0, g.w, g.h);
   ctx.strokeStyle = theme().grid;
@@ -333,7 +357,9 @@ function drawWorld(ctx, g) {
     ctx.fillRect(a.x - 0.3, a.y - 0.3, a.w + 0.6, a.h + 0.6);
     ctx.globalAlpha = 1;
   }
+}
 
+function drawWorldObjects(ctx, g) {
   {
     const p = g.parking, ok = isSolved(g) && scoreEnough(g);
     const hx = (FL.front - FL.back) / 2 + 0.2, hy = FL.halfW + 0.2;
