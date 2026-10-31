@@ -160,20 +160,7 @@ function tryGenerate(n, attempt, seed = 0) {
   const { walls, doors } = buildRooms(rnd, w, h, dividers, start);
   walls.push(charger);
 
-  const placed = [];
   const areas = [];
-  const spot = (margin, pillarGap, minOther) => {
-    for (let t = 0; t < 400; t++) {
-      const x = margin + rnd() * (w - 2 * margin);
-      const y = margin + rnd() * (h - 2 * margin);
-      if (Math.hypot(x - start.x, y - start.y) < 3.2) continue;
-      if (walls.some((r) => pointRectDist(x, y, r) < pillarGap)) continue;
-      if (areas.some((r) => pointRectDist(x, y, r) < 1.6)) continue;
-      if (placed.some((o) => Math.hypot(o.x - x, o.y - y) < minOther(o))) continue;
-      return { x, y };
-    }
-    return null;
-  };
 
   // One tidy block per colour: that colour's zones laid out on a grid.
   const PITCH = 1.6;
@@ -208,17 +195,35 @@ function tryGenerate(n, attempt, seed = 0) {
     zs.forEach((z, i) => {
       z.x = area.x + 0.6 + (i % cols) * PITCH;
       z.y = area.y + 0.6 + Math.floor(i / cols) * PITCH;
-      placed.push({ x: z.x, y: z.y, zone: true });
     });
   }
-  for (const st of stacks) {
-    const s = spot(2.3, 2.0, (o) => (o.zone ? 1.8 : 2.0));
-    if (!s) return null;
-    st.x = s.x; st.y = s.y;
-    placed.push({ x: s.x, y: s.y });
+  // Start stacks are clustered into small groups (2-4) on a grid; each group gets a big yellow bay around it.
+  const SP = 2.0, bays = [];
+  const clear = (r, gap) => pointRectDist(start.x, start.y, r) >= 3.2 &&
+    !walls.some((o) => rectGap(o, r) < gap) && !doors.some((o) => rectGap(o, r) < 1.0) && !areas.some((o) => rectGap(o, r) < 1.5) &&
+    !bays.some((o) => rectGap(o, r) < 1.5);
+  for (let i = 0; i < stacks.length;) {
+    const k = Math.min(stacks.length - i, 1 + Math.floor(rnd() * 4));
+    const group = stacks.slice(i, i + k);
+    i += k;
+    let cols = k === 4 ? 2 : k;
+    if (k > 1 && k < 4 && rnd() < 0.5) cols = 1;
+    const rows = Math.ceil(k / cols);
+    const bw = cols * SP, bh = rows * SP;
+    let bay = null;
+    for (let t = 0; t < 300 && !bay; t++) {
+      const r = { x: 1.3 + rnd() * (w - 2.6 - bw), y: 1.3 + rnd() * (h - 2.6 - bh), w: bw, h: bh };
+      if (clear(r, 1.0)) bay = r;
+    }
+    if (!bay) return null;
+    bays.push(bay);
+    group.forEach((st, j) => {
+      st.x = bay.x + SP / 2 + (j % cols) * SP;
+      st.y = bay.y + SP / 2 + Math.floor(j / cols) * SP;
+    });
   }
 
-  return { n, w, h, walls, doors, zones, areas, stacks, start, charger };
+  return { n, w, h, walls, doors, zones, areas, bays, stacks, start, charger };
 }
 
 // Integer seeds are used as-is; any other text is hashed. Empty/0 = the default layouts.

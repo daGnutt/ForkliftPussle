@@ -11,7 +11,7 @@ On touch devices, on-screen buttons replace the keyboard (big steer left/right b
 | ← / → | Steer (rear wheels steer, so the tail swings out) |
 | A / Z | Forks up / down one level |
 | C | Show / hide the small corner window (cabin view, or the overview while the big view is the cabin) |
-| M / Tab | Swap the big view between the top-down overview and the cabin (first-person) view. The cabin view has a rear-view mirror (top centre) and a side mirror (top right: zoomed-in (~4.5 tiles wide) top-down view around the forklift, rotated so the forklift points up) |
+| M / Tab | Swap the big view between the top-down overview and the cabin (first-person) view. The cabin view has two small top-down windows at the top centre: rear on the left, front on the right |
 | R | Restart level |
 | (pause menu) | Button to stop or restart the on-screen tutorial (shown once on first play: drive, forks, place a stack, cab view; each step disappears when you do it) |
 | F | Toggle full screen (also in the menu). With the menu option "Auto full-screen" (off by default) enabled, starting from the splash or resuming from the menu enters full screen and opening the menu leaves it. Esc leaves full screen first (browser behaviour); use P for the menu there |

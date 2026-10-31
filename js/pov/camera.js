@@ -9,7 +9,6 @@ export const WALL_H = 4; // also the ceiling height; clears a 5-box stack (3.0)
 export const BOX_H = 0.5; // drawn box height (footprint stays 1×1)
 export const PAL = 0.1; // pallet / tine thickness
 export const HFOV = Math.PI / 2;
-export const REAR_HFOV = (130 * Math.PI) / 180;
 export const MAX_DIST = 60;
 export const FAR_DARK = 28;
 export const DECAL_MAX_DIST = 20; // signs and labels further away are only a few pixels

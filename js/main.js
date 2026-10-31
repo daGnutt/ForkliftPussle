@@ -137,7 +137,8 @@ function checkRecord() {
   recordOpen = true;
   recordEl.classList.remove('hide');
   input.clear();
-  recordName.focus();
+  const touch = window.matchMedia('(pointer: coarse)').matches;
+  if (!(touch && recordName.value)) recordName.focus();
 }
 
 const splash = document.getElementById('splash');
