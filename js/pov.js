@@ -51,9 +51,4 @@ export function drawPov(ctx, g, x, y, w, h) {
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 3;
   ctx.strokeRect(x, y, w, h);
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.font = '10px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText('CABIN VIEW  (M: swap)', x + 6, y + 5);
 }
