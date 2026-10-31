@@ -622,7 +622,8 @@ export function draw(ctx, g, view) {
   const hint = g.status === 'play' && isSolved(g)
     ? (scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish')
     : '';
-  if (mmBox) drawStatusStrip(ctx, g, view, mmBox, title, bestText, hint, width, height);
+  if (view.povBig && view.touch && width > height) { /* cab view on touch landscape: no scoring HUD */ }
+  else if (mmBox) drawStatusStrip(ctx, g, view, mmBox, title, bestText, hint, width, height);
   else {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
