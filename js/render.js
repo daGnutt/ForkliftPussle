@@ -556,10 +556,16 @@ export function draw(ctx, g, view) {
   ctx.fillRect(0, 0, width, height);
   const strip = view.touch && !view.povBig && width > height;
   let mmBox = null;
+  view.miniHit = null;
   const POV_W = 300, POV_H = 170, hx0 = view.showSmall ? 20 + POV_W + 16 : 20;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   if (view.povBig) {
     drawPov(ctx, g, 0, 0, width, height);
+    if (view.touch && width > height) { // easter egg: the minimap stays tappable to swap back to the overview
+      const mm = miniSize(g, 120, 70), mx = (width - mm.w) / 2, my = height - 8 - mm.h;
+      drawMiniMap(ctx, g, { x: 0, y: 0, w: g.w, h: g.h }, mx, my, mm.s);
+      view.miniHit = { x: mx - 3, y: my - 3, w: mm.w + 6, h: mm.h + 6 };
+    }
     const mw = Math.min(150, width * 0.14), mh = mw * 0.75;
     drawLookWindow(ctx, g, width / 2 - mw - 4, 8, mw, mh, true);
     drawLookWindow(ctx, g, width / 2 + 4, 8, mw, mh, false);
@@ -598,6 +604,7 @@ export function draw(ctx, g, view) {
       mmX = (width - mm.w) / 2;
       mmY = height - 8 - mm.h;
       mmBox = { x: mmX, w: mm.w, y: mmY };
+      view.miniHit = { x: mmX - 3, y: mmY - 3, w: mm.w + 6, h: mm.h + 6 };
     } else if (zoomedIn) {
       if (portrait) { ry = Math.max(ry, mmY + mm.h + 12); rh = height - ry - bottom; }
       else { rx = mmX + mm.w + 16; rw = width - rx - (touchLand ? 20 : GAUGE_W); }

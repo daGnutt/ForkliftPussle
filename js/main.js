@@ -113,7 +113,13 @@ const input = createInput({
 });
 
 // On touch, tapping the "Level complete" board goes to the next level.
-if (isTouch) canvas.addEventListener('pointerdown', () => { if (!splashOn && !recordOpen && !view.menuOpen) handlersNext(); });
+// Easter egg: in landscape, tapping the minimap swaps between the overview and the cab view.
+if (isTouch) canvas.addEventListener('pointerdown', (e) => {
+  if (splashOn || recordOpen || view.menuOpen) return;
+  const r = canvas.getBoundingClientRect(), h = view.miniHit, x = e.clientX - r.left, y = e.clientY - r.top;
+  if (h && x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) view.povBig = !view.povBig;
+  else handlersNext();
+});
 
 const pending = {};
 recordName.addEventListener('keydown', (e) => e.stopPropagation());
