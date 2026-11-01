@@ -691,6 +691,13 @@ export function draw(ctx, g, view) {
   // fork height gauge: 0 = floor; box layer i fills the cell at height i-1
   const gx = width - 70, gy = 70, cell = 26, top = 5;
   const yOf = (lvl) => gy + (top - lvl) * cell;
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(gx - 28, gy - 26, 82, top * cell + cell + 34, 6);
+  ctx.fill();
+  ctx.stroke();
   ctx.font = '12px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
