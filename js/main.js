@@ -19,6 +19,7 @@ const view = { width: 0, height: 0, dpr: 1, povBig: !isTouch && localStorage.get
 function resize() {
   view.width = canvas.clientWidth;
   view.height = canvas.clientHeight;
+  if (isTouch && view.height > view.width) view.povBig = false; // portrait has no cab view
   view.dpr = window.devicePixelRatio || 1;
   // Phones report a dpr of ~3 (9x the pixels); cap the backing store so drawing stays fast, CSS scales it up.
   if (matchMedia('(pointer: coarse)').matches) view.dpr = Math.min(view.dpr, 1, Math.sqrt(0.9e6 / Math.max(1, view.width * view.height)));
