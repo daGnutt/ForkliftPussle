@@ -423,6 +423,20 @@ export function playSuccess() {
   });
 }
 
+// The success arpeggio, but off: flat, out-of-tune notes that sag in pitch and drag a little.
+export function playWonky() {
+  if (!ctx || ctx.state !== 'running') return;
+  const t = ctx.currentTime;
+  [71.6, 74.7, 78.3, 82.6].forEach((m, i) => {
+    const at = t + i * 0.11 + (i % 2) * 0.02;
+    for (const [mult, gain, dur] of [[1, 0.14, 0.5], [2.03, 0.05, 0.35]]) {
+      const f = mtof(m) * mult;
+      const o = tone(sfxBus, f, at, dur, { type: 'sine', gain, attack: 0.008, release: 0.4 });
+      o.frequency.exponentialRampToValueAtTime(f * 0.94, at + dur);
+    }
+  });
+}
+
 // Electric motor: a low, soft hum (triangle + sub sine) whose pitch and level follow the forklift speed.
 function startEngine() {
   const o = ctx.createOscillator();

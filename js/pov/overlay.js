@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { HIT_LIFE, zoneDone } from '../game.js';
+import { HIT_LIFE, WONKY_LIFE, zoneDone } from '../game.js';
 import { toCam, BOX_H, PAL, MAX_DIST } from './camera.js';
 
 // Text overlays drawn over the finished scene.
@@ -36,12 +36,12 @@ export function zoneLabelItems(g, cam) {
 // Damage popups floating up from the damaged box.
 export function drawHits(ctx, g, cam) {
   for (const h of g.hits || []) {
-    const k = (g.clock - h.t) / HIT_LIFE;
+    const k = (g.clock - h.t) / (h.wonky ? WONKY_LIFE : HIT_LIFE);
     const [fw, rt] = toCam(cam, h.x, h.y, 0);
     if (fw <= 0.3) continue;
     const sx = cam.cx + (rt / fw) * cam.f, sy = cam.cy - ((h.z * (BOX_H + PAL) + 0.3 + k * 0.8 - cam.z) / fw) * cam.f;
     ctx.globalAlpha = Math.max(0, 1 - k * k);
-    label(ctx, `−${h.pts}`, sx, sy, Math.max(10, Math.min(60, (0.45 / fw) * cam.f)), '#ff5252');
+    label(ctx, h.wonky ? `Wonky −${h.pts}` : `−${h.pts}`, sx, sy, Math.max(10, Math.min(60, (0.45 / fw) * cam.f)), h.wonky ? '#ffb74d' : '#ff5252');
   }
   ctx.globalAlpha = 1;
 }
