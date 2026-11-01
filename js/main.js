@@ -1,5 +1,6 @@
 import { newGame, update, forkUp, forkDown, zoneDone, score } from './game.js';
 import { createInput } from './input.js';
+import { syncScores } from './globalscores.js';
 import { getBest, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
 import { serializeGame, deserializeGame, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
@@ -130,6 +131,7 @@ document.getElementById('recordForm').addEventListener('submit', (e) => {
   saveBest(localStorage, pending.seed, pending.level, { ...pending.result, name });
   if (pending.level === level && pending.seed === seed) view.best = getBest(localStorage, seed, level);
   closeRecord();
+  syncScores(localStorage);
 });
 
 function checkRecord() {
@@ -146,6 +148,8 @@ function checkRecord() {
   const touch = window.matchMedia('(pointer: coarse)').matches;
   if (!(touch && recordName.value)) recordName.focus();
 }
+
+syncScores(localStorage); // upload bests that never reached the global list
 
 const splash = document.getElementById('splash');
 let splashOn = true;

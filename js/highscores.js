@@ -26,7 +26,26 @@ export function beats(result, best) {
 export function saveBest(store, seed, level, result) {
   const all = read(store);
   all[keyOf(seed, level)] = { score: result.score, time: Math.round(result.time), name: result.name };
+  write(store, all);
+}
+
+const write = (store, all) => {
   try { store.setItem(KEY, JSON.stringify(all)); } catch { /* storage unavailable */ }
+};
+
+// Entries not yet uploaded to the global list (no `synced` flag; includes scores saved before online scores existed).
+export function unsynced(store) {
+  return Object.entries(read(store))
+    .filter(([, e]) => !e.synced)
+    .map(([board, e]) => ({ board, level: Number(board.slice(board.lastIndexOf(':') + 1)), entry: e }));
+}
+
+// Flags the entry synced, unless a better score replaced it while the upload was in flight.
+export function markSynced(store, board, sent) {
+  const all = read(store), e = all[board];
+  if (!e || e.score !== sent.score || e.time !== sent.time) return;
+  e.synced = true;
+  write(store, all);
 }
 
 // 1 point off per 10 seconds; only applied to the submitted score, never to level completion.
