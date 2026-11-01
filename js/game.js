@@ -150,6 +150,16 @@ export function score(g) {
   return Math.round(pts);
 }
 
+// Fresh stacks get a little deterministic wonkiness: each box is turned up to WONK_ROT and shifted up to WONK_OFF.
+const WONK_ROT = 15 * Math.PI / 180, WONK_OFF = 0.06;
+function wonkyStack(s) {
+  const base = Math.floor(s.x * 31 + s.y * 17);
+  const r = (i, k) => { const t = Math.sin((base + i * 7.13 + k * 3.7) * 12.9898) * 43758.5453; return (t - Math.floor(t)) * 2 - 1; };
+  const rots = s.layers.map((_, i) => r(i, 1) * WONK_ROT);
+  const offs = s.layers.map((_, i) => (i === 0 ? { x: 0, y: 0 } : { x: r(i, 2) * WONK_OFF, y: r(i, 3) * WONK_OFF }));
+  return { x: s.x, y: s.y, layers: [...s.layers], rots, pen: s.layers.map((c, i) => newPen(c, base + i)), offs, a: rots[0] };
+}
+
 export function newGame(levelNumber, seed = 0, hard = false) {
   const lvl = generateLevel(levelNumber, seed);
   const walls = [];
@@ -173,7 +183,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     areas: lvl.areas,
     bays: lvl.bays,
     doors: lvl.doors,
-    stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), pen: s.layers.map((c, i) => newPen(c, Math.floor(s.x * 31 + s.y * 17) + i)), offs: s.layers.map(() => ({ x: 0, y: 0 })), a: 0 })),
+    stacks: lvl.stacks.map((s) => wonkyStack(s)),
     parking: { ...toWorld(lvl.start, (FL.back + FL.front) / 2, 0), a: lvl.start.a },
     fl: makeForklift(lvl.start.x, lvl.start.y, lvl.start.a),
     carried: null,
