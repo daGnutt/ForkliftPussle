@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { isTesting, initTestingBanner } from '../js/testing.js';
 import { generateLevel, parseSeed } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, maxSteerFor } from '../js/forklift.js';
@@ -9,6 +10,42 @@ import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, s
 const NONE = {};
 const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
 const run = (g, inp, secs) => { for (let i = 0; i < secs * 120; i++) update(g, inp, 1 / 120); };
+
+// Testing detection preserves the local override; the banner has no dismissal callback.
+{
+  const oldLocation = globalThis.location, oldDocument = globalThis.document;
+  const classes = new Set(['hide']), icon = { href: 'favicon.svg' };
+  try {
+    globalThis.document = {
+      title: 'Forklift Frenzy',
+      getElementById: () => ({ classList: { remove: (name) => classes.delete(name) } }),
+      querySelectorAll: () => [icon],
+    };
+    for (const [pathname, search, expected] of [
+      ['/', '', false], ['/ForkliftPussle/', '', false],
+      ['/testing/', '', true], ['/ForkliftPussle/testing/index.html', '', true],
+      ['/testing-other/', '', false], ['/', '?testing', true],
+    ]) {
+      globalThis.location = { pathname, search };
+      assert.equal(isTesting(), expected);
+    }
+    globalThis.location = { pathname: '/', search: '' };
+    initTestingBanner();
+    assert.ok(classes.has('hide'));
+    assert.equal(icon.href, 'favicon.svg');
+    assert.equal(document.title, 'Forklift Frenzy');
+    globalThis.location = { pathname: '/testing/', search: '' };
+    assert.equal(initTestingBanner(), undefined);
+    assert.ok(!classes.has('hide'));
+    assert.ok(icon.href.startsWith('data:image/svg+xml,'));
+    assert.equal(document.title, 'TESTING - Forklift Frenzy');
+  } finally {
+    if (oldLocation === undefined) delete globalThis.location;
+    else globalThis.location = oldLocation;
+    if (oldDocument === undefined) delete globalThis.document;
+    else globalThis.document = oldDocument;
+  }
+}
 
 // Every colour's zones sit together in one area, clear of other areas.
 for (let n = 1; n <= 40; n++) {
@@ -491,6 +528,21 @@ console.log('all tests passed');
   saveBest(st2, 6, 2, { score: 10, time: 5, name: 'a' });
   assert.strictEqual(lowestUnscored(st2, 5), 2);
   assert.strictEqual(lowestUnscored(st2, 6), 1);
+  const { unsynced, markSynced } = await import('../js/highscores.js');
+  const { syncScores } = await import('../js/globalscores.js');
+  const st3 = { d: {}, getItem(k) { return this.d[k] ?? null; }, setItem(k, v) { this.d[k] = v; } };
+  saveBest(st3, 7, 1, { score: 10, time: 5, name: 'a' });
+  saveBest(st3, 7, 2, { score: 20, time: 6, name: 'b' });
+  assert.deepEqual(unsynced(st3).map((u) => [u.board, u.level]), [['7:1', 1], ['7:2', 2]]);
+  const calls = [];
+  const n = await syncScores(st3, async (board, p) => { calls.push([board, p.points, p.time, p.level]); return board === '7:2' ? null : 1; });
+  assert.equal(n, 1);
+  assert.deepEqual(unsynced(st3).map((u) => u.board), ['7:2']);
+  assert.deepEqual(getBest(st3, 7, 1), { score: 10, time: 5, name: 'a', synced: true });
+  markSynced(st3, '7:2', { score: 1, time: 6 }); // stale: better score replaced it
+  assert.equal(unsynced(st3).length, 1);
+  saveBest(st3, 7, 1, { score: 11, time: 5, name: 'a' }); // new best is unsynced again
+  assert.equal(unsynced(st3).length, 2);
   console.log('highscores ok');
 }
 
