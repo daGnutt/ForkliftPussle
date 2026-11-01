@@ -1,63 +1,45 @@
-# Simple workflow for deploying static content to GitHub Pages
-name: Deploy static content to Pages
+name: Deploy Pages
 
 on:
-  # Runs on pushes targeting main or testing branches
   push:
     branches: ["main", "testing"]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-# Allow only one concurrent deployment
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  contents: write
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Prepare Files for Testing Branch
-        if: github.ref == 'refs/heads/testing'
-        run: |
-          # Ta bort CNAME så den inte krockar med din anpassade domän i undermappen
-          rm -f CNAME
-          
-          # Ta bort sådant som inte ska ligga i publika testmiljön
-          rm -rf .github docs test
-
-          # Skapa en undermapp 'testing' och flytta alla filer ditin
-          mkdir public_root
-          mkdir public_root/testing
-          
-          shopt -s extglob
-          mv !(public_root) public_root/testing/
-          
-          shopt -u extglob
-          mv public_root/* .
-          rmdir public_root
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Setup Node (om behövs, hoppa över om ren statisk HTML)
+        uses: actions/setup-node@v4
         with:
-          path: '.'
+          node-version: 20
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+      - name: Build / Prepare Files
+        run: |
+          mkdir -p build_output
+          
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "Building MAIN for root..."
+            # Kopiera allt förutom mappar vi inte vill ha till roten
+            rsync -av --exclude='.git' --exclude='.github' --exclude='docs' --exclude='test' ./ build_output/
+          elif [ "${{ github.ref }}" = "refs/heads/testing" ]; then
+            echo "Building TESTING for /testing folder..."
+            # Här vill vi ha filerna i en undermapp som heter testing
+            mkdir -p build_output/testing
+            rsync -av --exclude='.git' --exclude='.github' --exclude='docs' --exclude='test' --exclude='CNAME' ./ build_output/testing/
+          fi
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./build_output
+          keep_files: true # VIKTIGT: Detta gör att den INTE skriver över det som redan ligger på den andra branchen!
+          enable_jekyll: false
