@@ -423,20 +423,16 @@ export function playSuccess() {
   });
 }
 
-// Sad-trombone "wah wah wah waaah": low, buzzy, falling notes, each with a filter swell (the "wah"); the last one wobbles.
+// The success arpeggio, but off: flat, out-of-tune notes that sag in pitch and drag a little.
 export function playWonky() {
   if (!ctx || ctx.state !== 'running') return;
   const t = ctx.currentTime;
-  [[62, 0, 0.32], [61, 0.38, 0.32], [60, 0.76, 0.32], [58, 1.14, 0.9]].forEach(([m, at, dur], i) => {
-    const o = tone(sfxBus, mtof(m), t + at, dur, { type: 'sawtooth', gain: 0.22, attack: 0.04, release: 0.12, cutoff: 500, cutoffEnd: 2500, q: 4 });
-    if (i === 3) {
-      const lfo = ctx.createOscillator(), depth = ctx.createGain();
-      lfo.frequency.value = 6;
-      depth.gain.value = 40;
-      lfo.connect(depth);
-      depth.connect(o.detune);
-      lfo.start(t + at);
-      lfo.stop(t + at + dur + 0.1);
+  [71.6, 74.7, 78.3, 82.6].forEach((m, i) => {
+    const at = t + i * 0.11 + (i % 2) * 0.02;
+    for (const [mult, gain, dur] of [[1, 0.14, 0.5], [2.03, 0.05, 0.35]]) {
+      const f = mtof(m) * mult;
+      const o = tone(sfxBus, f, at, dur, { type: 'sine', gain, attack: 0.008, release: 0.4 });
+      o.frequency.exponentialRampToValueAtTime(f * 0.94, at + dur);
     }
   });
 }
