@@ -423,6 +423,24 @@ export function playSuccess() {
   });
 }
 
+// Sad wah-wah (falling, wobbling trumpet-ish notes) when a drop point is filled with crooked boxes.
+export function playWonky() {
+  if (!ctx || ctx.state !== 'running') return;
+  const t = ctx.currentTime;
+  [[70, 0, 0.3], [69, 0.32, 0.3], [68, 0.64, 0.3], [66, 0.96, 0.7]].forEach(([m, at, dur], i) => {
+    const o = tone(sfxBus, mtof(m), t + at, dur, { type: 'sawtooth', gain: 0.12, attack: 0.03, release: 0.1, cutoff: 700 });
+    if (i === 3) {
+      const lfo = ctx.createOscillator(), depth = ctx.createGain();
+      lfo.frequency.value = 6;
+      depth.gain.value = 12;
+      lfo.connect(depth);
+      depth.connect(o.detune);
+      lfo.start(t + at);
+      lfo.stop(t + at + dur + 0.2);
+    }
+  });
+}
+
 // Electric motor: a low, soft hum (triangle + sub sine) whose pitch and level follow the forklift speed.
 function startEngine() {
   const o = ctx.createOscillator();
