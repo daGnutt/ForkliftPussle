@@ -6,6 +6,7 @@ import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
+import { initTestingBanner } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, setEngine, setSilenced, isMusicMuted, setMusicMuted, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
@@ -392,6 +393,7 @@ pauseOnBlur();
 applyPause();
 
 const debug = debugEnabled(location.search) ? createDebug() : null;
+const hideTestingBanner = initTestingBanner();
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 function frame(now) {
@@ -409,6 +411,7 @@ function frame(now) {
   checkTutorial();
   checkRecord();
   const st = input.state();
+  if (st.up || st.down || st.left || st.right) hideTestingBanner();
   setEngine(game.fl.speed, st.up || st.down);
   const done = countDone();
   if (done > doneZones) playSuccess();
