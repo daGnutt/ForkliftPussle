@@ -423,20 +423,20 @@ export function playSuccess() {
   });
 }
 
-// Sad wah-wah (falling, wobbling trumpet-ish notes) when a drop point is filled with crooked boxes.
+// Sad-trombone "wah wah wah waaah": low, buzzy, falling notes, each with a filter swell (the "wah"); the last one wobbles.
 export function playWonky() {
   if (!ctx || ctx.state !== 'running') return;
   const t = ctx.currentTime;
-  [[70, 0, 0.3], [69, 0.32, 0.3], [68, 0.64, 0.3], [66, 0.96, 0.7]].forEach(([m, at, dur], i) => {
-    const o = tone(sfxBus, mtof(m), t + at, dur, { type: 'sawtooth', gain: 0.2, attack: 0.03, release: 0.1, cutoff: 1500 });
+  [[50, 0, 0.32], [49, 0.38, 0.32], [48, 0.76, 0.32], [46, 1.14, 0.9]].forEach(([m, at, dur], i) => {
+    const o = tone(sfxBus, mtof(m), t + at, dur, { type: 'sawtooth', gain: 0.22, attack: 0.04, release: 0.12, cutoff: 250, cutoffEnd: 1400, q: 4 });
     if (i === 3) {
       const lfo = ctx.createOscillator(), depth = ctx.createGain();
       lfo.frequency.value = 6;
-      depth.gain.value = 12;
+      depth.gain.value = 40;
       lfo.connect(depth);
       depth.connect(o.detune);
       lfo.start(t + at);
-      lfo.stop(t + at + dur + 0.2);
+      lfo.stop(t + at + dur + 0.1);
     }
   });
 }
