@@ -407,7 +407,7 @@ pauseOnBlur();
 applyPause();
 
 const debug = debugEnabled(location.search) ? createDebug() : null;
-const hideTestingBanner = initTestingBanner();
+initTestingBanner();
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 function frame(now) {
@@ -425,7 +425,6 @@ function frame(now) {
   checkTutorial();
   checkRecord();
   const st = input.state();
-  if (st.up || st.down || st.left || st.right) hideTestingBanner();
   setEngine(game.fl.speed, st.up || st.down);
   const done = countDone();
   if (done > doneZones) playSuccess();
