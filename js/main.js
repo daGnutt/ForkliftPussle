@@ -1,6 +1,6 @@
 import { newGame, update, forkUp, forkDown, zoneDone, score } from './game.js';
 import { createInput } from './input.js';
-import { syncScores } from './globalscores.js';
+import { syncScores, fetchTop } from './globalscores.js';
 import { getBest, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
 import { serializeGame, deserializeGame, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
@@ -41,6 +41,16 @@ function loadSaved() {
   } catch { localStorage.removeItem('forklift-state'); }
 }
 loadSaved();
+// Local best now; global top fetched in the background (stale replies are ignored).
+function refreshGlobal() {
+  const board = `${seed || 0}:${level}`;
+  fetchTop(board).then((top) => { if (board === `${seed || 0}:${level}`) view.global = top; });
+}
+function refreshBest() {
+  view.best = getBest(localStorage, seed, level);
+  view.global = 'loading';
+  refreshGlobal();
+}
 function saveState() {
   localStorage.setItem('forklift-state', JSON.stringify(serializeGame(game, seedText)));
 }
@@ -48,7 +58,7 @@ const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
 let doneZones = countDone();
 let hitCount = 0;
 let bonkCount = 0;
-view.best = getBest(localStorage, seed, level);
+refreshBest();
 let recordOpen = false, recorded = false;
 const recordEl = document.getElementById('record');
 const recordName = document.getElementById('recordName');
@@ -69,7 +79,7 @@ function load(n) {
   doneZones = countDone();
   hitCount = game.hitCount;
   bonkCount = game.bonks;
-  view.best = getBest(localStorage, seed, level);
+  refreshBest();
   saveState();
 }
 
@@ -131,7 +141,7 @@ document.getElementById('recordForm').addEventListener('submit', (e) => {
   saveBest(localStorage, pending.seed, pending.level, { ...pending.result, name });
   if (pending.level === level && pending.seed === seed) view.best = getBest(localStorage, seed, level);
   closeRecord();
-  syncScores(localStorage);
+  syncScores(localStorage).then(() => refreshGlobal());
 });
 
 function checkRecord() {
@@ -149,7 +159,7 @@ function checkRecord() {
   if (!(touch && recordName.value)) recordName.focus();
 }
 
-syncScores(localStorage); // upload bests that never reached the global list
+syncScores(localStorage).then(refreshGlobal); // upload bests that never reached the global list
 
 const splash = document.getElementById('splash');
 let splashOn = true;
@@ -203,7 +213,7 @@ function startGame() {
     localStorage.setItem('forklift-hard', hard ? '1' : '0');
     load(level);
   }
-  view.best = getBest(localStorage, seed, level);
+  refreshBest();
   if (tutorialOpt.checked) {
     localStorage.removeItem('forklift-tutorial-done');
     tutStep = 0;
@@ -373,7 +383,7 @@ document.getElementById('stateImport').addEventListener('click', async () => {
   doneZones = countDone();
   hitCount = g.hitCount;
   bonkCount = g.bonks;
-  view.best = getBest(localStorage, seed, level);
+  refreshBest();
   saveState();
   toggleMenu(false);
 });

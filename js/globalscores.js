@@ -38,3 +38,9 @@ export async function syncScores(store, submit = submitScore) {
   }
   return sent;
 }
+
+// Resolves to the top entry, 'none' (empty board) or 'offline'.
+export async function fetchTop(board) {
+  const list = await fetchScores(board, 1);
+  return list === null ? 'offline' : list[0] || 'none';
+}
