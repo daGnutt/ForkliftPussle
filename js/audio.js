@@ -427,8 +427,8 @@ export function playSuccess() {
 export function playWonky() {
   if (!ctx || ctx.state !== 'running') return;
   const t = ctx.currentTime;
-  [[50, 0, 0.32], [49, 0.38, 0.32], [48, 0.76, 0.32], [46, 1.14, 0.9]].forEach(([m, at, dur], i) => {
-    const o = tone(sfxBus, mtof(m), t + at, dur, { type: 'sawtooth', gain: 0.22, attack: 0.04, release: 0.12, cutoff: 250, cutoffEnd: 1400, q: 4 });
+  [[62, 0, 0.32], [61, 0.38, 0.32], [60, 0.76, 0.32], [58, 1.14, 0.9]].forEach(([m, at, dur], i) => {
+    const o = tone(sfxBus, mtof(m), t + at, dur, { type: 'sawtooth', gain: 0.22, attack: 0.04, release: 0.12, cutoff: 500, cutoffEnd: 2500, q: 4 });
     if (i === 3) {
       const lfo = ctx.createOscillator(), depth = ctx.createGain();
       lfo.frequency.value = 6;
