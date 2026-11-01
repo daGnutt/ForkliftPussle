@@ -1,10 +1,10 @@
 // Bump CACHE when shipping changes so clients drop stale files.
-const CACHE = 'forklift-v9';
+const CACHE = 'forklift-v10';
 const CORE = [
   './', 'index.html', 'style.css', 'favicon.svg', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png',
-  ...['audio', 'debug', 'decals', 'forklift', 'game', 'geom', 'highscores', 'input', 'level',
-    'main', 'midi', 'pov', 'render', 'revlight', 'savestate', 'theme',
+  ...['audio', 'debug', 'decals', 'forklift', 'game', 'geom', 'globalscores', 'highscores', 'input', 'level',
+    'main', 'midi', 'pov', 'render', 'revlight', 'savestate', 'testing', 'theme',
     'pov/camera', 'pov/scene', 'pov/face', 'pov/floor', 'pov/overlay'].map(m => `js/${m}.js`),
 ];
 

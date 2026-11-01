@@ -514,10 +514,38 @@ function drawLookWindow(ctx, g, x, y, w, h, back) {
 }
 
 // Landscape touch: status text on both sides of the minimap, between the control pads.
-function drawStatusStrip(ctx, g, view, mm, title, bestText, hint, width, height) {
+function globalLine(gl) {
+  if (gl === 'offline') return 'Global: offline';
+  if (!gl || gl === 'loading') return 'Global: …';
+  if (gl === 'none') return 'Global: none yet';
+  return `Global ${gl.points} by ${gl.name} (${formatTime(gl.time || 0)})`;
+}
+
+// Shown on a freshly loaded level until the truck first moves.
+function drawStartBoard(ctx, g, view, width, height) {
+  const best = view.best;
+  const rows = [
+    `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`,
+    best ? `Local best: ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Local best: none yet',
+    globalLine(view.global).replace('Global', 'Global best'),
+  ];
+  const lh = 26, h = rows.length * lh + 24, y = Math.max(10, height * 0.18);
+  ctx.font = 'bold 18px sans-serif';
+  const w = Math.min(width - 20, Math.max(...rows.map((r) => ctx.measureText(r).width)) + 40);
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect((width - w) / 2, y, w, h);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  rows.forEach((r, i) => {
+    ctx.fillStyle = i === 0 ? '#fff' : i === 1 ? '#b3e5fc' : '#c5e1a5';
+    ctx.fillText(r, width / 2, y + 12 + lh / 2 + i * lh, w - 20);
+  });
+}
+
+function drawStatusStrip(ctx, g, view, mm, title, bestText, globalText, hint, width, height) {
   const PAD = 156, lost = lostBreakdown(g);
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
-  const bottom = height - 10, lh = 17;
+  const bottom = height - 10, lh = 17, rows = 4;
   const line = (text, x, row, color, align, w, bold) => {
     ctx.font = `${bold ? 'bold ' : ''}13px sans-serif`;
     ctx.textAlign = align;
@@ -527,12 +555,13 @@ function drawStatusStrip(ctx, g, view, mm, title, bestText, hint, width, height)
   ctx.textBaseline = 'middle';
   const lx = mm.x - 8, rx = mm.x + mm.w + 8;
   ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(PAD - 4, bottom - 3 * lh - 9, lx - PAD + 4, 3 * lh + 14);
-  ctx.fillRect(rx - 4, bottom - 3 * lh - 9, width - PAD - rx + 8, 3 * lh + 14);
+  ctx.fillRect(PAD - 4, bottom - rows * lh - 9, lx - PAD + 4, rows * lh + 14);
+  ctx.fillRect(rx - 4, bottom - rows * lh - 9, width - PAD - rx + 8, rows * lh + 14);
   const lw = lx - PAD, rw = width - PAD - rx;
   line(`Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`, lx, 2, '#eee', 'right', lw, true);
   line(`Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}`, lx, 1, '#eee', 'right', lw);
   line(formatTime(g.time), lx, 0, '#eee', 'right', lw);
+  line(globalText, rx, 3, '#c5e1a5', 'left', rw);
   line(bestText, rx, 2, '#b3e5fc', 'left', rw);
   line(`Damage −${lost.crash} (locked)`, rx, 1, '#ef9a9a', 'left', rw);
   line(`Placement −${lost.square} (fixable)`, rx, 0, '#ffe082', 'left', rw);
@@ -619,18 +648,19 @@ export function draw(ctx, g, view) {
   const best = view.best;
   const title = `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${formatTime(g.time)}`;
   const bestText = best ? `Best ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Best: none yet';
+  const globalText = globalLine(view.global);
   const hint = g.status === 'play' && isSolved(g)
     ? (scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish')
     : '';
   if (view.povBig && view.touch && width > height) { /* cab view on touch landscape: no scoring HUD */ }
-  else if (mmBox) drawStatusStrip(ctx, g, view, mmBox, title, bestText, hint, width, height);
+  else if (mmBox) drawStatusStrip(ctx, g, view, mmBox, title, bestText, globalText, hint, width, height);
   else {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.font = 'bold 20px sans-serif';
     let boxW = ctx.measureText(title).width;
     ctx.font = '14px sans-serif';
-    boxW = Math.max(boxW, 380 + ctx.measureText(bestText).width);
+    boxW = Math.max(boxW, 380 + Math.max(ctx.measureText(bestText).width, ctx.measureText(globalText).width));
     ctx.font = 'bold 16px sans-serif';
     if (hint) boxW = Math.max(boxW, ctx.measureText(hint).width);
     ctx.fillStyle = 'rgba(0,0,0,0.45)';
@@ -641,6 +671,8 @@ export function draw(ctx, g, view) {
     ctx.font = '14px sans-serif';
     ctx.fillStyle = '#b3e5fc';
     ctx.fillText(bestText, hx0 + 380, 48);
+    ctx.fillStyle = '#c5e1a5';
+    ctx.fillText(globalText, hx0 + 380, 68);
     const lost = lostBreakdown(g);
     ctx.font = '14px sans-serif';
     ctx.fillStyle = '#ef9a9a';
@@ -687,6 +719,7 @@ export function draw(ctx, g, view) {
   ctx.fillStyle = '#f9a825';
   ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
 
+  if (g.status === 'play' && !g.started && !view.paused && !view.menuOpen) drawStartBoard(ctx, g, view, width, height);
   if (view.paused) {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(0, 0, width, height);
