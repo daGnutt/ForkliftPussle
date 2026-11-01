@@ -36,16 +36,19 @@ jobs:
       - name: Prepare Files for Testing Branch
         if: github.ref == 'refs/heads/testing'
         run: |
-          # Skapa en undermapp 'testing' och flytta alla andra filer ditin
-          # så att spelet hamnar på /testing/ på din GitHub Pages-sida
+          # Ta bort CNAME så den inte krockar med din anpassade domän i undermappen
+          rm -f CNAME
+          
+          # Ta bort sådant som inte ska ligga i publika testmiljön
+          rm -rf .github docs test
+
+          # Skapa en undermapp 'testing' och flytta alla filer ditin
           mkdir public_root
           mkdir public_root/testing
           
-          # Flytta allt (förutom våra nya mappar) till public_root/testing
           shopt -s extglob
           mv !(public_root) public_root/testing/
           
-          # Flytta ut mappen så den blir roten för artefakten
           shopt -u extglob
           mv public_root/* .
           rmdir public_root
@@ -53,7 +56,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Laddar upp hela repot för main, eller den omstrukturerade mappen för testing
           path: '.'
 
       - name: Deploy to GitHub Pages
