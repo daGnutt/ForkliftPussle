@@ -1,21 +1,17 @@
-# Simple workflow for deploying static content to GitHub Pages
+# Simple workflow for deploying static content to Pages
 name: Deploy static content to Pages
 
 on:
-  # Runs on pushes targeting main or testing branches
   push:
     branches: ["main", "testing"]
 
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -33,16 +29,20 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Prepare Files for Main Branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          # För main ser vi till att CNAME finns kvar och att allt ligger i roten
+          echo "Deploying main branch to root"
+
       - name: Prepare Files for Testing Branch
         if: github.ref == 'refs/heads/testing'
         run: |
-          # Ta bort CNAME så den inte krockar med din anpassade domän i undermappen
+          # Ta bort CNAME så den inte krockar
           rm -f CNAME
-          
-          # Ta bort sådant som inte ska ligga i publika testmiljön
           rm -rf .github docs test
 
-          # Skapa en undermapp 'testing' och flytta alla filer ditin
+          # Skapa en ren undermapp 'testing' och flytta dit allt
           mkdir public_root
           mkdir public_root/testing
           
