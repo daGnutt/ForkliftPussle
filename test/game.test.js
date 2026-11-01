@@ -491,6 +491,21 @@ console.log('all tests passed');
   saveBest(st2, 6, 2, { score: 10, time: 5, name: 'a' });
   assert.strictEqual(lowestUnscored(st2, 5), 2);
   assert.strictEqual(lowestUnscored(st2, 6), 1);
+  const { unsynced, markSynced } = await import('../js/highscores.js');
+  const { syncScores } = await import('../js/globalscores.js');
+  const st3 = { d: {}, getItem(k) { return this.d[k] ?? null; }, setItem(k, v) { this.d[k] = v; } };
+  saveBest(st3, 7, 1, { score: 10, time: 5, name: 'a' });
+  saveBest(st3, 7, 2, { score: 20, time: 6, name: 'b' });
+  assert.deepEqual(unsynced(st3).map((u) => [u.board, u.level]), [['7:1', 1], ['7:2', 2]]);
+  const calls = [];
+  const n = await syncScores(st3, async (board, p) => { calls.push([board, p.points, p.time, p.level]); return board === '7:2' ? null : 1; });
+  assert.equal(n, 1);
+  assert.deepEqual(unsynced(st3).map((u) => u.board), ['7:2']);
+  assert.deepEqual(getBest(st3, 7, 1), { score: 10, time: 5, name: 'a', synced: true });
+  markSynced(st3, '7:2', { score: 1, time: 6 }); // stale: better score replaced it
+  assert.equal(unsynced(st3).length, 1);
+  saveBest(st3, 7, 1, { score: 11, time: 5, name: 'a' }); // new best is unsynced again
+  assert.equal(unsynced(st3).length, 2);
   console.log('highscores ok');
 }
 
