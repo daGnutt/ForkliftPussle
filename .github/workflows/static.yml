@@ -1,0 +1,61 @@
+# Simple workflow for deploying static content to GitHub Pages
+name: Deploy static content to Pages
+
+on:
+  # Runs on pushes targeting main or testing branches
+  push:
+    branches: ["main", "testing"]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Prepare Files for Testing Branch
+        if: github.ref == 'refs/heads/testing'
+        run: |
+          # Skapa en undermapp 'testing' och flytta alla andra filer ditin
+          # så att spelet hamnar på /testing/ på din GitHub Pages-sida
+          mkdir public_root
+          mkdir public_root/testing
+          
+          # Flytta allt (förutom våra nya mappar) till public_root/testing
+          shopt -s extglob
+          mv !(public_root) public_root/testing/
+          
+          # Flytta ut mappen så den blir roten för artefakten
+          shopt -u extglob
+          mv public_root/* .
+          rmdir public_root
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Laddar upp hela repot för main, eller den omstrukturerade mappen för testing
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
