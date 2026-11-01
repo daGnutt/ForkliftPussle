@@ -839,3 +839,13 @@ console.log('all tests passed');
   g.stacks[0].x = 8;
   assert.equal(lostBreakdown(g).square, 0, 'nudged out of the zone');
 }
+
+{
+  const g = newGame(3);
+  const all = g.stacks.flatMap((s) => s.rots);
+  assert.ok(all.every((r) => Math.abs(r) <= 15 * Math.PI / 180 + 1e-9), 'rotation within 15 degrees');
+  assert.ok(all.some((r) => r !== 0), 'boxes are crooked');
+  assert.ok(g.stacks.every((s) => s.offs.every((o) => Math.hypot(o.x, o.y) < 0.1)), 'small offsets');
+  assert.deepEqual(newGame(3).stacks.map((s) => s.rots), g.stacks.map((s) => s.rots), 'deterministic');
+  console.log('wonky stacks ok');
+}
