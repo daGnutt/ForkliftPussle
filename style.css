@@ -7,6 +7,8 @@ body { display: flex; flex-direction: column; }
 canvas { flex: 1; width: 100%; min-height: 0; display: block; }
 footer { color: var(--fg); padding: 8px 16px; font-size: 14px; background: var(--bar); text-align: center; }
 footer b { color: var(--accent); }
+#testingBanner { position: fixed; right: 4px; bottom: 4px; padding: 2px 6px; border-radius: 3px; font-size: 11px;
+  background: var(--bar); color: var(--accent); z-index: 30; pointer-events: none; }
 
 #splash { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
   background: radial-gradient(circle at 50% 40%, var(--splash1), var(--splash2) 75%); color: var(--fg); z-index: 10; transition: opacity .4s; text-align: center; }

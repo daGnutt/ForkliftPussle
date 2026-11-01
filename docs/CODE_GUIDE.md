@@ -71,6 +71,7 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 - `drawStack(ctx, layers, x, y, z0, rots)` draws boxes as extruded cubes (shaded side faces facing the floor-ward parallax direction, gradient lid with tape strip), each with its own angle from `rots`; the top box shows its colour and the boxes below appear as coloured numbers.
 
 ## Branding / splash
+- Testing deployments (a `testing` segment in the URL path, as produced by the Pages workflow) show a small, persistent "Testing build" badge (`#testingBanner` in `index.html`, styled in `style.css`). It remains above splash/menu overlays without intercepting input; production URLs hide it.
 - `js/splash.js` (`startSplashAnimation(canvas, isActive)`) animates `#splashAnim` on the splash: a forklift driving a figure eight (Gerono lemniscate), drifting (extra body yaw) through the end turns with rear-wheel permanent skidmarks (pre-driven for a few laps at load) and smoke. Decorative only; stops when `isActive()` returns false.
 - Game name: Forklift Frenzy. `favicon.svg` is the tab icon; `#splash` in `index.html` (styled in `style.css`) has a seed text box and a shuffle-icon button (fills a random integer) (persisted in `localStorage` `forklift-seed`; submitting with Enter/Start applies it and restarts at level 1). The splash also shows a credits line (designed by Gnutt, coded by Copilot for GitHub). It is dismissed only by Enter or the Start button (handled in `main.js`, which pauses the simulation until then and swallows other keys).
 
