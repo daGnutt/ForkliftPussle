@@ -5,7 +5,7 @@ import { drawPov } from './pov.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, HIT_LIFE, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
+import { carriedWorldOffs, HIT_LIFE, WONKY_LIFE, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -256,13 +256,14 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
   ctx.font = 'bold 0.55px sans-serif';
   ctx.lineWidth = 0.1;
   for (const h of g.hits || []) {
-    const k = (g.clock - h.t) / HIT_LIFE;
+    const k = (g.clock - h.t) / (h.wonky ? WONKY_LIFE : HIT_LIFE);
     const x = h.x + h.z * PX, y = h.y + h.z * PY - k * 1.2;
+    const text = h.wonky ? `Wonky −${h.pts}` : `−${h.pts}`;
     ctx.globalAlpha = Math.max(0, 1 - k * k);
     ctx.strokeStyle = '#000';
-    ctx.strokeText(`−${h.pts}`, x, y);
-    ctx.fillStyle = '#ff5252';
-    ctx.fillText(`−${h.pts}`, x, y);
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = h.wonky ? '#ffb74d' : '#ff5252';
+    ctx.fillText(text, x, y);
   }
   ctx.globalAlpha = 1;
   if (zoomed) ctx.restore();

@@ -1,5 +1,6 @@
 // Online high score server (https://highscore.gnutt.se). Every call fails soft: offline keeps the local score.
 import { unsynced, markSynced } from './highscores.js';
+import { isTesting } from './testing.js';
 
 const API = 'https://highscore.gnutt.se/api/games';
 const GAME = 'forklift';
@@ -16,6 +17,7 @@ export async function fetchScores(board, limit = 10) {
 
 // Returns the rank (1 = best) or null on failure. Never throws.
 export async function submitScore(board, { name, points, time, level }) {
+  if (isTesting()) return null; // only the official host posts scores
   try {
     // Plain-text body: no CORS preflight.
     const res = await fetch(`${API}/${GAME}/boards/${encodeURIComponent(board)}/scores`, {

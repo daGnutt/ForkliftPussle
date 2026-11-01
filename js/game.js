@@ -79,6 +79,7 @@ function settle(g, S) {
 
 
 export const HIT_LIFE = 1.2; // seconds a damage popup lives
+export const WONKY_LIFE = 2.2; // wonky-placement popups stay longer so they can be read
 const HIT_MERGE = 0.6; // further damage to the same stack within this time adds to its popup
 
 // Applies crash points and records the actual loss as a floating popup (x, y, z in box heights).
@@ -92,6 +93,14 @@ function hurt(g, pens, pts, x, y, z, owner = null) {
   if (prev) { prev.pts += lost; prev.x = x; prev.y = y; prev.z = z; prev.t = g.clock; }
   else g.hits.push({ x, y, z, pts: lost, t: g.clock, owner });
   g.hitCount = (g.hitCount || 0) + 1;
+}
+
+// Combined squareness points of the boxes just put down on a drop point, shown as one popup.
+function wonkyPopup(g, pens, x, y, z) {
+  if (!g.zones.some((zn) => Math.abs(x - zn.x) < 0.5 && Math.abs(y - zn.y) < 0.5)) return;
+  const pts = pens.reduce((n, p) => n + p.sq, 0);
+  if (pts <= 0) return;
+  (g.hits ||= []).push({ x, y, z, pts, t: g.clock, owner: null, wonky: true });
 }
 
 function crash(g, pens, owner, count = pens.length) {
@@ -150,6 +159,16 @@ export function score(g) {
   return Math.round(pts);
 }
 
+// Fresh stacks get a little deterministic wonkiness: each box is turned up to WONK_ROT and shifted up to WONK_OFF.
+const WONK_ROT = 15 * Math.PI / 180, WONK_OFF = 0.06;
+function wonkyStack(s) {
+  const base = Math.floor(s.x * 31 + s.y * 17);
+  const r = (i, k) => { const t = Math.sin((base + i * 7.13 + k * 3.7) * 12.9898) * 43758.5453; return (t - Math.floor(t)) * 2 - 1; };
+  const rots = s.layers.map((_, i) => r(i, 1) * WONK_ROT);
+  const offs = s.layers.map((_, i) => (i === 0 ? { x: 0, y: 0 } : { x: r(i, 2) * WONK_OFF, y: r(i, 3) * WONK_OFF }));
+  return { x: s.x, y: s.y, layers: [...s.layers], rots, pen: s.layers.map((c, i) => newPen(c, base + i)), offs, a: rots[0] };
+}
+
 export function newGame(levelNumber, seed = 0, hard = false) {
   const lvl = generateLevel(levelNumber, seed);
   const walls = [];
@@ -173,7 +192,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     areas: lvl.areas,
     bays: lvl.bays,
     doors: lvl.doors,
-    stacks: lvl.stacks.map((s) => ({ x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => 0), pen: s.layers.map((c, i) => newPen(c, Math.floor(s.x * 31 + s.y * 17) + i)), offs: s.layers.map(() => ({ x: 0, y: 0 })), a: 0 })),
+    stacks: lvl.stacks.map((s) => wonkyStack(s)),
     parking: { ...toWorld(lvl.start, (FL.back + FL.front) / 2, 0), a: lvl.start.a },
     fl: makeForklift(lvl.start.x, lvl.start.y, lvl.start.a),
     carried: null,
@@ -371,7 +390,7 @@ function wallContact(g, speed, kept) {
 export function update(g, input, dt) {
   const f = g.fl;
   g.clock += dt;
-  if (g.hits) g.hits = g.hits.filter((h) => g.clock - h.t < HIT_LIFE);
+  if (g.hits) g.hits = g.hits.filter((h) => g.clock - h.t < (h.wonky ? WONKY_LIFE : HIT_LIFE));
   const forked = g.hard ? forkedStack(g) : null;
   const forkedY = forked ? toLocal(f, boxPos(forked, g.H).x, boxPos(forked, g.H).y).y : 0;
   const prevA = f.a;
@@ -481,6 +500,7 @@ export function forkDown(g) {
     const worldRots = g.carriedRots.map((r) => r + g.fl.a);
     g.carriedPen.forEach((p, i) => { p.sq = squareLoss(worldRots[i]); });
     const p = toWorld(g.fl, FL.carryX, 0);
+    wonkyPopup(g, g.carriedPen, p.x, p.y, n + g.carried.length);
     const c = Math.cos(g.fl.a), sn = Math.sin(g.fl.a);
     while (g.carriedOffs.length < g.carried.length) g.carriedOffs.push({ x: 0, y: 0 });
     const world = g.carriedOffs.map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c }));
@@ -529,6 +549,11 @@ const stackFillsZone = (s, z) =>
   Math.abs(s.y - z.y) < 0.5 &&
   s.layers.length === z.count &&
   s.layers.every((c) => c === z.color);
+
+// A completed drop point holds a stack with crooked boxes (squareness points lost).
+export function zoneWonky(g, z) {
+  return g.stacks.some((s) => stackFillsZone(s, z) && (refreshSquare(s), s.pen.some((p) => p.sq > 0)));
+}
 
 export function zoneDone(g, z) {
   return g.stacks.some((s) => stackFillsZone(s, z));

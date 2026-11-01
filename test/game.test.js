@@ -4,7 +4,7 @@ import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState } from '../js/savestate.js';
-import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown } from '../js/game.js';
+import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky } from '../js/game.js';
 
 const NONE = {};
 const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
@@ -838,4 +838,40 @@ console.log('all tests passed');
   g.stacks[0].rots = [Math.PI / 4];
   g.stacks[0].x = 8;
   assert.equal(lostBreakdown(g).square, 0, 'nudged out of the zone');
+}
+
+{
+  const g = newGame(3);
+  const all = g.stacks.flatMap((s) => s.rots);
+  assert.ok(all.every((r) => Math.abs(r) <= 15 * Math.PI / 180 + 1e-9), 'rotation within 15 degrees');
+  assert.ok(all.some((r) => r !== 0), 'boxes are crooked');
+  assert.ok(g.stacks.every((s) => s.offs.every((o) => Math.hypot(o.x, o.y) < 0.1)), 'small offsets');
+  assert.deepEqual(newGame(3).stacks.map((s) => s.rots), g.stacks.map((s) => s.rots), 'deterministic');
+  console.log('wonky stacks ok');
+}
+
+// Dropping crooked boxes on a drop point shows one combined wonky popup; straight or off-zone drops show none.
+{
+  const drop = (x, rot) => {
+    const g = newGame(1);
+    flatWorld(g);
+    g.zones = [{ x: 12, y: 5, color: 0, count: 2 }];
+    g.stacks = [];
+    g.fl.x = x - FL.carryX; g.fl.y = 5; g.fl.a = 0;
+    g.carried = [0, 0]; g.carriedRots = [rot, rot]; g.carriedRel = rot;
+    g.carriedPen = [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }]; g.carriedOffs = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
+    g.H = 0;
+    forkDown(g);
+    return g;
+  };
+  const g = drop(12, Math.PI / 4);
+  const wonky = g.hits.filter((h) => h.wonky);
+  assert.equal(wonky.length, 1, 'one combined popup');
+  assert.equal(wonky[0].pts, g.stacks[0].pen[0].sq + g.stacks[0].pen[1].sq);
+  assert.ok(wonky[0].pts > 0 && g.hitCount === 0, 'not a crash');
+  assert.ok(zoneWonky(g, g.zones[0]));
+  assert.equal(drop(12, 0).hits.filter((h) => h.wonky).length, 0, 'straight');
+  assert.equal(drop(8, Math.PI / 4).hits.filter((h) => h.wonky).length, 0, 'off a drop point');
+  assert.ok(!zoneWonky(drop(12, 0), { x: 12, y: 5, color: 0, count: 2 }));
+  console.log('wonky popup ok');
 }

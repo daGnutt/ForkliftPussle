@@ -1,4 +1,4 @@
-import { newGame, update, forkUp, forkDown, zoneDone, score } from './game.js';
+import { newGame, update, forkUp, forkDown, zoneDone, zoneWonky, score } from './game.js';
 import { createInput } from './input.js';
 import { syncScores, fetchTop } from './globalscores.js';
 import { getBest, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
@@ -9,7 +9,7 @@ import { debugEnabled, createDebug } from './debug.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
 import { initTestingBanner } from './testing.js';
 import { startSplashAnimation } from './splash.js';
-import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, setEngine, setSilenced, isMusicMuted, setMusicMuted, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setSilenced, isMusicMuted, setMusicMuted, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
@@ -57,6 +57,7 @@ function saveState() {
   localStorage.setItem('forklift-state', JSON.stringify(serializeGame(game, seedText)));
 }
 const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
+const wonkyNow = () => game.zones.filter((z) => zoneDone(game, z) && zoneWonky(game, z)).length;
 let doneZones = countDone();
 let hitCount = 0;
 let bonkCount = 0;
@@ -122,7 +123,7 @@ const input = createInput({
   next: () => handlersNext(),
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
-  blocked: () => !!view.menuOpen,
+  blocked: () => splashOn || recordOpen || !!view.menuOpen,
 });
 
 // On touch, tapping the "Level complete" board goes to the next level.
@@ -428,7 +429,7 @@ function frame(now) {
   const st = input.state();
   setEngine(game.fl.speed, st.up || st.down);
   const done = countDone();
-  if (done > doneZones) playSuccess();
+  if (done > doneZones) (wonkyNow() ? playWonky : playSuccess)();
   doneZones = done;
   if (game.hitCount !== hitCount) { if (game.hitCount > hitCount) playBreak(); hitCount = game.hitCount; }
   setScrape(game.scrape);
