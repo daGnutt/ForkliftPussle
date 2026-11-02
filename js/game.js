@@ -1,10 +1,9 @@
 import { boxDecalKind } from './decals.js';
 import { rectPoly, sat, overlapArea } from './geom.js';
-import { FL, makeForklift, drive, toWorld, toLocal } from './forklift.js';
+import { FL, MAX_H, MAX_LAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { generateLevel } from './level.js';
 
 const FORKLIFT_MASS = 6;
-const MAX_LAYERS = 5;
 const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
 // Every box is worth BOX_POINTS: up to CRASH_POINTS lost to crashes and up to
 // SQUARE_POINTS lost for being placed crooked. Points are only ever deducted.
@@ -439,8 +438,6 @@ export function stackInZone(g) {
 // tines at level H are under the box at height H: raising the forks lifts
 // every box at height H and above. Level 0 is the floor. Tines do not collide
 // with boxes. A carried stack's bottom is at height H.
-const MAX_H = 5;
-
 // The stack whose box at the current fork level the tines are in, or null.
 function forkedStack(g) {
   const S = stackInZone(g);
