@@ -334,7 +334,7 @@ export function setMusicMuted(m) {
   if (m !== muted) toggleMusic();
 }
 
-export function toggleMusic() {
+function toggleMusic() {
   startAudio();
   muted = !muted;
   localStorage.setItem(MUTE_KEY, muted ? '1' : '0');

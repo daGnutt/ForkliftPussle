@@ -7,7 +7,7 @@ const GAME = 'forklift';
 const MAX_PER_SYNC = 25; // server allows 30 writes/min per IP
 
 // Returns [{name, points, time, level, meta, created}] or null when offline.
-export async function fetchScores(board, limit = 10) {
+async function fetchScores(board, limit = 10) {
   try {
     const res = await fetch(`${API}/${GAME}/boards/${encodeURIComponent(board)}?limit=${limit}`);
     const json = await res.json();
@@ -16,7 +16,7 @@ export async function fetchScores(board, limit = 10) {
 }
 
 // Returns the rank (1 = best) or null on failure. Never throws.
-export async function submitScore(board, { name, points, time, level }) {
+async function submitScore(board, { name, points, time, level }) {
   if (isTesting()) return null; // only the official host posts scores
   try {
     // Plain-text body: no CORS preflight.

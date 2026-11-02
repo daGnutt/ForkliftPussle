@@ -25,10 +25,11 @@ const STEER_RATE = 2.0;
 
 // Raised forks make the forklift top-heavy: top speed and acceleration taper
 // off linearly with fork level H (0..MAX_H), down to MIN_SPEED_FACTOR at full height.
-const MAX_H = 5;
+export const MAX_H = 5;
+export const MAX_LAYERS = 5;
 const MIN_SPEED_FACTOR = 0.45;
 
-export function heightSpeedFactor(h) {
+function heightSpeedFactor(h) {
   return 1 - (1 - MIN_SPEED_FACTOR) * Math.max(0, Math.min(1, h / MAX_H));
 }
 
@@ -37,7 +38,7 @@ export function heightSpeedFactor(h) {
 // to a much shallower angle, like a real forklift's speed-sensitive steering.
 const MIN_STEER_SPEED_FACTOR = 0.4;
 
-export function steerSpeedFactor(speed) {
+function steerSpeedFactor(speed) {
   const s = Math.max(0, Math.min(1, Math.abs(speed) / MAX_FWD));
   return 1 - (1 - MIN_STEER_SPEED_FACTOR) * s;
 }

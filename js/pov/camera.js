@@ -27,7 +27,7 @@ export function toCam(cam, px, py, z) {
   return [dx * cam.c + dy * cam.s, -dx * cam.s + dy * cam.c, z - cam.z];
 }
 
-export function toScreen(cam, [fw, rt, z]) {
+function toScreen(cam, [fw, rt, z]) {
   return [cam.cx + (rt / fw) * cam.f, cam.cy - (z / fw) * cam.f];
 }
 
