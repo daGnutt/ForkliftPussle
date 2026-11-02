@@ -142,9 +142,9 @@ function noise(dest, t, dur, { gain = 0.1, cutoff = 7000, type = 'highpass' } = 
   src.stop(t + dur + 0.02);
 }
 
-// Public-domain / CC0 MIDI songs (sources in assets/midi/CREDITS.md).
+// Public-domain / Creative Commons MIDI songs (sources in assets/midi/CREDITS.md).
 const TRACKS = [
-  { id: 'country-hoedown', name: 'Country: Hee-Haw Hoedown', midi: 'assets/midi/hoedown.mid' },
+  { id: 'country-lasso', name: 'Country: Lasso Lady Lifts', midi: 'assets/midi/lasso-lady.mid' },
   { id: 'classical-elise', name: 'Classical: Für Forklift', midi: 'assets/midi/fur-elise.mid' },
   { id: 'classical-turca', name: 'Classical: Rondo alla Turbo', midi: 'assets/midi/rondo-alla-turca.mid' },
   { id: 'waltz-dead-pallets', name: 'Gothic Waltz: Dance of the Dead Pallets', midi: 'assets/midi/death-waltz.mid' },

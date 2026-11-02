@@ -1,10 +1,10 @@
 # MIDI credits
 
-All files are Public Domain / CC0. The two classical pieces are from the [Mutopia Project](https://www.mutopiaproject.org/) (marked Public Domain on their piece pages); the rest are CC0.
+All files are Public Domain / CC0, except `lasso-lady.mid` which is CC-BY 4.0 (attribution below). The two classical pieces are from the [Mutopia Project](https://www.mutopiaproject.org/) (marked Public Domain on their piece pages); the rest are CC0.
 
 | File | Track name | Source |
 |------|-----------|--------|
-| `hoedown.mid` | Hee-Haw Hoedown | Original, written for this game (CC0) |
+| `lasso-lady.mid` | Lasso Lady Lifts | "Lasso Lady (cover)" composed by congusbongus, arranged by Haley Halcyon, [OGA `lasso-lady-cover`](https://opengameart.org/content/lasso-lady-cover), CC-BY 4.0 |
 | `fur-elise.mid` | Für Forklift | Beethoven, Für Elise WoO 59, Mutopia (`BeethovenLv/WoO59/fur_Elise_WoO59`) |
 | `rondo-alla-turca.mid` | Rondo alla Turbo | Mozart, Rondo alla Turca KV 331, Mutopia (`MozartWA/KV331/KV331_3_RondoAllaTurca`) |
 | `death-waltz.mid` | Dance of the Dead Pallets | northivanastan, Death Waltz, OGA `death-waltz` |
