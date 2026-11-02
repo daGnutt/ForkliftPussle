@@ -27,13 +27,15 @@
   figure img { width: 100%; border-radius: 8px; border: 1px solid #2a313b; box-shadow: 0 6px 24px #0008; display: block; }
   figcaption { font-size: 1.1vw; color: #9aa4b2; margin-top: 1vh; }
   .chart { display: flex; gap: 1.2vw; align-items: flex-end; justify-content: center; height: 52vh; margin-top: 1vh; }
-  .col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 9vw; }
+  .col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 6.5vw; }
   .col .n { font-size: 2.2vw; font-weight: bold; color: #ffc933; margin-bottom: .6vh; }
   .col .stack { display: flex; flex-direction: column-reverse; width: 100%; border-bottom: 3px solid #6b7684; padding-bottom: 2px; }
   .col .stack i { display: block; width: 100%; margin-top: 1px; border-radius: 2px; box-sizing: border-box; border: 1px solid #0006; box-shadow: inset 0 -2px #0004, inset 0 2px #fff3; }
   .col .d { font-size: 1.2vw; color: #9aa4b2; margin-top: .8vh; text-align: center; line-height: 1.3; }
   .legend { display: flex; gap: 1.4vw; justify-content: center; font-size: 1.1vw; white-space: nowrap; color: #9aa4b2; margin-top: 1.5vh; }
   .legend i { display: inline-block; width: 1.2vw; height: 1.2vw; border-radius: 2px; vertical-align: middle; margin-right: .5vw; }
+  .posters { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2.2vw 2vw; align-items: center; justify-items: center; }
+  .posters canvas { max-width: 100%; max-height: 17vh; image-rendering: pixelated; box-shadow: 0 4px 14px #0008; }
   #nav { position: fixed; right: 2vw; bottom: 2vh; font-size: 1.2vw; color: #6b7684; }
 </style>
 </head>
@@ -42,7 +44,7 @@
 <section class="slide">
   <h1>Forklift Frenzy</h1>
   <div class="sub">The development timeline of a top-down, keyboard-only forklift puzzle</div>
-  <div class="sub" style="margin-top:3vh">21 – 28 October 2026 · 235 commits · vanilla JS + Canvas 2D · no build, no dependencies</div>
+  <div class="sub" style="margin-top:3vh">21 October – 2 November 2026 · 331 commits · vanilla JS + Canvas 2D · no build, no dependencies</div>
   <div class="sub" style="margin-top:6vh;font-size:1.4vw">← / → or Space to navigate</div>
 </section>
 
@@ -56,10 +58,10 @@
     <li>Static files on GitHub Pages (and an installable PWA); Firefox is the primary target</li>
   </ul>
   <div class="stats">
-    <div class="stat"><b>~3.9k</b><span>lines of JS</span></div>
-    <div class="stat"><b>235</b><span>commits</span></div>
+    <div class="stat"><b>~4.5k</b><span>lines of JS</span></div>
+    <div class="stat"><b>331</b><span>commits</span></div>
     <div class="stat"><b>0</b><span>dependencies</span></div>
-    <div class="stat"><b>8</b><span>days (7 with commits)</span></div>
+    <div class="stat"><b>13</b><span>days (11 with commits)</span></div>
   </div>
 </section>
 
@@ -177,7 +179,7 @@
     <li>Fullscreen is an opt-in menu setting; pause-menu touches no longer reach the pad</li>
     <li>Service worker auto-reloads on a new version</li>
   </ul>
-  <figure><img src="shots/10-splash-figure-eight.png" alt=""><figcaption>The new splash screen (HEAD)</figcaption></figure>
+  <figure><img src="shots/10-splash-figure-eight.png" alt=""><figcaption>The splash screen</figcaption></figure>
   </div>
 </section>
 
@@ -193,10 +195,82 @@
 </section>
 
 <section class="slide">
+  <div class="date">Days 8–9 · 28 – 29 Oct</div>
+  <h2>The cabin view, rebuilt</h2>
+  <div class="row">
+  <ul>
+    <li>Cabin renderer rewritten as modular <code>js/pov/</code>, first with identical output</li>
+    <li>New forks and camera: the eye follows fork height and the view tilts with the forks</li>
+    <li>More factory fluff: AC units, toilet doors, deer sign, roller doors and slogan posters</li>
+    <li>Doorways with hazard thresholds, jamb posts and a header beam</li>
+    <li>Faster: occlusion and off-screen culling, batched floor decals</li>
+  </ul>
+  <figure><img src="shots/07-cabin-latest.png" alt=""><figcaption>Cabin view with poster, AC unit, roller door and look windows (HEAD)</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="date">Days 9–10 · 29 – 31 Oct</div>
+  <h2>Look windows &amp; a calmer floor</h2>
+  <ul>
+    <li>Mirrors replaced by two small top-down look windows: just ahead of the forks and just behind the tail</li>
+    <li>Start stacks cluster in bays with a big yellow outline; fewer random floor decals, yellow kept out of doorways</li>
+    <li>Cabin zone labels are clipped by walls and boxes in front of them; longer decal draw distance</li>
+    <li>The static top-down floor is cached in an offscreen canvas</li>
+    <li>Touch easter egg: tap the minimap to swap overview and cab view</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="date">Day 12 · 1 Nov</div>
+  <h2>Online scores &amp; a testing site</h2>
+  <ul>
+    <li>Local high scores are uploaded to an online server; the HUD and a start board show local and global best</li>
+    <li>GitHub Pages workflow deploys <code>main</code> to the site and <code>testing</code> to <code>/testing/</code></li>
+    <li>Everything except the production host gets a red TESTING banner and favicon; scores are only posted from production</li>
+    <li>Touch polish: centred two-row button labels, overview forced in portrait, pad ignored behind overlays</li>
+    <li>Backing box behind the fork level gauge</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="date">Days 12–13 · 1 – 2 Nov</div>
+  <h2>Wonky stacks &amp; sturdier levels</h2>
+  <div class="row">
+  <ul>
+    <li>Fresh stacks start slightly crooked; crooked zone stacks get a popup and a sad wah-wah (an off-key success chime)</li>
+    <li>Level generator rejects levels with unreachable stacks or zones and retries the same level</li>
+    <li>Saves validate the full snapshot and persist the game clock</li>
+    <li>Dead-code audit; shared drawing for extruded box and forklift sides</li>
+    <li>43 humorous slogan posters for the walls (next slides)</li>
+  </ul>
+  <figure><img src="shots/11-cabin-wonky-stack.png" alt=""><figcaption>A wonky stack in the cabin view (HEAD)</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="date">Wall posters · 1 / 3</div>
+  <h2>Slogans on the factory walls</h2>
+  <div class="posters" data-from="0" data-to="15"></div>
+</section>
+
+<section class="slide">
+  <div class="date">Wall posters · 2 / 3</div>
+  <h2>Slogans on the factory walls</h2>
+  <div class="posters" data-from="15" data-to="29"></div>
+</section>
+
+<section class="slide">
+  <div class="date">Wall posters · 3 / 3</div>
+  <h2>Slogans on the factory walls</h2>
+  <div class="posters" data-from="29" data-to="43"></div>
+</section>
+
+<section class="slide">
   <h2>Where it ended up</h2>
   <div style="display:flex;gap:2vw;align-items:flex-start;justify-content:center">
     <figure style="margin:0;flex:1"><img src="shots/06-overview-latest.png" alt=""><figcaption style="text-align:center">Overview: tutorial, fork gauge, yellow drop-off outlines</figcaption></figure>
-    <figure style="margin:0;flex:1"><img src="shots/07-cabin-latest.png" alt=""><figcaption style="text-align:center">Cabin view: mirrors, ceiling lights, decals and zone labels</figcaption></figure>
+    <figure style="margin:0;flex:1"><img src="shots/07-cabin-latest.png" alt=""><figcaption style="text-align:center">Cabin view: look windows, ceiling lights, decals and zone labels</figcaption></figure>
   </div>
 </section>
 
@@ -221,11 +295,11 @@
     <li><b>23 Oct</b> – hard mode, stacking physics, room levels, menus</li>
     <li><b>24 Oct</b> – handling, decals, factory look, debug tools</li>
     <li><b>25 Oct</b> – reversing aids, music, saves, touch controls, PWA</li>
-    <li><b>26 – 27 Oct</b> – landscape layout, brake removed, touch fixes</li>
-    <li><b>28 Oct</b> – animated splash, new soundtrack, menu cleanup</li>
+    <li><b>26 – 28 Oct</b> – landscape layout, animated splash, new soundtrack, cabin view rebuilt</li>
+    <li><b>29 Oct – 2 Nov</b> – look windows, online scores, wonky stacks, 43 slogan posters</li>
   </ul>
-  <div class="bar"><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div></div>
-  <div class="sub" style="margin-top:1vh;font-size:1.3vw">21 · 22 · 23 · 24 · 25 · 26 · 27 · 28 Oct (no commits on the 22nd) · biggest day was day 1, then steady polish</div>
+  <div class="bar"><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div></div>
+  <div class="sub" style="margin-top:1vh;font-size:1.3vw">21 Oct – 2 Nov, 13 days (no commits on the 22nd and 30th) · biggest day was day 1, then steady polish</div>
 </section>
 
 <section class="slide">
@@ -235,7 +309,7 @@
 
 <div id="nav"></div>
 <script>
-  const perDay = {"21 Oct":[851,243,23,147,109,14,24,65,40,57,56,1,54,2,4,121,33,23,35,28,35,63,78,169,141,2,86,50,87,10,7,6,12,104,118,83,18,43,21,14,7,39,15,3,0,41,13,44,2,18,40,17,106,19,19,52,78,14,4,7,0,11,0,52,11,13,12,4,25,6,29,55,7,0,39,8,2,4,2],"22 Oct":[],"23 Oct":[100,46,48,35,30,29,53,0,86,0,67,176,2,0,105,35,84,21,16,29,11,22,399,55,25,35,88,17],"24 Oct":[50,0,19,0,51,0,16,0,250,21,129,39,29,75,2,0,19,25,31,2,10,74,44,90,36,23],"25 Oct":[20,26,107,6,14,20,202,62,41,42,156,194,96,28,0,132,7,4,18,36,3,96,41,4,58,187,28,28,0,3,59,8,126,4,50,10,7,0,43,70,72,6,6,9,152,8,2,57,4],"26 Oct":[33,0,48,6,21,100,1,0],"27 Oct":[8,8,0,11,0,20,0,2,2,14,0,43,2,2,6,6,4,27,33,11,25,15,41,9],"28 Oct":[9,0,12,0,10,8,23,112,8,25,1,62,16,53,18,17,31,20,2,11,11]};
+  const perDay = {"21 Oct":[851,243,23,147,109,14,24,65,40,57,56,1,54,2,4,121,33,23,35,28,35,63,78,169,141,2,86,50,87,10,7,6,12,104,118,83,18,43,21,14,7,39,15,3,0,41,13,44,2,18,40,17,106,19,19,52,78,14,4,7,0,11,0,52,11,13,12,4,25,6,29,55,7,0,39,8,2,4,2],"22 Oct":[],"23 Oct":[100,46,48,35,30,29,53,0,86,0,67,176,2,0,105,35,84,21,16,29,11,22,399,55,25,35,88,17],"24 Oct":[50,0,19,0,51,0,16,0,250,21,129,39,29,75,2,0,19,25,31,2,10,74,44,90,36,23],"25 Oct":[20,26,107,6,14,20,202,62,41,42,156,194,96,28,0,132,7,4,18,36,3,96,41,4,58,187,28,28,0,3,59,8,126,4,50,10,7,0,43,70,72,6,6,9,152,8,2,57,4],"26 Oct":[33,0,48,6,21,100,1,0],"27 Oct":[8,8,0,11,0,20,0,2,2,14,0,43,2,2,6,6,4,27,33,11,25,15,41,9],"28 Oct":[9,0,12,0,10,8,23,112,8,25,1,62,16,53,18,17,31,20,2,11,11,147,0,10,4,2,0,1,1,1,1161],"29 Oct":[9,9,10,2,46,37,2,6,27,24,127,18,24,28,1,1,155,0,2,86,35,2,0,13,15,4,72,10,0,3],"30 Oct":[],"31 Oct":[32,0,0,19,3,5],"1 Nov":[83,77,61,12,0,26,0,0,10,0,5,0,6,2,0,0,18,72,0,7,7,0,14,24,0,91,2,10,2,4,20,0,4,0],"2 Nov":[15,0,40,0,64,18,0,30,0,0,12,0,58,10,25,66]};
   const chart = document.getElementById('chart');
   for (const [day, commits] of Object.entries(perDay)) {
     const total = commits.reduce((a, b) => a + b, 0);
@@ -252,6 +326,51 @@
     }
     chart.appendChild(col);
   }
+  // Wall posters: copy of FONT and SLOGANS from js/pov/face.js (bg, text colour Y/K/W, lines joined by |), drawn like the cabin view does.
+  const FONT = {"A":"010101111101101","B":"110101110101110","C":"011100100100011","D":"110101101101110","E":"111100110100111","F":"111100110100100","G":"011100101101011","H":"101101111101101","I":"111010010010111","J":"001001001101010","K":"101101110101101","L":"100100100100111","M":"101111111101101","N":"110101101101101","O":"010101101101010","P":"110101110100100","Q":"010101101110011","R":"110101110101101","S":"011100010001110","T":"111010010010010","U":"101101101101111","V":"101101101101010","W":"101101111111101","X":"101101010101101","Y":"101101010010010","Z":"111001010100111","!":"010010010000010","-":"000000111000000"};
+  const INK = { Y: '#f4c414', K: '#1a1a1a', W: '#eeeeee' };
+  const SLOGANS = [
+    ["#1565c0","W","FORKLIFT|FRENZY IS|GREAT!"], ["#2e7d32","W","BEST JOB|EVER!"], ["#f4c414","K","SAFETY|FIRST"],
+    ["#6a1b9a","W","WE LOVE|FORKLIFT|FRENZY"], ["#c62828","W","NO BOX|LEFT|BEHIND"], ["#ef6c00","K","STACK IT|LIKE YOU|MEAN IT"],
+    ["#00695c","W","WORK|HARD|LIFT HIGH"], ["#263238","Y","HAPPY|FORKS|HAPPY LIFE"], ["#c62828","W","THIS WALL|IS NOT A|PARKING|SPOT"],
+    ["#1565c0","Y","HONK IF|YOU LOVE|PALLETS"], ["#f4c414","K","BOXES|HAVE|FEELINGS|TOO"], ["#4e342e","W","COFFEE|NOW|LIFT LATER"],
+    ["#2e7d32","Y","REVERSE|BEEP|IS MY|MUSIC"], ["#ad1457","W","FORK YEAH!"], ["#37474f","W","WALLS ARE|NOT SOFT|WE CHECKED"],
+    ["#ef6c00","W","KEEP CALM|AND|FORK ON"], ["#6a1b9a","Y","MY OTHER|CAR IS|A FORKLIFT"], ["#00838f","W","TINES ARE|FOR BOXES|NOT FOR|PIZZA"],
+    ["#b71c1c","Y","I CAME|I SAW|I STACKED"], ["#1b5e20","W","TO ERR IS|HUMAN|TO REVERSE|FORKLIFT"], ["#f4c414","K","CAUTION|CONTAINS|SMALL|PUZZLES"],
+    ["#283593","W","LIFT WITH|YOUR FORKS|NOT YOUR|BACK"], ["#e65100","K","NEVER|GIVE UP|NEVER|SURRENDER|A PALLET"], ["#4a148c","Y","KEEP|CALM|AND|STACK ON"],
+    ["#00695c","Y","EAT SLEEP|LIFT|REPEAT"], ["#263238","W","BOX NOW|PANIC|LATER"], ["#c62828","Y","DONT|TOUCH|THE WALL|AGAIN"],
+    ["#0277bd","W","FORKS|UP|WORRIES|DOWN"], ["#ff8f00","K","THIS WAY|UP|MOSTLY"], ["#6d4c41","W","WORKING|HARD OR|HARDLY|WORKING"],
+    ["#2e7d32","W","PARK|LIKE|YOU MEAN|IT"], ["#ad1457","Y","BOXES|SEE ALL|BOXES|KNOW ALL"], ["#f4c414","K","SPEED|LIMIT|ENOUGH"],
+    ["#37474f","Y","ONE SMALL|STEP FOR|A FORK|ONE GIANT|LIFT"], ["#d84315","W","TOO MANY|BOXES|NOT ENOUGH|ZONES"], ["#1565c0","Y","FORK|AROUND|AND FIND|OUT"],
+    ["#558b2f","K","HAVE A|NICE|PALLET"], ["#212121","Y","BEEP|BEEP|BEEP|BEEP"], ["#c62828","W","WARNING|FORKLIFT|MAY BE|LOST"],
+    ["#00acc1","K","WHO LET|THE BOXES|OUT"], ["#fbc02d","K","TEAM|WORK|MAKES THE|DREAM|WORK"], ["#3949ab","W","I BRAKE|FOR BOXES|MOSTLY"],
+    ["#2e7d32","Y","LIFE IS|SHORT|LIFT|FAST"]
+  ];
+  function drawPoster([bg, ink, text]) {
+    const lines = text.split('|'), K = 250;
+    const cols = Math.max(...lines.map(l => l.length)) * 4 - 1;
+    const px = Math.min(0.045, 0.74 / cols), h = lines.length * 6 * px + 0.1;
+    const c = document.createElement('canvas');
+    c.width = Math.round(0.8 * K); c.height = Math.round(h * K);
+    const x = c.getContext('2d');
+    x.fillStyle = '#2b2e33'; x.fillRect(0, 0, c.width, c.height);
+    x.fillStyle = bg; x.fillRect(0.02 * K, 0.02 * K, c.width - 0.04 * K, c.height - 0.04 * K);
+    x.fillStyle = INK[ink];
+    lines.forEach((line, li) => {
+      const x0 = 0.4 - (line.length * 4 - 1) * px / 2, y0 = 0.07 + li * 6 * px;
+      [...line].forEach((ch, ci) => {
+        const bits = FONT[ch];
+        if (!bits) return;
+        for (let i = 0; i < 15; i++) {
+          if (bits[i] === '1') x.fillRect((x0 + (ci * 4 + i % 3) * px) * K, (y0 + Math.floor(i / 3) * px) * K, px * K + 0.5, px * K + 0.5);
+        }
+      });
+    });
+    return c;
+  }
+  document.querySelectorAll('.posters').forEach(el => {
+    for (const s of SLOGANS.slice(+el.dataset.from, +el.dataset.to)) el.appendChild(drawPoster(s));
+  });
   const slides = [...document.querySelectorAll('.slide')];
   let i = Math.min(slides.length - 1, Math.max(0, parseInt(location.hash.slice(1), 10) - 1 || 0));
   function show() {
