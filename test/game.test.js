@@ -886,3 +886,14 @@ console.log('all tests passed');
   assert.ok(isReachable({ ...room, walls: door, zones: [{ x: 17, y: 6, color: 0, count: 1 }] }), 'zone behind a door reachable');
   console.log('reachability ok');
 }
+
+{
+  for (let seed = -5; seed < 40; seed++) {
+    for (const n of [1, 3, 8, 15, 30, 60]) {
+      const l = generateLevel(n, seed);
+      assert.equal(l.n, n, `level ${n} seed ${seed} keeps its number`);
+      assert.ok(isReachable(l), `level ${n} seed ${seed} reachable`);
+    }
+  }
+  console.log('seed sweep ok');
+}

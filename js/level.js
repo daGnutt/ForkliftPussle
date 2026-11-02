@@ -280,9 +280,10 @@ export function parseSeed(text) {
 }
 
 export function generateLevel(n, seed = 0) {
-  for (let attempt = 0; attempt < 300; attempt++) {
+  // Keep varying the attempt number (deterministic) until a valid level of this very number turns up.
+  for (let attempt = 0; attempt < 5000; attempt++) {
     const lvl = tryGenerate(n, attempt, seed);
     if (lvl) return lvl;
   }
-  return tryGenerate(1, 0, seed);
+  throw new Error(`No valid layout found for level ${n} (seed ${seed})`);
 }
