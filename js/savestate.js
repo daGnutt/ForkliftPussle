@@ -1,6 +1,6 @@
 import { newGame } from './game.js';
 
-export const SAVE_VERSION = 1;
+const SAVE_VERSION = 1;
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const num = (v) => typeof v === 'number' && Number.isFinite(v);

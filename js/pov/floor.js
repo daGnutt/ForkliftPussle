@@ -8,7 +8,6 @@ import { project, offscreen, fillPoly, floorPoly, strokeLines, toCam, WALL_H } f
 
 // Everything painted before the 3D faces: ceiling, floor grid, decals, zone/parking marks, reversing light.
 
-const GRID_R = 40;
 const GRID_DECAL = 16; // floor decals are small; further away they only cost time
 const GRID_FAR = 28; // the tile grid fades into the distance shading anyway
 

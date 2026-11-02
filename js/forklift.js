@@ -28,7 +28,7 @@ const STEER_RATE = 2.0;
 const MAX_H = 5;
 const MIN_SPEED_FACTOR = 0.45;
 
-export function heightSpeedFactor(h) {
+function heightSpeedFactor(h) {
   return 1 - (1 - MIN_SPEED_FACTOR) * Math.max(0, Math.min(1, h / MAX_H));
 }
 
@@ -37,7 +37,7 @@ export function heightSpeedFactor(h) {
 // to a much shallower angle, like a real forklift's speed-sensitive steering.
 const MIN_STEER_SPEED_FACTOR = 0.4;
 
-export function steerSpeedFactor(speed) {
+function steerSpeedFactor(speed) {
   const s = Math.max(0, Math.min(1, Math.abs(speed) / MAX_FWD));
   return 1 - (1 - MIN_STEER_SPEED_FACTOR) * s;
 }

@@ -11,7 +11,7 @@ import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam
 // Adds the faces of a rectangular prism (centre x,y, heading a, half sizes hl,hw, heights z0..z1).
 // split: max segment length; long faces are cut up so far-to-near sorting stays right (walls, tines).
 // wall = true: colourless, checker-tinted tiles.
-export function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, split = wall ? 1 : 0, deco = 0, skipTop = false, skipBottom = false) {
+function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, split = wall ? 1 : 0, deco = 0, skipTop = false, skipBottom = false) {
   const c = Math.cos(a), s = Math.sin(a);
   const p = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([u, v]) => [x + u * c - v * s, y + u * s + v * c]);
   if (Math.hypot(x - cam.x, y - cam.y) - Math.hypot(hl, hw) > MAX_DIST || offscreen(cam, p)) return;
