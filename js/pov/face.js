@@ -83,6 +83,16 @@ const SLOGANS = [
   { bg: '#ef6c00', fg: BLACK, lines: ['STACK IT', 'LIKE YOU', 'MEAN IT'] },
   { bg: '#00695c', fg: WHITE, lines: ['WORK', 'HARD', 'LIFT HIGH'] },
   { bg: '#263238', fg: YEL, lines: ['HAPPY', 'FORKS', 'HAPPY LIFE'] },
+  { bg: '#c62828', fg: WHITE, lines: ['THIS WALL', 'IS NOT A', 'PARKING', 'SPOT'] },
+  { bg: '#1565c0', fg: YEL, lines: ['HONK IF', 'YOU LOVE', 'PALLETS'] },
+  { bg: YEL, fg: BLACK, lines: ['BOXES', 'HAVE', 'FEELINGS', 'TOO'] },
+  { bg: '#4e342e', fg: WHITE, lines: ['COFFEE', 'NOW', 'LIFT LATER'] },
+  { bg: '#2e7d32', fg: YEL, lines: ['REVERSE', 'BEEP', 'IS MY', 'MUSIC'] },
+  { bg: '#ad1457', fg: WHITE, lines: ['FORK YEAH!'] },
+  { bg: '#37474f', fg: WHITE, lines: ['WALLS ARE', 'NOT SOFT', 'WE CHECKED'] },
+  { bg: '#ef6c00', fg: WHITE, lines: ['KEEP CALM', 'AND', 'FORK ON'] },
+  { bg: '#6a1b9a', fg: YEL, lines: ['MY OTHER', 'CAR IS', 'A FORKLIFT'] },
+  { bg: '#00838f', fg: WHITE, lines: ['TINES ARE', 'FOR BOXES', 'NOT FOR', 'PIZZA'] },
 ];
 
 function poster({ box }, s) {
