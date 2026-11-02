@@ -57,8 +57,8 @@ function saveState() {
   localStorage.setItem('forklift-state', JSON.stringify(serializeGame(game, seedText)));
 }
 const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
-const wonkyNow = () => game.zones.filter((z) => zoneDone(game, z) && zoneWonky(game, z)).length;
-let doneZones = countDone();
+const doneSet = () => new Set(game.zones.filter((z) => zoneDone(game, z)));
+let doneZones = doneSet();
 let hitCount = 0;
 let bonkCount = 0;
 refreshBest();
@@ -79,7 +79,7 @@ function load(n) {
   level = Math.max(1, n);
   localStorage.setItem('forklift-level', String(level));
   game = newGame(level, seed, hard);
-  doneZones = countDone();
+  doneZones = doneSet();
   hitCount = game.hitCount;
   bonkCount = game.bonks;
   refreshBest();
@@ -383,7 +383,7 @@ document.getElementById('stateImport').addEventListener('click', async () => {
   hardOpt.checked = hard;
   game = g;
   recorded = g.status === 'won';
-  doneZones = countDone();
+  doneZones = doneSet();
   hitCount = g.hitCount;
   bonkCount = g.bonks;
   refreshBest();
@@ -428,8 +428,9 @@ function frame(now) {
   checkRecord();
   const st = input.state();
   setEngine(game.fl.speed, st.up || st.down);
-  const done = countDone();
-  if (done > doneZones) (wonkyNow() ? playWonky : playSuccess)();
+  const done = doneSet();
+  const fresh = [...done].filter((z) => !doneZones.has(z));
+  if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();
   doneZones = done;
   if (game.hitCount !== hitCount) { if (game.hitCount > hitCount) playBreak(); hitCount = game.hitCount; }
   setScrape(game.scrape);
