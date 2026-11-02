@@ -9,7 +9,7 @@ const arr = (a, n, ok) => Array.isArray(a) && a.length === n && a.every(ok);
 const okRot = num;
 const okOff = (o) => !!o && num(o.x) && num(o.y);
 const okPen = (p) => !!p && num(p.crash) && num(p.sq);
-const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'H', 'hf', 'status', 'time', 'started'];
+const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'H', 'hf', 'status', 'time', 'started', 'clock'];
 
 // Plain-JSON snapshot of a level in progress; the static layout is regenerated from (level, seed, hard).
 export function serializeGame(g, seedText = '') {
@@ -37,6 +37,8 @@ export function deserializeGame(data) {
   Object.assign(g, clone(s));
   if (!num(g.hf)) g.hf = g.H;
   if (!num(g.time)) g.time = 0;
+  // Saves from before `clock` was stored: start it past every stack's last-hit time so cooldowns have expired.
+  if (!num(g.clock)) g.clock = Math.max(0, ...g.stacks.map((st) => st.hitAt ?? 0)) + 1;
   if (!num(g.bonks)) g.bonks = 0;
   g.started = !!g.started;
   return g;

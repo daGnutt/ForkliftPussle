@@ -827,6 +827,10 @@ console.log('all tests passed');
   assert.ok(enc.length < JSON.stringify(snap).length / 2, 'compressed');
   assert.deepEqual(await decodeState(enc), snap);
   assert.deepEqual(await decodeState(JSON.stringify(snap)), snap);
+  const hitG = newGame(3);
+  hitG.clock = 300; hitG.stacks[0].hitAt = 299.9;
+  const hitR = deserializeGame(JSON.parse(JSON.stringify(serializeGame(hitG))));
+  assert.ok(hitR.clock - hitR.stacks[0].hitAt >= 0, 'crash cooldown does not outlive a reload');
   console.log('savestate ok');
 }
 
