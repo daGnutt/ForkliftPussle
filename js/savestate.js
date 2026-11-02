@@ -1,9 +1,14 @@
 import { newGame } from './game.js';
+import { MAX_H, MAX_LAYERS } from './forklift.js';
 
 const SAVE_VERSION = 1;
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const num = (v) => typeof v === 'number' && Number.isFinite(v);
+const arr = (a, n, ok) => Array.isArray(a) && a.length === n && a.every(ok);
+const okRot = num;
+const okOff = (o) => !!o && num(o.x) && num(o.y);
+const okPen = (p) => !!p && num(p.crash) && num(p.sq);
 const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'H', 'hf', 'status', 'time', 'started'];
 
 // Plain-JSON snapshot of a level in progress; the static layout is regenerated from (level, seed, hard).
@@ -20,9 +25,12 @@ export function deserializeGame(data) {
   if (!Number.isInteger(level) || level < 1 || !num(seed)) throw new Error('Bad level or seed');
   const g = newGame(level, seed, !!hard);
   const okFl = s.fl && ['x', 'y', 'a', 'speed', 'steer'].every((k) => num(s.fl[k]));
-  const okStacks = Array.isArray(s.stacks) && s.stacks.every((st) => num(st.x) && num(st.y) && Array.isArray(st.layers) && st.layers.length > 0 && st.layers.length <= 5 && st.layers.every(Number.isInteger));
-  const okCarried = s.carried === null || (Array.isArray(s.carried) && s.carried.length > 0 && s.carried.every(Number.isInteger));
-  if (!okFl || !okStacks || !okCarried || !Number.isInteger(s.H) || s.H < 0 || s.H > 5) throw new Error('Corrupt state');
+  const opt = (a, n, ok) => a === undefined || arr(a, n, ok); // stacks' rots/offs/pen are rebuilt by ensure() when absent
+  const okStacks = Array.isArray(s.stacks) && s.stacks.every((st) => !!st && num(st.x) && num(st.y) && Array.isArray(st.layers) && st.layers.length > 0 && st.layers.length <= MAX_LAYERS && st.layers.every(Number.isInteger)
+    && opt(st.rots, st.layers.length, okRot) && opt(st.offs, st.layers.length, okOff) && opt(st.pen, st.layers.length, okPen));
+  const okCarried = s.carried === null || (Array.isArray(s.carried) && s.carried.length > 0 && s.carried.length <= MAX_LAYERS && s.carried.every(Number.isInteger)
+    && arr(s.carriedRots, s.carried.length, okRot) && arr(s.carriedOffs, s.carried.length, okOff) && arr(s.carriedPen, s.carried.length, okPen));
+  if (!okFl || !okStacks || !okCarried || !Number.isInteger(s.H) || s.H < 0 || s.H > MAX_H) throw new Error('Corrupt state');
   if (s.status !== 'play' && s.status !== 'won') throw new Error('Corrupt state');
   const boxes = (stacks, carried) => stacks.reduce((n, st) => n + st.layers.length, 0) + (carried ? carried.length : 0);
   if (boxes(s.stacks, s.carried) !== boxes(g.stacks, null)) throw new Error('State does not match level');

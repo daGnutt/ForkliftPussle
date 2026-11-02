@@ -25,7 +25,8 @@ const STEER_RATE = 2.0;
 
 // Raised forks make the forklift top-heavy: top speed and acceleration taper
 // off linearly with fork level H (0..MAX_H), down to MIN_SPEED_FACTOR at full height.
-const MAX_H = 5;
+export const MAX_H = 5;
+export const MAX_LAYERS = 5;
 const MIN_SPEED_FACTOR = 0.45;
 
 function heightSpeedFactor(h) {
