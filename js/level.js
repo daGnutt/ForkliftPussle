@@ -1,7 +1,6 @@
 import { pointRectDist } from './geom.js';
 
 export const COLORS = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa'];
-export const COLOR_NAMES = ['red', 'blue', 'green', 'yellow', 'purple'];
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -14,7 +13,7 @@ function mulberry32(seed) {
   };
 }
 
-export function levelParams(n) {
+function levelParams(n) {
   const w = Math.min(44, 14 + Math.floor(n * 1.4));
   const h = Math.max(11, Math.round(w * 0.7));
   return {

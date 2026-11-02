@@ -59,8 +59,8 @@ function saveState() {
 const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
 const doneSet = () => new Set(game.zones.filter((z) => zoneDone(game, z)));
 let doneZones = doneSet();
-let hitCount = 0;
-let bonkCount = 0;
+let hitCount = game.hitCount;
+let bonkCount = game.bonks;
 refreshBest();
 let recordOpen = false, recorded = false;
 const recordEl = document.getElementById('record');
@@ -97,7 +97,7 @@ function toggleFullscreen() {
   else document.documentElement.requestFullscreen?.().catch(() => {});
 }
 
-function handlersNext() { if (game.status === 'won') load(level + 1); }
+function nextLevel() { if (game.status === 'won') load(level + 1); }
 
 const input = createInput({
   anyKey: startAudio,
@@ -120,7 +120,7 @@ const input = createInput({
     else if (game.H !== h) playFork(false);
   },
   restart: () => load(level),
-  next: () => handlersNext(),
+  next: () => nextLevel(),
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   blocked: () => splashOn || recordOpen || !!view.menuOpen,
@@ -132,7 +132,7 @@ if (isTouch) canvas.addEventListener('pointerdown', (e) => {
   if (splashOn || recordOpen || view.menuOpen) return;
   const r = canvas.getBoundingClientRect(), h = view.miniHit, x = e.clientX - r.left, y = e.clientY - r.top;
   if (h && x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) view.povBig = !view.povBig;
-  else handlersNext();
+  else nextLevel();
 });
 
 const pending = {};

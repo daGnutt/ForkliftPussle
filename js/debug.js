@@ -32,7 +32,7 @@ export function createDebug() {
       const ft = avg(frames);
       const zonesDone = g.zones.filter((z) => zoneDone(g, z));
       const placed = zonesDone.reduce((s, z) => s + z.count, 0);
-      const total = g.stacks.reduce((s, st) => s + st.layers.length, 0) + (g.carried ? g.carried.reduce((s, l) => s + l.length, 0) : 0);
+      const total = g.stacks.reduce((s, st) => s + st.layers.length, 0) + (g.carried ? g.carried.length : 0);
       const zoneBoxes = g.zones.reduce((s, z) => s + z.count, 0);
       const mem = performance.memory ? `${(performance.memory.usedJSHeapSize / 1048576).toFixed(1)} MB` : 'n/a';
       return [
