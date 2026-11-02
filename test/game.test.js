@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { generateLevel, parseSeed } from '../js/level.js';
+import { generateLevel, parseSeed, isReachable } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
@@ -874,4 +874,26 @@ console.log('all tests passed');
   assert.equal(drop(8, Math.PI / 4).hits.filter((h) => h.wonky).length, 0, 'off a drop point');
   assert.ok(!zoneWonky(drop(12, 0), { x: 12, y: 5, color: 0, count: 2 }));
   console.log('wonky popup ok');
+}
+
+{
+  for (let n = 1; n <= 40; n++) assert.ok(isReachable(generateLevel(n)), `level ${n} reachable`);
+  const room = { w: 20, h: 12, start: { x: 3, y: 6, a: 0 }, stacks: [{ x: 6, y: 6, layers: [0] }], zones: [{ x: 8, y: 6, color: 0, count: 1 }] };
+  assert.ok(isReachable({ ...room, walls: [] }), 'open room reachable');
+  const wall = { x: 12, y: 0, w: 1, h: 12 };
+  assert.ok(!isReachable({ ...room, walls: [wall], zones: [{ x: 17, y: 6, color: 0, count: 1 }] }), 'walled-off zone rejected');
+  const door = [{ x: 12, y: 0, w: 1, h: 4 }, { x: 12, y: 7.6, w: 1, h: 4.4 }];
+  assert.ok(isReachable({ ...room, walls: door, zones: [{ x: 17, y: 6, color: 0, count: 1 }] }), 'zone behind a door reachable');
+  console.log('reachability ok');
+}
+
+{
+  for (let seed = -5; seed < 40; seed++) {
+    for (const n of [1, 3, 8, 15, 30, 60]) {
+      const l = generateLevel(n, seed);
+      assert.equal(l.n, n, `level ${n} seed ${seed} keeps its number`);
+      assert.ok(isReachable(l), `level ${n} seed ${seed} reachable`);
+    }
+  }
+  console.log('seed sweep ok');
 }

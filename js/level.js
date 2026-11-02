@@ -111,6 +111,50 @@ function buildRooms(rnd, w, h, count, start) {
   return { walls, doors: gaps };
 }
 
+// Flood fill from the start over a grid where cells within CLEAR of a wall, the charger or the map edge are blocked.
+// True when every stack and zone has a reachable cell within REACH. Position reachability only: ignores turning radius.
+const GRID = 0.25, CLEAR = 0.8, REACH = 2.0;
+
+export function isReachable(lvl) {
+  const { w, h, walls, start, stacks, zones } = lvl;
+  const cols = Math.ceil(w / GRID), rows = Math.ceil(h / GRID);
+  const blocked = new Uint8Array(cols * rows);
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const x = (i + 0.5) * GRID, y = (j + 0.5) * GRID;
+      if (x < CLEAR || y < CLEAR || x > w - CLEAR || y > h - CLEAR ||
+          walls.some((r) => pointRectDist(x, y, r) < CLEAR)) blocked[j * cols + i] = 1;
+    }
+  }
+  const si = Math.min(cols - 1, Math.floor(start.x / GRID)), sj = Math.min(rows - 1, Math.floor(start.y / GRID));
+  const seen = new Uint8Array(cols * rows);
+  const queue = [sj * cols + si];
+  seen[queue[0]] = 1;
+  for (let q = 0; q < queue.length; q++) {
+    const c = queue[q], i = c % cols, j = (c - i) / cols;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const ni = i + di, nj = j + dj;
+      if (ni < 0 || nj < 0 || ni >= cols || nj >= rows) continue;
+      const nc = nj * cols + ni;
+      if (seen[nc] || blocked[nc]) continue;
+      seen[nc] = 1;
+      queue.push(nc);
+    }
+  }
+  const near = (p) => {
+    const r = Math.ceil(REACH / GRID);
+    const ci = Math.floor(p.x / GRID), cj = Math.floor(p.y / GRID);
+    for (let j = cj - r; j <= cj + r; j++) {
+      for (let i = ci - r; i <= ci + r; i++) {
+        if (i < 0 || j < 0 || i >= cols || j >= rows || !seen[j * cols + i]) continue;
+        if (Math.hypot((i + 0.5) * GRID - p.x, (j + 0.5) * GRID - p.y) <= REACH) return true;
+      }
+    }
+    return false;
+  };
+  return stacks.every(near) && zones.every(near);
+}
+
 function tryGenerate(n, attempt, seed = 0) {
   const rnd = mulberry32(n * 7919 + attempt * 104729 + 17 + Math.imul(seed, 2654435761));
   const { w, h, maxH, colors, total, dividers } = levelParams(n);
@@ -222,7 +266,8 @@ function tryGenerate(n, attempt, seed = 0) {
     });
   }
 
-  return { n, w, h, walls, doors, zones, areas, bays, stacks, start, charger };
+  const lvl = { n, w, h, walls, doors, zones, areas, bays, stacks, start, charger };
+  return isReachable(lvl) ? lvl : null;
 }
 
 // Integer seeds are used as-is; any other text is hashed. Empty/0 = the default layouts.
@@ -235,9 +280,10 @@ export function parseSeed(text) {
 }
 
 export function generateLevel(n, seed = 0) {
-  for (let attempt = 0; attempt < 300; attempt++) {
+  // Keep varying the attempt number (deterministic) until a valid level of this very number turns up.
+  for (let attempt = 0; attempt < 5000; attempt++) {
     const lvl = tryGenerate(n, attempt, seed);
     if (lvl) return lvl;
   }
-  return tryGenerate(1, 0, seed);
+  throw new Error(`No valid layout found for level ${n} (seed ${seed})`);
 }
