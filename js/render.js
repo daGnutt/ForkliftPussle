@@ -31,6 +31,28 @@ function rotRect(ctx, cx, cy, a, fn) {
   ctx.restore();
 }
 
+// Draws the visible side faces of an extruded rectangle in local coordinates. edges: [nx, ny, x1, y1, x2, y2];
+// (ex, ey) is the floor-ward extrusion and `ang` the local frame's world rotation (for shading).
+function extrudeSides(ctx, edges, ex, ey, ang, col, stroke, lw) {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  ctx.lineJoin = 'round';
+  for (const [nx, ny, x1, y1, x2, y2] of edges) {
+    if (nx * ex + ny * ey <= 0) continue;
+    const wx = nx * ca - ny * sa, wy = nx * sa + ny * ca; // world normal
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.lineTo(x2 + ex, y2 + ey); ctx.lineTo(x1 + ex, y1 + ey);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = `rgba(0,0,0,${0.5 - 0.25 * (wx * 0.6 - wy * 0.8)})`;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lw;
+    ctx.stroke();
+  }
+}
+
 const PX = 0.06, PY = -0.1; // screen shift per unit of height
 
 // Draws a stack whose bottom box is at height z0 above the floor: top box
@@ -57,23 +79,7 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
       // extrusion towards the floor, expressed in the box's local frame
       const ex = -PX * ca - PY * sa, ey = PX * sa - PY * ca;
       const edges = [[0, -1, -h, -h, h, -h], [1, 0, h, -h, h, h], [0, 1, h, h, -h, h], [-1, 0, -h, h, -h, -h]];
-      ctx.lineJoin = 'round';
-      for (const [nx, ny, x1, y1, x2, y2] of edges) {
-        if (nx * ex + ny * ey <= 0) continue;
-        const wx = nx * ca - ny * sa, wy = nx * sa + ny * ca; // world normal
-        const shade = 0.5 - 0.25 * (wx * 0.6 - wy * 0.8);
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
-        ctx.lineTo(x2 + ex, y2 + ey); ctx.lineTo(x1 + ex, y1 + ey);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = `rgba(0,0,0,${shade})`;
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.65)';
-        ctx.lineWidth = 0.04;
-        ctx.stroke();
-      }
+      extrudeSides(ctx, edges, ex, ey, a, col, 'rgba(0,0,0,0.65)', 0.04);
       ctx.fillStyle = col;
       ctx.fillRect(-h, -h, size, size);
       ctx.fillStyle = shadeGradient(ctx, -h, -h, h, h, 0.35, 0.18);
@@ -128,23 +134,7 @@ function block(ctx, f, x0, y0, x1, y1, z0, z1, col, rot = 0) {
   const cr = Math.cos(rot), sr = Math.sin(rot);
   const lx = ex * cr + ey * sr, ly = -ex * sr + ey * cr;
   const edges = [[0, -1, x0, y0, x1, y0], [1, 0, x1, y0, x1, y1], [0, 1, x1, y1, x0, y1], [-1, 0, x0, y1, x0, y0]];
-  ctx.lineJoin = 'round';
-  for (const [nx, ny, ax, ay, bx, by] of edges) {
-    if (nx * lx + ny * ly <= 0) continue;
-    const wx = nx * Math.cos(f.a + rot) - ny * Math.sin(f.a + rot);
-    const wy = nx * Math.sin(f.a + rot) + ny * Math.cos(f.a + rot);
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
-    ctx.lineTo(bx + lx, by + ly); ctx.lineTo(ax + lx, ay + ly);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = `rgba(0,0,0,${0.5 - 0.25 * (wx * 0.6 - wy * 0.8)})`;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-    ctx.lineWidth = 0.025;
-    ctx.stroke();
-  }
+  extrudeSides(ctx, edges, lx, ly, f.a + rot, col, 'rgba(0,0,0,0.55)', 0.025);
   ctx.fillStyle = col;
   ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
   ctx.fillStyle = shadeGradient(ctx, x0, y0, x1, y1, 0.3, 0.15);
