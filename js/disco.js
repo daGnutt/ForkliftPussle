@@ -1,23 +1,39 @@
 import { theme } from './theme.js';
+import { FL, toWorld } from './forklift.js';
 import { toCam, project, fillPoly, WALL_H, MAX_DIST } from './pov/camera.js';
 
-// Dark-mode disco: a glitter ball per cell of the level plus coloured light spots orbiting it on the floor.
+// Dark-mode disco: randomly scattered glitter balls plus coloured light spots orbiting it on the floor.
 // Everything is a pure function of the game clock; shared by the overview (render.js) and the cabin view (pov.js).
 export const BALL_R = 0.7; // tiles
 export const BALL_DROP = 1.2; // ball centre below the ceiling (cabin view)
 export const SPOT_R = 2.6;
 const SPOTS = 3;
-const CELL = 12;
 
 export const discoOn = () => theme().disco === true;
 
-// Ball centres (cells of roughly CELL tiles, at least one, at most ~40).
+// Ball positions: randomly scattered (seeded by level and seed, cached per game), about one per 150 tiles, at least 2.
+const ballCache = new WeakMap();
 export function discoBalls(g) {
-  const cs = Math.max(CELL, Math.sqrt((g.w * g.h) / 40));
-  const nx = Math.max(1, Math.round(g.w / cs)), ny = Math.max(1, Math.round(g.h / cs));
-  const balls = [];
-  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) balls.push({ x: ((i + 0.5) * g.w) / nx, y: ((j + 0.5) * g.h) / ny, k: i * 7 + j * 13 });
+  let balls = ballCache.get(g);
+  if (balls) return balls;
+  let a = (Math.imul(g.level || 1, 2654435761) ^ Math.imul((g.seed || 0) + 1, 40503)) >>> 0;
+  const rnd = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const n = Math.max(2, Math.min(40, Math.round((g.w * g.h) / 150)));
+  balls = [];
+  for (let i = 0; i < n; i++) balls.push({ x: 1 + rnd() * (g.w - 2), y: 1 + rnd() * (g.h - 2), k: Math.floor(rnd() * 100), hide: false });
+  ballCache.set(g, balls);
   return balls;
+}
+
+// Light sources: every ball plus one riding on the forklift (no visible ball).
+export function discoSources(g) {
+  const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0);
+  return [...discoBalls(g), { x: c.x, y: c.y, k: 5, hide: true }];
 }
 
 export function discoSpots(ball, t) {
@@ -35,7 +51,7 @@ export function drawDiscoSpots(ctx, g, vis) {
   const t = g.clock || 0;
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  for (const b of discoBalls(g)) {
+  for (const b of discoSources(g)) {
     for (const s of discoSpots(b, t)) {
       if (vis && (s.x + SPOT_R < vis.x0 || s.x - SPOT_R > vis.x1 || s.y + SPOT_R < vis.y0 || s.y - SPOT_R > vis.y1)) continue;
       const gr = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, SPOT_R);
@@ -84,7 +100,7 @@ export function drawDiscoPov(ctx, g, cam, part) {
   if (part === 'floor') {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    for (const b of discoBalls(g)) {
+    for (const b of discoSources(g)) {
       for (const s of discoSpots(b, t)) {
         if (Math.hypot(s.x - cam.x, s.y - cam.y) > MAX_DIST / 2) continue;
         for (const [rr, a] of [[1, 0.18], [0.65, 0.22], [0.3, 0.3]]) {
