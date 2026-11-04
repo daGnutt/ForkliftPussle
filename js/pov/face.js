@@ -75,10 +75,10 @@ const FONT = {
 };
 
 const SLOGANS = [
-  { bg: '#1565c0', fg: WHITE, lines: ['FORKLIFT', 'FRENZY IS', 'GREAT!'] },
+  { bg: '#1565c0', fg: WHITE, lines: ['PALLET', 'POLKA IS', 'GREAT!'] },
   { bg: '#2e7d32', fg: WHITE, lines: ['BEST JOB', 'EVER!'] },
   { bg: YEL, fg: BLACK, lines: ['SAFETY', 'FIRST'] },
-  { bg: '#6a1b9a', fg: WHITE, lines: ['WE LOVE', 'FORKLIFT', 'FRENZY'] },
+  { bg: '#6a1b9a', fg: WHITE, lines: ['WE LOVE', 'PALLET', 'POLKA'] },
   { bg: RED, fg: WHITE, lines: ['NO BOX', 'LEFT', 'BEHIND'] },
   { bg: '#ef6c00', fg: BLACK, lines: ['STACK IT', 'LIKE YOU', 'MEAN IT'] },
   { bg: '#00695c', fg: WHITE, lines: ['WORK', 'HARD', 'LIFT HIGH'] },

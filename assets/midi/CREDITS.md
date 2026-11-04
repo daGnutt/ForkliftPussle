@@ -4,6 +4,7 @@ All files are Public Domain / CC0, except `lasso-lady.mid` which is CC-BY 4.0 (a
 
 | File | Track name | Source |
 |------|-----------|--------|
+| `happy-polka.mid` | Pallet Polka (default) | Aureolus_Omicron, "musicbox4_happy_polka" from [4 Music Box Tracks](https://opengameart.org/content/4-music-box-tracks), CC0 |
 | `lasso-lady.mid` | Lasso Lady Lifts | "Lasso Lady (cover)" composed by congusbongus, arranged by Haley Halcyon, [OpenGameArt `lasso-lady-cover`](https://opengameart.org/content/lasso-lady-cover), licensed [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/); original tune [Lasso Lady](https://opengameart.org/content/lasso-lady-seamless-loop) by congusbongus (CC0); MIDI used unmodified |
 | `fur-elise.mid` | Für Forklift | Beethoven, Für Elise WoO 59, Mutopia (`BeethovenLv/WoO59/fur_Elise_WoO59`) |
 | `rondo-alla-turca.mid` | Rondo alla Turbo | Mozart, Rondo alla Turca KV 331, Mutopia (`MozartWA/KV331/KV331_3_RondoAllaTurca`) |
