@@ -1,5 +1,5 @@
 // Anything not served from the production host counts as testing; ?testing forces it for local checks.
-const PROD_HOST = 'forklift.gnutt.se';
+const PROD_HOST = 'palletpolka.gnutt.se';
 export const isTesting = () =>
   location.hostname !== PROD_HOST || new URLSearchParams(location.search).has('testing');
 
