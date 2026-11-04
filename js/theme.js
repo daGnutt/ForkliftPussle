@@ -3,4 +3,14 @@ const LIGHT = { bg: '#e8e6e1', floor: '#c9c4b8', floorFar: '#8a867c', grid: 'rgb
 const DARK = { disco: true, bg: '#1b1f23', floor: '#4a4a48', floorFar: '#27272a', grid: 'rgba(255,255,255,0.08)', povGrid: 'rgba(255,255,255,0.2)', skyTop: '#14171b', skyBottom: '#2b3038', tine: '#b0b0b0', tineEdge: '#333', wall: '#b8c0cc', wallEdge: '#f2f4f7' };
 const mq = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: dark)') : null;
 
-export function theme() { return mq && mq.matches ? DARK : LIGHT; }
+let mode = 'auto'; // 'auto' follows the OS; 'light' / 'dark' override it
+export const themeMode = () => mode;
+export function setThemeMode(m) {
+  mode = m === 'light' || m === 'dark' ? m : 'auto';
+  if (typeof document !== 'undefined') {
+    if (mode === 'auto') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = mode;
+  }
+}
+
+export function theme() { return mode === 'dark' || (mode === 'auto' && mq && mq.matches) ? DARK : LIGHT; }

@@ -7,6 +7,7 @@ import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
+import { themeMode, setThemeMode } from './theme.js';
 import { discoEnabled, setDiscoEnabled } from './disco.js';
 import { initTestingBanner } from './testing.js';
 import { startSplashAnimation } from './splash.js';
@@ -261,6 +262,8 @@ const muteOpt = document.getElementById('muteOpt');
 const menuLevel = document.getElementById('menuLevel');
 const decalOpt = document.getElementById('decalOpt');
 setDecalsEnabled(localStorage.getItem('forklift-decals-off') !== '1');
+const themeSel = document.getElementById('themeSel');
+setThemeMode(localStorage.getItem('forklift-theme'));
 const discoOpt = document.getElementById('discoOpt');
 setDiscoEnabled(localStorage.getItem('forklift-disco-off') !== '1');
 const menuHardOpt = document.getElementById('menuHardOpt');
@@ -280,6 +283,7 @@ function toggleMenu(open) {
     musicOpt.checked = !isMusicMuted();
     decalOpt.checked = decalsEnabled();
     discoOpt.checked = discoEnabled();
+    themeSel.value = themeMode();
     menuHardOpt.checked = hard;
     menuLevel.value = level;
     updateTutorialBtn();
@@ -295,6 +299,10 @@ engineOpt.addEventListener('change', () => setEngineOn(engineOpt.checked));
 decalOpt.addEventListener('change', () => {
   setDecalsEnabled(decalOpt.checked);
   localStorage.setItem('forklift-decals-off', decalOpt.checked ? '0' : '1');
+});
+themeSel.addEventListener('change', () => {
+  setThemeMode(themeSel.value);
+  localStorage.setItem('forklift-theme', themeMode());
 });
 discoOpt.addEventListener('change', () => {
   setDiscoEnabled(discoOpt.checked);
@@ -343,6 +351,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape' || (e.code === 'KeyP' && e.target !== menuLevel)) { e.preventDefault(); toggleMenu(false); return; }
   if (e.code === 'Enter' && e.target !== menuLevel) { e.preventDefault(); toggleMenu(false); return; }
   if (e.target === trackSel && e.code !== 'KeyT') return;
+  if (e.target === themeSel && e.code !== 'KeyC') return;
   if (e.target === menuLevel || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
   const toggle = (el) => { el.checked = !el.checked; el.dispatchEvent(new Event('change')); };
   const actions = {
@@ -351,6 +360,11 @@ window.addEventListener('keydown', (e) => {
     KeyM: () => toggle(musicOpt),
     KeyT: () => trackSel.focus(),
     KeyD: () => toggle(decalOpt),
+    KeyC: () => {
+      const o = [...themeSel.options].map((x) => x.value);
+      themeSel.value = o[(o.indexOf(themeSel.value) + 1) % o.length];
+      themeSel.dispatchEvent(new Event('change'));
+    },
     KeyI: () => toggle(discoOpt),
     KeyG: () => { menuLevel.focus(); menuLevel.select(); },
     KeyL: () => document.getElementById('menuLowest').click(),
