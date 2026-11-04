@@ -29,6 +29,33 @@ export function saveBest(store, seed, level, result) {
   write(store, all);
 }
 
+const TOP_KEY = 'forklift-top';
+const TOP_N = 10;
+const better = (a, b) => b.score - a.score || a.time - b.time;
+
+// Local top 10 for a level, best first; falls back to the single best saved before lists existed.
+export function getTop(store, seed, level) {
+  let all = {};
+  try { all = JSON.parse(store.getItem(TOP_KEY)) || {}; } catch { /* ignore */ }
+  const list = all[keyOf(seed, level)];
+  if (list) return list;
+  const best = getBest(store, seed, level);
+  return best ? [{ score: best.score, time: best.time, name: best.name }] : [];
+}
+
+// Adds a finished run to the level's top 10; returns false when it did not make the list.
+export function addTop(store, seed, level, result) {
+  const list = getTop(store, seed, level);
+  const entry = { score: result.score, time: Math.round(result.time), name: result.name };
+  const next = [...list, entry].sort(better).slice(0, TOP_N);
+  if (!next.includes(entry)) return false;
+  let all = {};
+  try { all = JSON.parse(store.getItem(TOP_KEY)) || {}; } catch { /* ignore */ }
+  all[keyOf(seed, level)] = next;
+  try { store.setItem(TOP_KEY, JSON.stringify(all)); } catch { /* storage unavailable */ }
+  return true;
+}
+
 const write = (store, all) => {
   try { store.setItem(KEY, JSON.stringify(all)); } catch { /* storage unavailable */ }
 };
