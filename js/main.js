@@ -7,6 +7,7 @@ import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
+import { discoEnabled, setDiscoEnabled } from './disco.js';
 import { initTestingBanner } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setSilenced, isMusicMuted, setMusicMuted, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
@@ -260,6 +261,8 @@ const muteOpt = document.getElementById('muteOpt');
 const menuLevel = document.getElementById('menuLevel');
 const decalOpt = document.getElementById('decalOpt');
 setDecalsEnabled(localStorage.getItem('forklift-decals-off') !== '1');
+const discoOpt = document.getElementById('discoOpt');
+setDiscoEnabled(localStorage.getItem('forklift-disco-off') !== '1');
 const menuHardOpt = document.getElementById('menuHardOpt');
 const autoFsOpt = document.getElementById('autoFsOpt');
 autoFsOpt.checked = autoFs;
@@ -276,6 +279,7 @@ function toggleMenu(open) {
     engineOpt.checked = isEngineOn();
     musicOpt.checked = !isMusicMuted();
     decalOpt.checked = decalsEnabled();
+    discoOpt.checked = discoEnabled();
     menuHardOpt.checked = hard;
     menuLevel.value = level;
     updateTutorialBtn();
@@ -291,6 +295,10 @@ engineOpt.addEventListener('change', () => setEngineOn(engineOpt.checked));
 decalOpt.addEventListener('change', () => {
   setDecalsEnabled(decalOpt.checked);
   localStorage.setItem('forklift-decals-off', decalOpt.checked ? '0' : '1');
+});
+discoOpt.addEventListener('change', () => {
+  setDiscoEnabled(discoOpt.checked);
+  localStorage.setItem('forklift-disco-off', discoOpt.checked ? '0' : '1');
 });
 musicOpt.addEventListener('change', () => setMusicMuted(!musicOpt.checked));
 document.getElementById('menuGoto').addEventListener('submit', (e) => {
@@ -343,6 +351,7 @@ window.addEventListener('keydown', (e) => {
     KeyM: () => toggle(musicOpt),
     KeyT: () => trackSel.focus(),
     KeyD: () => toggle(decalOpt),
+    KeyI: () => toggle(discoOpt),
     KeyG: () => { menuLevel.focus(); menuLevel.select(); },
     KeyL: () => document.getElementById('menuLowest').click(),
     KeyF: toggleFullscreen,

@@ -9,7 +9,10 @@ export const BALL_DROP = 1.2; // ball centre below the ceiling (cabin view)
 export const SPOT_R = 2.6;
 const SPOTS = 3;
 
-export const discoOn = () => theme().disco === true;
+let enabled = true;
+export const discoEnabled = () => enabled;
+export function setDiscoEnabled(on) { enabled = !!on; }
+export const discoOn = () => enabled && theme().disco === true;
 
 // Ball positions: randomly scattered (seeded by level and seed, cached per game), about one per 150 tiles, at least 2.
 const ballCache = new WeakMap();
