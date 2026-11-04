@@ -4,7 +4,7 @@ import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
-import { discoOn, discoBalls, drawDiscoSpots, drawGlitterBall, BALL_R } from './disco.js';
+import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
 import { carriedWorldOffs, HIT_LIFE, WONKY_LIFE, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
@@ -324,26 +324,8 @@ function drawFloor(ctx, g, vis, pxPerTile) {
 // vis (optional world AABB {x0,y0,x1,y1}): only things touching it are drawn (partial render for the small windows).
 function drawWorld(ctx, g, vis, pxPerTile = 0) {
   drawFloor(ctx, g, vis, pxPerTile);
-  const disco = discoOn();
-  if (disco) drawDiscoSpots(ctx, g, vis);
+  if (discoOn()) drawDiscoSpots(ctx, g, vis);
   drawWorldObjects(ctx, g, vis);
-  if (disco) drawDiscoBalls(ctx, g, vis);
-}
-
-// Glitter balls hang high above the floor, so they are drawn over everything with the usual height parallax.
-const BALL_Z = 2.8;
-function drawDiscoBalls(ctx, g, vis) {
-  for (const b of discoBalls(g)) {
-    const x = b.x + BALL_Z * PX, y = b.y + BALL_Z * PY;
-    if (!visSeen(vis, x - BALL_R, y - BALL_R, BALL_R * 2, BALL_R * 2)) continue;
-    ctx.strokeStyle = 'rgba(200,200,210,0.6)';
-    ctx.lineWidth = 0.04;
-    ctx.beginPath();
-    ctx.moveTo(b.x + 4 * PX, b.y + 4 * PY);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    drawGlitterBall(ctx, x, y, BALL_R, g.clock || 0, b.k);
-  }
 }
 
 const visSeen = (vis, x, y, w, h) => !vis || (x + w >= vis.x0 && x <= vis.x1 && y + h >= vis.y0 && y <= vis.y1);
