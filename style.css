@@ -1,7 +1,8 @@
 html, body { --bg: #e8e6e1; --bar: #d6d3cc; --fg: #333; --accent: #b36b00; --splash1: #fff; --splash2: #cfcbc2; --title: #222; --shadow: #bbb; --input: #fff; --border: #999; color-scheme: light; }
 @media (prefers-color-scheme: dark) {
-  html, body { --bg: #1b1f23; --bar: #111; --fg: #ccc; --accent: #f9a825; --splash1: #2b3138; --splash2: #111; --title: #eee; --shadow: #000; --input: #1b1f24; --border: #555; color-scheme: dark; }
+  html:not([data-theme="light"]), html:not([data-theme="light"]) body { --bg: #1b1f23; --bar: #111; --fg: #ccc; --accent: #f9a825; --splash1: #2b3138; --splash2: #111; --title: #eee; --shadow: #000; --input: #1b1f24; --border: #555; color-scheme: dark; }
 }
+html[data-theme="dark"], html[data-theme="dark"] body { --bg: #1b1f23; --bar: #111; --fg: #ccc; --accent: #f9a825; --splash1: #2b3138; --splash2: #111; --title: #eee; --shadow: #000; --input: #1b1f24; --border: #555; color-scheme: dark; }
 html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; font-family: sans-serif; }
 body { display: flex; flex-direction: column; }
 canvas { flex: 1; width: 100%; min-height: 0; display: block; }

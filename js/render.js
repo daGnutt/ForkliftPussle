@@ -4,6 +4,7 @@ import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
+import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
 import { carriedWorldOffs, HIT_LIFE, WONKY_LIFE, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
@@ -323,6 +324,7 @@ function drawFloor(ctx, g, vis, pxPerTile) {
 // vis (optional world AABB {x0,y0,x1,y1}): only things touching it are drawn (partial render for the small windows).
 function drawWorld(ctx, g, vis, pxPerTile = 0) {
   drawFloor(ctx, g, vis, pxPerTile);
+  if (discoOn()) drawDiscoSpots(ctx, g, vis);
   drawWorldObjects(ctx, g, vis);
 }
 
