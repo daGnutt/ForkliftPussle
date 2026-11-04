@@ -1,4 +1,5 @@
 import { theme } from './theme.js';
+import { discoOn, drawDiscoPov } from './disco.js';
 import { toWorld } from './forklift.js';
 import { makeCamera, EYE_X, EYE_Z, EYE_FOLLOW, EYE_TILT, HFOV, BOX_H, PAL, MAX_DIST } from './pov/camera.js';
 import { buildFaces } from './pov/scene.js';
@@ -36,8 +37,10 @@ export function drawPov(ctx, g, x, y, w, h) {
   drawFloorDecals(ctx, g, cam);
   drawFloorMarks(ctx, g, cam);
   drawRevFloor(ctx, g, cam);
+  const disco = discoOn();
+  if (disco) drawDiscoPov(ctx, g, cam, 'floor');
   const faces = buildFaces(g, cam);
-  const labels = zoneLabelItems(g, cam).sort((a, b) => b.d - a.d);
+  const labels = [...zoneLabelItems(g, cam), ...(disco ? drawDiscoPov(ctx, g, cam, 'balls') : [])].sort((a, b) => b.d - a.d);
   let li = 0;
   for (const f of faces) {
     while (li < labels.length && labels[li].d >= f.d) labels[li++].draw(ctx);
