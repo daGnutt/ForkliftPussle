@@ -1,7 +1,7 @@
 import { newGame, update, forkUp, forkDown, zoneDone, zoneWonky, score } from './game.js';
 import { createInput } from './input.js';
-import { syncScores, fetchTop } from './globalscores.js';
-import { getBest, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
+import { syncScores, fetchTopList } from './globalscores.js';
+import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
 import { serializeGame, deserializeGame, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
@@ -48,11 +48,17 @@ loadSaved();
 // Local best now; global top fetched in the background (stale replies are ignored).
 function refreshGlobal() {
   const board = `${seed || 0}:${level}`;
-  fetchTop(board).then((top) => { if (board === `${seed || 0}:${level}`) view.global = top; });
+  fetchTopList(board).then((list) => {
+    if (board !== `${seed || 0}:${level}`) return;
+    view.global = list === null ? 'offline' : list[0] || 'none';
+    view.globalList = list;
+  });
 }
 function refreshBest() {
   view.best = getBest(localStorage, seed, level);
+  view.localList = getTop(localStorage, seed, level);
   view.global = 'loading';
+  view.globalList = undefined;
   refreshGlobal();
 }
 function saveState() {
@@ -144,7 +150,11 @@ document.getElementById('recordForm').addEventListener('submit', (e) => {
   const name = recordName.value.trim() || 'Anonymous';
   localStorage.setItem('forklift-player', name);
   saveBest(localStorage, pending.seed, pending.level, { ...pending.result, name });
-  if (pending.level === level && pending.seed === seed) view.best = getBest(localStorage, seed, level);
+  addTop(localStorage, pending.seed, pending.level, { ...pending.result, name });
+  if (pending.level === level && pending.seed === seed) {
+    view.best = getBest(localStorage, seed, level);
+    view.localList = getTop(localStorage, seed, level);
+  }
   closeRecord();
   syncScores(localStorage).then(() => refreshGlobal());
 });
@@ -153,7 +163,10 @@ function checkRecord() {
   if (game.status !== 'won' || recorded) return;
   recorded = true;
   const result = { score: finalScore(score(game), game.time), time: game.time };
-  if (!beats(result, getBest(localStorage, seed, level))) return;
+  if (!beats(result, getBest(localStorage, seed, level))) {
+    if (addTop(localStorage, seed, level, { ...result, name: localStorage.getItem('forklift-player') || 'Anonymous' })) view.localList = getTop(localStorage, seed, level);
+    return;
+  }
   Object.assign(pending, { seed, level, result });
   document.getElementById('recordInfo').textContent = `Level ${level}: ${score(game)} − ${timePenalty(game.time)} time = ${result.score} points (${formatTime(result.time)})`;
   recordName.value = localStorage.getItem('forklift-player') || '';

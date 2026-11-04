@@ -514,25 +514,44 @@ function globalLine(gl) {
   return `Global ${gl.points} by ${gl.name} (${formatTime(gl.time || 0)})`;
 }
 
+const topRow = (i, e) => `${i + 1}. ${e.name} ${e.points ?? e.score} (${formatTime(e.time || 0)})`;
+
+// Two top-10 columns (local, global) centred on cx, starting at y; returns the height used.
+function drawTopLists(ctx, view, cx, y, width) {
+  const lh = 18, colW = Math.min(width / 2 - 20, 250);
+  const cols = [
+    ['Local top 10', '#b3e5fc', (view.localList || []).map((e, i) => topRow(i, e)), 'No local scores yet'],
+    ['Global top 10', '#c5e1a5', (view.globalList || []).map((e, i) => topRow(i, e)),
+      view.globalList === null ? 'Offline' : view.globalList ? 'No global scores yet' : 'Loading…'],
+  ];
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  cols.forEach(([title, color, rows, empty], c) => {
+    const x = cx + (c ? 10 : -colW - 10);
+    ctx.fillStyle = color;
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText(title, x, y + lh / 2, colW);
+    ctx.font = '14px sans-serif';
+    ctx.globalAlpha = rows.length ? 1 : 0.6;
+    (rows.length ? rows : [empty]).forEach((r, i) => ctx.fillText(r, x, y + lh * (i + 1.5) + 2, colW));
+    ctx.globalAlpha = 1;
+  });
+  return lh * 11 + 6;
+}
+
 // Shown on a freshly loaded level until the truck first moves.
 function drawStartBoard(ctx, g, view, width, height) {
-  const best = view.best;
-  const rows = [
-    `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`,
-    best ? `Local best: ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Local best: none yet',
-    globalLine(view.global).replace('Global', 'Global best'),
-  ];
-  const lh = 26, h = rows.length * lh + 24, y = Math.max(10, height * 0.18);
-  ctx.font = 'bold 18px sans-serif';
-  const w = Math.min(width - 20, Math.max(...rows.map((r) => ctx.measureText(r).width)) + 40);
+  const title = `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`;
+  const h = 40 + 18 * 11 + 22, y = Math.max(10, height * 0.12);
+  const w = Math.min(width - 20, 560);
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect((width - w) / 2, y, w, h);
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillStyle = '#fff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  rows.forEach((r, i) => {
-    ctx.fillStyle = i === 0 ? '#fff' : i === 1 ? '#b3e5fc' : '#c5e1a5';
-    ctx.fillText(r, width / 2, y + 12 + lh / 2 + i * lh, w - 20);
-  });
+  ctx.fillText(title, width / 2, y + 20);
+  drawTopLists(ctx, view, width / 2, y + 40, w / 2);
 }
 
 function drawStatusStrip(ctx, g, view, mm, title, bestText, globalText, hint, width, height) {
@@ -728,9 +747,10 @@ export function draw(ctx, g, view) {
     const lost = lostBreakdown(g);
     const pts = score(g);
     ctx.fillStyle = 'rgba(0,0,0,0.65)';
-    ctx.fillRect(0, height / 2 - 110, width, 220);
+    ctx.fillRect(0, height / 2 - 110, width, 220 + 210);
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
     ctx.font = 'bold 36px sans-serif';
     ctx.fillText('Level complete!', width / 2, height / 2 - 64);
     ctx.font = '18px sans-serif';
@@ -740,5 +760,6 @@ export function draw(ctx, g, view) {
     ctx.fillText(`Final score: ${finalScore(pts, g.time)}`, width / 2, height / 2 + 30);
     ctx.font = '20px sans-serif';
     ctx.fillText(view.touch ? 'Tap to continue to the next level' : 'Press Enter for the next level', width / 2, height / 2 + 70);
+    drawTopLists(ctx, view, width / 2, height / 2 + 90, width / 2);
   }
 }
