@@ -93,8 +93,8 @@ export function drawGlitterBall(ctx, cx, cy, r, t, k = 0) {
   ctx.globalCompositeOperation = 'source-over';
 }
 
-// Cabin view: 'floor' draws the light pools as projected floor polygons, 'balls' the hanging balls (with a string).
-// Both are drawn before the faces, so walls and boxes correctly cover them.
+// Cabin view: 'floor' draws the light pools as projected floor polygons; 'balls' returns depth-sorted draw items
+// ({ d, draw }) for the hanging balls, to be merged with the faces so nearer walls and boxes cover them and farther ones don't.
 export function drawDiscoPov(ctx, g, cam, part) {
   const t = g.clock || 0;
   if (part === 'floor') {
@@ -113,18 +113,23 @@ export function drawDiscoPov(ctx, g, cam, part) {
     ctx.restore();
     return;
   }
-  for (const b of discoBalls(g)) {
-    const c = toCam(cam, b.x, b.y, WALL_H - BALL_DROP);
-    if (c[0] < 0.3 || c[0] > MAX_DIST) continue;
-    const top = toCam(cam, b.x, b.y, WALL_H);
-    const X = cam.cx + (c[1] / c[0]) * cam.f, Y = cam.cy - (c[2] / c[0]) * cam.f;
-    const R = (BALL_R / c[0]) * cam.f;
-    ctx.strokeStyle = 'rgba(200,200,210,0.6)';
-    ctx.lineWidth = Math.max(1, R * 0.06);
-    ctx.beginPath();
-    ctx.moveTo(cam.cx + (top[1] / top[0]) * cam.f, cam.cy - (top[2] / top[0]) * cam.f);
-    ctx.lineTo(X, Y);
-    ctx.stroke();
-    drawGlitterBall(ctx, X, Y, R, t, b.k);
-  }
+  return discoBalls(g).map((b) => ({
+    d: Math.hypot(b.x - cam.x, b.y - cam.y, WALL_H - BALL_DROP - cam.z) - BALL_R,
+    draw: (ctx) => drawBallPov(ctx, cam, b, t),
+  }));
+}
+
+function drawBallPov(ctx, cam, b, t) {
+  const c = toCam(cam, b.x, b.y, WALL_H - BALL_DROP);
+  if (c[0] < 0.3 || c[0] > MAX_DIST) return;
+  const top = toCam(cam, b.x, b.y, WALL_H);
+  const X = cam.cx + (c[1] / c[0]) * cam.f, Y = cam.cy - (c[2] / c[0]) * cam.f;
+  const R = (BALL_R / c[0]) * cam.f;
+  ctx.strokeStyle = 'rgba(200,200,210,0.6)';
+  ctx.lineWidth = Math.max(1, R * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(cam.cx + (top[1] / top[0]) * cam.f, cam.cy - (top[2] / top[0]) * cam.f);
+  ctx.lineTo(X, Y);
+  ctx.stroke();
+  drawGlitterBall(ctx, X, Y, R, t, b.k);
 }

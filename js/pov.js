@@ -38,9 +38,9 @@ export function drawPov(ctx, g, x, y, w, h) {
   drawFloorMarks(ctx, g, cam);
   drawRevFloor(ctx, g, cam);
   const disco = discoOn();
-  if (disco) { drawDiscoPov(ctx, g, cam, 'floor'); drawDiscoPov(ctx, g, cam, 'balls'); }
+  if (disco) drawDiscoPov(ctx, g, cam, 'floor');
   const faces = buildFaces(g, cam);
-  const labels = zoneLabelItems(g, cam).sort((a, b) => b.d - a.d);
+  const labels = [...zoneLabelItems(g, cam), ...(disco ? drawDiscoPov(ctx, g, cam, 'balls') : [])].sort((a, b) => b.d - a.d);
   let li = 0;
   for (const f of faces) {
     while (li < labels.length && labels[li].d >= f.d) labels[li++].draw(ctx);
