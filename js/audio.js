@@ -144,6 +144,7 @@ function noise(dest, t, dur, { gain = 0.1, cutoff = 7000, type = 'highpass' } = 
 
 // Public-domain / Creative Commons MIDI songs (sources in assets/midi/CREDITS.md).
 const TRACKS = [
+  { id: 'polka-pallet', name: 'Polka: Pallet Polka', midi: 'assets/midi/happy-polka.mid' },
   { id: 'country-lasso', name: 'Country: Lasso Lady Lifts', midi: 'assets/midi/lasso-lady.mid' },
   { id: 'classical-elise', name: 'Classical: Für Forklift', midi: 'assets/midi/fur-elise.mid' },
   { id: 'classical-turca', name: 'Classical: Rondo alla Turbo', midi: 'assets/midi/rondo-alla-turca.mid' },
