@@ -1,19 +1,22 @@
-import { toWorld } from '../forklift.js';
-import { EYE_X, EYE_Z, EYE_FOLLOW, EYE_TILT, HFOV, BOX_H, PAL } from '../pov/camera.js';
+import { toWorld, FL } from '../forklift.js';
+import { EYE_X, EYE_Z, HFOV, BOX_H, PAL } from '../pov/camera.js';
 import { perspective, viewBasis, mul } from './mat.js';
 
 // Camera maths for the WebGL renderer (pure, no DOM). A camera is { vp, eye: [x, y, z], w, h } (w, h in css px).
 
 const POV_NEAR = 0.06, POV_FAR = 90;
 
-// Cabin view: eye on the seat, rising part-way with the forks; the horizon shifts as the forks lead the eye.
+// Cabin view: eye fixed at seat height (no up/down translation); the camera only pitches to look at the fork tips
+// (smoothed level g.ef), so the view tilts up and down as the forks rise and fall.
 export function povCamera(g, w, h) {
-  const e = toWorld(g.fl, EYE_X, 0), z = EYE_Z + EYE_FOLLOW * g.ef * (BOX_H + PAL), a = g.fl.a;
-  const p = 0.32 + EYE_TILT * (g.ef - g.hf);
+  const e = toWorld(g.fl, EYE_X, 0), a = g.fl.a;
+  const tip = FL.tineX1 - EYE_X, pitch = Math.atan2(g.ef * (BOX_H + PAL) - EYE_Z, tip);
+  const cp = Math.cos(pitch), sp = Math.sin(pitch), c = Math.cos(a), s = Math.sin(a);
   const f2w = 1 / Math.tan(HFOV / 2);
-  const proj = perspective(f2w, (f2w * w) / h, 2 * p - 1, POV_NEAR, POV_FAR);
-  const view = viewBasis([e.x, e.y, z], [-Math.sin(a), Math.cos(a), 0], [0, 0, 1], [Math.cos(a), Math.sin(a), 0]);
-  return { vp: mul(proj, view), eye: [e.x, e.y, z], w, h };
+  const proj = perspective(f2w, (f2w * w) / h, 0, POV_NEAR, POV_FAR);
+  const eye = [e.x, e.y, EYE_Z];
+  const view = viewBasis(eye, [-s, c, 0], [-c * sp, -s * sp, cp], [c * cp, s * cp, sp]);
+  return { vp: mul(proj, view), eye, w, h };
 }
 
 export const OV_TILT = 0.35; // radians off vertical
