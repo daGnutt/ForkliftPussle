@@ -34,12 +34,14 @@
         <button type="button" class="nav" data-go="sound"><span><u>S</u>ound settings</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="display"><span><u>V</u>isuals &amp; controls</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="game"><span>Game &amp; levels</span><i>&#9656;</i></button>
+        <button type="button" class="nav" data-go="info"><span>Info &amp; scoring</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="state"><span>Save / load state</span><i>&#9656;</i></button>
       </div>
       <div class="page" data-page="sound" hidden>
         <h3>Sound</h3>
         <label><input type="checkbox" id="engineOpt"> <u>E</u>ngine whine &amp; beep</label>
         <label><input type="checkbox" id="musicOpt"> <u>M</u>usic</label>
+        <label><input type="checkbox" id="randomOpt"> Random music (new track after each song)</label>
         <label class="row"><span><u>T</u>rack</span> <select id="trackSel"></select></label>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
       </div>
@@ -61,6 +63,11 @@
         <button type="button" id="menuLowest" class="sec" title="Lowest level with no saved score on this seed">Jump to <u>l</u>owest unscored level</button>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
       </div>
+      <div class="page" data-page="info" hidden>
+        <h3>Info &amp; scoring</h3>
+        <p class="tip"><b>Scoring:</b> each box in a finished zone is worth 100 points, minus up to 50 for crashes and up to 50 for crooked placement (within 5° is free). You need 50% of the maximum to finish. Your final score loses 1 point per 10 seconds.</p>
+        <button type="button" class="back" data-go="main">&#9666; Back</button>
+      </div>
       <div class="page" data-page="state" hidden>
         <h3>Save / load level state</h3>
         <textarea id="stateText" rows="4" spellcheck="false" placeholder="Level state (export, or paste here and import)"></textarea>
@@ -77,12 +84,12 @@
     <form id="seedForm" autocomplete="off">
       <label>Seed <input id="seed" type="text" maxlength="32" placeholder="default" spellcheck="false"></label>
       <button type="button" id="seedRandom" title="Random seed" aria-label="Random seed"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg></button>
-      <button type="submit">Start</button>
+      <button type="submit" id="startBtn">Start</button>
+      <button type="submit" id="discoStart" title="Start with music and disco lights on">&#128378; Disco start</button>
     </form>
     <label class="opt"><input type="checkbox" id="tutorialOpt"> Show tutorial</label>
     <label class="opt" title="Forks must go in straight (±10°); skewed forks push the stack, and turning with the forks in a pallet turns it"><input type="checkbox" id="hardOpt"> Hard mode (realistic pallets)</label>
-    <p class="tip scoring"><b>Scoring:</b> each box in a finished zone is worth 100 points, minus up to 50 for crashes and up to 50 for crooked placement (within 5° is free). You need 50% of the maximum to finish. Your final score loses 1 point per 10 seconds.</p>
-    <p class="tip">Tip: you start in the top-down overview. Press <b>Tab</b>/<b>M</b> to swap to the cab view, <b>C</b> for a small corner window.</p>
+    <p class="tip story">You've just arrived after a shift change. The last shift left a huge mess in the warehouse, and it's your job to fix it.</p>
     <p class="credits">Designed by Gnutt &middot; Coded by Copilot for GitHub</p>
     <p class="credits">MIDI music: Beethoven &amp; Mozart (<a href="https://www.mutopiaproject.org/" target="_blank" rel="noopener">Mutopia Project</a>), northivanastan &amp; Dizzy Crow (<a href="https://opengameart.org/" target="_blank" rel="noopener">OpenGameArt</a>), m-malandro (<a href="https://github.com/m-malandro/CC0-midis" target="_blank" rel="noopener">CC0-midis</a>) &middot; Public Domain / CC0</p>
     <p class="press">Press Enter to start</p>

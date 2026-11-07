@@ -71,7 +71,7 @@ footer b { color: var(--accent); }
 
 #touch { display: none; }
 @media (pointer: coarse) {
-  footer, #splash .tip:not(.scoring) { display: none; }
+  footer, #splash .tip:not(.story) { display: none; }
   canvas { touch-action: none; }
   #touch { display: block; position: fixed; inset: 0; pointer-events: none; z-index: 5; user-select: none; -webkit-user-select: none; touch-action: none; }
   #touch .pad { position: absolute; display: flex; gap: 12px; }
