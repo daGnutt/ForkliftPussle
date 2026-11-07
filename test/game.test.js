@@ -7,7 +7,7 @@ import { serializeGame, deserializeGame, encodeState, decodeState } from '../js/
 import { povCamera, overviewCamera } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { projectPoint } from '../js/gl/mat.js';
-import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky } from '../js/game.js';
+import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneLabelPos } from '../js/game.js';
 
 const NONE = {};
 const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
@@ -963,4 +963,16 @@ console.log('all tests passed');
     assert.ok(d.opaque.count > 0 && d.opaque.floats().length === d.opaque.count * 10, 'dynamic mesh floats match the vertex stride');
   }
   console.log('gl scene ok');
+}
+
+// Zone labels never sit under a wall (e.g. a drop point at the south border)
+{
+  for (let n = 1; n <= 40; n++) {
+    const g = newGame(n);
+    for (const z of g.zones) {
+      const p = zoneLabelPos(g, z);
+      assert.ok(!g.walls.some((w) => p.x + 0.4 > w.x && p.x - 0.4 < w.x + w.w && p.y + 0.25 > w.y && p.y - 0.25 < w.y + w.h), `zone label hidden by a wall on level ${n}`);
+    }
+  }
+  console.log('zone labels ok');
 }

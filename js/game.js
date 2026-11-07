@@ -579,3 +579,10 @@ export function zoneWonky(g, z) {
 export function zoneDone(g, z) {
   return g.stacks.some((s) => stackFillsZone(s, z));
 }
+
+// Where the overview paints a zone's "×count": just below the zone, or above it when a wall (e.g. the south border) would cover that spot.
+export function zoneLabelPos(g, z) {
+  const hit = (y) => g.walls.some((w) => z.x + 0.4 > w.x && z.x - 0.4 < w.x + w.w && y + 0.25 > w.y && y - 0.25 < w.y + w.h);
+  const below = z.y + 0.92;
+  return { x: z.x, y: hit(below) && !hit(z.y - 0.92) ? z.y - 0.92 : below };
+}

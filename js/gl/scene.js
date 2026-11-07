@@ -4,7 +4,7 @@ import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
-import { zoneDone, isSolved, scoreEnough, isParked } from '../game.js';
+import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
 import { WALL_H, addStack, addForklift, addForks, addCarried } from './models.js';
@@ -156,9 +156,46 @@ function parkingCorners(g) {
   return { hx, hy, at };
 }
 
-function addMarks(tm, g) {
+// Stroke font for the floor-painted zone counts: polylines on a 2x4 grid (y down).
+const GLYPHS = {
+  '×': [[[0, 1], [2, 3]], [[2, 1], [0, 3]]],
+  0: [[[0, 0], [2, 0], [2, 4], [0, 4], [0, 0]]],
+  1: [[[0, 1], [1, 0], [1, 4]]],
+  2: [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 4], [2, 4]]],
+  3: [[[0, 0], [2, 0], [2, 4], [0, 4]], [[0, 2], [2, 2]]],
+  4: [[[0, 0], [0, 2], [2, 2]], [[2, 0], [2, 4]]],
+  5: [[[2, 0], [0, 0], [0, 2], [2, 2], [2, 4], [0, 4]]],
+  6: [[[2, 0], [0, 0], [0, 4], [2, 4], [2, 2], [0, 2]]],
+  7: [[[0, 0], [2, 0], [2, 4]]],
+  8: [[[0, 0], [2, 0], [2, 4], [0, 4], [0, 0]], [[0, 2], [2, 2]]],
+  9: [[[2, 2], [0, 2], [0, 0], [2, 0], [2, 4], [0, 4]]],
+};
+
+// Text painted flat on the floor, centred on (cx, cy), `u` world units per grid step; strokes are `t` thick.
+function floorText(tm, str, cx, cy, u, t, z, color) {
+  const adv = 3.2 * u, x0 = cx - ((str.length - 1) * adv + 2 * u) / 2, y0 = cy - 2 * u;
+  [...str].forEach((ch, i) => {
+    for (const line of GLYPHS[ch] || []) {
+      for (let k = 1; k < line.length; k++) {
+        const [ax, ay] = [x0 + i * adv + line[k - 1][0] * u, y0 + line[k - 1][1] * u];
+        const [bx, by] = [x0 + i * adv + line[k][0] * u, y0 + line[k][1] * u];
+        const len = Math.hypot(bx - ax, by - ay), dx = ((bx - ax) / len) * t / 2, dy = ((by - ay) / len) * t / 2;
+        const nx = -dy, ny = dx;
+        tm.poly([[ax - dx + nx, ay - dy + ny], [bx + dx + nx, by + dy + ny], [bx + dx - nx, by + dy - ny], [ax - dx - nx, ay - dy - ny]], z, color);
+      }
+    }
+  });
+}
+
+function addMarks(tm, g, mode) {
   for (const z of g.zones) {
     const done = zoneDone(g, z), r = 0.6, c = parseColor(COLORS[z.color]);
+    if (mode === 'ov' && !done) {
+      const txt = `×${z.count}`;
+      const lp = zoneLabelPos(g, z);
+      floorText(tm, txt, lp.x, lp.y, 0.1, 0.16, 0.003, '#fff');
+      floorText(tm, txt, lp.x, lp.y, 0.1, 0.07, 0.005, '#000');
+    }
     tm.poly([[z.x - r, z.y - r], [z.x + r, z.y - r], [z.x + r, z.y + r], [z.x - r, z.y + r]], 0, [c[0], c[1], c[2], done ? 0.8 : 0.47]);
     tm.frame(z.x - r, z.y - r, z.x + r, z.y + r, 0.07, 0, c);
   }
@@ -240,7 +277,7 @@ export function dynamicMeshes(g, mode, eye) {
   addCarried(om, tm, g);
   addForklift(om, g, mode === 'ov');
   addForks(om, g);
-  addMarks(tm, g);
+  addMarks(tm, g, mode);
   addBlobShadows(tm, g);
   addRevLight(tm, g);
   if (discoOn()) addDisco(am, mode === 'pov' ? om : null, g, eye);
