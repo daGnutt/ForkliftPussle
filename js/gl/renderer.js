@@ -60,8 +60,8 @@ const LIGHT = {
 };
 // Dark mode: little ambient light; the truck's and the ceiling's point lights do the work.
 const DARK_LIGHT = {
-  pov: { sun: [0.35, 0.25, 0.9], sunCol: [0.03, 0.03, 0.035], up: [0.13, 0.14, 0.17], down: [0.08, 0.08, 0.1], fogA: 6, fogB: 48, fogMax: 0.8 },
-  ov: { sun: [-0.4, -0.5, 0.8], sunCol: [0.05, 0.05, 0.06], up: [0.24, 0.25, 0.29], down: [0.16, 0.16, 0.19], fogA: 1e4, fogB: 2e4, fogMax: 0 },
+  pov: { sun: [0.35, 0.25, 0.9], sunCol: [0.05, 0.05, 0.06], up: [0.2, 0.21, 0.25], down: [0.13, 0.13, 0.16], fogA: 6, fogB: 48, fogMax: 0.8 },
+  ov: { sun: [-0.4, -0.5, 0.8], sunCol: [0.08, 0.08, 0.09], up: [0.34, 0.35, 0.4], down: [0.23, 0.23, 0.27], fogA: 1e4, fogB: 2e4, fogMax: 0 },
 };
 
 let R = null; // { canvas, gl, prog, u, dyn, statics } | null; undefined while untried
