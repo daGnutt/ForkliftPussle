@@ -119,8 +119,14 @@ footer b { color: var(--accent); }
   #splash h1 { font-size: 36px; }
   #splashAnim { width: 264px; height: 114px; }
   #menu { align-items: safe center; overflow-y: auto; }
-  #menu .panel { margin: 8px; padding: 12px 16px; }
-  #menu .page { gap: 6px; }
+  #menu .panel { margin: 8px; padding: 10px 16px; width: min(560px, calc(100vw - 16px)); }
+  #menu h2 { display: none; }
+  #menu .page { gap: 4px; }
+  #menu .page[data-page="main"], #menu .page[data-page="display"] { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; align-items: center; }
+  #menu .page[hidden] { display: none; }
+  #menu .page h3, #menu hr { grid-column: 1 / -1; margin: 0; }
+  #menu button.nav, #menu button.back { padding: 5px 4px; }
+  #menu button { padding: 6px 10px; }
   #record form { padding: 12px 20px; gap: 6px; }
 }
 @media (pointer: coarse) {
