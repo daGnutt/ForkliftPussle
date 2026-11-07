@@ -44,14 +44,24 @@ footer b { color: var(--accent); }
 
 #menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); color: var(--fg); z-index: 15; }
 #menu.hide { display: none; }
-#menu .panel { background: var(--splash1); padding: 20px 28px; border-radius: 8px; display: flex; flex-direction: column; gap: 12px; min-width: 260px; }
+#menu .panel { background: var(--splash1); padding: 20px 24px; border-radius: 10px; display: flex; flex-direction: column; gap: 14px; width: min(640px, calc(100vw - 16px)); box-sizing: border-box; max-height: calc(100vh - 16px); overflow-y: auto; }
 #menu h2 { margin: 0; color: var(--accent); text-align: center; }
 #menu label { cursor: pointer; } #menu label input { vertical-align: middle; }
 #menu #menuGoto { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
 #menu #menuLevel { width: 4.5em; font: inherit; }
+#menu .actions { display: flex; gap: 10px; } #menu .actions button { flex: 1; }
+#menu .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+#menu fieldset { margin: 0; padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(128,128,128,.4); border-radius: 6px; min-width: 0; }
+#menu legend { padding: 0 6px; color: var(--accent); font-weight: bold; }
+#menu label.row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+#menu label[hidden] { display: none; }
+#menu select { max-width: 60%; }
+#menu button.sec { background: transparent; color: var(--fg); border: 1px solid rgba(128,128,128,.6); padding: 6px 10px; }
+#menu button.primary { padding: 10px 14px; }
+#menu #menuShare summary { cursor: pointer; opacity: .85; }
 #menu #menuShare { display: flex; flex-direction: column; gap: 6px; }
 #menu #stateText { font: 12px monospace; resize: vertical; width: 100%; box-sizing: border-box; }
-#menu #menuShare div { display: flex; gap: 8px; }
+#menu #menuShare div { display: flex; gap: 8px; margin-top: 6px; }
 #menu #stateMsg { min-height: 1em; opacity: .8; }
 #menu button { padding: 8px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
 
@@ -105,8 +115,8 @@ footer b { color: var(--accent); }
   #splash h1 { font-size: 36px; }
   #splashAnim { width: 264px; height: 114px; }
   #menu { align-items: safe center; overflow-y: auto; }
-  #menu .panel { margin: 8px; padding: 12px 20px; gap: 8px; display: grid; grid-template-columns: 1fr 1fr; align-items: center; column-gap: 24px; box-sizing: border-box; max-width: calc(100vw - 16px); }
-  #menu h2, #menu #menuShare { grid-column: 1 / -1; }
+  #menu .panel { margin: 8px; padding: 12px 16px; gap: 8px; }
+  #menu h2 { display: none; }
   #record form { padding: 12px 20px; gap: 6px; }
 }
 @media (pointer: coarse) {
