@@ -26,38 +26,47 @@
   <div id="menu" class="hide">
     <div class="panel">
       <h2>Menu</h2>
-      <div class="actions">
+      <div class="page" data-page="main">
         <button type="button" id="menuResume" class="primary">Resume</button>
         <button type="button" id="menuRestart"><u>R</u>estart level</button>
+        <label><input type="checkbox" id="muteOpt"> Mute <u>a</u>ll sounds</label>
+        <button type="button" class="sec nav" data-go="sound"><u>S</u>ound settings <span>&#9656;</span></button>
+        <button type="button" class="sec nav" data-go="display"><u>V</u>isuals &amp; controls <span>&#9656;</span></button>
+        <button type="button" class="sec nav" data-go="levels">Level select <span>&#9656;</span></button>
+        <label title="Applies when the level is restarted"><input type="checkbox" id="menuHardOpt"> Hard mode (on restart)</label>
+        <button type="button" id="menuTutorial" class="sec"></button>
+        <button type="button" id="menuFullscreen" class="sec">Toggle <u>f</u>ull screen</button>
+        <button type="button" class="sec nav" data-go="state">Save / load level state <span>&#9656;</span></button>
       </div>
-      <div class="cols">
-        <fieldset><legend>Sound</legend>
-          <label><input type="checkbox" id="muteOpt"> Mute <u>a</u>ll sounds</label>
-          <label><input type="checkbox" id="engineOpt"> <u>E</u>ngine whine &amp; beep</label>
-          <label><input type="checkbox" id="musicOpt"> <u>M</u>usic</label>
-          <label class="row"><span><u>T</u>rack</span> <select id="trackSel"></select></label>
-        </fieldset>
-        <fieldset><legend>Display</legend>
-          <label class="row"><span><u>C</u>olour mode</span> <select id="themeSel"><option value="auto">Follow OS</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
-          <label><input type="checkbox" id="decalOpt"> <u>D</u>ecals</label>
-          <label title="Glitter balls and coloured lights (dark mode only)"><input type="checkbox" id="discoOpt"> D<u>i</u>sco lights <small>(dark mode only)</small></label>
-          <label title="Enter full screen when starting and when leaving this menu"><input type="checkbox" id="autoFsOpt"> Auto full-screen</label>
-          <label id="touchLabel" class="row" hidden title="Layout of the on-screen controls"><span>Touch controls</span> <select id="touchSel"><option value="classic">Buttons (classic)</option><option value="rotated">Buttons (forks left, drive right)</option><option value="joystick">Joystick + fork buttons</option></select></label>
-          <button type="button" id="menuFullscreen" class="sec">Toggle <u>f</u>ull screen</button>
-        </fieldset>
-        <fieldset><legend>Game</legend>
-          <label title="Applies when the level is restarted"><input type="checkbox" id="menuHardOpt"> Hard mode (on restart)</label>
-          <form id="menuGoto" autocomplete="off"><label><u>G</u>o to level <input type="number" id="menuLevel" min="1" step="1"></label> <button type="submit" class="sec">Go</button></form>
-          <button type="button" id="menuLowest" class="sec" title="Lowest level with no saved score on this seed">Jump to <u>l</u>owest unscored level</button>
-          <button type="button" id="menuTutorial" class="sec"></button>
-        </fieldset>
+      <div class="page" data-page="sound" hidden>
+        <h3>Sound</h3>
+        <label><input type="checkbox" id="engineOpt"> <u>E</u>ngine whine &amp; beep</label>
+        <label><input type="checkbox" id="musicOpt"> <u>M</u>usic</label>
+        <label class="row"><span><u>T</u>rack</span> <select id="trackSel"></select></label>
+        <button type="button" class="sec back" data-go="main">&#9666; Back</button>
       </div>
-      <details id="menuShare">
-        <summary>Save / load level state</summary>
-        <textarea id="stateText" rows="3" spellcheck="false" placeholder="Level state (export, or paste here and import)"></textarea>
-        <div><button type="button" id="stateExport" class="sec">Export state</button> <button type="button" id="stateImport" class="sec">Import state</button></div>
+      <div class="page" data-page="display" hidden>
+        <h3>Visuals &amp; controls</h3>
+        <label class="row"><span><u>C</u>olour mode</span> <select id="themeSel"><option value="auto">Follow OS</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+        <label><input type="checkbox" id="decalOpt"> <u>D</u>ecals</label>
+        <label title="Glitter balls and coloured lights (dark mode only)"><input type="checkbox" id="discoOpt"> D<u>i</u>sco lights <small>(dark mode only)</small></label>
+        <label title="Enter full screen when starting and when leaving this menu"><input type="checkbox" id="autoFsOpt"> Auto full-screen</label>
+        <label id="touchLabel" class="row" hidden title="Layout of the on-screen controls"><span>Touch controls</span> <select id="touchSel"><option value="classic">Buttons (classic)</option><option value="rotated">Buttons (forks left, drive right)</option><option value="joystick">Joystick + fork buttons</option></select></label>
+        <button type="button" class="sec back" data-go="main">&#9666; Back</button>
+      </div>
+      <div class="page" data-page="levels" hidden>
+        <h3>Level select</h3>
+        <form id="menuGoto" autocomplete="off"><label><u>G</u>o to level <input type="number" id="menuLevel" min="1" step="1"></label> <button type="submit" class="sec">Go</button></form>
+        <button type="button" id="menuLowest" class="sec" title="Lowest level with no saved score on this seed">Jump to <u>l</u>owest unscored level</button>
+        <button type="button" class="sec back" data-go="main">&#9666; Back</button>
+      </div>
+      <div class="page" data-page="state" hidden>
+        <h3>Save / load level state</h3>
+        <textarea id="stateText" rows="4" spellcheck="false" placeholder="Level state (export, or paste here and import)"></textarea>
+        <div class="pair"><button type="button" id="stateExport" class="sec">Export state</button> <button type="button" id="stateImport" class="sec">Import state</button></div>
         <small id="stateMsg"></small>
-      </details>
+        <button type="button" class="sec back" data-go="main">&#9666; Back</button>
+      </div>
     </div>
   </div>
   <div id="splash">
