@@ -121,7 +121,7 @@ export class Mesh {
   vpoly(ax, ay, bx, by, nx, ny, off, pts, color) {
     const c = parseColor(color);
     const p = pts.map(([u, v]) => [ax + (bx - ax) * u + nx * off, ay + (by - ay) * u + ny * off, v]);
-    for (let i = 1; i + 1 < p.length; i++) this.tri(p[0], p[i], p[i + 1], [0, 0, 0], c);
+    for (let i = 1; i + 1 < p.length; i++) this.tri(p[0], p[i], p[i + 1], [nx, ny, 0], c); // the wall normal makes decals take the scene lighting
   }
 
   floats() { return new Float32Array(this.a); }
