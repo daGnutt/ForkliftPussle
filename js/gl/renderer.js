@@ -1,5 +1,5 @@
 import { theme } from '../theme.js';
-import { staticMeshes, dynamicMeshes } from './scene.js';
+import { staticMeshes, dynamicMeshes, LIGHT_MAX } from './scene.js';
 import { parseColor } from './mesh.js';
 import { projectPoint } from './mat.js';
 
@@ -27,12 +27,24 @@ in vec4 vC;
 in vec3 vW;
 uniform vec3 uEye, uSun, uSunCol, uAmbUp, uAmbDown, uFogCol;
 uniform float uFogA, uFogB, uFogMax, uAdd;
+const int NL = 24;
+uniform int uNL;
+uniform vec4 uLP[NL]; // xyz position, w radius
+uniform vec3 uLC[NL];
 out vec4 o;
 void main() {
   vec3 col = vC.rgb;
   if (dot(vN, vN) > 0.01) {
     vec3 n = normalize(vN);
-    col *= mix(uAmbDown, uAmbUp, n.z * 0.5 + 0.5) + uSunCol * max(dot(n, uSun), 0.0);
+    vec3 lit = mix(uAmbDown, uAmbUp, n.z * 0.5 + 0.5) + uSunCol * max(dot(n, uSun), 0.0);
+    for (int i = 0; i < NL; i++) {
+      if (i >= uNL) break;
+      vec3 d = uLP[i].xyz - vW;
+      float dist = length(d);
+      float a = clamp(1.0 - dist / uLP[i].w, 0.0, 1.0);
+      lit += uLC[i] * (a * a * 1.6 * max(dot(n, d / max(dist, 1e-3)), 0.0));
+    }
+    col *= lit;
   }
   float f = clamp((distance(vW, uEye) - uFogA) / (uFogB - uFogA), 0.0, 1.0) * uFogMax;
   col = uAdd > 0.5 ? col * (1.0 - f) : mix(col, uFogCol, f);
@@ -69,7 +81,9 @@ function init() {
   gl.linkProgram(prog);
   if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
   const u = {};
-  for (const n of ['uVP', 'uEye', 'uSun', 'uSunCol', 'uAmbUp', 'uAmbDown', 'uFogCol', 'uFogA', 'uFogB', 'uFogMax', 'uAdd']) u[n] = gl.getUniformLocation(prog, n);
+  u.uLP = gl.getUniformLocation(prog, 'uLP[0]');
+  u.uLC = gl.getUniformLocation(prog, 'uLC[0]');
+  for (const n of ['uVP', 'uEye', 'uSun', 'uSunCol', 'uAmbUp', 'uAmbDown', 'uFogCol', 'uFogA', 'uFogB', 'uFogMax', 'uAdd', 'uNL']) u[n] = gl.getUniformLocation(prog, n);
   canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); R = null; });
   canvas.addEventListener('webglcontextrestored', () => { failed = false; });
   return { canvas, gl, prog, u, vao: gl.createVertexArray(), buf: gl.createBuffer(), statics: { pov: null, ov: null } };
@@ -172,6 +186,11 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
   gl.uniform1f(u.uFogB, L.fogB);
   gl.uniform1f(u.uFogMax, L.fogMax);
   gl.uniform1f(u.uAdd, 0);
+  const lp = new Float32Array(LIGHT_MAX * 4), lc = new Float32Array(LIGHT_MAX * 3);
+  dyn.lights.forEach((l, i) => { lp.set([l.x, l.y, l.z, l.r], i * 4); lc.set(l.col.slice(0, 3), i * 3); });
+  gl.uniform1i(u.uNL, dyn.lights.length);
+  gl.uniform4fv(u.uLP, lp);
+  gl.uniform3fv(u.uLC, lc);
 
   drawBuffer(r, st.opaque.buf, st.opaque.count);
   drawMesh(r, dyn.opaque);
@@ -183,11 +202,6 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
   gl.polygonOffset(-2, -2);
   drawBuffer(r, st.trans.buf, st.trans.count);
   drawMesh(r, dyn.trans);
-  if (dyn.add.count) {
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-    gl.uniform1f(u.uAdd, 1);
-    drawMesh(r, dyn.add);
-  }
   gl.disable(gl.POLYGON_OFFSET_FILL);
   gl.depthMask(true);
   gl.disable(gl.BLEND);

@@ -240,15 +240,21 @@ function addBlobShadows(tm, g) {
   tm.poly([at(-hl, -W), at(hl, -W), at(hl, W), at(-hl, W)], 0.002, dark);
 }
 
-function addDisco(am, om, g, eye) {
-  const t = g.clock || 0;
+// Real point lights (shader-lit): the nearest LIGHT_MAX coloured spots, hovering above the floor.
+export const LIGHT_MAX = 24, LIGHT_Z = 1.3, LIGHT_R = SPOT_R * 1.7;
+function discoLights(g, eye) {
+  const t = g.clock || 0, out = [];
   for (const b of discoSources(g)) {
     for (const s of discoSpots(b, t)) {
-      if (Math.hypot(s.x - eye[0], s.y - eye[1]) > 40) continue;
-      for (const [rr, a] of [[1, 0.18], [0.65, 0.22], [0.3, 0.3]]) am.disc(s.x, s.y, 0.008, SPOT_R * rr, hsl(s.hue, 1, 0.6, a));
+      const d = Math.hypot(s.x - eye[0], s.y - eye[1]);
+      if (d < 40) out.push({ x: s.x, y: s.y, z: LIGHT_Z, r: LIGHT_R, col: hsl(s.hue, 1, 0.55, 1), d });
     }
   }
-  if (!om) return;
+  return out.sort((p, q) => p.d - q.d).slice(0, LIGHT_MAX);
+}
+
+function addDisco(om, g, eye) {
+  const t = g.clock || 0;
   for (const b of discoBalls(g)) {
     if (Math.hypot(b.x - eye[0], b.y - eye[1]) > 35) continue;
     const cz = WALL_H - BALL_DROP;
@@ -267,9 +273,9 @@ function addDisco(am, om, g, eye) {
   }
 }
 
-// Per-frame meshes: { opaque, trans, add } for the game state `g` seen from `eye` ([x, y]).
+// Per-frame meshes: { opaque, trans, lights } for the game state `g` seen from `eye` ([x, y]).
 export function dynamicMeshes(g, mode, eye) {
-  const om = new Mesh(), tm = new Mesh(), am = new Mesh();
+  const om = new Mesh(), tm = new Mesh();
   for (const st of g.stacks) {
     addStack(om, tm, st.x, st.y, st.rots || [], st.layers, 0, st.offs, st.dropFrom ?? 0,
       st.dropFrom != null ? Math.max(0, g.hf - st.dropFrom) : 0, st.pen);
@@ -280,6 +286,7 @@ export function dynamicMeshes(g, mode, eye) {
   addMarks(tm, g, mode);
   addBlobShadows(tm, g);
   addRevLight(tm, g);
-  if (discoOn()) addDisco(am, mode === 'pov' ? om : null, g, eye);
-  return { opaque: om, trans: tm, add: am };
+  const disco = discoOn();
+  if (disco && mode === 'pov') addDisco(om, g, eye);
+  return { opaque: om, trans: tm, lights: disco ? discoLights(g, eye) : [] };
 }
