@@ -65,7 +65,7 @@ function settle(g, S) {
     let dx = a.x - b.x, dy = a.y - b.y;
     const len = Math.hypot(dx, dy) || 1;
     dx /= len; dy /= len;
-    addDent(S.pen[i - 1], 't', 0, 0.8);
+    addDent(S.pen[i - 1], 't');
     const pen = S.pen.splice(i);
     hurt(g, pen, CRASH_POINTS, S.x + dx * 1.45, S.y + dy * 1.45, pen.length);
     const offs = S.offs.splice(i);
@@ -106,11 +106,10 @@ function wonkyPopup(g, pens, x, y, z) {
 
 // Crumples the boxes in `pens` where they were hit. `dent` = {kind: 's'|'c', dx, dy (world direction from the boxes
 // towards what they hit), rots (world angle of each box)}.
-function dentBoxes(pens, count, pts, dent) {
-  const amt = 0.25 + 0.12 * pts;
+function dentBoxes(pens, count, dent) {
   for (let i = 0; i < count; i++) {
     const [lx, ly] = toLocalDir(dent.dx, dent.dy, dent.rots[i] || 0);
-    addDent(pens[i], dent.kind, dentIndex(dent.kind, lx, ly), amt);
+    addDent(pens[i], dent.kind, dentIndex(dent.kind, lx, ly));
   }
 }
 
@@ -121,7 +120,7 @@ function crash(g, pens, owner, count = pens.length, dent = null) {
   const pts = Math.min(5, Math.max(1, Math.round(speed)));
   const c = owner === g ? toWorld(g.fl, FL.carryX, 0) : owner;
   hurt(g, pens.slice(0, count), pts, c.x, c.y, owner === g ? g.H + pens.length : pens.length, owner);
-  if (dent) dentBoxes(pens, Math.min(count, pens.length), pts, dent);
+  if (dent) dentBoxes(pens, Math.min(count, pens.length), dent);
 }
 
 const carriedRotsWorld = (g) => g.carriedRots.map((r) => r + g.fl.a);
@@ -339,7 +338,7 @@ function resolve(g) {
           if (sp >= CRASH_MIN_SPEED && g.clock - (s.wallHitAt ?? -1) >= CRASH_COOLDOWN) {
             ensure(s);
             s.wallHitAt = g.clock;
-            dentBoxes(s.pen, s.pen.length, Math.min(5, Math.round(sp)), { kind: 'c', dx: -m.x, dy: -m.y, rots: s.rots });
+            dentBoxes(s.pen, s.pen.length, { kind: 'c', dx: -m.x, dy: -m.y, rots: s.rots });
           }
         }
       }
@@ -475,7 +474,7 @@ export function forkUp(g) {
       while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen(g.carried[g.carriedPen.length], g.carriedPen.length));
       const c = toWorld(g.fl, FL.carryX, 0);
       hurt(g, g.carriedPen, CEILING_POINTS, c.x, c.y, g.H + g.carried.length, g);
-      addDent(g.carriedPen[g.carriedPen.length - 1], 't', 0, 0.5);
+      addDent(g.carriedPen[g.carriedPen.length - 1], 't');
       return 'blocked';
     }
     g.H = Math.min(MAX_H, g.H + 1);
@@ -504,7 +503,7 @@ export function forkDown(g) {
     if (S && S.layers.length >= g.H) {
       ensure(S);
       hurt(g, [S.pen[g.H - 1]], FORK_BLOCK_POINTS, S.x, S.y, g.H, S);
-      addDent(S.pen[g.H - 1], 't', 0, 0.6);
+      addDent(S.pen[g.H - 1], 't');
       return 'blocked';
     }
     g.H = Math.max(0, g.H - 1);

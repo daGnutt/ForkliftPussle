@@ -93,7 +93,7 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
       ctx.fillStyle = 'rgba(255,255,255,0.18)';
       ctx.fillRect(-0.07, -h, 0.14, size);
       if (pens[i]?.dent) {
-        for (const poly of topShapes(pens[i].dent, i + Math.round(layers[i] * 7))) {
+        for (const poly of topShapes(pens[i], i + Math.round(layers[i] * 7))) {
           ctx.beginPath();
           poly.forEach(([u, v], k) => (k ? ctx.lineTo(u, v) : ctx.moveTo(u, v)));
           ctx.closePath();

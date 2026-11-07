@@ -1,16 +1,25 @@
 import { hash } from './decals.js';
 
-// Cosmetic box damage. A box's `pen.dent` is `{t, c: [4], s: [4]}` with values 0..1: a crumpled top,
-// crumpled corners and crumpled sides. Corner i is local vertex i (-,-), (+,-), (+,+), (-,+); side i is
+// Cosmetic box damage. A box's `pen.dent` is `{t, c: [4], s: [4]}` of 0/1 flags marking a crumpled top,
+// crumpled corners and crumpled sides; how bad they look follows the box's remaining health (`pen.crash`). Corner i is local vertex i (-,-), (+,-), (+,+), (-,+); side i is
 // the edge from corner i to corner i + 1 (its outward normal is up, right, down, left).
 
 export const DENT_FILL = '#2b1d12';
 export const DENT_LINE = '#d9b98a';
 
-export function addDent(pen, kind, i, amt) {
+export function addDent(pen, kind, i = 0) {
   const d = (pen.dent ||= { t: 0, c: [0, 0, 0, 0], s: [0, 0, 0, 0] });
-  if (kind === 't') d.t = Math.min(1, d.t + amt);
-  else d[kind][i] = Math.min(1, d[kind][i] + amt);
+  if (kind === 't') d.t = 1;
+  else d[kind][i] = 1;
+}
+
+const FULL_DAMAGE = 50; // crash points at which a box is as crumpled as it gets (CRASH_POINTS in game.js)
+
+// Dent flags scaled by the box's damage: a fresh dent is shallow, a nearly wrecked box is crushed.
+function severity(pen) {
+  const k = Math.min(1, Math.max(0.12, (pen.crash || 0) / FULL_DAMAGE));
+  const d = pen.dent;
+  return { t: d.t * k, c: d.c.map((v) => v * k), s: d.s.map((v) => v * k) };
 }
 
 // Side or corner of a box that faces the local direction (lx, ly).
@@ -39,8 +48,8 @@ function blob(cx, cy, rx, ry, seed) {
 }
 
 // Crumpled patches on the lid, in box-local tile units (the box spans -0.5..0.5).
-export function topShapes(d, seed = 0) {
-  const out = [];
+export function topShapes(pen, seed = 0) {
+  const d = severity(pen), out = [];
   if (d.t > 0) out.push(blob(jit(seed, 50) * 0.2, jit(seed, 51) * 0.2, 0.12 + 0.3 * d.t, 0.12 + 0.3 * d.t, seed));
   d.c.forEach((v, i) => {
     if (v <= 0) return;
@@ -62,8 +71,8 @@ export function topShapes(d, seed = 0) {
 }
 
 // Patches on side face i, in face coordinates: u = 0..1 along the edge (corner i to corner i + 1), v = 0 (bottom)..1 (top).
-export function sideShapes(d, i, seed = 0) {
-  const out = [];
+export function sideShapes(pen, i, seed = 0) {
+  const d = severity(pen), out = [];
   const s = d.s[i];
   if (s > 0) out.push(blob(0.5 + jit(seed, 60) * 0.2, 0.5, 0.1 + 0.25 * s, 0.12 + 0.25 * s, seed + i).map(([u, v]) => [Math.min(1, Math.max(0, u)), Math.min(1, Math.max(0, v))]));
   for (const [k, u0, dir] of [[i, 0, 1], [(i + 1) % 4, 1, -1]]) {
