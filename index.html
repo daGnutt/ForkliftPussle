@@ -33,6 +33,7 @@
       <label><u>C</u>olour mode <select id="themeSel"><option value="auto">Follow OS</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
       <label><input type="checkbox" id="decalOpt"> <u>D</u>ecals</label>
       <label title="Glitter balls and coloured lights (dark mode only)"><input type="checkbox" id="discoOpt"> D<u>i</u>sco lights <small>(dark mode only)</small></label>
+      <label id="touchLabel" hidden title="Layout of the on-screen controls">Touch controls <select id="touchSel"><option value="classic">Buttons (classic)</option><option value="rotated">Buttons (forks left, drive right)</option><option value="joystick">Joystick + fork buttons</option></select></label>
       <label title="Applies when the level is restarted"><input type="checkbox" id="menuHardOpt"> Hard mode (on restart)</label>
       <label title="Enter full screen when starting and when leaving this menu"><input type="checkbox" id="autoFsOpt"> Auto full-screen</label>
       <form id="menuGoto" autocomplete="off"><label><u>G</u>o to level <input type="number" id="menuLevel" min="1" step="1"></label> <button type="submit">Go</button></form>
@@ -66,8 +67,9 @@
     <p class="press">Press Enter to start</p>
   </div>
   <div id="tutorial" class="hide"></div>
-  <div id="touch">
+  <div id="touch" data-scheme="classic">
     <div class="pad left"><button data-key="ArrowLeft">◀</button><button data-key="ArrowRight">▶</button></div>
+    <div id="stick" aria-hidden="true"><div class="knob"></div></div>
     <div class="pad top"><button data-key="Escape" class="sm">Menu</button></div>
     <div class="pad right"><button data-key="KeyZ">Fork<br>▼</button><button data-key="KeyA">Fork<br>▲</button><button data-key="ArrowDown">Back<br>▼</button><button data-key="ArrowUp">Forward<br>▲</button></div>
   </div>

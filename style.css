@@ -70,6 +70,21 @@ footer b { color: var(--accent); }
   #touch button.sm { width: auto; height: 40px; padding: 0 12px; font-size: 14px; border-radius: 8px; }
   #touch button.on { background: rgba(249,168,37,.8); color: #111; }
   #splash, #menu, #record { touch-action: manipulation; }
+  /* Rotated: forks in the left column (up above down), drive in the right column (forward above back). */
+  #touch[data-scheme="rotated"] .right { grid-auto-flow: column; grid-template-rows: repeat(2, auto); }
+  #touch[data-scheme="rotated"] [data-key="KeyA"] { order: 1; }
+  #touch[data-scheme="rotated"] [data-key="KeyZ"] { order: 2; }
+  #touch[data-scheme="rotated"] [data-key="ArrowUp"] { order: 3; }
+  #touch[data-scheme="rotated"] [data-key="ArrowDown"] { order: 4; }
+  /* Joystick: virtual stick bottom left; only the fork buttons (up above down) bottom right. */
+  #touch[data-scheme="joystick"] .pad.left, #touch[data-scheme="joystick"] [data-key="ArrowUp"], #touch[data-scheme="joystick"] [data-key="ArrowDown"] { display: none; }
+  #touch[data-scheme="joystick"] .right { grid-template-columns: 84px; }
+  #touch[data-scheme="joystick"] [data-key="KeyA"] { order: 1; }
+  #touch[data-scheme="joystick"] [data-key="KeyZ"] { order: 2; }
+  #stick { display: none; position: absolute; left: 20px; bottom: 16px; width: 170px; height: 170px; border-radius: 50%; background: rgba(0,0,0,.3); border: 2px solid rgba(255,255,255,.5); pointer-events: auto; touch-action: none; opacity: .85; }
+  #touch[data-scheme="joystick"] #stick { display: block; }
+  #stick .knob { position: absolute; left: 50%; top: 50%; width: 70px; height: 70px; margin: -35px 0 0 -35px; border-radius: 50%; background: rgba(255,255,255,.55); border: 2px solid rgba(255,255,255,.8); pointer-events: none; }
+  #stick.on .knob { background: rgba(249,168,37,.85); }
 }
 /* Landscape touch: steering bottom left, drive/forks bottom right, minimap (drawn in render.js) between; the field extends down between them. */
 @media (pointer: coarse) and (orientation: landscape) {
@@ -80,6 +95,9 @@ footer b { color: var(--accent); }
   #touch .left button { width: 84px; height: 136px; }
   #touch button.sm { width: auto; height: 36px; }
   #touch .top { right: 96px; }
+  #stick { left: 28px; bottom: 8px; width: 140px; height: 140px; }
+  #stick .knob { width: 56px; height: 56px; margin: -28px 0 0 -28px; }
+  #touch[data-scheme="joystick"] .right { grid-template-columns: 64px; }
   #tutorial { bottom: 8px; width: calc(100vw - 2 * 220px); max-width: none; max-height: 80px; box-sizing: border-box; overflow: hidden; padding: 6px 10px; font-size: 13px; }
 }
 @media (orientation: landscape) and (max-height: 600px) {
