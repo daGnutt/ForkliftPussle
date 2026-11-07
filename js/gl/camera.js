@@ -5,12 +5,13 @@ import { perspective, viewBasis, mul } from './mat.js';
 // Camera maths for the WebGL renderer (pure, no DOM). A camera is { vp, eye: [x, y, z], w, h } (w, h in css px).
 
 const POV_NEAR = 0.06, POV_FAR = 90;
+const LOW_LIFT = 0.22; // radians the view is raised above the fork-tip line when the forks are low (fades out by level 2)
 
 // Cabin view: eye fixed at seat height (no up/down translation); the camera only pitches to look at the fork tips
 // (smoothed level g.ef), so the view tilts up and down as the forks rise and fall.
 export function povCamera(g, w, h) {
   const e = toWorld(g.fl, EYE_X, 0), a = g.fl.a;
-  const tip = FL.tineX1 - EYE_X, pitch = Math.atan2(g.ef * (BOX_H + PAL) - EYE_Z, tip);
+  const tip = FL.tineX1 - EYE_X, pitch = Math.atan2(g.ef * (BOX_H + PAL) - EYE_Z, tip) + LOW_LIFT * Math.max(0, 1 - g.ef / 2);
   const cp = Math.cos(pitch), sp = Math.sin(pitch), c = Math.cos(a), s = Math.sin(a);
   const f2w = 1 / Math.tan(HFOV / 2);
   const proj = perspective(f2w, (f2w * w) / h, 0, POV_NEAR, POV_FAR);
