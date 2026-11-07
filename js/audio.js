@@ -9,7 +9,10 @@ const SFX_VOL = 0.5;
 const TRACK_KEY = 'forklift-music-track';
 
 let ctx = null, master = null, musicBus = null, sfxBus = null;
-let muted = localStorage.getItem(MUTE_KEY) === '1';
+let muted = localStorage.getItem(MUTE_KEY) !== '0'; // music is off until enabled
+const RANDOM_KEY = 'forklift-music-random';
+let randomOn = localStorage.getItem(RANDOM_KEY) !== '0';
+let onTrackChange = null;
 let timer = null, noiseBuf = null;
 let trackIdx = 0, trackBus = null;
 let engine = null;
@@ -186,6 +189,7 @@ function midiTick() {
     if (songIdx >= song.notes.length) {
       const end = songStart + song.duration + 1.5;
       if (end > horizon) return;
+      if (randomOn && TRACKS.length > 1) { nextRandomTrack(); return; }
       songStart = end;
       songIdx = 0;
     }
@@ -278,7 +282,21 @@ function applyTrack() {
 {
   const saved = TRACKS.findIndex((t) => t.id === localStorage.getItem(TRACK_KEY));
   trackIdx = Math.max(0, saved);
+  if (randomOn) trackIdx = Math.floor(Math.random() * TRACKS.length);
 }
+
+// Switches to a different random song (after one finishes while random music is on).
+function nextRandomTrack() {
+  trackIdx = (trackIdx + 1 + Math.floor(Math.random() * (TRACKS.length - 1))) % TRACKS.length;
+  applyTrack();
+  if (onTrackChange) onTrackChange(TRACKS[trackIdx].id);
+}
+export function isMusicRandom() { return randomOn; }
+export function setMusicRandom(on) {
+  randomOn = !!on;
+  localStorage.setItem(RANDOM_KEY, randomOn ? '1' : '0');
+}
+export function setTrackListener(fn) { onTrackChange = fn; }
 
 export function getMusicTrack() { return TRACKS[trackIdx].id; }
 export function setMusicTrack(id) {

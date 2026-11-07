@@ -11,7 +11,7 @@ import { themeMode, setThemeMode } from './theme.js';
 import { discoEnabled, setDiscoEnabled } from './disco.js';
 import { initTestingBanner } from './testing.js';
 import { startSplashAnimation } from './splash.js';
-import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setSilenced, isMusicMuted, setMusicMuted, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
@@ -219,7 +219,12 @@ const hardOpt = document.getElementById('hardOpt');
 hardOpt.checked = hard;
 showTutorial();
 
-function startGame() {
+function startGame(disco = false) {
+  if (disco) {
+    setMusicMuted(false);
+    setDiscoEnabled(true);
+    localStorage.setItem('forklift-disco', '1');
+  }
   const text = seedInput.value.trim();
   if (text !== seedText) {
     seedText = text;
@@ -258,7 +263,11 @@ seedInput.addEventListener('keydown', (e) => {
   e.stopPropagation();
   if (e.key === 'Enter') { e.preventDefault(); startAudio(); startGame(); }
 });
-document.getElementById('seedForm').addEventListener('submit', (e) => { e.preventDefault(); startAudio(); startGame(); });
+document.getElementById('seedForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  startAudio();
+  startGame(e.submitter && e.submitter.id === 'discoStart');
+});
 window.addEventListener('keydown', (e) => {
   if (!splashOn || e.target === seedInput) return;
   e.stopImmediatePropagation();
@@ -271,6 +280,10 @@ const musicOpt = document.getElementById('musicOpt');
 const trackSel = document.getElementById('trackSel');
 for (const t of MUSIC_TRACKS) trackSel.add(new Option(t.name, t.id));
 trackSel.value = getMusicTrack();
+setTrackListener((id) => { trackSel.value = id; });
+const randomOpt = document.getElementById('randomOpt');
+randomOpt.checked = isMusicRandom();
+randomOpt.addEventListener('change', () => setMusicRandom(randomOpt.checked));
 trackSel.addEventListener('change', () => { setMusicTrack(trackSel.value); startAudio(); });
 const muteOpt = document.getElementById('muteOpt');
 const menuLevel = document.getElementById('menuLevel');
@@ -279,13 +292,22 @@ setDecalsEnabled(localStorage.getItem('forklift-decals-off') !== '1');
 const themeSel = document.getElementById('themeSel');
 setThemeMode(localStorage.getItem('forklift-theme'));
 const discoOpt = document.getElementById('discoOpt');
-setDiscoEnabled(localStorage.getItem('forklift-disco-off') !== '1');
+setDiscoEnabled(localStorage.getItem('forklift-disco') === '1');
 const menuHardOpt = document.getElementById('menuHardOpt');
 const autoFsOpt = document.getElementById('autoFsOpt');
 autoFsOpt.checked = autoFs;
 autoFsOpt.addEventListener('change', () => {
   autoFs = autoFsOpt.checked;
   localStorage.setItem('forklift-auto-fullscreen', autoFs ? '1' : '0');
+});
+function showPage(name) {
+  for (const p of menuEl.querySelectorAll('.page')) p.hidden = p.dataset.page !== name;
+  (menuEl.querySelector(`.page[data-page="${name}"] .primary, .page[data-page="${name}"] .back`)).focus();
+  menuEl.dataset.page = name;
+}
+menuEl.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-go]');
+  if (b) showPage(b.dataset.go);
 });
 function toggleMenu(open) {
   view.menuOpen = open;
@@ -301,7 +323,7 @@ function toggleMenu(open) {
     menuHardOpt.checked = hard;
     menuLevel.value = level;
     updateTutorialBtn();
-    document.getElementById('menuResume').focus();
+    showPage('main');
   } else {
     document.activeElement?.blur();
   }
@@ -320,11 +342,13 @@ themeSel.addEventListener('change', () => {
 });
 discoOpt.addEventListener('change', () => {
   setDiscoEnabled(discoOpt.checked);
-  localStorage.setItem('forklift-disco-off', discoOpt.checked ? '0' : '1');
+  localStorage.setItem('forklift-disco', discoOpt.checked ? '1' : '0');
 });
 const touchSel = document.getElementById('touchSel');
 const touchPad = document.getElementById('touch');
 if (isTouch) document.getElementById('touchLabel').hidden = false;
+// On touch devices Auto full-screen lives on the main menu page instead of the visuals page.
+if (isTouch) { const l = document.getElementById('autoFsLabel'); l.classList.add('item'); menuEl.querySelector('.page[data-page="main"] hr').before(l); }
 {
   const saved = localStorage.getItem('forklift-touch-scheme');
   touchSel.value = [...touchSel.options].some((o) => o.value === saved) ? saved : 'classic';
@@ -374,7 +398,8 @@ document.getElementById('menuRestart').addEventListener('click', () => {
 window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
-  if (e.target === stateText) { if (e.code === 'Escape') { e.preventDefault(); toggleMenu(false); } return; }
+  if (e.target === stateText) { if (e.code === 'Escape') { e.preventDefault(); showPage('main'); } return; }
+  if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage('main'); return; }
   if (e.code === 'Escape' || (e.code === 'KeyP' && e.target !== menuLevel)) { e.preventDefault(); toggleMenu(false); return; }
   if (e.code === 'Enter' && e.target !== menuLevel) { e.preventDefault(); toggleMenu(false); return; }
   if (e.target === trackSel && e.code !== 'KeyT') return;
@@ -385,7 +410,9 @@ window.addEventListener('keydown', (e) => {
     KeyA: () => toggle(muteOpt),
     KeyE: () => toggle(engineOpt),
     KeyM: () => toggle(musicOpt),
-    KeyT: () => trackSel.focus(),
+    KeyS: () => showPage('sound'),
+    KeyV: () => showPage('display'),
+    KeyT: () => { showPage('sound'); trackSel.focus(); },
     KeyD: () => toggle(decalOpt),
     KeyC: () => {
       const o = [...themeSel.options].map((x) => x.value);
@@ -393,7 +420,7 @@ window.addEventListener('keydown', (e) => {
       themeSel.dispatchEvent(new Event('change'));
     },
     KeyI: () => toggle(discoOpt),
-    KeyG: () => { menuLevel.focus(); menuLevel.select(); },
+    KeyG: () => { showPage('game'); menuLevel.focus(); menuLevel.select(); },
     KeyL: () => document.getElementById('menuLowest').click(),
     KeyF: toggleFullscreen,
     KeyR: () => document.getElementById('menuRestart').click(),
