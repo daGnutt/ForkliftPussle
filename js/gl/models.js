@@ -13,6 +13,10 @@ export const WALL_H = 4;
 export const PALLET_COLOR = '#9a7040';
 const WHITE = [1, 1, 1, 1];
 
+// Dark-mode lamps in the forklift frame: headlights high on the A-pillars, tail lamps on the counterweight.
+export const HEAD_Z = 1.4, TAIL_Z = 0.7, LAMP_Y = 0.38;
+export const HEAD_X = FL.front + 0.02, TAIL_X = FL.back - 0.03;
+
 // Runners along the fork axis [lateral offset, half width], as in game.js (a slot for each tine between them).
 const RUNNERS = [[0, 0.12], [-0.47, 0.03], [0.47, 0.03]];
 const SLATS = [-0.42, -0.21, 0, 0.21, 0.42];
@@ -78,6 +82,13 @@ export function addForklift(m, g, solidRoof) {
     for (const px of [-1.1, -0.05]) box(px - pw, s * 0.42 - pw, px + pw, s * 0.42 + pw, solidRoof ? 0.5 : 0.3, 1.15, '#37474f');
   }
   if (solidRoof) box(FL.front - 0.12, -0.38, FL.front + 0.02, 0.38, 1.3, 1.5, '#555');
+  if (theme().dark) {
+    const tail = g.fl.speed < -0.05 ? '#ffffff' : g.fl.brake ? '#ff2a1a' : '#6a0d0a';
+    for (const s of [-1, 1]) {
+      box(HEAD_X - 0.12, s * LAMP_Y - 0.06, HEAD_X + 0.03, s * LAMP_Y + 0.06, HEAD_Z - 0.06, HEAD_Z + 0.06, '#fff4cf', { emissive: true });
+      box(TAIL_X - 0.02, s * LAMP_Y - 0.08, TAIL_X + 0.1, s * LAMP_Y + 0.08, TAIL_Z - 0.04, TAIL_Z + 0.04, tail, { emissive: true });
+    }
+  }
   if (solidRoof) {
     box(-1.2, -0.5, 0.05, 0.5, 1.15, 1.25, '#a1730f');
     box(-1.0, -0.33, -0.1, 0.33, 1.25, 1.27, '#fff3c4');

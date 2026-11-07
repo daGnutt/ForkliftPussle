@@ -7,6 +7,8 @@ import { serializeGame, deserializeGame, encodeState, decodeState } from '../js/
 import { povCamera, overviewCamera } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { projectPoint } from '../js/gl/mat.js';
+import { setThemeMode } from '../js/theme.js';
+import { setDiscoEnabled } from '../js/disco.js';
 import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneLabelPos } from '../js/game.js';
 
 const NONE = {};
@@ -963,6 +965,30 @@ console.log('all tests passed');
     assert.ok(d.opaque.count > 0 && d.opaque.floats().length === d.opaque.count * 10, 'dynamic mesh floats match the vertex stride');
   }
   console.log('gl scene ok');
+}
+
+// Dark mode: headlights, reverse/brake lights and ceiling lights, the truck giving ~75% of the light
+{
+  const g = newGame(1);
+  const eye = [g.fl.x, g.fl.y];
+  assert.equal(dynamicMeshes(g, 'pov', eye).lights.length, 0, 'light mode has no point lights');
+  setThemeMode('dark');
+  setDiscoEnabled(false);
+  let ls = dynamicMeshes(g, 'pov', eye).lights;
+  const strength = (l) => l.col[0] + l.col[1] + l.col[2];
+  const truck = (ls) => ls.filter((l) => l.dir).reduce((a, l) => a + strength(l), 0);
+  assert.equal(ls.filter((l) => l.dir).length, 2, 'two headlights while standing still');
+  const ceil = ls.filter((l) => !l.dir).reduce((a, l) => a + strength(l), 0);
+  assert.ok(Math.abs(truck(ls) / (truck(ls) + ceil) - 0.75) < 0.01, 'truck provides 75% of the light');
+  assert.ok(ls.every((l) => l.z > 1.3), 'lights are high up');
+  run(g, { down: true }, 0.5);
+  ls = dynamicMeshes(g, 'pov', eye).lights;
+  assert.ok(g.fl.speed < -0.05 && ls.filter((l) => l.dir).length === 4, 'reversing adds two reverse lights');
+  run(g, { up: true }, 0.03);
+  assert.ok(g.fl.brake && dynamicMeshes(g, 'pov', eye).lights.filter((l) => l.dir).length >= 4, 'throttle against the motion brakes');
+  setThemeMode('light');
+  setDiscoEnabled(true);
+  console.log('dark lights ok');
 }
 
 // Zone labels never sit under a wall (e.g. a drop point at the south border)

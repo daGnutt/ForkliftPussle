@@ -31,6 +31,7 @@ const int NL = 24;
 uniform int uNL;
 uniform vec4 uLP[NL]; // xyz position, w radius
 uniform vec3 uLC[NL];
+uniform vec4 uLD[NL]; // xyz spot direction, w cone cosine (-2 = omni)
 out vec4 o;
 void main() {
   vec3 col = vC.rgb;
@@ -42,7 +43,9 @@ void main() {
       vec3 d = uLP[i].xyz - vW;
       float dist = length(d);
       float a = clamp(1.0 - dist / uLP[i].w, 0.0, 1.0);
-      lit += uLC[i] * (a * a * 1.6 * max(dot(n, d / max(dist, 1e-3)), 0.0));
+      vec3 l = d / max(dist, 1e-3);
+      float spot = uLD[i].w < -1.0 ? 1.0 : smoothstep(uLD[i].w, uLD[i].w + 0.2, dot(-l, uLD[i].xyz));
+      lit += uLC[i] * (a * a * 1.6 * spot * max(dot(n, l), 0.0));
     }
     col *= lit;
   }
@@ -54,6 +57,11 @@ void main() {
 const LIGHT = {
   pov: { sun: [0.35, 0.25, 0.9], sunCol: [0.5, 0.5, 0.48], up: [0.62, 0.62, 0.65], down: [0.45, 0.45, 0.47], fogA: 6, fogB: 48, fogMax: 0.8 },
   ov: { sun: [-0.4, -0.5, 0.8], sunCol: [0.42, 0.42, 0.4], up: [0.66, 0.66, 0.68], down: [0.5, 0.5, 0.52], fogA: 1e4, fogB: 2e4, fogMax: 0 },
+};
+// Dark mode: little ambient light; the truck's and the ceiling's point lights do the work.
+const DARK_LIGHT = {
+  pov: { sun: [0.35, 0.25, 0.9], sunCol: [0.03, 0.03, 0.035], up: [0.13, 0.14, 0.17], down: [0.08, 0.08, 0.1], fogA: 6, fogB: 48, fogMax: 0.8 },
+  ov: { sun: [-0.4, -0.5, 0.8], sunCol: [0.05, 0.05, 0.06], up: [0.24, 0.25, 0.29], down: [0.16, 0.16, 0.19], fogA: 1e4, fogB: 2e4, fogMax: 0 },
 };
 
 let R = null; // { canvas, gl, prog, u, dyn, statics } | null; undefined while untried
@@ -83,6 +91,7 @@ function init() {
   const u = {};
   u.uLP = gl.getUniformLocation(prog, 'uLP[0]');
   u.uLC = gl.getUniformLocation(prog, 'uLC[0]');
+  u.uLD = gl.getUniformLocation(prog, 'uLD[0]');
   for (const n of ['uVP', 'uEye', 'uSun', 'uSunCol', 'uAmbUp', 'uAmbDown', 'uFogCol', 'uFogA', 'uFogB', 'uFogMax', 'uAdd', 'uNL']) u[n] = gl.getUniformLocation(prog, n);
   canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); R = null; });
   canvas.addEventListener('webglcontextrestored', () => { failed = false; });
@@ -155,7 +164,7 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
     canvas.width = Math.max(canvas.width, pw);
     canvas.height = Math.max(canvas.height, ph);
   }
-  const L = LIGHT[mode];
+  const L = (theme().dark ? DARK_LIGHT : LIGHT)[mode];
   const bg = mode === 'pov' ? fogColor() : parseColor(theme().bg);
 
   const st = staticBuffers(r, g, mode);
@@ -186,11 +195,16 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
   gl.uniform1f(u.uFogB, L.fogB);
   gl.uniform1f(u.uFogMax, L.fogMax);
   gl.uniform1f(u.uAdd, 0);
-  const lp = new Float32Array(LIGHT_MAX * 4), lc = new Float32Array(LIGHT_MAX * 3);
-  dyn.lights.forEach((l, i) => { lp.set([l.x, l.y, l.z, l.r], i * 4); lc.set(l.col.slice(0, 3), i * 3); });
+  const lp = new Float32Array(LIGHT_MAX * 4), lc = new Float32Array(LIGHT_MAX * 3), ld = new Float32Array(LIGHT_MAX * 4);
+  dyn.lights.forEach((l, i) => {
+    lp.set([l.x, l.y, l.z, l.r], i * 4);
+    lc.set(l.col.slice(0, 3), i * 3);
+    if (l.dir) { const n = Math.hypot(...l.dir); ld.set([l.dir[0] / n, l.dir[1] / n, l.dir[2] / n, l.cone], i * 4); } else ld[i * 4 + 3] = -2;
+  });
   gl.uniform1i(u.uNL, dyn.lights.length);
   gl.uniform4fv(u.uLP, lp);
   gl.uniform3fv(u.uLC, lc);
+  gl.uniform4fv(u.uLD, ld);
 
   drawBuffer(r, st.opaque.buf, st.opaque.count);
   drawMesh(r, dyn.opaque);
