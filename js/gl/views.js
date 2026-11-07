@@ -6,7 +6,7 @@ import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';
 
 // Screen-space glue between the WebGL scene and the 2D game canvas: view entry points and the text overlays
-// (zone counts, damage popups) that are drawn in 2D over the 3D image through the camera projection.
+// (cabin zone counts, damage popups) that are drawn in 2D over the 3D image through the camera projection.
 
 export { glAvailable };
 
@@ -80,10 +80,6 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr) {
     ctx.fillStyle = fill;
     ctx.fillText(str, p[0], p[1]);
   };
-  for (const z of g.zones) {
-    const p = proj(z.x, z.y + 0.92, 0);
-    if (p) text(`×${z.count}`, p, 0.5 * s, '#000', '#fff');
-  }
   for (const h of g.hits || []) {
     const k = (g.clock - h.t) / (h.wonky ? WONKY_LIFE : HIT_LIFE);
     const p = proj(h.x, h.y, h.z * (BOX_H + PAL) + 0.4 + k * 1.2);

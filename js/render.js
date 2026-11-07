@@ -8,7 +8,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, HIT_LIFE, WONKY_LIFE, zoneDone, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
+import { carriedWorldOffs, HIT_LIFE, WONKY_LIFE, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -423,7 +423,7 @@ function drawWorldObjects(ctx, g, vis) {
   }
 
   for (const z of g.zones) {
-    if (!seen(z.x - 0.6, z.y - 0.6, 1.2, 1.4)) continue;
+    if (!seen(z.x - 0.6, z.y - 1.2, 1.2, 2.4)) continue;
     const done = zoneDone(g, z);
     ctx.fillStyle = COLORS[z.color];
     ctx.globalAlpha = done ? 0.75 : 0.4;
@@ -434,14 +434,16 @@ function drawWorldObjects(ctx, g, vis) {
     ctx.setLineDash(done ? [] : [0.2, 0.15]);
     ctx.strokeRect(z.x - 0.6, z.y - 0.6, 1.2, 1.2);
     ctx.setLineDash([]);
+    if (done) continue;
     ctx.font = 'bold 0.5px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineWidth = 0.1;
     ctx.strokeStyle = '#fff';
-    ctx.strokeText(`×${z.count}`, z.x, z.y + 0.92);
+    const lp = zoneLabelPos(g, z);
+    ctx.strokeText(`×${z.count}`, lp.x, lp.y);
     ctx.fillStyle = '#000';
-    ctx.fillText(`×${z.count}`, z.x, z.y + 0.92);
+    ctx.fillText(`×${z.count}`, lp.x, lp.y);
   }
 
   // Stacks whose top is below the tines are drawn first; stacks the tines
