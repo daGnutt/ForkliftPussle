@@ -1,6 +1,7 @@
 import { boxDecalKind } from './decals.js';
 import { rectPoly, sat, overlapArea } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
+import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { generateLevel } from './level.js';
 
 const FORKLIFT_MASS = 6;
@@ -64,6 +65,7 @@ function settle(g, S) {
     let dx = a.x - b.x, dy = a.y - b.y;
     const len = Math.hypot(dx, dy) || 1;
     dx /= len; dy /= len;
+    addDent(S.pen[i - 1], 't', 0, 0.8);
     const pen = S.pen.splice(i);
     hurt(g, pen, CRASH_POINTS, S.x + dx * 1.45, S.y + dy * 1.45, pen.length);
     const offs = S.offs.splice(i);
@@ -102,14 +104,27 @@ function wonkyPopup(g, pens, x, y, z) {
   (g.hits ||= []).push({ x, y, z, pts, t: g.clock, owner: null, wonky: true });
 }
 
-function crash(g, pens, owner, count = pens.length) {
+// Crumples the boxes in `pens` where they were hit. `dent` = {kind: 's'|'c', dx, dy (world direction from the boxes
+// towards what they hit), rots (world angle of each box)}.
+function dentBoxes(pens, count, pts, dent) {
+  const amt = 0.25 + 0.12 * pts;
+  for (let i = 0; i < count; i++) {
+    const [lx, ly] = toLocalDir(dent.dx, dent.dy, dent.rots[i] || 0);
+    addDent(pens[i], dent.kind, dentIndex(dent.kind, lx, ly), amt);
+  }
+}
+
+function crash(g, pens, owner, count = pens.length, dent = null) {
   const speed = Math.abs(g.fl.speed);
   if (speed < CRASH_MIN_SPEED || g.clock - (owner.hitAt ?? -1) < CRASH_COOLDOWN) return;
   owner.hitAt = g.clock;
   const pts = Math.min(5, Math.max(1, Math.round(speed)));
   const c = owner === g ? toWorld(g.fl, FL.carryX, 0) : owner;
   hurt(g, pens.slice(0, count), pts, c.x, c.y, owner === g ? g.H + pens.length : pens.length, owner);
+  if (dent) dentBoxes(pens, Math.min(count, pens.length), pts, dent);
 }
+
+const carriedRotsWorld = (g) => g.carriedRots.map((r) => r + g.fl.a);
 
 // Deduction (0..SQUARE_POINTS) for a box whose world angle is a: free within
 // SQUARE_ALLOWANCE of square, then scaled and floored to steps of 5 points.
@@ -287,7 +302,7 @@ function resolve(g) {
           moveF(m.x * m.depth, m.y * m.depth);
           const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
           wp.x += m.x * m.depth; wp.y += m.y * m.depth;
-          if (sh.carried) crash(g, g.carriedPen, g);
+          if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 'c', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
         }
       }
     }
@@ -302,8 +317,8 @@ function resolve(g) {
         if (!m) continue;
         ensure(s);
         const ws = 1 / (s.layers.length - from);
-        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && g.H > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? g.H : s.pen.length);
-        if (sh.carried) crash(g, g.carriedPen, g);
+        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && g.H > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? g.H : s.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: s.rots });
+        if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 's', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
         if (!sh.carried && !sh.tine && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
         const d = m.depth * 1.001;
         moveF(m.x * d * (wf / (wf + ws)), m.y * d * (wf / (wf + ws)));
@@ -318,7 +333,15 @@ function resolve(g) {
       for (const w of g.walls) {
         if (s.x + 0.71 < w.x || s.x - 0.71 > w.x + w.w || s.y + 0.71 < w.y || s.y - 0.71 > w.y + w.h) continue;
         const m = sat(stackPoly(s), w.poly);
-        if (m) { s.x += m.x * m.depth; s.y += m.y * m.depth; }
+        if (m) {
+          s.x += m.x * m.depth; s.y += m.y * m.depth;
+          const sp = Math.abs(f.speed);
+          if (sp >= CRASH_MIN_SPEED && g.clock - (s.wallHitAt ?? -1) >= CRASH_COOLDOWN) {
+            ensure(s);
+            s.wallHitAt = g.clock;
+            dentBoxes(s.pen, s.pen.length, Math.min(5, Math.round(sp)), { kind: 'c', dx: -m.x, dy: -m.y, rots: s.rots });
+          }
+        }
       }
     }
 
@@ -329,8 +352,8 @@ function resolve(g) {
         const m = sat(stackPoly(a), stackPoly(b));
         if (!m) continue;
         ensure(a); ensure(b);
-        crash(g, a.pen, a);
-        crash(g, b.pen, b);
+        crash(g, a.pen, a, a.pen.length, { kind: 's', dx: -m.x, dy: -m.y, rots: a.rots });
+        crash(g, b.pen, b, b.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: b.rots });
         const wa = 1 / a.layers.length, wb = 1 / b.layers.length;
         const d = m.depth * 1.001;
         a.x += m.x * d * (wa / (wa + wb)); a.y += m.y * d * (wa / (wa + wb));
@@ -452,6 +475,7 @@ export function forkUp(g) {
       while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen(g.carried[g.carriedPen.length], g.carriedPen.length));
       const c = toWorld(g.fl, FL.carryX, 0);
       hurt(g, g.carriedPen, CEILING_POINTS, c.x, c.y, g.H + g.carried.length, g);
+      addDent(g.carriedPen[g.carriedPen.length - 1], 't', 0, 0.5);
       return 'blocked';
     }
     g.H = Math.min(MAX_H, g.H + 1);
@@ -480,6 +504,7 @@ export function forkDown(g) {
     if (S && S.layers.length >= g.H) {
       ensure(S);
       hurt(g, [S.pen[g.H - 1]], FORK_BLOCK_POINTS, S.x, S.y, g.H, S);
+      addDent(S.pen[g.H - 1], 't', 0, 0.6);
       return 'blocked';
     }
     g.H = Math.max(0, g.H - 1);

@@ -1,5 +1,6 @@
 import { theme } from '../theme.js';
 import { decalsEnabled, wallDecal, wallBase, hash, boxDecalShapes } from '../decals.js';
+import { topShapes, sideShapes, DENT_FILL } from '../dents.js';
 import { project, pathPoly, toCam, BOX_H, DECAL_MAX_DIST, FAR_DARK, PALLET_COLOR } from './camera.js';
 
 // Face painting: flat colour, distance shading and the decals on walls, boxes and chargers.
@@ -384,6 +385,18 @@ function drawBoxDecal(ctx, cam, f, dark) {
   }
 }
 
+function drawDents(ctx, cam, f, dark) {
+  if (f.side) {
+    const [q0, q1, z0, z1] = f.side;
+    for (const poly of sideShapes(f.dent, f.edge, f.dseed)) {
+      decalPoly(ctx, cam, poly.map(([u, v]) => [q0[0] + (q1[0] - q0[0]) * u, q0[1] + (q1[1] - q0[1]) * u, z0 + (z1 - z0) * v]), DENT_FILL, dark);
+    }
+  } else if (f.boxFlat && f.lit) {
+    const { x, y, r } = f.box, c = Math.cos(r), s = Math.sin(r), z = f.quad[0][2];
+    for (const poly of topShapes(f.dent, f.dseed)) decalPoly(ctx, cam, poly.map(([u, v]) => [x + u * c - v * s, y + u * s + v * c, z]), DENT_FILL, dark);
+  }
+}
+
 // High-voltage warning on a charger side: hazard stripes along the base and a bolt in a yellow triangle.
 function drawChargerDecal(ctx, cam, f, dark) {
   const [q0, q1] = f.side;
@@ -431,6 +444,7 @@ export function drawFace(ctx, cam, g, f) {
   }
   if (f.charger && f.side) drawChargerDecal(ctx, cam, f, d);
   if (f.deco && f.d < DECAL_MAX_DIST) drawBoxDecal(ctx, cam, f, d);
+  if (f.dent && f.d < DECAL_MAX_DIST) drawDents(ctx, cam, f, d);
   if (f.tile != null && f.side) drawWallDecals(ctx, cam, g, f, d);
   if (f.color && f.color !== PALLET_COLOR && f.d < 14) {
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
