@@ -287,6 +287,15 @@ autoFsOpt.addEventListener('change', () => {
   autoFs = autoFsOpt.checked;
   localStorage.setItem('forklift-auto-fullscreen', autoFs ? '1' : '0');
 });
+function showPage(name) {
+  for (const p of menuEl.querySelectorAll('.page')) p.hidden = p.dataset.page !== name;
+  (menuEl.querySelector(`.page[data-page="${name}"] .primary, .page[data-page="${name}"] .back`)).focus();
+  menuEl.dataset.page = name;
+}
+menuEl.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-go]');
+  if (b) showPage(b.dataset.go);
+});
 function toggleMenu(open) {
   view.menuOpen = open;
   setFullscreen(!open);
@@ -301,7 +310,7 @@ function toggleMenu(open) {
     menuHardOpt.checked = hard;
     menuLevel.value = level;
     updateTutorialBtn();
-    document.getElementById('menuResume').focus();
+    showPage('main');
   } else {
     document.activeElement?.blur();
   }
@@ -325,6 +334,8 @@ discoOpt.addEventListener('change', () => {
 const touchSel = document.getElementById('touchSel');
 const touchPad = document.getElementById('touch');
 if (isTouch) document.getElementById('touchLabel').hidden = false;
+// On touch devices Auto full-screen lives on the main menu page instead of the visuals page.
+if (isTouch) { const l = document.getElementById('autoFsLabel'); l.classList.add('item'); menuEl.querySelector('.page[data-page="main"] hr').before(l); }
 {
   const saved = localStorage.getItem('forklift-touch-scheme');
   touchSel.value = [...touchSel.options].some((o) => o.value === saved) ? saved : 'classic';
@@ -374,7 +385,8 @@ document.getElementById('menuRestart').addEventListener('click', () => {
 window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
-  if (e.target === stateText) { if (e.code === 'Escape') { e.preventDefault(); toggleMenu(false); } return; }
+  if (e.target === stateText) { if (e.code === 'Escape') { e.preventDefault(); showPage('main'); } return; }
+  if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage('main'); return; }
   if (e.code === 'Escape' || (e.code === 'KeyP' && e.target !== menuLevel)) { e.preventDefault(); toggleMenu(false); return; }
   if (e.code === 'Enter' && e.target !== menuLevel) { e.preventDefault(); toggleMenu(false); return; }
   if (e.target === trackSel && e.code !== 'KeyT') return;
@@ -385,7 +397,9 @@ window.addEventListener('keydown', (e) => {
     KeyA: () => toggle(muteOpt),
     KeyE: () => toggle(engineOpt),
     KeyM: () => toggle(musicOpt),
-    KeyT: () => trackSel.focus(),
+    KeyS: () => showPage('sound'),
+    KeyV: () => showPage('display'),
+    KeyT: () => { showPage('sound'); trackSel.focus(); },
     KeyD: () => toggle(decalOpt),
     KeyC: () => {
       const o = [...themeSel.options].map((x) => x.value);
@@ -393,7 +407,7 @@ window.addEventListener('keydown', (e) => {
       themeSel.dispatchEvent(new Event('change'));
     },
     KeyI: () => toggle(discoOpt),
-    KeyG: () => { menuLevel.focus(); menuLevel.select(); },
+    KeyG: () => { showPage('game'); menuLevel.focus(); menuLevel.select(); },
     KeyL: () => document.getElementById('menuLowest').click(),
     KeyF: toggleFullscreen,
     KeyR: () => document.getElementById('menuRestart').click(),
