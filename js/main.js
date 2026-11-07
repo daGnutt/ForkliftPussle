@@ -149,8 +149,9 @@ document.getElementById('recordForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const name = recordName.value.trim() || 'Anonymous';
   localStorage.setItem('forklift-player', name);
-  saveBest(localStorage, pending.seed, pending.level, { ...pending.result, name });
+  // addTop first: getTop falls back to the saved best, which would duplicate the new entry
   addTop(localStorage, pending.seed, pending.level, { ...pending.result, name });
+  saveBest(localStorage, pending.seed, pending.level, { ...pending.result, name });
   if (pending.level === level && pending.seed === seed) {
     view.best = getBest(localStorage, seed, level);
     view.localList = getTop(localStorage, seed, level);
