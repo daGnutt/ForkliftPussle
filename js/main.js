@@ -405,7 +405,7 @@ window.addEventListener('keydown', (e) => {
       themeSel.dispatchEvent(new Event('change'));
     },
     KeyI: () => toggle(discoOpt),
-    KeyG: () => { showPage('levels'); menuLevel.focus(); menuLevel.select(); },
+    KeyG: () => { showPage('game'); menuLevel.focus(); menuLevel.select(); },
     KeyL: () => document.getElementById('menuLowest').click(),
     KeyF: toggleFullscreen,
     KeyR: () => document.getElementById('menuRestart').click(),
