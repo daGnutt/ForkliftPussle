@@ -916,3 +916,23 @@ console.log('all tests passed');
   }
   console.log('seed sweep ok');
 }
+
+// Damage crumples boxes: lids when forks are dropped on them, sides when rammed, corners against walls.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1] }];
+  g.fl.x = 6; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
+  driveUntil(g, 10, 8);
+  g.H = 2;
+  assert.equal(forkDown(g), 'blocked');
+  assert.ok(g.stacks[0].pen[1].dent.t > 0, 'lid crumpled by the dropped forks');
+
+  const h = newGame(1);
+  flatWorld(h);
+  h.stacks = [{ x: 9, y: 5, layers: [0] }];
+  h.fl.x = 5; h.fl.y = 5; h.fl.a = 0; h.fl.speed = 4;
+  run(h, { up: true }, 3);
+  const d = h.stacks[0].pen[0].dent;
+  assert.ok(d && d.s.some((v) => v > 0), 'side crumpled by the truck');
+}

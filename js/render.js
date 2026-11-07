@@ -1,5 +1,6 @@
 import { COLORS } from './level.js';
 import { FL, toWorld } from './forklift.js';
+import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
@@ -91,6 +92,21 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
       // tape strip across the lid
       ctx.fillStyle = 'rgba(255,255,255,0.18)';
       ctx.fillRect(-0.07, -h, 0.14, size);
+      if (pens[i]?.dent) {
+        for (const poly of topShapes(pens[i], i + Math.round(layers[i] * 7))) {
+          ctx.beginPath();
+          poly.forEach(([u, v], k) => (k ? ctx.lineTo(u, v) : ctx.moveTo(u, v)));
+          ctx.closePath();
+          ctx.fillStyle = DENT_FILL;
+          ctx.globalAlpha = 0.6;
+          ctx.fill();
+          ctx.globalAlpha = 0.7;
+          ctx.strokeStyle = DENT_LINE;
+          ctx.lineWidth = 0.025;
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+      }
       if (decalsEnabled()) {
         for (const d of boxDecalShapes(pens[i]?.deco ?? boxDecalKind(layers[i], i))) {
           ctx.fillStyle = d.fill;
