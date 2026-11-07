@@ -48,7 +48,7 @@ export function maxSteerFor(speed) {
 }
 
 export function makeForklift(x, y, a) {
-  return { x, y, a, speed: 0, steer: 0 };
+  return { x, y, a, speed: 0, steer: 0, brake: false };
 }
 
 export function toWorld(f, lx, ly) {
@@ -70,6 +70,7 @@ export function drive(f, inp, dt, h = 0) {
   const hsf = heightSpeedFactor(h);
   const capFwd = MAX_FWD * hsf, capRev = MAX_REV * hsf;
   const th = (inp.up ? 1 : 0) - (inp.down ? 1 : 0);
+  f.brake = th * f.speed < 0; // throttle opposing the motion: brake lights
   const overCap = f.speed > capFwd || f.speed < -capRev;
   if (overCap) {
     // Raising the forks past the current speed's cap bleeds speed off like releasing

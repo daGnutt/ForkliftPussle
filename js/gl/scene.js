@@ -7,7 +7,7 @@ import { reverseLight } from '../revlight.js';
 import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
-import { WALL_H, addStack, addForklift, addForks, addCarried } from './models.js';
+import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, addStack, addForklift, addForks, addCarried } from './models.js';
 
 // Builds the meshes for the WebGL renderer. `mode` is 'pov' (cabin: ceiling, signs, full-height walls) or 'ov'
 // (top-down overview: low walls so the playing field stays readable). Static meshes depend only on the level and theme;
@@ -212,7 +212,7 @@ function addMarks(tm, g, mode) {
 }
 
 function addRevLight(tm, g) {
-  const L = reverseLight(g);
+  const L = theme().dark ? null : reverseLight(g); // dark mode uses real white reverse lights instead
   if (!L) return;
   const a = revAlpha(g);
   tm.poly(L.pts.map((p) => [p.x, p.y]), 0.004, [41 / 255, 121 / 255, 1, a]);
@@ -253,6 +253,30 @@ function discoLights(g, eye) {
   return out.sort((p, q) => p.d - q.d).slice(0, LIGHT_MAX);
 }
 
+// Dark mode: the forklift supplies TRUCK_SHARE of the light (headlights, reverse and brake lights); the rest
+// comes from the nearest ceiling fixtures, whose combined strength is scaled to the remaining share.
+export const TRUCK_SHARE = 0.75;
+const HEAD_I = 1.5, CEIL_MAX = 10, WARM = [1, 0.95, 0.8];
+function darkLights(g, eye) {
+  const f = g.fl, c = Math.cos(f.a), s = Math.sin(f.a), out = [];
+  const lamp = (lx, ly, z, r, col, dir, cone) => {
+    const p = toWorld(f, lx, ly);
+    out.push({ x: p.x, y: p.y, z, r, col, dir, cone });
+  };
+  const fwd = [c * 0.95, s * 0.95, -0.3];
+  for (const side of [-1, 1]) lamp(HEAD_X, side * LAMP_Y, HEAD_Z, 11, WARM.map((v) => v * HEAD_I), fwd, 0.62);
+  const back = [-c * 0.8, -s * 0.8, -0.6];
+  for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 1.8, [0.5, 0.05, 0.03], back, 0.2); // idle tail glow
+  if (f.speed < -0.05) for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 4.5, [0.9, 0.9, 0.95], back, 0.45);
+  if (f.brake) for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 2.2, [0.8, 0.1, 0.06], back, 0.3);
+  const ceil = overheadDecals(g).lights
+    .map((l) => ({ l, d: Math.hypot(l.x - eye[0], l.y - eye[1]) }))
+    .filter((e) => e.d < 16).sort((p, q) => p.d - q.d).slice(0, CEIL_MAX);
+  const head = 2 * HEAD_I * (1 - TRUCK_SHARE) / TRUCK_SHARE / Math.max(1, ceil.length);
+  for (const { l } of ceil) out.push({ x: l.x, y: l.y, z: WALL_H - 0.2, r: 8, col: WARM.map((v) => v * head) });
+  return out;
+}
+
 function addDisco(om, g, eye) {
   const t = g.clock || 0;
   for (const b of discoBalls(g)) {
@@ -288,5 +312,7 @@ export function dynamicMeshes(g, mode, eye) {
   addRevLight(tm, g);
   const disco = discoOn();
   if (disco && mode === 'pov') addDisco(om, g, eye);
-  return { opaque: om, trans: tm, lights: disco ? discoLights(g, eye) : [] };
+  const lights = theme().dark ? darkLights(g, eye) : [];
+  if (disco) lights.push(...discoLights(g, eye).slice(0, LIGHT_MAX - lights.length));
+  return { opaque: om, trans: tm, lights };
 }
