@@ -44,12 +44,12 @@ function addWall(sm, tm, g, w, mode) {
       const tile = Math.floor((q0[0] + q0[1] + q1[0] + q1[1]) / 2);
       const col = wallC || parseColor(tile & 1 ? '#5d646e' : '#555b64');
       sm.quad([q0[0], q0[1], 0], [q1[0], q1[1], 0], [q1[0], q1[1], top], [q0[0], q0[1], top], [nx, ny, 0], col);
-      if (mode !== 'pov') continue;
-      sm.quad([q0[0], q0[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H], [q0[0], q0[1], WALL_H], [nx, ny, 0], shade(col, 0.7));
+      if (mode === 'pov') sm.quad([q0[0], q0[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H], [q0[0], q0[1], WALL_H], [nx, ny, 0], shade(col, 0.7));
       if (!decalsEnabled() || Math.hypot(q1[0] - q0[0], q1[1] - q0[1]) < 0.9) continue;
       const side = [q0, q1];
+      const vs = top / WALL_H; // the overview's low walls squash the cabin-height signs vertically
       const pen = {
-        shape: (uv, fill) => tm.vpoly(q1[0], q1[1], q0[0], q0[1], nx, ny, 0.004, uv, fill),
+        shape: (uv, fill) => tm.vpoly(q1[0], q1[1], q0[0], q0[1], nx, ny, 0.004, vs === 1 ? uv : uv.map(([u, v]) => [u, v * vs]), fill),
         box: (u0, v0, u1, v1, fill) => pen.shape([[u0, v0], [u1, v0], [u1, v1], [u0, v1]], fill),
         disc: (u, v, r, fill) => pen.shape(circlePts(u, v, r), fill),
         tri: (u, v, r, fill) => pen.shape([[u, v + r], [u + r * 0.95, v - r * 0.55], [u - r * 0.95, v - r * 0.55]], fill),
