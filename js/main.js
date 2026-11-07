@@ -334,6 +334,8 @@ discoOpt.addEventListener('change', () => {
 const touchSel = document.getElementById('touchSel');
 const touchPad = document.getElementById('touch');
 if (isTouch) document.getElementById('touchLabel').hidden = false;
+// On touch devices Auto full-screen lives on the main menu page instead of the visuals page.
+if (isTouch) { const l = document.getElementById('autoFsLabel'); l.classList.add('item'); menuEl.querySelector('.page[data-page="main"] hr').before(l); }
 {
   const saved = localStorage.getItem('forklift-touch-scheme');
   touchSel.value = [...touchSel.options].some((o) => o.value === saved) ? saved : 'classic';
