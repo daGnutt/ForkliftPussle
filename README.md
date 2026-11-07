@@ -18,6 +18,9 @@ On touch devices, on-screen buttons replace the keyboard (big steer left/right b
 | Esc / P | Menu (pauses the game and timer; the music keeps playing in the menu; the game also pauses and mutes sound effects when the window loses focus): mute all sounds, engine whine and reversing beep on/off, music on/off (off by default; the splash's "Disco start" turns on music and disco lights), random music (default: a new random track after each song) and track choice (public-domain/CC0/CC-BY MIDI songs: polka, country, Bach, metal, rock, groove and dance; credits in `assets/midi/CREDITS.md`), decals on/off (less cluttered view), colour mode follow OS/light/dark (C), disco lights on/off (I; dark mode only; off by default), an Info & scoring page, go to a level number, and restart the level with hard mode on or off (these settings are remembered). Each option has an underlined shortcut letter: A mute, E engine, M music, T track, D decals, G level field, L jump to the lowest level without a saved score on the current seed, F full screen, R restart; Esc/P/Enter resume |
 | Enter | Next level (after winning) |
 
+## 3D graphics
+The overview, cabin view and look windows are rendered in true 3D with WebGL2 (depth-buffered, lit, fogged; no libraries). If WebGL2 isn't available the game falls back to the old 2D canvas renderers. The pause menu's "3D graphics (WebGL)" option (or `?gl=0` / `?gl=1` in the URL) switches between them.
+
 ## Saved progress
 The level in progress (stacks, forklift, forks, timer) is saved in your browser every second, so reloading the page resumes where you left off. The pause menu has **Export state** (fills the text box with a compressed base64 string, or plain JSON in `?debug` mode, and copies it to the clipboard) and **Import state** (paste a previously exported state into the box to load it, including its seed, hard mode and level).
 
