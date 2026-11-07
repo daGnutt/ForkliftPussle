@@ -7,6 +7,7 @@ import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
+import { glEnabled, setGlEnabled } from './gl/renderer.js';
 import { themeMode, setThemeMode } from './theme.js';
 import { discoEnabled, setDiscoEnabled } from './disco.js';
 import { initTestingBanner } from './testing.js';
@@ -288,6 +289,9 @@ trackSel.addEventListener('change', () => { setMusicTrack(trackSel.value); start
 const muteOpt = document.getElementById('muteOpt');
 const menuLevel = document.getElementById('menuLevel');
 const decalOpt = document.getElementById('decalOpt');
+const glOpt = document.getElementById('glOpt');
+const glParam = new URLSearchParams(location.search).get('gl');
+setGlEnabled(glParam ? glParam !== '0' : localStorage.getItem('forklift-gl-off') !== '1');
 setDecalsEnabled(localStorage.getItem('forklift-decals-off') !== '1');
 const themeSel = document.getElementById('themeSel');
 setThemeMode(localStorage.getItem('forklift-theme'));
@@ -318,6 +322,7 @@ function toggleMenu(open) {
     engineOpt.checked = isEngineOn();
     musicOpt.checked = !isMusicMuted();
     decalOpt.checked = decalsEnabled();
+    glOpt.checked = glEnabled();
     discoOpt.checked = discoEnabled();
     themeSel.value = themeMode();
     menuHardOpt.checked = hard;
@@ -335,6 +340,10 @@ engineOpt.addEventListener('change', () => setEngineOn(engineOpt.checked));
 decalOpt.addEventListener('change', () => {
   setDecalsEnabled(decalOpt.checked);
   localStorage.setItem('forklift-decals-off', decalOpt.checked ? '0' : '1');
+});
+glOpt.addEventListener('change', () => {
+  setGlEnabled(glOpt.checked);
+  localStorage.setItem('forklift-gl-off', glOpt.checked ? '0' : '1');
 });
 themeSel.addEventListener('change', () => {
   setThemeMode(themeSel.value);

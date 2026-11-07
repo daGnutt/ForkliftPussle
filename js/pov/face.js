@@ -347,7 +347,13 @@ function drawWallDecals(ctx, cam, g, f, dark) {
   const len = Math.hypot(q1[0] - q0[0], q1[1] - q0[1]);
   if (!decalsEnabled() || len < 0.9 || f.d > DECAL_MAX_DIST) return;
   // Seen from outside, u = 0 is on the left, which is the segment's end point q1.
-  const p = faceShapes(ctx, cam, q1, q0, dark);
+  paintWallDecals(g, faceShapes(ctx, cam, q1, q0, dark), f);
+}
+
+// Paints the decals of one wall segment `f` ({ side: [q0, q1], mx, my, k, n }) through the shape painter `p`
+// ({ shape, box, disc, tri }; u = 0 at q1, u = 1 at q0). Shared by the canvas and WebGL renderers.
+export function paintWallDecals(g, p, f) {
+  const [q0, q1] = f.side;
 
   // Two-segment roller door: the pair (k even, k + 1) shares the point where the segments meet.
   if (f.n > 1 && (f.k & 1 ? true : f.k + 1 < f.n)) {
@@ -399,8 +405,10 @@ function drawDents(ctx, cam, f, dark) {
 
 // High-voltage warning on a charger side: hazard stripes along the base and a bolt in a yellow triangle.
 function drawChargerDecal(ctx, cam, f, dark) {
-  const [q0, q1] = f.side;
-  const { shape } = faceShapes(ctx, cam, q0, q1, dark);
+  chargerDecal(faceShapes(ctx, cam, ...f.side.slice(0, 2), dark));
+}
+
+export function chargerDecal({ shape }) {
   shape([[0, 0], [1, 0], [1, 0.1], [0, 0.1]], YEL);
   for (let i = 0; i < 4; i++) {
     const a = i * 0.25;

@@ -4,6 +4,9 @@ import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState } from '../js/savestate.js';
+import { povCamera, overviewCamera } from '../js/gl/camera.js';
+import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
+import { projectPoint } from '../js/gl/mat.js';
 import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky } from '../js/game.js';
 
 const NONE = {};
@@ -935,4 +938,29 @@ console.log('all tests passed');
   run(h, { up: true }, 3);
   const d = h.stacks[0].pen[0].dent;
   assert.ok(d && d.s.some((v) => v > 0), 'side crumpled by the truck');
+}
+
+// WebGL scene: pure geometry/camera maths (no GL context needed)
+{
+  const g = newGame(3);
+  g.fl.x = 6; g.fl.y = 5; g.fl.a = 0;
+  const cam = povCamera(g, 800, 500);
+  const ahead = projectPoint(cam.vp, g.fl.x + 6, g.fl.y, 0.5, 800, 500);
+  assert.ok(ahead && Math.abs(ahead[0] - 400) < 1, 'a point straight ahead projects to the screen centre');
+  assert.equal(projectPoint(cam.vp, g.fl.x - 6, g.fl.y, 0.5, 800, 500), null, 'points behind the eye are not projected');
+  const left = projectPoint(cam.vp, g.fl.x + 6, g.fl.y - 2, 0.5, 800, 500);
+  assert.ok(left[0] < 400, 'world -y is left of a forklift heading +x (screen-right is the forklift right)');
+  const ov = overviewCamera(8, 5, 10, 800, 500);
+  const c = projectPoint(ov.vp, 8, 5, 0, 800, 500);
+  assert.ok(Math.abs(c[0] - 400) < 1 && Math.abs(c[1] - 250) < 1, 'overview centres its target');
+  const up = projectPoint(ov.vp, 8, 3, 0, 800, 500), down = projectPoint(ov.vp, 8, 7, 0, 800, 500);
+  assert.ok(up[1] < c[1] && down[1] > c[1], 'default overview has -y up the screen');
+  for (const mode of ['pov', 'ov']) {
+    const s = staticMeshes(g, mode);
+    assert.equal(staticMeshes(g, mode), s, 'static meshes are cached per game state');
+    assert.ok(s.opaque.count > 0 && s.opaque.count % 3 === 0, 'static opaque triangles');
+    const d = dynamicMeshes(g, mode, cam.eye);
+    assert.ok(d.opaque.count > 0 && d.opaque.floats().length === d.opaque.count * 10, 'dynamic mesh floats match the vertex stride');
+  }
+  console.log('gl scene ok');
 }

@@ -5,7 +5,7 @@ import { toCam, BOX_H, PAL, MAX_DIST } from './camera.js';
 // Text overlays drawn over the finished scene.
 
 // Outlined, centred label at screen point (sx, sy).
-function label(ctx, text, sx, sy, size, color) {
+export function label(ctx, text, sx, sy, size, color) {
   ctx.font = `bold ${size}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';

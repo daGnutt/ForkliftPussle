@@ -3,6 +3,7 @@ import { FL, toWorld } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
+import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
@@ -256,6 +257,10 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
       ctx.fillRect(rx, ry, rw, rh);
     }
   }
+  if (drawOverview3d(ctx, g, rx, ry, rw, rh, (rx + rw / 2 - ox) / s, (ry + rh / 2 - oy) / s, s, view.dpr)) {
+    if (zoomed) ctx.restore();
+    return cam;
+  }
   ctx.setTransform(s * view.dpr, 0, 0, s * view.dpr, ox * view.dpr, oy * view.dpr);
   drawWorld(ctx, g, null, s * view.dpr);
   ctx.textAlign = 'center';
@@ -493,12 +498,16 @@ function drawCharger(ctx, c) {
 
 // Small top-down window just in front of (or, with back, just behind) the forklift, heading up/down the screen.
 // Only the part of the world inside the window is drawn (culled via drawWorld's vis box).
-function drawLookWindow(ctx, g, x, y, w, h, back) {
+function drawLookWindow(ctx, g, x, y, w, h, back, dpr = 1) {
   const scale = w / 4.5, wT = w / scale, hT = h / scale;
   const c = toWorld(g.fl, back ? FL.back + 0.5 - hT / 2 : FL.front - 0.5 + hT / 2, 0);
   const rot = (back ? Math.PI / 2 : -Math.PI / 2) - g.fl.a;
   const ext = Math.abs(Math.cos(rot)) * wT / 2 + Math.abs(Math.sin(rot)) * hT / 2;
   const exy = Math.abs(Math.sin(rot)) * wT / 2 + Math.abs(Math.cos(rot)) * hT / 2;
+  if (drawLook3d(ctx, g, x, y, w, h, c.x, c.y, hT, back ? [-Math.cos(g.fl.a), -Math.sin(g.fl.a)] : [Math.cos(g.fl.a), Math.sin(g.fl.a)], dpr)) {
+    drawLookFrame(ctx, x, y, w, h, back);
+    return;
+  }
   const vis = { x0: c.x - ext, x1: c.x + ext, y0: c.y - exy, y1: c.y + exy };
   ctx.save();
   ctx.beginPath();
@@ -512,6 +521,10 @@ function drawLookWindow(ctx, g, x, y, w, h, back) {
   ctx.translate(-c.x, -c.y);
   drawWorld(ctx, g, vis);
   ctx.restore();
+  drawLookFrame(ctx, x, y, w, h, back);
+}
+
+function drawLookFrame(ctx, x, y, w, h, back) {
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 3;
   ctx.strokeRect(x, y, w, h);
@@ -617,15 +630,15 @@ export function draw(ctx, g, view) {
   const POV_W = 300, POV_H = 170, hx0 = view.showSmall ? 20 + POV_W + 16 : 20;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   if (view.povBig) {
-    drawPov(ctx, g, 0, 0, width, height);
+    if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr)) drawPov(ctx, g, 0, 0, width, height);
     if (view.touch && width > height) { // easter egg: the minimap stays tappable to swap back to the overview
       const mm = miniSize(g, 120, 70), mx = (width - mm.w) / 2, my = height - 8 - mm.h;
       drawMiniMap(ctx, g, { x: 0, y: 0, w: g.w, h: g.h }, mx, my, mm.s);
       view.miniHit = { x: mx - 3, y: my - 3, w: mm.w + 6, h: mm.h + 6 };
     }
     const mw = Math.min(150, width * 0.14), mh = mw * 0.75;
-    drawLookWindow(ctx, g, width / 2 - mw - 4, 8, mw, mh, true);
-    drawLookWindow(ctx, g, width / 2 + 4, 8, mw, mh, false);
+    drawLookWindow(ctx, g, width / 2 - mw - 4, 8, mw, mh, true, view.dpr);
+    drawLookWindow(ctx, g, width / 2 + 4, 8, mw, mh, false, view.dpr);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
     if (view.showSmall) {
       ctx.fillStyle = theme().bg;
@@ -669,7 +682,7 @@ export function draw(ctx, g, view) {
     const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true, touchLand && zoomedIn ? GAUGE_W : 0, touchLand && zoomedIn ? PAD_H : 0);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
     if (strip || cam) drawMiniMap(ctx, g, cam || { x: 0, y: 0, w: g.w, h: g.h }, mmX, mmY, mm.s);
-    if (view.showSmall) drawPov(ctx, g, 10, 10, POV_W, POV_H);
+    if (view.showSmall && !drawPov3d(ctx, g, 10, 10, POV_W, POV_H, view.dpr)) drawPov(ctx, g, 10, 10, POV_W, POV_H);
   }
   // screen-space HUD
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
