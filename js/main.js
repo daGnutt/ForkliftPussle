@@ -321,6 +321,19 @@ discoOpt.addEventListener('change', () => {
   setDiscoEnabled(discoOpt.checked);
   localStorage.setItem('forklift-disco-off', discoOpt.checked ? '0' : '1');
 });
+const touchSel = document.getElementById('touchSel');
+const touchPad = document.getElementById('touch');
+if (isTouch) document.getElementById('touchLabel').hidden = false;
+{
+  const saved = localStorage.getItem('forklift-touch-scheme');
+  touchSel.value = [...touchSel.options].some((o) => o.value === saved) ? saved : 'classic';
+  touchPad.dataset.scheme = touchSel.value;
+}
+touchSel.addEventListener('change', () => {
+  touchPad.dataset.scheme = touchSel.value;
+  localStorage.setItem('forklift-touch-scheme', touchSel.value);
+  input.clear();
+});
 musicOpt.addEventListener('change', () => setMusicMuted(!musicOpt.checked));
 document.getElementById('menuGoto').addEventListener('submit', (e) => {
   e.preventDefault();
