@@ -110,7 +110,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Follow camera** | Overview that scrolls on big maps | `main.js` |
 | **Parallax** | Fake height in the 2D overview | `PX`, `PY` |
 | **Blob shadow** | Simple shadow under objects in GL | `dynamicMeshes` |
-| **Disco lights** | Glitter balls and coloured light pools, dark mode only | `disco.js` |
+| **Disco lights** | Glitter balls and coloured light pools (real point lights in WebGL), dark mode only | `disco.js` |
 
 ## UI
 
