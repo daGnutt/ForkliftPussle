@@ -28,7 +28,7 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, spli
         quad: [[q0[0], q0[1], z0], [q1[0], q1[1], z0], [q1[0], q1[1], z1], [q0[0], q0[1], z1]],
         mx: (q0[0] + q1[0]) / 2, my: (q0[1] + q1[1]) / 2, mz: (z0 + z1) / 2,
         color, shade, tile: wall ? Math.floor((q0[0] + q0[1] + (q1[0] + q1[1])) / 2) : null,
-        side: [q0, q1, z0, z1], k, n, deco,
+        side: [q0, q1, z0, z1], k, n, deco, edge: i,
       });
     }
   }
@@ -59,7 +59,10 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
     if (Math.hypot(x - cam.x, y - cam.y) < 12) for (const [u, v] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) {
       addPrism(faces, cam, x + u * cr - v * sr, y + u * sr + v * cr, r, 0.05, 0.05, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
     }
+    const first = faces.length;
     addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? pens[i]?.deco ?? boxDecalKind(col, i) : 0);
+    const dent = pens[i]?.dent;
+    if (dent) for (let k = first; k < faces.length; k++) { faces[k].pen = pens[i]; faces[k].dseed = i + Math.round(col * 7); faces[k].box = { x, y, r }; }
   });
 }
 
