@@ -11,7 +11,7 @@ import { themeMode, setThemeMode } from './theme.js';
 import { discoEnabled, setDiscoEnabled } from './disco.js';
 import { initTestingBanner } from './testing.js';
 import { startSplashAnimation } from './splash.js';
-import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setSilenced, isMusicMuted, setMusicMuted, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
@@ -219,7 +219,12 @@ const hardOpt = document.getElementById('hardOpt');
 hardOpt.checked = hard;
 showTutorial();
 
-function startGame() {
+function startGame(disco = false) {
+  if (disco) {
+    setMusicMuted(false);
+    setDiscoEnabled(true);
+    localStorage.setItem('forklift-disco', '1');
+  }
   const text = seedInput.value.trim();
   if (text !== seedText) {
     seedText = text;
@@ -258,7 +263,11 @@ seedInput.addEventListener('keydown', (e) => {
   e.stopPropagation();
   if (e.key === 'Enter') { e.preventDefault(); startAudio(); startGame(); }
 });
-document.getElementById('seedForm').addEventListener('submit', (e) => { e.preventDefault(); startAudio(); startGame(); });
+document.getElementById('seedForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  startAudio();
+  startGame(e.submitter && e.submitter.id === 'discoStart');
+});
 window.addEventListener('keydown', (e) => {
   if (!splashOn || e.target === seedInput) return;
   e.stopImmediatePropagation();
@@ -271,6 +280,10 @@ const musicOpt = document.getElementById('musicOpt');
 const trackSel = document.getElementById('trackSel');
 for (const t of MUSIC_TRACKS) trackSel.add(new Option(t.name, t.id));
 trackSel.value = getMusicTrack();
+setTrackListener((id) => { trackSel.value = id; });
+const randomOpt = document.getElementById('randomOpt');
+randomOpt.checked = isMusicRandom();
+randomOpt.addEventListener('change', () => setMusicRandom(randomOpt.checked));
 trackSel.addEventListener('change', () => { setMusicTrack(trackSel.value); startAudio(); });
 const muteOpt = document.getElementById('muteOpt');
 const menuLevel = document.getElementById('menuLevel');
@@ -279,7 +292,7 @@ setDecalsEnabled(localStorage.getItem('forklift-decals-off') !== '1');
 const themeSel = document.getElementById('themeSel');
 setThemeMode(localStorage.getItem('forklift-theme'));
 const discoOpt = document.getElementById('discoOpt');
-setDiscoEnabled(localStorage.getItem('forklift-disco-off') !== '1');
+setDiscoEnabled(localStorage.getItem('forklift-disco') === '1');
 const menuHardOpt = document.getElementById('menuHardOpt');
 const autoFsOpt = document.getElementById('autoFsOpt');
 autoFsOpt.checked = autoFs;
@@ -329,7 +342,7 @@ themeSel.addEventListener('change', () => {
 });
 discoOpt.addEventListener('change', () => {
   setDiscoEnabled(discoOpt.checked);
-  localStorage.setItem('forklift-disco-off', discoOpt.checked ? '0' : '1');
+  localStorage.setItem('forklift-disco', discoOpt.checked ? '1' : '0');
 });
 const touchSel = document.getElementById('touchSel');
 const touchPad = document.getElementById('touch');
