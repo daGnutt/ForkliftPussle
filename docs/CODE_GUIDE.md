@@ -88,6 +88,7 @@ The splash has two submit buttons: `#startBtn` (Start, keeps saved settings; Ent
 - `test/game.test.js` is a sequence of independent blocks (plain `node:assert`). Helpers: `run` (simulate seconds of input), `driveUntil`, `flatWorld` (clears zones and pillars). Any game-logic change needs a scenario here.
 
 ## Workflow conventions
+- `docs/VOCABULARY.md` lists the shared names for game objects, views and UI; use those terms and keep it updated when adding/renaming things.
 - Each fix or feature goes on its own local branch (not pushed); never merge into `main` unless the user explicitly asks; delete the branch only after such a merge.
 - Update `README.md` when controls or rules change, and this guide when structure changes.
 - `docs/presentation.html` (+ `docs/shots/`) is the development-timeline slide deck; `docs/PRESENTATION_GUIDE.md` explains how to regenerate/update it. Update it on merges that add notable features.
