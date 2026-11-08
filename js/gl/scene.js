@@ -32,7 +32,7 @@ const circlePts = (u, v, r, n = 18) => Array.from({ length: n }, (_, i) => [u + 
 export function wallCaps(g, [nx, ny, d, z]) {
   const m = new Mesh();
   if (z >= WALL_H) return m;
-  const col = shade(mix(parseColor(theme().wall), GREY, 0.3), 1.15);
+  const col = parseColor('#6d737a');
   for (const w of g.walls) {
     if (w.charger) continue;
     const pts = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]], out = [];
@@ -55,8 +55,6 @@ function addWall(sm, tm, g, w, mode) {
     addChargerSigns(tm, w);
     return;
   }
-  const t = theme();
-  const wallC = mode === 'pov' ? null : mix(parseColor(t.wall), GREY, 0.3);
   const p = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]];
   for (let i = 0; i < 4; i++) {
     const [ax, ay] = p[i], [bx, by] = p[(i + 1) % 4];
@@ -68,7 +66,7 @@ function addWall(sm, tm, g, w, mode) {
     for (let k = 0; k < n; k++) {
       const q0 = [ax + (ex * k) / n, ay + (ey * k) / n], q1 = [ax + (ex * (k + 1)) / n, ay + (ey * (k + 1)) / n];
       const tile = Math.floor((q0[0] + q0[1] + q1[0] + q1[1]) / 2);
-      const col = wallC || parseColor(tile & 1 ? '#5d646e' : '#555b64');
+      const col = parseColor(tile & 1 ? '#5d646e' : '#555b64');
       sm.quad([q0[0], q0[1], 0], [q1[0], q1[1], 0], [q1[0], q1[1], top], [q0[0], q0[1], top], [nx, ny, 0], col);
       if (mode === 'pov') sm.quad([q0[0], q0[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H], [q0[0], q0[1], WALL_H], [nx, ny, 0], shade(col, 0.7));
       if (!decalsEnabled() || Math.hypot(q1[0] - q0[0], q1[1] - q0[1]) < 0.9) continue;
@@ -82,7 +80,7 @@ function addWall(sm, tm, g, w, mode) {
       paintWallDecals(g, pen, { side, mx: (q0[0] + q1[0]) / 2, my: (q0[1] + q1[1]) / 2, k, n });
     }
   }
-  sm.quad([w.x, w.y, top], [w.x + w.w, w.y, top], [w.x + w.w, w.y + w.h, top], [w.x, w.y + w.h, top], [0, 0, 1], wallC ? shade(wallC, 1.15) : parseColor('#6d737a'));
+  sm.quad([w.x, w.y, top], [w.x + w.w, w.y, top], [w.x + w.w, w.y + w.h, top], [w.x, w.y + w.h, top], [0, 0, 1], parseColor('#6d737a'));
 }
 
 // High-voltage warning on each charger side and on its top.
