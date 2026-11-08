@@ -612,6 +612,10 @@ function frame(now) {
       const target = game.fl.a + (game.rv > 0.5 ? Math.PI - 0.001 : 0);
       view.camA += wrap(target - view.camA) * (1 - Math.exp(-CAM_SPRING * STEP));
     }
+    {
+      const tgt = view.chase ? view.chaseLiftTarget || 0 : 0, cur = view.chaseLift || 0;
+      view.chaseLift = cur + (tgt - cur) * (1 - Math.exp(-(tgt > cur ? 8 : 3) * STEP));
+    }
     acc -= STEP;
     steps++;
   }
