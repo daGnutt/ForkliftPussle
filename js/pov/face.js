@@ -354,11 +354,11 @@ function drawWallDecals(ctx, cam, g, f, dark) {
 // ({ shape, box, disc, tri }; u = 0 at q1, u = 1 at q0). Shared by the canvas and WebGL renderers.
 export function paintWallDecals(g, p, f) {
   const [q0, q1] = f.side;
-  // The wall ends facing into a doorway stay bare.
-  if ((g.doors || []).some((d) => f.mx >= d.x - 0.01 && f.mx <= d.x + d.w + 0.01 && f.my >= d.y - 0.01 && f.my <= d.y + d.h + 0.01)) return;
+  // The wall ends facing into a doorway keep only the base stripe (no signs or doors).
+  const inDoorway = (g.doors || []).some((d) => f.mx >= d.x - 0.01 && f.mx <= d.x + d.w + 0.01 && f.my >= d.y - 0.01 && f.my <= d.y + d.h + 0.01);
 
   // Two-segment roller door: the pair (k even, k + 1) shares the point where the segments meet.
-  if (f.n > 1 && (f.k & 1 ? true : f.k + 1 < f.n)) {
+  if (!inDoorway && f.n > 1 && (f.k & 1 ? true : f.k + 1 < f.n)) {
     const key = f.k & 1 ? q0 : q1;
     if (hash(key[0], key[1], 34) < 0.1 && doorFits(g, key, q0, q1)) {
       rollerDoor(p, f.k & 1 ? 0 : 1); // visually the later segment is the left half
@@ -374,6 +374,7 @@ export function paintWallDecals(g, p, f) {
       p.shape([[a, 0], [a + 0.0625 + 0.05, 0], [a + 0.0625 + 0.15, 0.2], [a + 0.1, 0.2]], i & 1 ? BLACK : YEL);
     }
   }
+  if (inDoorway) return;
   let kind = wallDecal(f.mx, f.my);
   // Windows and doors only make sense in the outer walls, not on dividing walls.
   const outer = f.mx < 0.01 || f.my < 0.01 || f.mx > g.w - 0.01 || f.my > g.h - 0.01;
