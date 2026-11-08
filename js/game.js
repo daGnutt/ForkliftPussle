@@ -17,6 +17,7 @@ const CRASH_COOLDOWN = 0.4;
 const BONK_MIN_SPEED = 1.2;
 const BONK_LOSS = 0.4; // fraction of forward motion lost in one step that counts as a bonk
 const BONK_COOLDOWN = 0.2;
+const LOOK_BACK_DELAY = 1; // s of reversing before the GL cabin camera turns to look backwards
 const SCRAPE_MIN_SPEED = 0.3; // speed while touching a wall that scrapes
 const FORK_PUSH_FAST = 2; // above this speed a fork push damages the whole stack, not just the boxes below the forks
 const FORK_BLOCK_POINTS = 10;
@@ -224,6 +225,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     hf: 0,
     ef: 0,
     lean: -1, leanT: -1, sweep: -1, // look-back side (-1 left, 1 right): smoothed, target (follows the steering), swivel direction (latched in D)
+    revTime: 0, // seconds spent moving backwards in gear R; the cabin only looks back after LOOK_BACK_DELAY
     rv: 0, // 0..1 smoothed: how far the GL cabin camera has turned to look backwards (gear R)
     status: 'play',
     time: 0,
@@ -440,7 +442,9 @@ export function update(g, input, dt) {
   if (Math.abs(f.steer) > 0.02) g.leanT = f.steer > 0 ? 1 : -1; // lean out to the steered side
   if (f.gear === 'D') g.sweep = g.leanT;
   g.lean += (g.leanT - g.lean) * (1 - Math.exp(-dt / 0.2));
-  g.rv += ((f.gear === 'R' ? 1 : 0) - g.rv) * (1 - Math.exp(-dt / 0.15));
+  if (f.gear === 'D') g.revTime = 0;
+  else if (f.speed < -0.05) g.revTime += dt;
+  g.rv += ((f.gear === 'R' && g.revTime > LOOK_BACK_DELAY ? 1 : 0) - g.rv) * (1 - Math.exp(-dt / 0.15));
   g.ef += (g.hf - g.ef) * (1 - Math.exp(-dt / 0.22)); // cabin eye trails the forks
   // visual lowering of a just-released stack ends when the forks reach it
   for (const s of g.stacks) if (s.dropFrom != null && (g.hf <= s.dropFrom + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;

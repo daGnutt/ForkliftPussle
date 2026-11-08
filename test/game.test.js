@@ -1021,3 +1021,13 @@ console.log('all tests passed');
   assert.equal(g.fl.gear, 'D');
   console.log('gear ok');
 }
+
+// The cabin only looks back after reversing for a while
+{
+  const g = newGame(1);
+  run(g, { down: true }, 0.6);
+  assert.ok(g.fl.gear === 'R' && g.rv < 0.01, 'short reverse keeps looking forward');
+  run(g, { down: true }, 1.5);
+  assert.ok(g.rv > 0.9, 'long reverse looks back');
+  console.log('look back delay ok');
+}
