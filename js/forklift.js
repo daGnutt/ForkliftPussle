@@ -20,7 +20,7 @@ export const FL = {
 const ACC = 3.2;
 const ROLL = 1.4;
 const MAX_FWD = 4;
-const MAX_REV = 2.5;
+export const MAX_REV = 2.5;
 const STEER_RATE = 2.0;
 
 // Raised forks make the forklift top-heavy: top speed and acceleration taper

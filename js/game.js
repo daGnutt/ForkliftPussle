@@ -1,6 +1,6 @@
 import { boxDecalKind } from './decals.js';
 import { rectPoly, sat, overlapArea } from './geom.js';
-import { FL, MAX_H, MAX_LAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
+import { FL, MAX_REV, MAX_H, MAX_LAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { generateLevel } from './level.js';
 
@@ -18,6 +18,7 @@ const BONK_MIN_SPEED = 1.2;
 const BONK_LOSS = 0.4; // fraction of forward motion lost in one step that counts as a bonk
 const BONK_COOLDOWN = 0.2;
 const LEAN_SWITCH_TIME = 0.6, LEAN_SWITCH_STEER = 0.8; // s of steering, or fraction of full lock, before the look-back lean changes side
+const LEAN_LOCK_SPEED = 0.5; // fraction of top reverse speed above which the lean side never switches
 const LOOK_BACK_DELAY = 1; // s in gear R before the GL cabin camera turns to look backwards
 const SCRAPE_MIN_SPEED = 0.3; // speed while touching a wall that scrapes
 const FORK_PUSH_FAST = 2; // above this speed a fork push damages the whole stack, not just the boxes below the forks
@@ -443,8 +444,9 @@ export function update(g, input, dt) {
   g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
   // Lean out to the steered side, but only switch after steering that way for LEAN_SWITCH_TIME or past LEAN_SWITCH_STEER.
   const steerSide = Math.abs(f.steer) > 0.02 ? Math.sign(f.steer) : 0;
-  g.leanHold = steerSide && steerSide !== g.leanT ? g.leanHold + dt : 0;
-  if (g.leanHold > LEAN_SWITCH_TIME || (steerSide && steerSide !== g.leanT && Math.abs(f.steer) > LEAN_SWITCH_STEER * FL.maxSteer)) g.leanT = steerSide;
+  const fastRev = f.speed < -LEAN_LOCK_SPEED * MAX_REV;
+  g.leanHold = steerSide && steerSide !== g.leanT && !fastRev ? g.leanHold + dt : 0;
+  if (fastRev) { /* no switching while reversing fast */ } else if (g.leanHold > LEAN_SWITCH_TIME || (steerSide && steerSide !== g.leanT && Math.abs(f.steer) > LEAN_SWITCH_STEER * FL.maxSteer)) g.leanT = steerSide;
   if (f.gear === 'D') g.sweep = g.leanT;
   g.lean += (g.leanT - g.lean) * (1 - Math.exp(-dt / 0.2));
   if (f.gear === 'D') g.revTime = 0;
