@@ -264,6 +264,13 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
     if (zoomed) ctx.restore();
     return { x: 0, y: 0, w: g.w, h: g.h };
   }
+  if (follow && view.chaseZoom != null) { // user zoom: centred on the forklift at the slider's zoom
+    const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0), s2 = rh / chaseTilesFor(view.chaseZoom);
+    if (drawOverview3d(ctx, g, rx, ry, rw, rh, c.x, c.y, s2, view.dpr, view.orbit)) {
+      if (zoomed) ctx.restore();
+      return { x: c.x - rw / s2 / 2, y: c.y - rh / s2 / 2, w: rw / s2, h: rh / s2 };
+    }
+  }
   if (drawOverview3d(ctx, g, rx, ry, rw, rh, (rx + rw / 2 - ox) / s, (ry + rh / 2 - oy) / s, s, view.dpr, follow ? view.orbit : null)) {
     if (zoomed) ctx.restore();
     return cam;
