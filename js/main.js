@@ -14,6 +14,7 @@ import { discoEnabled, setDiscoEnabled } from './disco.js';
 import { CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner } from './testing.js';
 import { startSplashAnimation } from './splash.js';
+import { startSplash3d } from './splash3d.js';
 import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
@@ -247,7 +248,6 @@ syncScores(localStorage).then(refreshGlobal); // upload bests that never reached
 
 const splash = document.getElementById('splash');
 let splashOn = true;
-startSplashAnimation(document.getElementById('splashAnim'), () => splashOn);
 const seedInput = document.getElementById('seed');
 seedInput.value = seedText;
 
@@ -357,6 +357,7 @@ const decalOpt = document.getElementById('decalOpt');
 const glOpt = document.getElementById('glOpt');
 const glParam = new URLSearchParams(location.search).get('gl');
 setGlEnabled(glParam ? glParam !== '0' : localStorage.getItem('forklift-gl-off') !== '1');
+if (!startSplash3d(document.getElementById('splashGl'), () => splashOn)) startSplashAnimation(document.getElementById('splashAnim'), () => splashOn);
 setDecalsEnabled(localStorage.getItem('forklift-decals-off') !== '1');
 const themeSel = document.getElementById('themeSel');
 setThemeMode(localStorage.getItem('forklift-theme'));
