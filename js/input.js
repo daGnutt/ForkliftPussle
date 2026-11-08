@@ -10,7 +10,7 @@ export function createInput(handlers) {
     else if (code === 'KeyR') handlers.restart?.();
     else if (code === 'Enter') handlers.next?.();
     else if (code === 'KeyM' || code === 'Tab') handlers.swapView?.();
-    else if (code === 'KeyC') handlers.toggleSmall?.();
+    else if (code === 'KeyC') handlers.toggleChase?.();
     else if (code === 'KeyF') handlers.fullscreen?.();
     else if (code === 'KeyP') handlers.pause?.();
     else if (code === 'Escape') handlers.menu?.();

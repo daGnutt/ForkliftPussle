@@ -257,6 +257,10 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
       ctx.fillRect(rx, ry, rw, rh);
     }
   }
+  if (follow && view.chase && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, null, true)) {
+    if (zoomed) ctx.restore();
+    return { x: 0, y: 0, w: g.w, h: g.h };
+  }
   if (drawOverview3d(ctx, g, rx, ry, rw, rh, (rx + rw / 2 - ox) / s, (ry + rh / 2 - oy) / s, s, view.dpr, follow ? view.orbit : null)) {
     if (zoomed) ctx.restore();
     return cam;
@@ -629,7 +633,7 @@ export function draw(ctx, g, view) {
   const strip = view.touch && !view.povBig && width > height;
   let mmBox = null;
   view.miniHit = null;
-  const POV_W = 300, POV_H = 170, hx0 = view.showSmall ? 20 + POV_W + 16 : 20;
+  const hx0 = 20;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   if (view.povBig) {
     if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr, view.look)) drawPov(ctx, g, 0, 0, width, height);
@@ -642,20 +646,6 @@ export function draw(ctx, g, view) {
     drawLookWindow(ctx, g, width / 2 - mw - 4, 8, mw, mh, true, view.dpr);
     drawLookWindow(ctx, g, width / 2 + 4, 8, mw, mh, false, view.dpr);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-    if (view.showSmall) {
-      ctx.fillStyle = theme().bg;
-      ctx.fillRect(10, 10, POV_W, POV_H);
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(10, 10, POV_W, POV_H);
-      ctx.clip();
-      drawOverview(ctx, g, view, 10, 10, POV_W, POV_H, 48);
-      ctx.restore();
-      ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-      ctx.strokeStyle = '#111';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(10, 10, POV_W, POV_H);
-    }
   } else {
     // On touch the control buttons take the bottom 208px (two 84px fork buttons + gap + margin), so the field ends above them.
     // In landscape the buttons are smaller (see style.css): steering bottom left, drive/forks bottom right, a small minimap
@@ -671,7 +661,7 @@ export function draw(ctx, g, view) {
     const touchLand = view.touch && !portrait;
     const zoomedIn = Math.min(48, rw / g.w, rh / g.h) < MIN_FOLLOW_SCALE;
     if (touchLand && !zoomedIn) { rw = width - rx - GAUGE_W; rh = Math.min(rh, height - ry - PAD_H); }
-    let mmX = 13, mmY = (view.showSmall ? 190 : 100) + 6;
+    let mmX = 13, mmY = 100 + 6;
     if (strip) {
       mmX = (width - mm.w) / 2;
       mmY = height - 8 - mm.h;
@@ -684,7 +674,6 @@ export function draw(ctx, g, view) {
     const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true, touchLand && zoomedIn ? GAUGE_W : 0, touchLand && zoomedIn ? PAD_H : 0);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
     if (strip || cam) drawMiniMap(ctx, g, cam || { x: 0, y: 0, w: g.w, h: g.h }, mmX, mmY, mm.s);
-    if (view.showSmall && !drawPov3d(ctx, g, 10, 10, POV_W, POV_H, view.dpr)) drawPov(ctx, g, 10, 10, POV_W, POV_H);
   }
   // screen-space HUD
   const done = g.zones.filter((z) => zoneDone(g, z)).length;

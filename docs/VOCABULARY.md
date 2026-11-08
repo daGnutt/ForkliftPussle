@@ -104,7 +104,8 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Overview** | Top-down (tilted) view of the level; default | `drawWorld`, `drawOverview3d` |
 | **Cabin view / POV** | First-person view from the driver's seat | `drawPov`, `drawPov3d` |
 | **Orbit / look** | Drag or Q/W in the GL views: swings the overview around the forklift (`view.orbit`) or turns the cab camera (`view.look`); driving springs it back (`view.snap`) | `view.orbit`, `view.look` |
-| **Big / small view** | Which of overview/cabin fills the screen; the other is the corner window | `view.povBig`, `view.showSmall` |
+| **Big view** | Which of overview/cabin fills the screen | `view.povBig` |
+| **Chase camera** | Third-person GL overview camera behind the forklift, which always points up the screen (C / menu) | `view.chase`, `chaseCamera` |
 | **Corner window / look window** | Small inset showing the other view | `drawLook3d` |
 | **Software camera** | 2D Canvas renderer (`pov.js`, `pov/camera.js`) | – |
 | **GL camera** | WebGL renderer (`gl/camera.js`) | `povCamera`, `overviewCamera` |

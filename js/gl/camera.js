@@ -45,3 +45,12 @@ export function overviewCamera(cx, cy, tilesH, w, h, up = [0, -1], tilt = OV_TIL
   const view = viewBasis(eye, [-uy, ux, 0], [ux * ct, uy * ct, st], [ux * st, uy * st, -ct]);
   return { vp: mul(proj, view), eye, w, h };
 }
+
+export const CHASE_TILES = 11, CHASE_TILT = 0.95, CHASE_AHEAD = 2.2;
+
+// Third-person view: raised behind the forklift, looking along its heading so the forklift always points up the screen
+// and the world rotates around it.
+export function chaseCamera(g, w, h) {
+  const c = toWorld(g.fl, (FL.front - FL.back) / 2 + CHASE_AHEAD, 0);
+  return overviewCamera(c.x, c.y, CHASE_TILES, w, h, [Math.cos(g.fl.a), Math.sin(g.fl.a)], CHASE_TILT);
+}
