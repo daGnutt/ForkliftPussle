@@ -354,7 +354,7 @@ function drawWallDecals(ctx, cam, g, f, dark) {
 // ({ shape, box, disc, tri }; u = 0 at q1, u = 1 at q0). Shared by the canvas and WebGL renderers.
 export function paintWallDecals(g, p, f) {
   const [q0, q1] = f.side;
-  // The wall ends facing into a doorway keep only the base stripe (no signs or doors).
+  // The wall ends facing into a doorway always get the hazard-chevron base stripe (no signs or doors).
   const inDoorway = (g.doors || []).some((d) => f.mx >= d.x - 0.01 && f.mx <= d.x + d.w + 0.01 && f.my >= d.y - 0.01 && f.my <= d.y + d.h + 0.01);
 
   const outer = f.mx < 0.01 || f.my < 0.01 || f.mx > g.w - 0.01 || f.my > g.h - 0.01;
@@ -368,7 +368,7 @@ export function paintWallDecals(g, p, f) {
     }
   }
 
-  const base = wallBase(f.mx, f.my);
+  const base = inDoorway ? 2 : wallBase(f.mx, f.my);
   if (base === 1) p.box(0, 0, 1, 0.12, YEL);
   else if (base === 2) {
     for (let i = 0; i < 8; i++) {
