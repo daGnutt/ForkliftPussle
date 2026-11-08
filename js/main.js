@@ -409,6 +409,12 @@ chaseZoomSel.addEventListener('input', () => {
   view.chaseZoom = Number(chaseZoomSel.value);
   localStorage.setItem('forklift-chase-zoom', String(view.chaseZoom));
 });
+document.getElementById('chaseZoomReset').addEventListener('click', (e) => {
+  e.preventDefault();
+  view.chaseZoom = null;
+  localStorage.removeItem('forklift-chase-zoom');
+  chaseZoomSel.value = chaseZoomOf(view.ovTiles || 14);
+});
 chaseOpt.addEventListener('change', () => {
   view.chase = chaseOpt.checked;
   localStorage.setItem('forklift-chase-cam', view.chase ? '1' : '0');
