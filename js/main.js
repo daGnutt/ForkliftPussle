@@ -234,7 +234,8 @@ const TUTORIAL = [
 ];
 if (isTouch) TUTORIAL.pop();
 const tutorialEl = document.getElementById('tutorial');
-let tutStep = localStorage.getItem('forklift-tutorial-done') ? -1 : 0;
+// ?skip hides the tutorial for this visit without saving it as done.
+let tutStep = localStorage.getItem('forklift-tutorial-done') || new URLSearchParams(location.search).has('skip') ? -1 : 0;
 function showTutorial() {
   tutorialEl.classList.toggle('hide', tutStep < 0);
   if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep]}`;
