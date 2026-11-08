@@ -118,20 +118,23 @@ function addCeiling(sm, g) {
   }
 }
 
-// Doorway trim: hazard-striped jamb posts and a header beam (cabin view only; purely visual).
-function addDoorways(sm, g) {
+// Doorway trim: hazard-striped jamb posts with amber beacons, plus (cabin view only) a header beam and lamp; purely visual.
+// The overview gets shorter posts so they stay under the clipped walls.
+function addDoorways(sm, g, mode) {
   if (!decalsEnabled()) return;
+  const k = mode === 'ov' ? 0.45 : 1;
   for (const d of g.doors || []) {
     const cx = d.x + d.w / 2, cy = d.y + d.h / 2, vert = d.h > d.w, len = vert ? d.h : d.w, th = vert ? d.w : d.h;
     const place = (u, v) => (vert ? [cx + v, cy + u] : [cx + u, cy + v]);
     for (const su of [-1, 1]) {
       for (const sv of [-1, 1]) {
         const [x, y] = place(su * (len / 2 - 0.07), sv * (th / 2 - 0.07));
-        for (let i = 0; i < 4; i++) sm.cuboid(x, y, 0, 0.07, 0.07, i * 0.5, i * 0.5 + 0.5, i & 1 ? '#262626' : '#f4c414');
-        sm.cuboid(x, y, 0, 0.07, 0.07, 2, 2.05, '#262626');
-        sm.cuboid(x, y, 0, 0.056, 0.056, 2.05, 2.25, '#ffa000', { emissive: true });
+        for (let i = 0; i < 4; i++) sm.cuboid(x, y, 0, 0.07, 0.07, i * 0.5 * k, (i * 0.5 + 0.5) * k, i & 1 ? '#262626' : '#f4c414');
+        sm.cuboid(x, y, 0, 0.07, 0.07, 2 * k, 2.05 * k, '#262626');
+        sm.cuboid(x, y, 0, 0.056, 0.056, 2.05 * k, 2.25 * k, '#ffa000', { emissive: true });
       }
     }
+    if (mode === 'ov') continue;
     const n = Math.floor(len / 0.6);
     const [mx, my] = place(0, 0);
     sm.cuboid(mx, my, 0, vert ? th / 2 - 0.1 : 0.5, vert ? 0.5 : th / 2 - 0.1, WALL_H - 0.4, WALL_H - 0.35, '#ffa000', { emissive: true, top: false });
@@ -169,10 +172,8 @@ export function staticMeshes(g, mode) {
   const sm = new Mesh(), tm = new Mesh();
   addFloor(sm, tm, g, mode);
   for (const w of g.walls) addWall(sm, tm, g, w, mode);
-  if (mode === 'pov') {
-    addCeiling(sm, g);
-    addDoorways(sm, g);
-  }
+  if (mode === 'pov') addCeiling(sm, g);
+  addDoorways(sm, g, mode);
   return (e[mode] = { key, opaque: sm, trans: tm });
 }
 
