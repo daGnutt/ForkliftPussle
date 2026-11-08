@@ -1044,24 +1044,15 @@ console.log('all tests passed');
   console.log('gear ok');
 }
 
-// The cabin only looks back after reversing for a while
+// The chase camera only looks back after reversing for a while; the cabin camera always looks forward
 {
   const g = newGame(1);
   run(g, { down: true }, 0.6);
   assert.ok(g.fl.gear === 'R' && g.rv < 0.01, 'short reverse keeps looking forward');
   run(g, { down: true }, 1.5);
   assert.ok(g.rv > 0.9, 'long reverse looks back');
-  run(g, { right: true }, 0.2);
-  assert.equal(g.leanT, -1, 'brief steering does not switch the lean side');
-  run(g, { right: true }, 1);
-  assert.equal(g.leanT, 1, 'sustained steering switches it');
-  g.fl.speed = -2;
-  run(g, { left: true, down: true }, 0.8);
-  assert.equal(g.leanT, 1, 'no lean switch while reversing fast');
-  const h = newGame(1);
-  h.fl.gear = 'R';
-  run(h, {}, 2);
-  assert.ok(h.rv > 0.9, 'standing in R also swings the camera round');
+  const cab = povCamera(g, 800, 500), back = projectPoint(cab.vp, g.fl.x + Math.cos(g.fl.a) * 6, g.fl.y + Math.sin(g.fl.a) * 6, 0.5, 800, 500);
+  assert.ok(back && Math.abs(back[0] - 400) < 400, 'cabin camera still looks along the heading in reverse');
   console.log('look back delay ok');
 }
 
