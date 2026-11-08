@@ -659,8 +659,10 @@ export function draw(ctx, g, view) {
       view.miniHit = { x: mx - 3, y: my - 3, w: mm.w + 6, h: mm.h + 6 };
     }
     const mw = Math.min(150, width * 0.14), mh = mw * 0.75;
-    drawLookWindow(ctx, g, width / 2 - mw - 4, 8, mw, mh, true, view.dpr);
-    drawLookWindow(ctx, g, width / 2 + 4, 8, mw, mh, false, view.dpr);
+    // Touch landscape: leave a wide gap between the windows so the view straight ahead stays visible.
+    const half = view.touch && width > height ? Math.max(4, width * 0.2) : 4;
+    drawLookWindow(ctx, g, width / 2 - mw - half, 8, mw, mh, true, view.dpr);
+    drawLookWindow(ctx, g, width / 2 + half, 8, mw, mh, false, view.dpr);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   } else {
     // On touch the control buttons take the bottom 208px (two 84px fork buttons + gap + margin), so the field ends above them.
