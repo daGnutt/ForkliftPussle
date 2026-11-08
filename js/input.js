@@ -118,8 +118,8 @@ export function createInput(handlers) {
       down: down.has('ArrowDown') || stick.down,
       left: down.has('ArrowLeft') || stick.left,
       right: down.has('ArrowRight') || stick.right,
-      lookL: down.has('KeyQ'),
-      lookR: down.has('KeyW'),
+      lookL: down.has('KeyW'),
+      lookR: down.has('KeyQ'),
     }),
   };
 }
