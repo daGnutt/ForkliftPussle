@@ -209,11 +209,11 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
   gl.uniform4fv(u.uLD, ld);
 
   const off = [0, 0, 1e9, 1e9];
-  const clip = mode === 'ov' ? wallClip(g, cam) : off;
+  const clip = (mode === 'ov' && wallClip(cam)) || off;
   gl.uniform4fv(u.uClip, clip);
   drawBuffer(r, st.opaque.buf, st.opaque.count);
   gl.uniform4fv(u.uClip, off);
-  if (mode === 'ov') drawMesh(r, wallCaps(g, clip));
+  if (clip !== off) drawMesh(r, wallCaps(g, clip));
   drawMesh(r, dyn.opaque);
 
   gl.enable(gl.BLEND);
@@ -221,7 +221,7 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
   gl.depthMask(false);
   gl.enable(gl.POLYGON_OFFSET_FILL);
   gl.polygonOffset(-2, -2);
-  gl.uniform4fv(u.uClip, mode === 'ov' ? wallClip(g, cam) : off);
+  gl.uniform4fv(u.uClip, clip);
   drawBuffer(r, st.trans.buf, st.trans.count);
   gl.uniform4fv(u.uClip, off);
   drawMesh(r, dyn.trans);

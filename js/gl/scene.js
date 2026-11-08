@@ -7,20 +7,19 @@ import { reverseLight } from '../revlight.js';
 import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
-import { WALL_H, BOX_H, PAL, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
+import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
 
 // Builds the meshes for the WebGL renderer. `mode` is 'pov' (cabin: ceiling, signs) or 'ov' (overview / third person:
 // no ceiling). Walls are always full height; in 'ov' the renderer clips the ones on the camera side of the forklift
-// (see `wallClip`) so the view behind them stays visible. Static meshes depend only on the level and theme;
+// (see `wallClip`). Static meshes depend only on the level and theme;
 // dynamic ones (stacks, forklift, markings) are rebuilt every frame.
 
 export const OV_WALL_H = 1.1; // lowest height the camera-side walls are clipped to in 'ov'
 
-// Clip plane for the walls between the camera and the forklift: [nx, ny, d, zMax] hides static geometry with
-// dot(xy, n) > d above zMax, where n points from the forklift toward the camera and zMax is the current fork height.
-export function wallClip(g, cam) {
-  const [nx, ny] = cam.down || [0, 1], f = g.fl;
-  return [nx, ny, nx * f.x + ny * f.y, Math.max(OV_WALL_H, g.hf * (BOX_H + PAL))];
+// Clip for the static walls: [nx, ny, d, zMax] hides geometry with dot(xy, n) > d above zMax. The overview cuts every
+// wall at OV_WALL_H (n = 0, d = -1 matches everything); the third-person view (`cam.chase`) shows them full height (null).
+export function wallClip(cam) {
+  return cam.chase ? null : [0, 0, -1, OV_WALL_H];
 }
 export const CHARGER_H = 0.9;
 const GREY = [0.43, 0.45, 0.48, 1], WHITE = [1, 1, 1, 1];

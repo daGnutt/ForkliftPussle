@@ -43,7 +43,7 @@ export function overviewCamera(cx, cy, tilesH, w, h, up = [0, -1], tilt = OV_TIL
   const f2h = 1 / Math.tan(OV_VFOV / 2);
   const proj = perspective((f2h * h) / w, f2h, 0, dist * 0.15, dist * 3);
   const view = viewBasis(eye, [-uy, ux, 0], [ux * ct, uy * ct, st], [ux * st, uy * st, -ct]);
-  return { vp: mul(proj, view), eye, w, h, down: [-ux, -uy] };
+  return { vp: mul(proj, view), eye, w, h };
 }
 
 export const CHASE_TILES = 11, CHASE_TILT = 0.95, CHASE_OUT = 0.8;
@@ -62,5 +62,5 @@ export function chaseZoom(tiles) {
 export function chaseCamera(g, w, h, tiles = CHASE_TILES, heading = g.fl.a, orbit = null) {
   const a = heading + (orbit ? orbit.yaw : 0);
   const p = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, 0);
-  return overviewCamera(p.x + Math.cos(a) * tiles * 0.2, p.y + Math.sin(a) * tiles * 0.2, tiles, w, h, [Math.cos(a), Math.sin(a)], orbit ? orbit.tilt : CHASE_TILT);
+  return { ...overviewCamera(p.x + Math.cos(a) * tiles * 0.2, p.y + Math.sin(a) * tiles * 0.2, tiles, w, h, [Math.cos(a), Math.sin(a)], orbit ? orbit.tilt : CHASE_TILT), chase: true };
 }
