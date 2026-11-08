@@ -110,15 +110,17 @@ function toggleFullscreen() {
 
 function nextLevel() { if (game.status === 'won') load(level + 1); }
 
+function toggleChase() {
+  if (view.povBig || !glEnabled()) return;
+  view.chase = !view.chase;
+  view.orbit = null;
+  localStorage.setItem('forklift-chase-cam', view.chase ? '1' : '0');
+}
+
 const input = createInput({
   anyKey: startAudio,
   fullscreen: toggleFullscreen,
-  toggleChase: () => {
-    if (view.povBig || !glEnabled()) return;
-    view.chase = !view.chase;
-    view.orbit = null;
-    localStorage.setItem('forklift-chase-cam', view.chase ? '1' : '0');
-  },
+  toggleChase,
   swapView: () => {
     if (isTouch) return;
     view.povBig = !view.povBig;
@@ -187,7 +189,22 @@ canvas.addEventListener('pointermove', (e) => {
   drag.x = e.clientX; drag.y = e.clientY;
   lookBy(dx * 0.008, dy * 0.006);
 });
-const endDrag = (e) => { if (drag && e.pointerId === drag.id) drag = null; };
+// Double tap (or double click) on the GL overview toggles the third-person camera.
+let lastTap = null;
+const DOUBLE_TAP_MS = 350, DOUBLE_TAP_PX = 30;
+function tapped(e) {
+  const now = performance.now();
+  if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX) {
+    lastTap = null;
+    toggleChase();
+  } else lastTap = { t: now, x: e.clientX, y: e.clientY };
+}
+const endDrag = (e) => {
+  if (drag && e.pointerId === drag.id) {
+    if (!drag.moved && e.type === 'pointerup') tapped(e);
+    drag = null;
+  }
+};
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 
