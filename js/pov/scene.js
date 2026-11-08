@@ -105,9 +105,17 @@ function addDoorways(faces, cam, g) {
       const [x, y] = place(su * (len / 2 - 0.07), sv * (th / 2 - 0.07));
       const [hx, hy] = sz(0.07, 0.07);
       for (let i = 0; i < 4; i++) addPrism(faces, cam, x, y, 0, hx, hy, i * 0.5, i * 0.5 + 0.5, i & 1 ? '#262626' : '#f4c414');
+      addPrism(faces, cam, x, y, 0, hx, hy, 2, 2.05, '#262626');
+      const n = faces.length;
+      addPrism(faces, cam, x, y, 0, hx * 0.8, hy * 0.8, 2.05, 2.25, '#ffa000');
+      for (let i = n; i < faces.length; i++) faces[i].glow = true;
     }
     const [hx, hy] = sz(len / 2, th / 2);
     const n = Math.floor(len / 0.6);
+    const m = faces.length;
+    const [lx, ly] = sz(0.5, th / 2 - 0.1), [mx, my] = place(0, 0);
+    addPrism(faces, cam, mx, my, 0, lx, ly, WALL_H - 0.4, WALL_H - 0.35, '#ffa000', false, 0, 0, true);
+    for (let i = m; i < faces.length; i++) faces[i].glow = true;
     for (let i = 0; i < n; i++) {
       const [x, y] = place(-len / 2 + (i + 0.5) * (len / n), 0);
       const [bx, by] = sz(len / n / 2, th / 2);
