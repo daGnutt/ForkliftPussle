@@ -223,6 +223,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     H: 0,
     hf: 0,
     ef: 0,
+    lean: -1, leanT: -1, sweep: -1, // look-back side (-1 left, 1 right): smoothed, target (follows the steering), swivel direction (latched in D)
     rv: 0, // 0..1 smoothed: how far the GL cabin camera has turned to look backwards (gear R)
     status: 'play',
     time: 0,
@@ -436,6 +437,9 @@ export function update(g, input, dt) {
   }
 
   g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
+  if (Math.abs(f.steer) > 0.02) g.leanT = f.steer > 0 ? -1 : 1; // reversing, the tail goes to the opposite side of the steer: lean out that way
+  if (f.gear === 'D') g.sweep = g.leanT;
+  g.lean += (g.leanT - g.lean) * (1 - Math.exp(-dt / 0.2));
   g.rv += ((f.gear === 'R' ? 1 : 0) - g.rv) * (1 - Math.exp(-dt / 0.15));
   g.ef += (g.hf - g.ef) * (1 - Math.exp(-dt / 0.22)); // cabin eye trails the forks
   // visual lowering of a just-released stack ends when the forks reach it
