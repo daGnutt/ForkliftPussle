@@ -7,7 +7,7 @@ import { perspective, viewBasis, mul } from './mat.js';
 const POV_NEAR = 0.06, POV_FAR = 90;
 const LOW_LIFT = 0.22; // radians the view is raised above the fork-tip line when the forks are low (fades out by level 2)
 
-// In gear R the driver leans out to the side the tail swings to (g.lean, -1 left) and a bit back to see past the seat back;
+// In gear R the driver leans out to the steered side (g.lean, -1 left) and a bit back to see past the seat back;
 // the swivel direction (g.sweep) is latched in D, and the head turns into the reversing path.
 const LEAN_OUT = 0.4, LEAN_BACK = 0.1;
 

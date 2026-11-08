@@ -437,7 +437,7 @@ export function update(g, input, dt) {
   }
 
   g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
-  if (Math.abs(f.steer) > 0.02) g.leanT = f.steer > 0 ? -1 : 1; // reversing, the tail goes to the opposite side of the steer: lean out that way
+  if (Math.abs(f.steer) > 0.02) g.leanT = f.steer > 0 ? 1 : -1; // lean out to the steered side
   if (f.gear === 'D') g.sweep = g.leanT;
   g.lean += (g.leanT - g.lean) * (1 - Math.exp(-dt / 0.2));
   g.rv += ((f.gear === 'R' ? 1 : 0) - g.rv) * (1 - Math.exp(-dt / 0.15));
