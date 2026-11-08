@@ -223,6 +223,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     H: 0,
     hf: 0,
     ef: 0,
+    rv: 0, // 0..1 smoothed: how far the GL cabin camera has turned to look backwards (gear R)
     status: 'play',
     time: 0,
     started: false,
@@ -435,6 +436,7 @@ export function update(g, input, dt) {
   }
 
   g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
+  g.rv += ((f.gear === 'R' ? 1 : 0) - g.rv) * (1 - Math.exp(-dt / 0.15));
   g.ef += (g.hf - g.ef) * (1 - Math.exp(-dt / 0.22)); // cabin eye trails the forks
   // visual lowering of a just-released stack ends when the forks reach it
   for (const s of g.stacks) if (s.dropFrom != null && (g.hf <= s.dropFrom + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;

@@ -83,7 +83,7 @@ export function addForklift(m, g, solidRoof) {
   }
   if (solidRoof) box(FL.front - 0.12, -0.38, FL.front + 0.02, 0.38, 1.3, 1.5, '#555');
   if (theme().dark) {
-    const tail = g.fl.speed < -0.05 ? '#ffffff' : g.fl.brake ? '#ff2a1a' : '#6a0d0a';
+    const tail = g.fl.gear === 'R' ? '#ffffff' : g.fl.brake ? '#ff2a1a' : '#6a0d0a';
     for (const s of [-1, 1]) {
       box(HEAD_X - 0.12, s * LAMP_Y - 0.06, HEAD_X + 0.03, s * LAMP_Y + 0.06, HEAD_Z - 0.06, HEAD_Z + 0.06, '#fff4cf', { emissive: true });
       box(TAIL_X - 0.02, s * LAMP_Y - 0.08, TAIL_X + 0.1, s * LAMP_Y + 0.08, TAIL_Z - 0.04, TAIL_Z + 0.04, tail, { emissive: true });

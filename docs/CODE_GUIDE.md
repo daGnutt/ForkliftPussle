@@ -30,6 +30,8 @@ Read this first for a map of the code. Vanilla JS ES modules + Canvas 2D, no bui
 
 Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` triggers sounds by watching state changes: fork level, number of done zones (`playWonky` (the arpeggio, but flat and sagging) instead of `playSuccess` when the newly finished zone (not other, earlier-finished ones)'s stack has crooked boxes, `zoneWonky`), `g.bonks`, and `g.scrape` (speed while touching a wall without a big speed loss; a big one-step loss bumps `g.bonks` instead; both set by `wallContact` in `game.js`); `game.js` stays audio-free); `game` → `forklift`, `level`, `geom`; `render` → `pov`, `game`, `level`, `forklift`. `game.js` must never touch the DOM.
 
+Gear: `g.fl.gear` is `'D'` or `'R'` (set in `drive`, flips only at standstill when the opposite throttle is held). R drives reverse lights/beeper; `g.rv` (0..1, smoothed) turns the GL cabin camera 180° (`gl/camera.js`).
+
 ## Units and coordinates
 - Simulation units are tiles; one box is 1×1. The renderer scales the canvas.
 - x right, y down; angle `a` in radians, 0 = facing +x.

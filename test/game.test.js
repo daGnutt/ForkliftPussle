@@ -718,14 +718,14 @@ console.log('all tests passed');
   const g = newGame(1);
   assert.equal(reverseLight(g), null, 'no light when stationary');
   g.fl.x = g.w / 2; g.fl.y = g.h / 2; g.fl.a = 0;
-  g.fl.speed = -1;
+  g.fl.speed = -1; g.fl.gear = 'R';
   const L = reverseLight(g);
   assert.ok(L && L.pts.every((p) => Math.hypot(p.x - L.x, p.y - L.y) <= REV_RADIUS + 1e-9));
-  g.fl.speed = 1;
+  g.fl.speed = 1; g.fl.gear = 'D';
   assert.equal(reverseLight(g), null, 'no light driving forward');
   // Light centre 0.5 from the right border wall, rear pointing at it.
   const wall = g.walls.reduce((b, w) => (w.x > b.x ? w : b));
-  g.fl.a = Math.PI; g.fl.y = g.h / 2; g.fl.speed = -1;
+  g.fl.a = Math.PI; g.fl.y = g.h / 2; g.fl.speed = -1; g.fl.gear = 'R';
   g.fl.x = wall.x - 0.5 + (FL.back - 1.0);
   const M = reverseLight(g);
   assert.ok(M.pts.every((p) => p.x <= wall.x + 1e-9), 'light stops at wall');
@@ -1002,4 +1002,22 @@ console.log('all tests passed');
     }
   }
   console.log('zone labels ok');
+}
+
+// Gear D/R only flips after a complete stop, when about to move the other way
+{
+  const g = newGame(1);
+  assert.equal(g.fl.gear, 'D');
+  g.fl.speed = 2;
+  let flipped = false;
+  for (let i = 0; i < 600 && !flipped; i++) {
+    update(g, { down: true }, 1 / 120);
+    if (g.fl.gear === 'R') flipped = true; else assert.ok(g.fl.speed > -0.001, 'stays in D while still moving forward');
+  }
+  assert.ok(flipped && Math.abs(g.fl.speed) < 0.05, 'R engages at standstill');
+  run(g, {}, 3);
+  assert.equal(g.fl.gear, 'R', 'coasting keeps R');
+  run(g, { up: true }, 2);
+  assert.equal(g.fl.gear, 'D');
+  console.log('gear ok');
 }

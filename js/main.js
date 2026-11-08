@@ -557,7 +557,7 @@ function frame(now) {
   checkTutorial();
   checkRecord();
   const st = input.state();
-  setEngine(game.fl.speed, st.up || st.down);
+  setEngine(game.fl.speed, st.up || st.down, game.fl.gear === 'R');
   const done = doneSet();
   const fresh = [...done].filter((z) => !doneZones.has(z));
   if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();

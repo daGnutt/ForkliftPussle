@@ -16,8 +16,8 @@ function headTurn(f) {
 // Cabin view: eye fixed at seat height (no up/down translation); the camera only pitches to look at the fork tips
 // (smoothed level g.ef), so the view tilts up and down as the forks rise and fall. `look` ({ yaw, pitch } radians) turns the head.
 export function povCamera(g, w, h, look = null) {
-  const e = toWorld(g.fl, EYE_X, 0), a = g.fl.a + (look ? look.yaw : 0) + headTurn(g.fl);
-  const tip = FL.tineX1 - EYE_X, pitch = Math.atan2(g.ef * (BOX_H + PAL) - EYE_Z, tip) + LOW_LIFT * Math.max(0, 1 - g.ef / 2) + (look ? look.pitch : 0);
+  const e = toWorld(g.fl, EYE_X, 0), a = g.fl.a + (look ? look.yaw : 0) + headTurn(g.fl) * (1 - g.rv) + Math.PI * g.rv;
+  const tip = FL.tineX1 - EYE_X, pitch = (Math.atan2(g.ef * (BOX_H + PAL) - EYE_Z, tip) + LOW_LIFT * Math.max(0, 1 - g.ef / 2)) * (1 - g.rv) + (look ? look.pitch : 0);
   const cp = Math.cos(pitch), sp = Math.sin(pitch), c = Math.cos(a), s = Math.sin(a);
   const f2w = 1 / Math.tan(HFOV / 2);
   const proj = perspective(f2w, (f2w * w) / h, 0, POV_NEAR, POV_FAR);

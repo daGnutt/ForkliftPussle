@@ -7,7 +7,7 @@ Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift an
 On touch devices, on-screen buttons replace the keyboard (big steer left/right buttons on the left; on the right the top row raises/lowers the forks and the bottom row drives back/forward, plus Menu (top right); the Menu's "Touch controls" option switches layout: classic, rotated (forks up/down in the left column, drive forward/back in the right column of the bottom-right pad), or a virtual joystick bottom left for driving with only the fork buttons bottom right; tap the level-complete board for the next level; the cabin view is not offered on touch, except as a hidden easter egg: in landscape, tap the minimap to swap between overview and cab view; rotating to portrait switches back to the overview; plus Next after a win).
 | Key | Action |
 |-----|--------|
-| ↑ / ↓ | Drive forward / reverse |
+| ↑ / ↓ | Drive forward / reverse (the truck stays in gear D or R until it has stopped and starts moving the other way; R turns on reverse lights and beeps, and turns the GL cabin camera to look backwards) |
 | ← / → | Steer (rear wheels steer, so the tail swings out) |
 | A / Z | Forks up / down one level |
 | C | Show / hide the small corner window (cabin view, or the overview while the big view is the cabin) |
