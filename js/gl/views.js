@@ -64,12 +64,12 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
 
 // Overview into the css-px rect (rx, ry, rw, rh): centre (cx, cy) in tiles, s px per tile at the centre.
 // `orbit` ({ yaw, tilt } radians, set by dragging) swings the camera around the forklift instead; `chase` (tiles visible vertically) uses the
-// third-person camera behind the forklift (cx, cy, s ignored).
-export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = null, chase = 0) {
+// third-person camera behind the forklift at the sprung `heading` (cx, cy, s ignored); `orbit` then orbits the tines' middle.
+export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = null, chase = 0, heading = g.fl.a) {
   if (!glAvailable()) return false;
   let cam;
   if (chase) {
-    cam = chaseCamera(g, rw, rh, chase);
+    cam = chaseCamera(g, rw, rh, chase, heading, orbit);
     s = rh / chase;
   } else if (orbit) {
     const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0), co = Math.cos(orbit.yaw), si = Math.sin(orbit.yaw);

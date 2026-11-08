@@ -260,7 +260,7 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
   }
   view.ovTiles = rh / s;
   const chaseTiles = view.chaseZoom == null ? view.ovTiles : chaseTilesFor(view.chaseZoom);
-  if (follow && view.chase && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, null, chaseTiles)) {
+  if (follow && view.chase && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, view.orbit, chaseTiles, view.camA ?? g.fl.a)) {
     if (zoomed) ctx.restore();
     return { x: 0, y: 0, w: g.w, h: g.h };
   }

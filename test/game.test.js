@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateLevel, parseSeed, isReachable } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
-import { FL, toLocal, maxSteerFor } from '../js/forklift.js';
+import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState } from '../js/savestate.js';
 import { povCamera, overviewCamera, chaseCamera, chaseTiles, chaseZoom } from '../js/gl/camera.js';
@@ -965,6 +965,15 @@ console.log('all tests passed');
     assert.ok(ahead[1] < here[1] && Math.abs(ahead[0] - here[0]) < 1, 'chase camera: the forklift heading is straight up the screen');
     assert.ok(chaseTiles(0) > 54 && chaseTiles(100) === 11 && chaseZoom(chaseTiles(40)) === 40, 'chase zoom range: fully in = 11 tiles, out = 80% smaller');
     assert.ok((ch.eye[0] - fx) * hx + (ch.eye[1] - fy) * hy < 0 && ch.eye[2] > 1, 'chase camera sits behind and above the forklift');
+  }
+  {
+    g.fl.a = 0.7;
+    const tm = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, 0);
+    const sprung = chaseCamera(g, 800, 500, 11, 0.2), orb = chaseCamera(g, 800, 500, 11, 0.7, { yaw: 1.5, tilt: 0.6 });
+    const ahead = projectPoint(sprung.vp, tm.x + Math.cos(0.2), tm.y + Math.sin(0.2), 0, 800, 500), mid = projectPoint(sprung.vp, tm.x, tm.y, 0, 800, 500);
+    assert.ok(ahead[1] < mid[1], 'chase camera follows the sprung heading, not the forklift heading');
+    const ang = Math.atan2(orb.eye[1] - tm.y, orb.eye[0] - tm.x), want = 0.7 + 1.5 + Math.PI;
+    assert.ok(Math.abs(Math.atan2(Math.sin(ang - want), Math.cos(ang - want))) < 0.5, 'chase orbit swings the camera around the tines');
   }
   for (const mode of ['pov', 'ov']) {
     const s = staticMeshes(g, mode);
