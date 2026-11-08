@@ -60,10 +60,10 @@ const LIGHT = {
   pov: { sun: [0.35, 0.25, 0.9], sunCol: [0.5, 0.5, 0.48], up: [0.62, 0.62, 0.65], down: [0.45, 0.45, 0.47], fogA: 6, fogB: 48, fogMax: 0.8 },
   ov: { sun: [-0.4, -0.5, 0.8], sunCol: [0.42, 0.42, 0.4], up: [0.66, 0.66, 0.68], down: [0.5, 0.5, 0.52], fogA: 1e4, fogB: 2e4, fogMax: 0 },
 };
-// Dark mode: little ambient light; the truck's and the ceiling's point lights do the work.
+// Dark mode: little ambient light; the truck's point lights do the work.
 const DARK_LIGHT = {
-  pov: { sun: [0.35, 0.25, 0.9], sunCol: [0.05, 0.05, 0.06], up: [0.2, 0.21, 0.25], down: [0.13, 0.13, 0.16], fogA: 6, fogB: 48, fogMax: 0.8 },
-  ov: { sun: [-0.4, -0.5, 0.8], sunCol: [0.08, 0.08, 0.09], up: [0.34, 0.35, 0.4], down: [0.23, 0.23, 0.27], fogA: 1e4, fogB: 2e4, fogMax: 0 },
+  pov: { sun: [0.35, 0.25, 0.9], sunCol: [0.06, 0.06, 0.07], up: [0.27, 0.28, 0.33], down: [0.18, 0.18, 0.22], fogA: 6, fogB: 48, fogMax: 0.8 },
+  ov: { sun: [-0.4, -0.5, 0.8], sunCol: [0.08, 0.08, 0.09], up: [0.4, 0.41, 0.46], down: [0.27, 0.27, 0.31], fogA: 1e4, fogB: 2e4, fogMax: 0 },
 };
 
 let R = null; // { canvas, gl, prog, u, dyn, statics } | null; undefined while untried
