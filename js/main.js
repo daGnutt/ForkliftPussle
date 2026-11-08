@@ -144,21 +144,39 @@ if (isTouch) canvas.addEventListener('pointerdown', (e) => {
   else nextLevel();
 });
 
-// Drag on the 3D overview to orbit the camera around the forklift; driving snaps it back.
-const ORBIT_TILT_MAX = 1.3;
+// Look around in the 3D views: drag the canvas or hold Q/W. The big view's camera swings around the forklift (overview,
+// view.orbit { yaw, tilt }) or turns on the spot (cabin, view.look { yaw, pitch }); driving springs it back.
+const ORBIT_HOME = 0.35, ORBIT_TILT_MAX = 1.3, LOOK_PITCH_MAX = 0.7, LOOK_SPEED = 2;
+const wrap = (a) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
+function lookState() {
+  view.snap = false;
+  return view.povBig ? (view.look ||= { yaw: 0, pitch: 0 }) : (view.orbit ||= { yaw: 0, tilt: ORBIT_HOME });
+}
+function lookBy(dyaw, dpitch) {
+  const o = lookState();
+  o.yaw = wrap(o.yaw - dyaw);
+  if (view.povBig) o.pitch = Math.min(LOOK_PITCH_MAX, Math.max(-LOOK_PITCH_MAX, o.pitch + dpitch));
+  else o.tilt = Math.min(ORBIT_TILT_MAX, Math.max(0.05, o.tilt + dpitch));
+}
+function springBack(dt) {
+  const k = 1 - Math.exp(-7 * dt);
+  const o = view.orbit, l = view.look;
+  if (o) { o.yaw -= o.yaw * k; o.tilt -= (o.tilt - ORBIT_HOME) * k; if (Math.abs(o.yaw) + Math.abs(o.tilt - ORBIT_HOME) < 0.003) view.orbit = null; }
+  if (l) { l.yaw -= l.yaw * k; l.pitch -= l.pitch * k; if (Math.abs(l.yaw) + Math.abs(l.pitch) < 0.003) view.look = null; }
+  if (!view.orbit && !view.look) view.snap = false;
+}
 let drag = null;
 canvas.addEventListener('pointerdown', (e) => {
-  if (e.target !== canvas || !glEnabled() || view.povBig || splashOn || recordOpen || view.menuOpen) return;
-  drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
+  if (e.target !== canvas || !glEnabled() || splashOn || recordOpen || view.menuOpen) return;
+  drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
 });
 canvas.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-  if (!view.orbit && Math.hypot(dx, dy) < 6) return;
+  if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+  drag.moved = true;
   drag.x = e.clientX; drag.y = e.clientY;
-  const o = view.orbit || (view.orbit = { yaw: 0, tilt: 0.35 });
-  o.yaw -= dx * 0.008;
-  o.tilt = Math.min(ORBIT_TILT_MAX, Math.max(0.05, o.tilt + dy * 0.006));
+  lookBy(dx * 0.008, dy * 0.006);
 });
 const endDrag = (e) => { if (drag && e.pointerId === drag.id) drag = null; };
 canvas.addEventListener('pointerup', endDrag);
@@ -526,7 +544,9 @@ function frame(now) {
   let steps = 0;
   while (!splashOn && !view.paused && acc >= STEP) {
     const inp = input.state();
-    if (view.orbit && (inp.up || inp.down || inp.left || inp.right)) view.orbit = null;
+    if (inp.up || inp.down || inp.left || inp.right) view.snap = true;
+    if (!splashOn && glEnabled() && (inp.lookL || inp.lookR)) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * STEP, 0);
+    if (view.snap) springBack(STEP);
     update(game, inp, STEP);
     acc -= STEP;
     steps++;

@@ -632,7 +632,7 @@ export function draw(ctx, g, view) {
   const POV_W = 300, POV_H = 170, hx0 = view.showSmall ? 20 + POV_W + 16 : 20;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   if (view.povBig) {
-    if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr)) drawPov(ctx, g, 0, 0, width, height);
+    if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr, view.look)) drawPov(ctx, g, 0, 0, width, height);
     if (view.touch && width > height) { // easter egg: the minimap stays tappable to swap back to the overview
       const mm = miniSize(g, 120, 70), mx = (width - mm.w) / 2, my = height - 8 - mm.h;
       drawMiniMap(ctx, g, { x: 0, y: 0, w: g.w, h: g.h }, mx, my, mm.s);

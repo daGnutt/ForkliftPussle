@@ -32,9 +32,9 @@ function lineClear(g, x0, y0, x1, y1) {
 function hitText(h) { return h.wonky ? `Wonky −${h.pts}` : `−${h.pts}`; }
 
 // Cabin view into the css-px box (x, y, w, h). Returns false if WebGL is unavailable.
-export function drawPov3d(ctx, g, x, y, w, h, dpr) {
+export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
   if (!glAvailable()) return false;
-  const cam = povCamera(g, w, h);
+  const cam = povCamera(g, w, h, look);
   const proj = drawGl(ctx, g, 'pov', cam, x, y, dpr);
   if (!proj) return false;
   ctx.save();
