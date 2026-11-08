@@ -357,8 +357,10 @@ export function paintWallDecals(g, p, f) {
   // The wall ends facing into a doorway keep only the base stripe (no signs or doors).
   const inDoorway = (g.doors || []).some((d) => f.mx >= d.x - 0.01 && f.mx <= d.x + d.w + 0.01 && f.my >= d.y - 0.01 && f.my <= d.y + d.h + 0.01);
 
-  // Two-segment roller door: the pair (k even, k + 1) shares the point where the segments meet.
-  if (!inDoorway && f.n > 1 && (f.k & 1 ? true : f.k + 1 < f.n)) {
+  const outer = f.mx < 0.01 || f.my < 0.01 || f.mx > g.w - 0.01 || f.my > g.h - 0.01;
+
+  // Two-segment roller door (outer walls only): the pair (k even, k + 1) shares the point where the segments meet.
+  if (outer && !inDoorway && f.n > 1 && (f.k & 1 ? true : f.k + 1 < f.n)) {
     const key = f.k & 1 ? q0 : q1;
     if (hash(key[0], key[1], 34) < 0.1 && doorFits(g, key, q0, q1)) {
       rollerDoor(p, f.k & 1 ? 0 : 1); // visually the later segment is the left half
@@ -375,10 +377,7 @@ export function paintWallDecals(g, p, f) {
     }
   }
   if (inDoorway) return;
-  let kind = wallDecal(f.mx, f.my);
-  // Windows and doors only make sense in the outer walls, not on dividing walls.
-  const outer = f.mx < 0.01 || f.my < 0.01 || f.mx > g.w - 0.01 || f.my > g.h - 0.01;
-  if (!outer && (kind === 'window' || kind === 'door')) kind = null;
+  const kind = wallDecal(f.mx, f.my, outer);
   if (kind && !faceFree(g, [f.mx, f.my], q0, q1, 0.52)) return;
   if (kind === 'poster') {
     poster(dropped(p, SIGN_DROP), Math.floor(hash(f.mx, f.my, 35) * SLOGANS.length));

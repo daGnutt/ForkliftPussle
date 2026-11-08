@@ -190,11 +190,15 @@ export function floorDecals(g) {
 const WALL_KINDS = ['window', 'window', 'door', 'nosmoking', 'exit', 'extinguisher', 'hazard', 'forklift', 'electric', 'ppe', 'speed', 'fire',
   'ac', 'ac', 'toiletM', 'toiletW', 'deer', 'poster', 'poster', 'poster', 'firstaid', 'stairs'];
 
-// Wall decal for the one-tile wall segment at (mx, my); null for most segments.
-export function wallDecal(mx, my) {
+const INNER_KINDS = WALL_KINDS.filter((k) => k !== 'window' && k !== 'door');
+
+// Wall decal for the one-tile wall segment at (mx, my); null for most segments. Dividing (inner) walls
+// pick from the kinds that make sense there (no windows or doors) instead of losing the decal.
+export function wallDecal(mx, my, outer = true) {
   const r = hash(mx, my, 31);
   if (r > 0.15) return null;
-  return WALL_KINDS[Math.floor(hash(mx, my, 32) * WALL_KINDS.length)];
+  const kinds = outer ? WALL_KINDS : INNER_KINDS;
+  return kinds[Math.floor(hash(mx, my, 32) * kinds.length)];
 }
 
 // Yellow/black base stripe style of a wall segment: 0 none, 1 plain yellow line, 2 hazard chevrons.
