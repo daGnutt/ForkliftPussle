@@ -8,27 +8,38 @@ import { WALL_H } from './models.js';
 const POV_NEAR = 0.06, POV_FAR = 90;
 const LOW_LIFT = 0.22; // radians the view is raised above the fork-tip line when the forks are low (fades out by level 2)
 
-// In gear R the driver leans out to the steered side (g.lean, -1 left) and a bit back to see past the seat back;
-// the swivel direction (g.sweep) is latched in D, and the head turns into the reversing path.
-const LEAN_OUT = 0.4, LEAN_BACK = 0.1;
-
 // The driver looks into the turn: a small yaw proportional to the steering angle, regardless of speed or direction.
 const HEAD_TURN = 0.3;
 function headTurn(f) {
   return HEAD_TURN * (f.steer / FL.maxSteer);
 }
 
-// Cabin view: eye fixed at seat height (no up/down translation); the camera only pitches to look at the fork tips
-// (smoothed level g.ef), so the view tilts up and down as the forks rise and fall. `look` ({ yaw, pitch } radians) turns the head.
+// Cabin view (always looks forward, also in reverse; see rearCamera): eye fixed at seat height (no up/down translation); the camera
+// only pitches to look at the fork tips (smoothed level g.ef), so the view tilts up and down as the forks rise and fall. `look` ({ yaw, pitch } radians) turns the head.
 export function povCamera(g, w, h, look = null) {
-  const e = toWorld(g.fl, EYE_X - LEAN_BACK * g.rv, LEAN_OUT * g.lean * g.rv);
-  const a = g.fl.a + (look ? look.yaw : 0) + headTurn(g.fl) * (1 - g.rv) + (Math.PI * g.sweep - headTurn(g.fl)) * g.rv;
-  const tip = FL.tineX1 - EYE_X, pitch = (Math.atan2(g.ef * (BOX_H + PAL) - EYE_Z, tip) + LOW_LIFT * Math.max(0, 1 - g.ef / 2)) * (1 - g.rv) + (look ? look.pitch : 0);
+  const e = toWorld(g.fl, EYE_X, 0);
+  const a = g.fl.a + (look ? look.yaw : 0) + headTurn(g.fl);
+  const tip = FL.tineX1 - EYE_X, pitch = Math.atan2(g.ef * (BOX_H + PAL) - EYE_Z, tip) + LOW_LIFT * Math.max(0, 1 - g.ef / 2) + (look ? look.pitch : 0);
   const cp = Math.cos(pitch), sp = Math.sin(pitch), c = Math.cos(a), s = Math.sin(a);
   const f2w = 1 / Math.tan(HFOV / 2);
   const proj = perspective(f2w, (f2w * w) / h, 0, POV_NEAR, POV_FAR);
   const eye = [e.x, e.y, EYE_Z];
   const view = viewBasis(eye, [-s, c, 0], [-c * sp, -s * sp, cp], [c * cp, s * cp, sp]);
+  return { vp: mul(proj, view), eye, w, h };
+}
+
+const REAR_Z = 1.05, REAR_PITCH = 0.5, REAR_HFOV = (110 * Math.PI) / 180;
+
+// Reversing camera: mounted at the tail looking straight back, tilted down towards the floor, wide angle and mirrored (like a
+// car's) so screen-left is the side the tail swings to when steering left in reverse.
+export function rearCamera(g, w, h) {
+  const e = toWorld(g.fl, FL.back, 0), a = g.fl.a + Math.PI;
+  const cp = Math.cos(REAR_PITCH), sp = Math.sin(REAR_PITCH), c = Math.cos(a), s = Math.sin(a);
+  const f2w = 1 / Math.tan(REAR_HFOV / 2);
+  const proj = perspective(f2w, (f2w * w) / h, 0, POV_NEAR, POV_FAR);
+  proj[0] = -proj[0];
+  const eye = [e.x, e.y, REAR_Z];
+  const view = viewBasis(eye, [-s, c, 0], [c * sp, s * sp, cp], [c * cp, s * cp, -sp]);
   return { vp: mul(proj, view), eye, w, h };
 }
 

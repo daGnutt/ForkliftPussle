@@ -4,7 +4,7 @@ import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
 import { chaseTiles as chaseTilesFor, clearChaseTilt, CHASE_TILT } from './gl/camera.js';
-import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
+import { drawPov3d, drawRear3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
@@ -663,6 +663,10 @@ export function draw(ctx, g, view) {
     const half = view.touch && width > height ? Math.max(4, width * 0.2) : 4;
     drawLookWindow(ctx, g, width / 2 - mw - half, 8, mw, mh, true, view.dpr);
     drawLookWindow(ctx, g, width / 2 + half, 8, mw, mh, false, view.dpr);
+    if (g.fl.gear === 'R') {
+      const rw = Math.min(360, width * 0.34), rh = rw * 0.5;
+      drawRear3d(ctx, g, (width - rw) / 2, 8 + mh + 8, rw, rh, view.dpr);
+    }
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   } else {
     // On touch the control buttons take the bottom 208px (two 84px fork buttons + gap + margin), so the field ends above them.

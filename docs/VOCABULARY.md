@@ -109,6 +109,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Corner window / look window** | Small inset showing the other view | `drawLook3d` |
 | **Software camera** | 2D Canvas renderer (`pov.js`, `pov/camera.js`) | – |
 | **GL camera** | WebGL renderer (`gl/camera.js`) | `povCamera`, `overviewCamera` |
+| **Rear cam** | Mirrored reversing-camera inset in the GL cabin view, shown in gear R | `rearCamera`, `drawRear3d` |
 | **Eye** | Cabin camera position/pitch following the forks | `g.ef`, `EYE_Z` |
 | **Follow camera** | Overview that scrolls on big maps | `main.js` |
 | **Parallax** | Fake height in the 2D overview | `PX`, `PY` |
