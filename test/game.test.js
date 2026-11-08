@@ -1029,5 +1029,13 @@ console.log('all tests passed');
   assert.ok(g.fl.gear === 'R' && g.rv < 0.01, 'short reverse keeps looking forward');
   run(g, { down: true }, 1.5);
   assert.ok(g.rv > 0.9, 'long reverse looks back');
+  run(g, { right: true }, 0.2);
+  assert.equal(g.leanT, -1, 'brief steering does not switch the lean side');
+  run(g, { right: true }, 1);
+  assert.equal(g.leanT, 1, 'sustained steering switches it');
+  const h = newGame(1);
+  h.fl.gear = 'R';
+  run(h, {}, 2);
+  assert.ok(h.rv > 0.9, 'standing in R also swings the camera round');
   console.log('look back delay ok');
 }
