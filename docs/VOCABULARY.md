@@ -53,6 +53,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Overhead guard / cage / roof** | Frame over the driver | `models.js` |
 | **Front axle / rear wheels** | Origin of the local frame / the steering wheels | `FL` |
 | **Mast / carriage** | Upright and plate the tines hang from | `addForks` |
+| **Bare forks** | Menu option (key B): in the GL cabin view hides the whole forklift body and the mast, leaving carriage and tines | `bareForksEnabled`, `addForks` |
 | **Tines / forks / blades** | The two prongs that go into a pallet | `addForks` |
 | **Tine tips** | Thin tapered ends; look-at point of the cabin camera | `g.ef` |
 | **Fork level** | Integer 0–5 height of the tines in box heights | `g.H` |

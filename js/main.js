@@ -6,6 +6,7 @@ import { serializeGame, deserializeGame, encodeState, decodeState } from './save
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
+import { setBareForks, bareForksEnabled } from './gl/models.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
 import { glEnabled, setGlEnabled } from './gl/renderer.js';
 import { themeMode, setThemeMode } from './theme.js';
@@ -333,6 +334,8 @@ setGlEnabled(glParam ? glParam !== '0' : localStorage.getItem('forklift-gl-off')
 setDecalsEnabled(localStorage.getItem('forklift-decals-off') !== '1');
 const themeSel = document.getElementById('themeSel');
 setThemeMode(localStorage.getItem('forklift-theme'));
+const bareOpt = document.getElementById('bareOpt');
+setBareForks(localStorage.getItem('forklift-bare-forks') === '1');
 const discoOpt = document.getElementById('discoOpt');
 setDiscoEnabled(localStorage.getItem('forklift-disco') === '1');
 const menuHardOpt = document.getElementById('menuHardOpt');
@@ -362,6 +365,7 @@ function toggleMenu(open) {
     decalOpt.checked = decalsEnabled();
     glOpt.checked = glEnabled();
     discoOpt.checked = discoEnabled();
+    bareOpt.checked = bareForksEnabled();
     themeSel.value = themeMode();
     menuHardOpt.checked = hard;
     menuLevel.value = level;
@@ -390,6 +394,10 @@ themeSel.addEventListener('change', () => {
 discoOpt.addEventListener('change', () => {
   setDiscoEnabled(discoOpt.checked);
   localStorage.setItem('forklift-disco', discoOpt.checked ? '1' : '0');
+});
+bareOpt.addEventListener('change', () => {
+  setBareForks(bareOpt.checked);
+  localStorage.setItem('forklift-bare-forks', bareOpt.checked ? '1' : '0');
 });
 const touchSel = document.getElementById('touchSel');
 const touchPad = document.getElementById('touch');
@@ -466,6 +474,7 @@ window.addEventListener('keydown', (e) => {
       themeSel.value = o[(o.indexOf(themeSel.value) + 1) % o.length];
       themeSel.dispatchEvent(new Event('change'));
     },
+    KeyB: () => toggle(bareOpt),
     KeyI: () => toggle(discoOpt),
     KeyG: () => { showPage('game'); menuLevel.focus(); menuLevel.select(); },
     KeyL: () => document.getElementById('menuLowest').click(),

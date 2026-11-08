@@ -7,7 +7,7 @@ import { reverseLight } from '../revlight.js';
 import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
-import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, addStack, addForklift, addForks, addCarried } from './models.js';
+import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
 
 // Builds the meshes for the WebGL renderer. `mode` is 'pov' (cabin: ceiling, signs, full-height walls) or 'ov'
 // (top-down overview: low walls so the playing field stays readable). Static meshes depend only on the level and theme;
@@ -305,8 +305,9 @@ export function dynamicMeshes(g, mode, eye) {
       st.dropFrom != null ? Math.max(0, g.hf - st.dropFrom) : 0, st.pen);
   }
   addCarried(om, tm, g);
-  addForklift(om, g, mode === 'ov');
-  addForks(om, g);
+  const bare = mode === 'pov' && bareForksEnabled();
+  if (!bare) addForklift(om, g, mode === 'ov');
+  addForks(om, g, bare);
   addMarks(tm, g, mode);
   addBlobShadows(tm, g);
   addRevLight(tm, g);
