@@ -1,6 +1,7 @@
 import { toWorld, FL } from '../forklift.js';
 import { EYE_X, EYE_Z, HFOV, BOX_H, PAL } from '../pov/camera.js';
 import { perspective, viewBasis, mul } from './mat.js';
+import { WALL_H } from './models.js';
 
 // Camera maths for the WebGL renderer (pure, no DOM). A camera is { vp, eye: [x, y, z], w, h } (w, h in css px).
 
@@ -63,4 +64,47 @@ export function chaseCamera(g, w, h, tiles = CHASE_TILES, heading = g.fl.a, orbi
   const a = heading + (orbit ? orbit.yaw : 0);
   const p = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, 0);
   return { ...overviewCamera(p.x + Math.cos(a) * tiles * 0.2, p.y + Math.sin(a) * tiles * 0.2, tiles, w, h, [Math.cos(a), Math.sin(a)], orbit ? orbit.tilt : CHASE_TILT), chase: true };
+}
+
+const OCC_MIN_VISIBLE = 0.5, OCC_STEP = 0.05, OCC_MIN_TILT = 0.05;
+const OCC_PTS = [];
+for (const x of [FL.back, (FL.back + FL.front) / 2, FL.front]) for (const y of [-FL.halfW, 0, FL.halfW]) for (const z of [0.3, 1.2]) OCC_PTS.push([x, y, z]);
+
+// Does the segment a -> b pass through the wall box (full height WALL_H)? Slab test.
+function segHitsWall(a, b, w, wallH) {
+  let t0 = 0, t1 = 1;
+  const lo = [w.x, w.y, 0], hi = [w.x + w.w, w.y + w.h, wallH];
+  for (let i = 0; i < 3; i++) {
+    const d = b[i] - a[i];
+    if (Math.abs(d) < 1e-9) { if (a[i] < lo[i] || a[i] > hi[i]) return false; continue; }
+    let ta = (lo[i] - a[i]) / d, tb = (hi[i] - a[i]) / d;
+    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta);
+    t1 = Math.min(t1, tb);
+    if (t0 > t1) return false;
+  }
+  return true;
+}
+
+// Fraction (0..1) of sample points on the forklift body that the chase camera eye sees past the walls.
+export function truckVisibility(g, eye, wallH = WALL_H) {
+  let seen = 0;
+  for (const [x, y, z] of OCC_PTS) {
+    const p = toWorld(g.fl, x, y), q = [p.x, p.y, z];
+    if (!g.walls.some((w) => segHitsWall(eye, q, w, wallH))) seen++;
+  }
+  return seen / OCC_PTS.length;
+}
+
+// Smallest tilt <= `tilt` (the camera orbits upwards, towards top-down) at which at least half of the forklift is visible
+// from the chase camera with the given heading + orbit yaw and `tiles` visible; `tilt` itself when nothing obstructs it.
+export function clearChaseTilt(g, tiles, heading, yaw, tilt, wallH = WALL_H) {
+  const a = heading + yaw, p = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, 0);
+  const cx = p.x + Math.cos(a) * tiles * 0.2, cy = p.y + Math.sin(a) * tiles * 0.2;
+  const dist = tiles / 2 / Math.tan(OV_VFOV / 2);
+  for (let t = tilt; ; t -= OCC_STEP) {
+    t = Math.max(OCC_MIN_TILT, t);
+    const eye = [cx - Math.cos(a) * Math.sin(t) * dist, cy - Math.sin(a) * Math.sin(t) * dist, Math.cos(t) * dist];
+    if (truckVisibility(g, eye, wallH) >= OCC_MIN_VISIBLE || t <= OCC_MIN_TILT) return t;
+  }
 }
