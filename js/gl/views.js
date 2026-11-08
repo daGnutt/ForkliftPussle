@@ -1,7 +1,7 @@
 import { COLORS } from '../level.js';
 import { HIT_LIFE, WONKY_LIFE, zoneDone } from '../game.js';
 import { label } from '../pov/overlay.js';
-import { povCamera, rearCamera, overviewCamera, chaseCamera } from './camera.js';
+import { povCamera, overviewCamera, chaseCamera } from './camera.js';
 import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';
 import { toWorld, FL } from '../forklift.js';
@@ -59,20 +59,6 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 3;
   ctx.strokeRect(x, y, w, h);
-  return true;
-}
-
-// Reversing-camera inset into the css-px box (x, y, w, h), drawn over the cabin view in gear R. Returns false without WebGL.
-export function drawRear3d(ctx, g, x, y, w, h, dpr) {
-  if (!glAvailable() || !drawGl(ctx, g, 'pov', rearCamera(g, w, h), x, y, dpr)) return false;
-  ctx.strokeStyle = '#111';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(x, y, w, h);
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.font = '10px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText('REAR CAM', x + 6, y + 5);
   return true;
 }
 

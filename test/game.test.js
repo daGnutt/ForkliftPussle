@@ -4,7 +4,7 @@ import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState } from '../js/savestate.js';
-import { povCamera, rearCamera, overviewCamera, chaseCamera, chaseTiles, chaseZoom, clearChaseTilt, CHASE_TILT } from '../js/gl/camera.js';
+import { povCamera, overviewCamera, chaseCamera, chaseTiles, chaseZoom, clearChaseTilt, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
@@ -1056,17 +1056,18 @@ console.log('all tests passed');
   console.log('look back delay ok');
 }
 
-// reversing camera: looks straight back, mirrored like a car's
+// the cabin camera does not turn its head in gear R
 {
-  const g = newGame(3);
-  g.fl.x = 6; g.fl.y = 5; g.fl.a = 0;
-  const cam = rearCamera(g, 400, 200);
-  assert.equal(projectPoint(cam.vp, g.fl.x + 6, g.fl.y, 0.5, 400, 200), null, 'nothing ahead of the truck is in the rear camera');
-  const behind = projectPoint(cam.vp, g.fl.x - 6, g.fl.y, 0, 400, 200);
-  assert.ok(behind && Math.abs(behind[0] - 200) < 1, 'a point straight behind projects to the centre');
-  const right = projectPoint(cam.vp, g.fl.x - 6, g.fl.y + 2, 0, 400, 200);
-  assert.ok(right[0] > 200, 'mirrored: truck right (+y here) is screen-right');
-  console.log('rear camera ok');
+  const g = newGame(1);
+  g.fl.steer = 0.3;
+  const d = povCamera(g, 800, 500).vp.slice();
+  g.fl.gear = 'R';
+  assert.notDeepEqual(Array.from(povCamera(g, 800, 500).vp), Array.from(d), 'head turns into the turn in D');
+  g.fl.steer = 0;
+  const straight = Array.from(povCamera(g, 800, 500).vp);
+  g.fl.steer = 0.3;
+  assert.deepEqual(Array.from(povCamera(g, 800, 500).vp), straight, 'no head turn in R');
+  console.log('no head turn in reverse ok');
 }
 
 // chase camera orbits upwards when a wall hides the forklift

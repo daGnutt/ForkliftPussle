@@ -8,13 +8,13 @@ import { WALL_H } from './models.js';
 const POV_NEAR = 0.06, POV_FAR = 90;
 const LOW_LIFT = 0.22; // radians the view is raised above the fork-tip line when the forks are low (fades out by level 2)
 
-// The driver looks into the turn: a small yaw proportional to the steering angle, regardless of speed or direction.
+// The driver looks into the turn: a small yaw proportional to the steering angle, regardless of speed; not when in gear R.
 const HEAD_TURN = 0.3;
 function headTurn(f) {
-  return HEAD_TURN * (f.steer / FL.maxSteer);
+  return f.gear === 'R' ? 0 : HEAD_TURN * (f.steer / FL.maxSteer);
 }
 
-// Cabin view (always looks forward, also in reverse; see rearCamera): eye fixed at seat height (no up/down translation); the camera
+// Cabin view (always looks forward, also in reverse): eye fixed at seat height (no up/down translation); the camera
 // only pitches to look at the fork tips (smoothed level g.ef), so the view tilts up and down as the forks rise and fall. `look` ({ yaw, pitch } radians) turns the head.
 export function povCamera(g, w, h, look = null) {
   const e = toWorld(g.fl, EYE_X, 0);
@@ -25,21 +25,6 @@ export function povCamera(g, w, h, look = null) {
   const proj = perspective(f2w, (f2w * w) / h, 0, POV_NEAR, POV_FAR);
   const eye = [e.x, e.y, EYE_Z];
   const view = viewBasis(eye, [-s, c, 0], [-c * sp, -s * sp, cp], [c * cp, s * cp, sp]);
-  return { vp: mul(proj, view), eye, w, h };
-}
-
-const REAR_Z = 1.05, REAR_PITCH = 0.5, REAR_HFOV = (110 * Math.PI) / 180;
-
-// Reversing camera: mounted at the tail looking straight back, tilted down towards the floor, wide angle and mirrored (like a
-// car's) so screen-left is the side the tail swings to when steering left in reverse.
-export function rearCamera(g, w, h) {
-  const e = toWorld(g.fl, FL.back, 0), a = g.fl.a + Math.PI;
-  const cp = Math.cos(REAR_PITCH), sp = Math.sin(REAR_PITCH), c = Math.cos(a), s = Math.sin(a);
-  const f2w = 1 / Math.tan(REAR_HFOV / 2);
-  const proj = perspective(f2w, (f2w * w) / h, 0, POV_NEAR, POV_FAR);
-  proj[0] = -proj[0];
-  const eye = [e.x, e.y, REAR_Z];
-  const view = viewBasis(eye, [-s, c, 0], [c * sp, s * sp, cp], [c * cp, s * cp, -sp]);
   return { vp: mul(proj, view), eye, w, h };
 }
 
