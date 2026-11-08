@@ -992,7 +992,7 @@ console.log('all tests passed');
   console.log('gl scene ok');
 }
 
-// Dark mode: headlights, reverse/brake lights and ceiling lights, the truck giving ~75% of the light
+// Dark mode: headlights, reverse/brake lights and downward ceiling spots of fixed strength
 {
   const g = newGame(1);
   const eye = [g.fl.x, g.fl.y];
@@ -1000,18 +1000,16 @@ console.log('all tests passed');
   setThemeMode('dark');
   setDiscoEnabled(false);
   let ls = dynamicMeshes(g, 'pov', eye).lights;
-  const strength = (l) => l.col[0] + l.col[1] + l.col[2];
-  const truck = (ls) => ls.filter((l) => l.cone === 0.62).reduce((a, l) => a + strength(l), 0);
+  const isCeil = (l) => l.dir && l.dir[2] === -1 && l.dir[0] === 0;
   assert.equal(ls.filter((l) => l.cone === 0.62).length, 2, 'two headlights');
-  assert.equal(ls.filter((l) => l.dir).length, 4, 'headlights plus idle tail glow while standing still');
-  const ceil = ls.filter((l) => !l.dir).reduce((a, l) => a + strength(l), 0);
-  assert.ok(Math.abs(truck(ls) / (truck(ls) + ceil) - 0.75) < 0.01, 'truck provides 75% of the light');
-  assert.ok(ls.filter((l) => !l.dir || l.cone === 0.62).every((l) => l.z > 1.3), 'head and ceiling lights are high up');
+  assert.equal(ls.filter((l) => !isCeil(l)).length, 4, 'headlights plus idle tail glow while standing still');
+  assert.ok(ls.some(isCeil), 'ceiling spots point straight down');
+  assert.ok(ls.filter((l) => isCeil(l) || l.cone === 0.62).every((l) => l.z > 1.3), 'head and ceiling lights are high up');
   run(g, { down: true }, 0.5);
   ls = dynamicMeshes(g, 'pov', eye).lights;
-  assert.ok(g.fl.speed < -0.05 && ls.filter((l) => l.dir).length === 6, 'reversing adds two reverse lights');
+  assert.ok(g.fl.speed < -0.05 && ls.filter((l) => !isCeil(l)).length === 6, 'reversing adds two reverse lights');
   run(g, { up: true }, 0.03);
-  assert.ok(g.fl.brake && dynamicMeshes(g, 'pov', eye).lights.filter((l) => l.dir).length >= 6, 'throttle against the motion brakes');
+  assert.ok(g.fl.brake && dynamicMeshes(g, 'pov', eye).lights.filter((l) => !isCeil(l)).length >= 6, 'throttle against the motion brakes');
   setThemeMode('light');
   setDiscoEnabled(true);
   console.log('dark lights ok');
