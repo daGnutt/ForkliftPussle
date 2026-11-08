@@ -598,8 +598,11 @@ export function zoneDone(g, z) {
 }
 
 // Where the overview paints a zone's "×count": just below the zone, or above it when a wall (e.g. the south border) would cover that spot.
+// The choice is shared by every drop point of the drop-off area, so a row of labels never mixes above and below.
 export function zoneLabelPos(g, z) {
-  const hit = (y) => g.walls.some((w) => z.x + 0.4 > w.x && z.x - 0.4 < w.x + w.w && y + 0.25 > w.y && y - 0.25 < w.y + w.h);
-  const below = z.y + 0.92;
-  return { x: z.x, y: hit(below) && !hit(z.y - 0.92) ? z.y - 0.92 : below };
+  const hit = (x, y) => g.walls.some((w) => x + 0.4 > w.x && x - 0.4 < w.x + w.w && y + 0.25 > w.y && y - 0.25 < w.y + w.h);
+  const mates = g.zones.filter((o) => o.color === z.color);
+  const southWall = mates.some((o) => hit(o.x, o.y + 0.92));
+  const above = southWall && !hit(z.x, z.y - 0.92);
+  return { x: z.x, y: above ? z.y - 0.92 : z.y + 0.92 };
 }

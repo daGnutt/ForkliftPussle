@@ -992,13 +992,17 @@ console.log('all tests passed');
   console.log('dark lights ok');
 }
 
-// Zone labels never sit under a wall (e.g. a drop point at the south border)
+// Zone labels never sit under a wall (e.g. a drop point at the south border); all drop points of an area near the south wall are labelled above
 {
   for (let n = 1; n <= 40; n++) {
     const g = newGame(n);
     for (const z of g.zones) {
       const p = zoneLabelPos(g, z);
       assert.ok(!g.walls.some((w) => p.x + 0.4 > w.x && p.x - 0.4 < w.x + w.w && p.y + 0.25 > w.y && p.y - 0.25 < w.y + w.h), `zone label hidden by a wall on level ${n}`);
+    }
+    for (const c of new Set(g.zones.map((z) => z.color))) {
+      const side = g.zones.filter((z) => z.color === c).map((z) => Math.sign(zoneLabelPos(g, z).y - z.y));
+      assert.ok(side.every((v) => v === side[0]) || g.zones.length < 2, `mixed label sides in one area on level ${n}`);
     }
   }
   console.log('zone labels ok');
