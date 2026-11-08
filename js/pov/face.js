@@ -374,7 +374,10 @@ export function paintWallDecals(g, p, f) {
       p.shape([[a, 0], [a + 0.0625 + 0.05, 0], [a + 0.0625 + 0.15, 0.2], [a + 0.1, 0.2]], i & 1 ? BLACK : YEL);
     }
   }
-  const kind = wallDecal(f.mx, f.my);
+  let kind = wallDecal(f.mx, f.my);
+  // Windows and doors only make sense in the outer walls, not on dividing walls.
+  const outer = f.mx < 0.01 || f.my < 0.01 || f.mx > g.w - 0.01 || f.my > g.h - 0.01;
+  if (!outer && (kind === 'window' || kind === 'door')) kind = null;
   if (kind && !faceFree(g, [f.mx, f.my], q0, q1, 0.52)) return;
   if (kind === 'poster') {
     poster(dropped(p, SIGN_DROP), Math.floor(hash(f.mx, f.my, 35) * SLOGANS.length));
