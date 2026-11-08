@@ -536,6 +536,8 @@ const debug = debugEnabled(location.search) ? createDebug() : null;
 initTestingBanner();
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
+// ?skip in the URL bypasses the splash (keeps saved settings; no audio until a key/click starts it)
+if (new URLSearchParams(location.search).has('skip')) startGame();
 function frame(now) {
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
