@@ -266,9 +266,10 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
     view.chaseLiftTarget = base - clearChaseTilt(g, chaseTiles, heading, yaw, base);
   }
   const lifted = view.chase && view.chaseLift > 0.001 ? { yaw: view.orbit ? view.orbit.yaw : 0, tilt: Math.max(0.05, (view.orbit ? view.orbit.tilt : CHASE_TILT) - view.chaseLift) } : view.orbit;
-  if (follow && view.chase && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, lifted, chaseTiles, view.camA ?? g.fl.a)) {
+  const foot = follow && view.chase && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, lifted, chaseTiles, view.camA ?? g.fl.a);
+  if (foot) {
     if (zoomed) ctx.restore();
-    return { x: 0, y: 0, w: g.w, h: g.h };
+    return { x: 0, y: 0, w: g.w, h: g.h, poly: foot }; // chase: the minimap outlines the tilted floor footprint
   }
   if (follow && view.chaseZoom != null) { // user zoom: centred on the forklift at the slider's zoom
     const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0), s2 = rh / chaseTilesFor(view.chaseZoom);
@@ -338,7 +339,15 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   ctx.fill();
   ctx.stroke();
   ctx.strokeStyle = '#f9a825';
-  ctx.strokeRect(cam.x * s, cam.y * s, cam.w * s, cam.h * s);
+  if (cam.poly) {
+    ctx.beginPath();
+    ctx.rect(0, 0, w, h);
+    ctx.clip();
+    ctx.beginPath();
+    cam.poly.forEach(([px, py], i) => (i ? ctx.lineTo(px * s, py * s) : ctx.moveTo(px * s, py * s)));
+    ctx.closePath();
+    ctx.stroke();
+  } else ctx.strokeRect(cam.x * s, cam.y * s, cam.w * s, cam.h * s);
   ctx.restore();
 }
 
