@@ -4,7 +4,7 @@ import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState } from '../js/savestate.js';
-import { povCamera, overviewCamera, chaseCamera } from '../js/gl/camera.js';
+import { povCamera, overviewCamera, chaseCamera, chaseTiles, chaseZoom } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
@@ -963,6 +963,7 @@ console.log('all tests passed');
     const fx = g.fl.x, fy = g.fl.y, hx = Math.cos(a), hy = Math.sin(a);
     const here = projectPoint(ch.vp, fx, fy, 0, 800, 500), ahead = projectPoint(ch.vp, fx + hx * 2, fy + hy * 2, 0, 800, 500);
     assert.ok(ahead[1] < here[1] && Math.abs(ahead[0] - here[0]) < 1, 'chase camera: the forklift heading is straight up the screen');
+    assert.ok(chaseTiles(0) > 54 && chaseTiles(100) === 11 && chaseZoom(chaseTiles(40)) === 40, 'chase zoom range: fully in = 11 tiles, out = 80% smaller');
     assert.ok((ch.eye[0] - fx) * hx + (ch.eye[1] - fy) * hy < 0 && ch.eye[2] > 1, 'chase camera sits behind and above the forklift');
   }
   for (const mode of ['pov', 'ov']) {

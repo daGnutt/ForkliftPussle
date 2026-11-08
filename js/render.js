@@ -3,6 +3,7 @@ import { FL, toWorld } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
+import { chaseTiles as chaseTilesFor } from './gl/camera.js';
 import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
@@ -257,7 +258,9 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
       ctx.fillRect(rx, ry, rw, rh);
     }
   }
-  if (follow && view.chase && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, null, true)) {
+  view.ovTiles = rh / s;
+  const chaseTiles = view.chaseZoom == null ? view.ovTiles : chaseTilesFor(view.chaseZoom);
+  if (follow && view.chase && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, null, chaseTiles)) {
     if (zoomed) ctx.restore();
     return { x: 0, y: 0, w: g.w, h: g.h };
   }

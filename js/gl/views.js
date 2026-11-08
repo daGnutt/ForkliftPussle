@@ -1,7 +1,7 @@
 import { COLORS } from '../level.js';
 import { HIT_LIFE, WONKY_LIFE, zoneDone } from '../game.js';
 import { label } from '../pov/overlay.js';
-import { povCamera, overviewCamera, chaseCamera, CHASE_TILES } from './camera.js';
+import { povCamera, overviewCamera, chaseCamera } from './camera.js';
 import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';
 import { toWorld, FL } from '../forklift.js';
@@ -63,14 +63,14 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
 }
 
 // Overview into the css-px rect (rx, ry, rw, rh): centre (cx, cy) in tiles, s px per tile at the centre.
-// `orbit` ({ yaw, tilt } radians, set by dragging) swings the camera around the forklift instead; `chase` uses the third-person
-// camera behind the forklift (cx, cy, s ignored).
-export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = null, chase = false) {
+// `orbit` ({ yaw, tilt } radians, set by dragging) swings the camera around the forklift instead; `chase` (tiles visible vertically) uses the
+// third-person camera behind the forklift (cx, cy, s ignored).
+export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = null, chase = 0) {
   if (!glAvailable()) return false;
   let cam;
   if (chase) {
-    cam = chaseCamera(g, rw, rh);
-    s = rh / CHASE_TILES;
+    cam = chaseCamera(g, rw, rh, chase);
+    s = rh / chase;
   } else if (orbit) {
     const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0), co = Math.cos(orbit.yaw), si = Math.sin(orbit.yaw);
     cam = overviewCamera(c.x, c.y, rh / s, rw, rh, [si, -co], orbit.tilt);

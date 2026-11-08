@@ -11,6 +11,7 @@ import { decalsEnabled, setDecalsEnabled } from './decals.js';
 import { glEnabled, setGlEnabled } from './gl/renderer.js';
 import { themeMode, setThemeMode } from './theme.js';
 import { discoEnabled, setDiscoEnabled } from './disco.js';
+import { chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
@@ -18,7 +19,7 @@ import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, play
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
 const isTouch = matchMedia('(pointer: coarse)').matches;
-const view = { width: 0, height: 0, dpr: 1, povBig: !isTouch && localStorage.getItem('forklift-cab-view') === '1', chase: localStorage.getItem('forklift-chase-cam') === '1', touch: isTouch };
+const view = { width: 0, height: 0, dpr: 1, povBig: !isTouch && localStorage.getItem('forklift-cab-view') === '1', chase: localStorage.getItem('forklift-chase-cam') === '1', chaseZoom: localStorage.getItem('forklift-chase-zoom') === null ? null : Number(localStorage.getItem('forklift-chase-zoom')), touch: isTouch };
 
 function resize() {
   view.width = canvas.clientWidth;
@@ -341,6 +342,7 @@ const themeSel = document.getElementById('themeSel');
 setThemeMode(localStorage.getItem('forklift-theme'));
 const bareOpt = document.getElementById('bareOpt');
 const chaseOpt = document.getElementById('chaseOpt');
+const chaseZoomSel = document.getElementById('chaseZoom');
 setBareForks(localStorage.getItem('forklift-bare-forks') === '1');
 const discoOpt = document.getElementById('discoOpt');
 setDiscoEnabled(localStorage.getItem('forklift-disco') === '1');
@@ -373,6 +375,7 @@ function toggleMenu(open) {
     discoOpt.checked = discoEnabled();
     bareOpt.checked = bareForksEnabled();
     chaseOpt.checked = view.chase;
+    chaseZoomSel.value = view.chaseZoom ?? chaseZoomOf(view.ovTiles || 14);
     themeSel.value = themeMode();
     menuHardOpt.checked = hard;
     menuLevel.value = level;
@@ -401,6 +404,10 @@ themeSel.addEventListener('change', () => {
 discoOpt.addEventListener('change', () => {
   setDiscoEnabled(discoOpt.checked);
   localStorage.setItem('forklift-disco', discoOpt.checked ? '1' : '0');
+});
+chaseZoomSel.addEventListener('input', () => {
+  view.chaseZoom = Number(chaseZoomSel.value);
+  localStorage.setItem('forklift-chase-zoom', String(view.chaseZoom));
 });
 chaseOpt.addEventListener('change', () => {
   view.chase = chaseOpt.checked;

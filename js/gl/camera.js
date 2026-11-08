@@ -46,11 +46,19 @@ export function overviewCamera(cx, cy, tilesH, w, h, up = [0, -1], tilt = OV_TIL
   return { vp: mul(proj, view), eye, w, h };
 }
 
-export const CHASE_TILES = 11, CHASE_TILT = 0.95, CHASE_AHEAD = 2.2;
+export const CHASE_TILES = 11, CHASE_TILT = 0.95, CHASE_OUT = 0.8;
+
+// Chase zoom 0..100: 100 = fully zoomed in (CHASE_TILES tiles visible vertically), 0 = zoomed out by CHASE_OUT (80%).
+export function chaseTiles(zoom) {
+  return CHASE_TILES / (1 - CHASE_OUT * (1 - Math.min(100, Math.max(0, zoom)) / 100));
+}
+export function chaseZoom(tiles) {
+  return Math.min(100, Math.max(0, Math.round(100 - ((1 - CHASE_TILES / tiles) / CHASE_OUT) * 100)));
+}
 
 // Third-person view: raised behind the forklift, looking along its heading so the forklift always points up the screen
-// and the world rotates around it.
-export function chaseCamera(g, w, h) {
-  const c = toWorld(g.fl, (FL.front - FL.back) / 2 + CHASE_AHEAD, 0);
-  return overviewCamera(c.x, c.y, CHASE_TILES, w, h, [Math.cos(g.fl.a), Math.sin(g.fl.a)], CHASE_TILT);
+// and the world rotates around it. `tiles` = tiles visible vertically at the centre, which sits 20% of that ahead of the forklift.
+export function chaseCamera(g, w, h, tiles = CHASE_TILES) {
+  const c = toWorld(g.fl, (FL.front - FL.back) / 2 + tiles * 0.2, 0);
+  return overviewCamera(c.x, c.y, tiles, w, h, [Math.cos(g.fl.a), Math.sin(g.fl.a)], CHASE_TILT);
 }
