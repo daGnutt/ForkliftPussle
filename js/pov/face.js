@@ -354,6 +354,8 @@ function drawWallDecals(ctx, cam, g, f, dark) {
 // ({ shape, box, disc, tri }; u = 0 at q1, u = 1 at q0). Shared by the canvas and WebGL renderers.
 export function paintWallDecals(g, p, f) {
   const [q0, q1] = f.side;
+  // The wall ends facing into a doorway stay bare.
+  if ((g.doors || []).some((d) => f.mx >= d.x - 0.01 && f.mx <= d.x + d.w + 0.01 && f.my >= d.y - 0.01 && f.my <= d.y + d.h + 0.01)) return;
 
   // Two-segment roller door: the pair (k even, k + 1) shares the point where the segments meet.
   if (f.n > 1 && (f.k & 1 ? true : f.k + 1 < f.n)) {
