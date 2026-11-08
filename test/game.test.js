@@ -1056,20 +1056,6 @@ console.log('all tests passed');
   console.log('look back delay ok');
 }
 
-// the cabin camera does not turn its head in gear R
-{
-  const g = newGame(1);
-  g.fl.steer = 0.3;
-  const d = povCamera(g, 800, 500).vp.slice();
-  g.fl.gear = 'R';
-  assert.notDeepEqual(Array.from(povCamera(g, 800, 500).vp), Array.from(d), 'head turns into the turn in D');
-  g.fl.steer = 0;
-  const straight = Array.from(povCamera(g, 800, 500).vp);
-  g.fl.steer = 0.3;
-  assert.deepEqual(Array.from(povCamera(g, 800, 500).vp), straight, 'no head turn in R');
-  console.log('no head turn in reverse ok');
-}
-
 // chase camera orbits upwards when a wall hides the forklift
 {
   const g = newGame(1);

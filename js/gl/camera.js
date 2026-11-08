@@ -8,10 +8,10 @@ import { WALL_H } from './models.js';
 const POV_NEAR = 0.06, POV_FAR = 90;
 const LOW_LIFT = 0.22; // radians the view is raised above the fork-tip line when the forks are low (fades out by level 2)
 
-// The driver looks into the turn: a small yaw proportional to the steering angle, regardless of speed; not when in gear R.
+// The driver looks into the turn: a small yaw proportional to the steering angle, regardless of speed or direction.
 const HEAD_TURN = 0.3;
 function headTurn(f) {
-  return f.gear === 'R' ? 0 : HEAD_TURN * (f.steer / FL.maxSteer);
+  return HEAD_TURN * (f.steer / FL.maxSteer);
 }
 
 // Cabin view (always looks forward, also in reverse): eye fixed at seat height (no up/down translation); the camera
