@@ -607,7 +607,11 @@ function frame(now) {
     update(game, inp, STEP);
     // chase camera heading follows the forklift on a spring
     if (view.camA == null || game !== view.camG) { view.camA = game.fl.a; view.camG = game; }
-    else view.camA += wrap(game.fl.a - view.camA) * (1 - Math.exp(-CAM_SPRING * STEP));
+    else {
+      // in reverse (same delay as the cabin's look-back) the camera orbits round to the front of the forklift
+      const target = game.fl.a + (game.rv > 0.5 ? Math.PI - 0.001 : 0);
+      view.camA += wrap(target - view.camA) * (1 - Math.exp(-CAM_SPRING * STEP));
+    }
     acc -= STEP;
     steps++;
   }
