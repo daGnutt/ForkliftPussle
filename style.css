@@ -28,6 +28,7 @@ footer b { color: var(--accent); }
 @keyframes blink { 50% { opacity: .25; } }
 #splashAnim { width: 440px; height: 190px; flex: none; }
 #splashGl { width: min(640px, 94vw); aspect-ratio: 640 / 260; flex: none; border-radius: 10px; box-shadow: 0 6px 20px var(--shadow); }
+#splashGl[hidden] { display: none; }
 #splashGl:not([hidden]) + #splashAnim { display: none; }
 
 #record { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); color: var(--fg); z-index: 20; }
