@@ -46,6 +46,16 @@ Fork level is a whole number 0–5 (height above the floor in box heights), chan
 ## Debug overlay
 Add `?debug` to the URL (e.g. `index.html?debug`) for an FPS counter, frame/update/draw timings and their share of frame time (update/draw/debug/idle %, where debug is the overlay's own cost), boxes in the right place and other state, for troubleshooting performance.
 
+## URL parameters
+Combine with `&`, e.g. `index.html?skip&debug&gl=0`.
+
+| Parameter | Effect |
+|-----------|--------|
+| `?gl=0` / `?gl=1` | Force the 2D canvas / WebGL2 renderers (overrides the saved setting) |
+| `?debug` | Show the debug overlay; state export is plain JSON |
+| `?skip` | Skip the splash screen and start the game, with the tutorial off for that visit (saved settings are kept) |
+| `?testing` | Show the TESTING banner/favicon (always on when not served from the production host) |
+
 ## Run / deploy
 No build step. Serve the folder statically (ES modules need http): `python3 -m http.server`, then open http://localhost:8000.
 GitHub Pages: Settings → Pages → deploy from branch, root folder.

@@ -92,5 +92,5 @@ The splash has two submit buttons: `#startBtn` (Start, keeps saved settings; Ent
 ## Workflow conventions
 - `docs/VOCABULARY.md` lists the shared names for game objects, views and UI; use those terms and keep it updated when adding/renaming things.
 - Each fix or feature goes on its own local branch (not pushed); never merge into `main` unless the user explicitly asks; delete the branch only after such a merge.
-- Update `README.md` when controls or rules change, and this guide when structure changes.
+- Update `README.md` when controls or rules change (its "URL parameters" table lists `?gl`, `?debug`, `?skip`, `?testing`; keep it updated when adding one), and this guide when structure changes.
 - `docs/presentation.html` (+ `docs/shots/`) is the development-timeline slide deck; `docs/PRESENTATION_GUIDE.md` explains how to regenerate/update it. Update it on merges that add notable features.
