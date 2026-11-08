@@ -144,6 +144,26 @@ if (isTouch) canvas.addEventListener('pointerdown', (e) => {
   else nextLevel();
 });
 
+// Drag on the 3D overview to orbit the camera around the forklift; driving snaps it back.
+const ORBIT_TILT_MAX = 1.3;
+let drag = null;
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.target !== canvas || !glEnabled() || view.povBig || splashOn || recordOpen || view.menuOpen) return;
+  drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!view.orbit && Math.hypot(dx, dy) < 6) return;
+  drag.x = e.clientX; drag.y = e.clientY;
+  const o = view.orbit || (view.orbit = { yaw: 0, tilt: 0.35 });
+  o.yaw -= dx * 0.008;
+  o.tilt = Math.min(ORBIT_TILT_MAX, Math.max(0.05, o.tilt + dy * 0.006));
+});
+const endDrag = (e) => { if (drag && e.pointerId === drag.id) drag = null; };
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+
 const pending = {};
 recordName.addEventListener('keydown', (e) => e.stopPropagation());
 document.getElementById('recordForm').addEventListener('submit', (e) => {
@@ -505,7 +525,9 @@ function frame(now) {
   const t0 = performance.now();
   let steps = 0;
   while (!splashOn && !view.paused && acc >= STEP) {
-    update(game, input.state(), STEP);
+    const inp = input.state();
+    if (view.orbit && (inp.up || inp.down || inp.left || inp.right)) view.orbit = null;
+    update(game, inp, STEP);
     acc -= STEP;
     steps++;
   }

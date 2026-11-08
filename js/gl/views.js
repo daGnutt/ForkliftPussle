@@ -4,6 +4,7 @@ import { label } from '../pov/overlay.js';
 import { povCamera, overviewCamera } from './camera.js';
 import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';
+import { toWorld, FL } from '../forklift.js';
 
 // Screen-space glue between the WebGL scene and the 2D game canvas: view entry points and the text overlays
 // (cabin zone counts, damage popups) that are drawn in 2D over the 3D image through the camera projection.
@@ -62,9 +63,15 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr) {
 }
 
 // Overview into the css-px rect (rx, ry, rw, rh): centre (cx, cy) in tiles, s px per tile at the centre.
-export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr) {
+// `orbit` ({ yaw, tilt } radians, set by dragging) swings the camera around the forklift instead.
+export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = null) {
   if (!glAvailable()) return false;
-  const proj = drawGl(ctx, g, 'ov', overviewCamera(cx, cy, rh / s, rw, rh), rx, ry, dpr);
+  let cam;
+  if (orbit) {
+    const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0), co = Math.cos(orbit.yaw), si = Math.sin(orbit.yaw);
+    cam = overviewCamera(c.x, c.y, rh / s, rw, rh, [si, -co], orbit.tilt);
+  } else cam = overviewCamera(cx, cy, rh / s, rw, rh);
+  const proj = drawGl(ctx, g, 'ov', cam, rx, ry, dpr);
   if (!proj) return false;
   ctx.save();
   ctx.beginPath();

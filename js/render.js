@@ -257,7 +257,7 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
       ctx.fillRect(rx, ry, rw, rh);
     }
   }
-  if (drawOverview3d(ctx, g, rx, ry, rw, rh, (rx + rw / 2 - ox) / s, (ry + rh / 2 - oy) / s, s, view.dpr)) {
+  if (drawOverview3d(ctx, g, rx, ry, rw, rh, (rx + rw / 2 - ox) / s, (ry + rh / 2 - oy) / s, s, view.dpr, follow ? view.orbit : null)) {
     if (zoomed) ctx.restore();
     return cam;
   }
