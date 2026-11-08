@@ -10,7 +10,7 @@ On touch devices, on-screen buttons replace the keyboard (big steer left/right b
 | ↑ / ↓ | Drive forward / reverse (the truck stays in gear D or R until it has stopped and starts moving the other way; R turns on reverse lights and beeps, and turns the GL cabin camera to look backwards) |
 | ← / → | Steer (rear wheels steer, so the tail swings out) |
 | A / Z | Forks up / down one level |
-| C | Switch the 3D overview between the top-down camera and a third-person camera (behind and above the forklift, which always points up the screen while the world rotates); also a menu option |
+| C | Switch the 3D overview between the top-down camera and a third-person camera (behind and above the forklift, which always points up the screen while the world rotates); also a menu option, or double-tap (double-click) the 3D overview |
 | W / Q | Look around in the 3D (WebGL) views: turn the cabin view left (W) / right (Q), or swing the overview around the forklift. Dragging the view with the mouse/touch does the same (also tilts); driving springs the camera back |
 | M / Tab | Swap the big view between the top-down overview and the cabin (first-person) view. The cabin view has two small top-down windows at the top centre: rear on the left, front on the right |
 | R | Restart level |
