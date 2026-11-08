@@ -12,7 +12,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Outer wall / border** | Walls around the level | `g.walls` |
 | **Dividing wall** | Interior wall splitting the level into rooms/corridors | `g.pillars` |
 | **Room / corridor** | Spaces made by the dividing walls | `buildRooms` |
-| **Doorway / door** | Gap in a dividing wall (hazard-striped jambs, dashed centre lane) | `g.doors`, `addDoorways` |
+| **Doorway / door** | Gap in a dividing wall (hazard-striped jambs with amber beacons, header lamp, dashed centre lane) | `g.doors`, `addDoorways` |
 | **Charger** | Red high-voltage wall stub the forklift's tail rests against at the parking spot | `g.charger`, `drawCharger` |
 | **Ceiling / joists / light bars / fans** | Overhead scenery (cabin view only) | `drawCeiling`, `overheadDecals` |
 

@@ -128,9 +128,13 @@ function addDoorways(sm, g) {
       for (const sv of [-1, 1]) {
         const [x, y] = place(su * (len / 2 - 0.07), sv * (th / 2 - 0.07));
         for (let i = 0; i < 4; i++) sm.cuboid(x, y, 0, 0.07, 0.07, i * 0.5, i * 0.5 + 0.5, i & 1 ? '#262626' : '#f4c414');
+        sm.cuboid(x, y, 0, 0.07, 0.07, 2, 2.05, '#262626');
+        sm.cuboid(x, y, 0, 0.056, 0.056, 2.05, 2.25, '#ffa000', { emissive: true });
       }
     }
     const n = Math.floor(len / 0.6);
+    const [mx, my] = place(0, 0);
+    sm.cuboid(mx, my, 0, vert ? th / 2 - 0.1 : 0.5, vert ? 0.5 : th / 2 - 0.1, WALL_H - 0.4, WALL_H - 0.35, '#ffa000', { emissive: true, top: false });
     for (let i = 0; i < n; i++) {
       const [x, y] = place(-len / 2 + (i + 0.5) * (len / n), 0);
       const hl = vert ? th / 2 : len / n / 2, hw = vert ? len / n / 2 : th / 2;
