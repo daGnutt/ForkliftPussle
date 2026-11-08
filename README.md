@@ -20,9 +20,7 @@ On touch devices, on-screen buttons replace the keyboard (big steer left/right b
 | Enter | Next level (after winning) |
 
 ## 3D graphics
-The overview, cabin view and look windows are rendered in true 3D with WebGL2 (depth-buffered, lit, fogged; no libraries). If WebGL2 isn't available the game falls back to the old 2D canvas renderers. The pause menu's "3D graphics (WebGL)" option (or `?gl=0` / `?gl=1` in the URL) switches between them.
-
-Add `?skip` to the URL to bypass the splash screen and go straight into the game (saved settings are kept).
+The overview, cabin view and look windows are rendered in true 3D with WebGL2 (depth-buffered, lit, fogged; no libraries). If WebGL2 isn't available the game falls back to the old 2D canvas renderers. The pause menu's "3D graphics (WebGL)" option (or `?gl=0` / `?gl=1`, see [URL parameters](#url-parameters)) switches between them.
 
 ## Saved progress
 The level in progress (stacks, forklift, forks, timer) is saved in your browser every second, so reloading the page resumes where you left off. The pause menu has **Export state** (fills the text box with a compressed base64 string, or plain JSON in `?debug` mode, and copies it to the clipboard) and **Import state** (paste a previously exported state into the box to load it, including its seed, hard mode and level).
@@ -44,7 +42,7 @@ Fork level is a whole number 0–5 (height above the floor in box heights), chan
 - The gauge on the right shows the fork level, the stack the forks are in, and what you carry. A stack shows its top colour, plus a coloured number for every box below it (number = layer from the bottom).
 
 ## Debug overlay
-Add `?debug` to the URL (e.g. `index.html?debug`) for an FPS counter, frame/update/draw timings and their share of frame time (update/draw/debug/idle %, where debug is the overlay's own cost), boxes in the right place and other state, for troubleshooting performance.
+Add `?debug` to the URL (see [URL parameters](#url-parameters)) for an FPS counter, frame/update/draw timings and their share of frame time (update/draw/debug/idle %, where debug is the overlay's own cost), boxes in the right place and other state, for troubleshooting performance.
 
 ## URL parameters
 Combine with `&`, e.g. `index.html?skip&debug&gl=0`.
@@ -52,7 +50,7 @@ Combine with `&`, e.g. `index.html?skip&debug&gl=0`.
 | Parameter | Effect |
 |-----------|--------|
 | `?gl=0` / `?gl=1` | Force the 2D canvas / WebGL2 renderers (overrides the saved setting) |
-| `?debug` | Show the debug overlay; state export is plain JSON |
+| `?debug` | Show the [debug overlay](#debug-overlay); state export is plain JSON |
 | `?skip` | Skip the splash screen and start the game, with the tutorial off for that visit (saved settings are kept) |
 | `?testing` | Show the TESTING banner/favicon (always on when not served from the production host) |
 
