@@ -22,6 +22,8 @@ On touch devices, on-screen buttons replace the keyboard (big steer left/right b
 ## 3D graphics
 The overview, cabin view and look windows are rendered in true 3D with WebGL2 (depth-buffered, lit, fogged; no libraries). If WebGL2 isn't available the game falls back to the old 2D canvas renderers. The pause menu's "3D graphics (WebGL)" option (or `?gl=0` / `?gl=1` in the URL) switches between them.
 
+Add `?skip` to the URL to bypass the splash screen and go straight into the game (saved settings are kept).
+
 ## Saved progress
 The level in progress (stacks, forklift, forks, timer) is saved in your browser every second, so reloading the page resumes where you left off. The pause menu has **Export state** (fills the text box with a compressed base64 string, or plain JSON in `?debug` mode, and copies it to the clipboard) and **Import state** (paste a previously exported state into the box to load it, including its seed, hard mode and level).
 
