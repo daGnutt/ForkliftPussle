@@ -9,20 +9,46 @@ import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
 import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
 
-// Builds the meshes for the WebGL renderer. `mode` is 'pov' (cabin: ceiling, signs, full-height walls) or 'ov'
-// (top-down overview: low walls so the playing field stays readable). Static meshes depend only on the level and theme;
+// Builds the meshes for the WebGL renderer. `mode` is 'pov' (cabin: ceiling, signs) or 'ov' (overview / third person:
+// no ceiling). Walls are always full height; in 'ov' the renderer clips the ones on the camera side of the forklift
+// (see `wallClip`). Static meshes depend only on the level and theme;
 // dynamic ones (stacks, forklift, markings) are rebuilt every frame.
 
-export const OV_WALL_H = 1.1;
+export const OV_WALL_H = 1.1; // lowest height the camera-side walls are clipped to in 'ov'
+
+// Clip for the static walls: [nx, ny, d, zMax] hides geometry with dot(xy, n) > d above zMax. The overview cuts every
+// wall at OV_WALL_H (n = 0, d = -1 matches everything); the third-person view (`cam.chase`) shows them full height (null).
+export function wallClip(cam) {
+  return cam.chase ? null : [0, 0, -1, OV_WALL_H];
+}
 export const CHARGER_H = 0.9;
 const GREY = [0.43, 0.45, 0.48, 1], WHITE = [1, 1, 1, 1];
 const YEL = '#f4c414', RED = '#c62828', BLACK = '#1a1a1a';
 
 const circlePts = (u, v, r, n = 18) => Array.from({ length: n }, (_, i) => [u + Math.cos((i / n) * Math.PI * 2) * r, v + Math.sin((i / n) * Math.PI * 2) * r]);
 
+// Tops for the clipped part of each wall (at the clip height) so the cut walls look solid; the rectangle is cut
+// to the clipped half-plane.
+export function wallCaps(g, [nx, ny, d, z]) {
+  const m = new Mesh();
+  if (z >= WALL_H) return m;
+  const col = shade(mix(parseColor(theme().wall), GREY, 0.3), 1.15);
+  for (const w of g.walls) {
+    if (w.charger) continue;
+    const pts = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]], out = [];
+    for (let i = 0; i < 4; i++) {
+      const a = pts[i], b = pts[(i + 1) % 4], da = nx * a[0] + ny * a[1] - d, db = nx * b[0] + ny * b[1] - d;
+      if (da > 0) out.push(a);
+      if (da > 0 !== db > 0) out.push([a[0] + ((b[0] - a[0]) * da) / (da - db), a[1] + ((b[1] - a[1]) * da) / (da - db)]);
+    }
+    for (let i = 1; i + 1 < out.length; i++) m.tri([...out[0], z], [...out[i], z], [...out[i + 1], z], [0, 0, 1], col);
+  }
+  return m;
+}
+
 // One wall rectangle: sides in 1-tile segments with a checker tint, plus decals in cabin mode.
 function addWall(sm, tm, g, w, mode) {
-  const top = mode === 'pov' ? WALL_H : OV_WALL_H;
+  const top = WALL_H;
   const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
   if (w.charger) {
     sm.cuboid(cx, cy, 0, w.w / 2, w.h / 2, 0, CHARGER_H, '#c62828', { bottom: false });
@@ -47,9 +73,8 @@ function addWall(sm, tm, g, w, mode) {
       if (mode === 'pov') sm.quad([q0[0], q0[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H], [q0[0], q0[1], WALL_H], [nx, ny, 0], shade(col, 0.7));
       if (!decalsEnabled() || Math.hypot(q1[0] - q0[0], q1[1] - q0[1]) < 0.9) continue;
       const side = [q0, q1];
-      const vs = top / WALL_H; // the overview's low walls squash the cabin-height signs vertically
       const pen = {
-        shape: (uv, fill) => tm.vpoly(q1[0], q1[1], q0[0], q0[1], nx, ny, 0.004, vs === 1 ? uv : uv.map(([u, v]) => [u, v * vs]), fill),
+        shape: (uv, fill) => tm.vpoly(q1[0], q1[1], q0[0], q0[1], nx, ny, 0.004, uv, fill),
         box: (u0, v0, u1, v1, fill) => pen.shape([[u0, v0], [u1, v0], [u1, v1], [u0, v1]], fill),
         disc: (u, v, r, fill) => pen.shape(circlePts(u, v, r), fill),
         tri: (u, v, r, fill) => pen.shape([[u, v + r], [u + r * 0.95, v - r * 0.55], [u - r * 0.95, v - r * 0.55]], fill),

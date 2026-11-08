@@ -62,5 +62,5 @@ export function chaseZoom(tiles) {
 export function chaseCamera(g, w, h, tiles = CHASE_TILES, heading = g.fl.a, orbit = null) {
   const a = heading + (orbit ? orbit.yaw : 0);
   const p = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, 0);
-  return overviewCamera(p.x + Math.cos(a) * tiles * 0.2, p.y + Math.sin(a) * tiles * 0.2, tiles, w, h, [Math.cos(a), Math.sin(a)], orbit ? orbit.tilt : CHASE_TILT);
+  return { ...overviewCamera(p.x + Math.cos(a) * tiles * 0.2, p.y + Math.sin(a) * tiles * 0.2, tiles, w, h, [Math.cos(a), Math.sin(a)], orbit ? orbit.tilt : CHASE_TILT), chase: true };
 }
