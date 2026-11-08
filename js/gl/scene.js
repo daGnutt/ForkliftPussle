@@ -28,6 +28,25 @@ const YEL = '#f4c414', RED = '#c62828', BLACK = '#1a1a1a';
 
 const circlePts = (u, v, r, n = 18) => Array.from({ length: n }, (_, i) => [u + Math.cos((i / n) * Math.PI * 2) * r, v + Math.sin((i / n) * Math.PI * 2) * r]);
 
+// Tops for the clipped part of each wall (at the clip height) so the cut walls look solid; the rectangle is cut
+// to the clipped half-plane.
+export function wallCaps(g, [nx, ny, d, z]) {
+  const m = new Mesh();
+  if (z >= WALL_H) return m;
+  const col = shade(mix(parseColor(theme().wall), GREY, 0.3), 1.15);
+  for (const w of g.walls) {
+    if (w.charger) continue;
+    const pts = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]], out = [];
+    for (let i = 0; i < 4; i++) {
+      const a = pts[i], b = pts[(i + 1) % 4], da = nx * a[0] + ny * a[1] - d, db = nx * b[0] + ny * b[1] - d;
+      if (da > 0) out.push(a);
+      if (da > 0 !== db > 0) out.push([a[0] + ((b[0] - a[0]) * da) / (da - db), a[1] + ((b[1] - a[1]) * da) / (da - db)]);
+    }
+    for (let i = 1; i + 1 < out.length; i++) m.tri([...out[0], z], [...out[i], z], [...out[i + 1], z], [0, 0, 1], col);
+  }
+  return m;
+}
+
 // One wall rectangle: sides in 1-tile segments with a checker tint, plus decals in cabin mode.
 function addWall(sm, tm, g, w, mode) {
   const top = WALL_H;
