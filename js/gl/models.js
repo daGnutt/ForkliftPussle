@@ -52,6 +52,10 @@ export function addStack(m, tm, x0, y0, rots, layers, level, offs = [], from = 0
   });
 }
 
+let bareForks = false; // cabin view only: draw just the carriage and tines
+export function setBareForks(on) { bareForks = !!on; }
+export function bareForksEnabled() { return bareForks; }
+
 // Forklift: wheels, chassis, counterweight, mast, overhead guard. In the cabin view the roof is a see-through grid.
 export function addForklift(m, g, solidRoof) {
   const f = g.fl, a = f.a, W = FL.halfW;
@@ -103,7 +107,7 @@ export function addForklift(m, g, solidRoof) {
 }
 
 // Fork carriage: backrest, upright shank and a blade with a tapered, thinner tip per tine.
-export function addForks(m, g) {
+export function addForks(m, g, hideMast = false) {
   const tz = g.hf * (BOX_H + PAL), col = theme().tine, a = g.fl.a;
   const { tineX0: x0, tineX1: x1, tineOff: off, tineHalf: hw } = FL;
   const cub = (lx0, ly0, lx1, ly1, z0, z1, c) => {
@@ -121,6 +125,7 @@ export function addForks(m, g) {
   for (const s of [-0.45, -0.15, 0.15, 0.45]) cub(x0 - 0.04, s - 0.02, x0, s + 0.02, tz + 0.1, tz + 0.85, col);
   cub(x0 - 0.04, -0.47, x0, 0.47, tz + 0.82, tz + 0.86, col);
   cub(x0 - 0.06, -0.47, x0, 0.47, tz, tz + 0.06, col);
+  if (hideMast) return;
   const mast = '#8a8f96', chain = '#3a3d42', top = Math.max(1.5, tz + 0.9);
   for (const s of [-1, 1]) {
     cub(x0 - 0.1, s * 0.41 - 0.025, x0 + 0.02, s * 0.41 + 0.025, tz, tz + 0.86, col); // side plates wrapping the inner mast
