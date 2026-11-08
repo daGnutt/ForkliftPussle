@@ -20,7 +20,7 @@ export const FL = {
 const ACC = 3.2;
 const ROLL = 1.4;
 const MAX_FWD = 4;
-const MAX_REV = 2.5;
+export const MAX_REV = 2.5;
 const STEER_RATE = 2.0;
 
 // Raised forks make the forklift top-heavy: top speed and acceleration taper
@@ -48,7 +48,7 @@ export function maxSteerFor(speed) {
 }
 
 export function makeForklift(x, y, a) {
-  return { x, y, a, speed: 0, steer: 0, brake: false };
+  return { x, y, a, speed: 0, steer: 0, brake: false, gear: 'D' };
 }
 
 export function toWorld(f, lx, ly) {
@@ -84,6 +84,9 @@ export function drive(f, inp, dt, h = 0) {
     f.speed = approachZero(f.speed, ROLL * dt);
   }
   f.speed -= f.speed * 0.1 * dt;
+  // The gear only flips once the truck has stopped and is about to move the other way.
+  if (f.gear === 'D' && th < 0 && f.speed <= 0) f.gear = 'R';
+  else if (f.gear === 'R' && th > 0 && f.speed >= 0) f.gear = 'D';
 
   const steerCap = maxSteerFor(f.speed);
   const target = ((inp.right ? 1 : 0) - (inp.left ? 1 : 0)) * steerCap;

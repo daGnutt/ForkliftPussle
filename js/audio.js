@@ -478,7 +478,7 @@ function startEngine() {
 }
 
 // Call every frame. speed in tiles/s (signed); throttle: a drive key is held.
-export function setEngine(speed, throttle) {
+export function setEngine(speed, throttle, reversing = false) {
   if (!ctx || ctx.state !== 'running' || !engineOn) return;
   if (!engine) startEngine();
   const v = Math.min(1, Math.abs(speed) / 4);
@@ -488,7 +488,7 @@ export function setEngine(speed, throttle) {
   engine.o2.frequency.setTargetAtTime(pitch * 0.5, t, 0.15);
   engine.f.frequency.setTargetAtTime(250 + v * 350, t, 0.15);
   engine.g.gain.setTargetAtTime(v < 0.02 && !throttle ? 0.008 : 0.02 + v * 0.05, t, 0.15);
-  setBeeper(speed < -0.05, t);
+  setBeeper(reversing, t);
 }
 
 // Reversing warning: 880 Hz soft sine beep, 0.4 s on / 0.4 s off while backing up.

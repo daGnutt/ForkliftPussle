@@ -7,30 +7,54 @@ import { reverseLight } from '../revlight.js';
 import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
-import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, addStack, addForklift, addForks, addCarried } from './models.js';
+import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
 
-// Builds the meshes for the WebGL renderer. `mode` is 'pov' (cabin: ceiling, signs, full-height walls) or 'ov'
-// (top-down overview: low walls so the playing field stays readable). Static meshes depend only on the level and theme;
+// Builds the meshes for the WebGL renderer. `mode` is 'pov' (cabin: ceiling, signs) or 'ov' (overview / third person:
+// no ceiling). Walls are always full height; in 'ov' the renderer clips the ones on the camera side of the forklift
+// (see `wallClip`). Static meshes depend only on the level and theme;
 // dynamic ones (stacks, forklift, markings) are rebuilt every frame.
 
-export const OV_WALL_H = 1.1;
+export const OV_WALL_H = 1.1; // lowest height the camera-side walls are clipped to in 'ov'
+
+// Clip for the static walls: [nx, ny, d, zMax] hides geometry with dot(xy, n) > d above zMax. The overview cuts every
+// wall at OV_WALL_H (n = 0, d = -1 matches everything); the third-person view (`cam.chase`) shows them full height (null).
+export function wallClip(cam) {
+  return cam.chase ? null : [0, 0, -1, OV_WALL_H];
+}
 export const CHARGER_H = 0.9;
 const GREY = [0.43, 0.45, 0.48, 1], WHITE = [1, 1, 1, 1];
 const YEL = '#f4c414', RED = '#c62828', BLACK = '#1a1a1a';
 
 const circlePts = (u, v, r, n = 18) => Array.from({ length: n }, (_, i) => [u + Math.cos((i / n) * Math.PI * 2) * r, v + Math.sin((i / n) * Math.PI * 2) * r]);
 
+// Tops for the clipped part of each wall (at the clip height) so the cut walls look solid; the rectangle is cut
+// to the clipped half-plane.
+export function wallCaps(g, [nx, ny, d, z]) {
+  const m = new Mesh();
+  if (z >= WALL_H) return m;
+  const col = parseColor('#6d737a');
+  for (const w of g.walls) {
+    if (w.charger) continue;
+    const pts = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]], out = [];
+    for (let i = 0; i < 4; i++) {
+      const a = pts[i], b = pts[(i + 1) % 4], da = nx * a[0] + ny * a[1] - d, db = nx * b[0] + ny * b[1] - d;
+      if (da > 0) out.push(a);
+      if (da > 0 !== db > 0) out.push([a[0] + ((b[0] - a[0]) * da) / (da - db), a[1] + ((b[1] - a[1]) * da) / (da - db)]);
+    }
+    for (let i = 1; i + 1 < out.length; i++) m.tri([...out[0], z], [...out[i], z], [...out[i + 1], z], [0, 0, 1], col);
+  }
+  return m;
+}
+
 // One wall rectangle: sides in 1-tile segments with a checker tint, plus decals in cabin mode.
 function addWall(sm, tm, g, w, mode) {
-  const top = mode === 'pov' ? WALL_H : OV_WALL_H;
+  const top = WALL_H;
   const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
   if (w.charger) {
     sm.cuboid(cx, cy, 0, w.w / 2, w.h / 2, 0, CHARGER_H, '#c62828', { bottom: false });
     addChargerSigns(tm, w);
     return;
   }
-  const t = theme();
-  const wallC = mode === 'pov' ? null : mix(parseColor(t.wall), GREY, 0.3);
   const p = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]];
   for (let i = 0; i < 4; i++) {
     const [ax, ay] = p[i], [bx, by] = p[(i + 1) % 4];
@@ -42,14 +66,13 @@ function addWall(sm, tm, g, w, mode) {
     for (let k = 0; k < n; k++) {
       const q0 = [ax + (ex * k) / n, ay + (ey * k) / n], q1 = [ax + (ex * (k + 1)) / n, ay + (ey * (k + 1)) / n];
       const tile = Math.floor((q0[0] + q0[1] + q1[0] + q1[1]) / 2);
-      const col = wallC || parseColor(tile & 1 ? '#5d646e' : '#555b64');
+      const col = parseColor(tile & 1 ? '#5d646e' : '#555b64');
       sm.quad([q0[0], q0[1], 0], [q1[0], q1[1], 0], [q1[0], q1[1], top], [q0[0], q0[1], top], [nx, ny, 0], col);
       if (mode === 'pov') sm.quad([q0[0], q0[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H], [q0[0], q0[1], WALL_H], [nx, ny, 0], shade(col, 0.7));
       if (!decalsEnabled() || Math.hypot(q1[0] - q0[0], q1[1] - q0[1]) < 0.9) continue;
       const side = [q0, q1];
-      const vs = top / WALL_H; // the overview's low walls squash the cabin-height signs vertically
       const pen = {
-        shape: (uv, fill) => tm.vpoly(q1[0], q1[1], q0[0], q0[1], nx, ny, 0.004, vs === 1 ? uv : uv.map(([u, v]) => [u, v * vs]), fill),
+        shape: (uv, fill) => tm.vpoly(q1[0], q1[1], q0[0], q0[1], nx, ny, 0.004, uv, fill),
         box: (u0, v0, u1, v1, fill) => pen.shape([[u0, v0], [u1, v0], [u1, v1], [u0, v1]], fill),
         disc: (u, v, r, fill) => pen.shape(circlePts(u, v, r), fill),
         tri: (u, v, r, fill) => pen.shape([[u, v + r], [u + r * 0.95, v - r * 0.55], [u - r * 0.95, v - r * 0.55]], fill),
@@ -57,7 +80,7 @@ function addWall(sm, tm, g, w, mode) {
       paintWallDecals(g, pen, { side, mx: (q0[0] + q1[0]) / 2, my: (q0[1] + q1[1]) / 2, k, n });
     }
   }
-  sm.quad([w.x, w.y, top], [w.x + w.w, w.y, top], [w.x + w.w, w.y + w.h, top], [w.x, w.y + w.h, top], [0, 0, 1], wallC ? shade(wallC, 1.15) : parseColor('#6d737a'));
+  sm.quad([w.x, w.y, top], [w.x + w.w, w.y, top], [w.x + w.w, w.y + w.h, top], [w.x, w.y + w.h, top], [0, 0, 1], parseColor('#6d737a'));
 }
 
 // High-voltage warning on each charger side and on its top.
@@ -93,19 +116,26 @@ function addCeiling(sm, g) {
   }
 }
 
-// Doorway trim: hazard-striped jamb posts and a header beam (cabin view only; purely visual).
-function addDoorways(sm, g) {
+// Doorway trim: hazard-striped jamb posts with amber beacons, plus (cabin view only) a header beam and lamp; purely visual.
+// The overview gets shorter posts so they stay under the clipped walls.
+function addDoorways(sm, g, mode) {
   if (!decalsEnabled()) return;
+  const k = mode === 'ov' ? 0.45 : 1;
   for (const d of g.doors || []) {
     const cx = d.x + d.w / 2, cy = d.y + d.h / 2, vert = d.h > d.w, len = vert ? d.h : d.w, th = vert ? d.w : d.h;
     const place = (u, v) => (vert ? [cx + v, cy + u] : [cx + u, cy + v]);
     for (const su of [-1, 1]) {
       for (const sv of [-1, 1]) {
         const [x, y] = place(su * (len / 2 - 0.07), sv * (th / 2 - 0.07));
-        for (let i = 0; i < 4; i++) sm.cuboid(x, y, 0, 0.07, 0.07, i * 0.5, i * 0.5 + 0.5, i & 1 ? '#262626' : '#f4c414');
+        for (let i = 0; i < 4; i++) sm.cuboid(x, y, 0, 0.07, 0.07, i * 0.5 * k, (i * 0.5 + 0.5) * k, i & 1 ? '#262626' : '#f4c414');
+        sm.cuboid(x, y, 0, 0.07, 0.07, 2 * k, 2.05 * k, '#262626');
+        sm.cuboid(x, y, 0, 0.056, 0.056, 2.05 * k, 2.25 * k, '#ffa000', { emissive: true });
       }
     }
+    if (mode === 'ov') continue;
     const n = Math.floor(len / 0.6);
+    const [mx, my] = place(0, 0);
+    sm.cuboid(mx, my, 0, vert ? th / 2 - 0.1 : 0.5, vert ? 0.5 : th / 2 - 0.1, WALL_H - 0.4, WALL_H - 0.35, '#ffa000', { emissive: true, top: false });
     for (let i = 0; i < n; i++) {
       const [x, y] = place(-len / 2 + (i + 0.5) * (len / n), 0);
       const hl = vert ? th / 2 : len / n / 2, hw = vert ? len / n / 2 : th / 2;
@@ -140,10 +170,8 @@ export function staticMeshes(g, mode) {
   const sm = new Mesh(), tm = new Mesh();
   addFloor(sm, tm, g, mode);
   for (const w of g.walls) addWall(sm, tm, g, w, mode);
-  if (mode === 'pov') {
-    addCeiling(sm, g);
-    addDoorways(sm, g);
-  }
+  if (mode === 'pov') addCeiling(sm, g);
+  addDoorways(sm, g, mode);
   return (e[mode] = { key, opaque: sm, trans: tm });
 }
 
@@ -253,10 +281,8 @@ function discoLights(g, eye) {
   return out.sort((p, q) => p.d - q.d).slice(0, LIGHT_MAX);
 }
 
-// Dark mode: the forklift supplies TRUCK_SHARE of the light (headlights, reverse and brake lights); the rest
-// comes from the nearest ceiling fixtures, whose combined strength is scaled to the remaining share.
-export const TRUCK_SHARE = 0.75;
-const HEAD_I = 1.5, CEIL_MAX = 10, WARM = [1, 0.95, 0.8];
+// Dark mode: headlights, reverse and brake lights; the ceiling fixtures are only decals, the room's glow is ambient (`DARK_LIGHT`).
+const HEAD_I = 1.5, WARM = [1, 0.95, 0.8];
 function darkLights(g, eye) {
   const f = g.fl, c = Math.cos(f.a), s = Math.sin(f.a), out = [];
   const lamp = (lx, ly, z, r, col, dir, cone) => {
@@ -267,13 +293,8 @@ function darkLights(g, eye) {
   for (const side of [-1, 1]) lamp(HEAD_X, side * LAMP_Y, HEAD_Z, 11, WARM.map((v) => v * HEAD_I), fwd, 0.62);
   const back = [-c * 0.8, -s * 0.8, -0.6];
   for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 1.8, [0.5, 0.05, 0.03], back, 0.2); // idle tail glow
-  if (f.speed < -0.05) for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 4.5, [0.9, 0.9, 0.95], back, 0.45);
+  if (f.gear === 'R') for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 4.5, [0.9, 0.9, 0.95], back, 0.45);
   if (f.brake) for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 2.2, [0.8, 0.1, 0.06], back, 0.3);
-  const ceil = overheadDecals(g).lights
-    .map((l) => ({ l, d: Math.hypot(l.x - eye[0], l.y - eye[1]) }))
-    .filter((e) => e.d < 16).sort((p, q) => p.d - q.d).slice(0, CEIL_MAX);
-  const head = 2 * HEAD_I * (1 - TRUCK_SHARE) / TRUCK_SHARE / Math.max(1, ceil.length);
-  for (const { l } of ceil) out.push({ x: l.x, y: l.y, z: WALL_H - 0.2, r: 8, col: WARM.map((v) => v * head) });
   return out;
 }
 
@@ -305,8 +326,9 @@ export function dynamicMeshes(g, mode, eye) {
       st.dropFrom != null ? Math.max(0, g.hf - st.dropFrom) : 0, st.pen);
   }
   addCarried(om, tm, g);
-  addForklift(om, g, mode === 'ov');
-  addForks(om, g);
+  const bare = mode === 'pov' && bareForksEnabled();
+  if (!bare) addForklift(om, g, mode === 'ov');
+  addForks(om, g, bare);
   addMarks(tm, g, mode);
   addBlobShadows(tm, g);
   addRevLight(tm, g);

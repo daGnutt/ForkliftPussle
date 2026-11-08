@@ -12,7 +12,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Outer wall / border** | Walls around the level | `g.walls` |
 | **Dividing wall** | Interior wall splitting the level into rooms/corridors | `g.pillars` |
 | **Room / corridor** | Spaces made by the dividing walls | `buildRooms` |
-| **Doorway / door** | Gap in a dividing wall (hazard-striped jambs, dashed centre lane) | `g.doors`, `addDoorways` |
+| **Doorway / door** | Gap in a dividing wall (hazard-striped jambs with amber beacons, header lamp, dashed centre lane) | `g.doors`, `addDoorways` |
 | **Charger** | Red high-voltage wall stub the forklift's tail rests against at the parking spot | `g.charger`, `drawCharger` |
 | **Ceiling / joists / light bars / fans** | Overhead scenery (cabin view only) | `drawCeiling`, `overheadDecals` |
 
@@ -53,6 +53,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Overhead guard / cage / roof** | Frame over the driver | `models.js` |
 | **Front axle / rear wheels** | Origin of the local frame / the steering wheels | `FL` |
 | **Mast / carriage** | Upright and plate the tines hang from | `addForks` |
+| **Bare forks** | Menu option (key B): in the GL cabin view hides the whole forklift body and the mast, leaving carriage and tines | `bareForksEnabled`, `addForks` |
 | **Tines / forks / blades** | The two prongs that go into a pallet | `addForks` |
 | **Tine tips** | Thin tapered ends; look-at point of the cabin camera | `g.ef` |
 | **Fork level** | Integer 0–5 height of the tines in box heights | `g.H` |
@@ -102,7 +103,9 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 |------|---------|---------|
 | **Overview** | Top-down (tilted) view of the level; default | `drawWorld`, `drawOverview3d` |
 | **Cabin view / POV** | First-person view from the driver's seat | `drawPov`, `drawPov3d` |
-| **Big / small view** | Which of overview/cabin fills the screen; the other is the corner window | `view.povBig`, `view.showSmall` |
+| **Orbit / look** | Drag or Q/W in the GL views: swings the overview around the forklift (`view.orbit`) or turns the cab camera (`view.look`); driving springs it back (`view.snap`) | `view.orbit`, `view.look` |
+| **Big view** | Which of overview/cabin fills the screen | `view.povBig` |
+| **Chase camera** | Third-person GL overview camera behind the forklift on a spring (`view.camA` lags the forklift heading, so the tail swings); drag/Q/W orbit it around the middle of the tines, driving springs it back; a wall hiding more than half the forklift makes it orbit upwards (`view.chaseLift`) (C / menu / double tap on the canvas); the minimap outlines its tilted floor footprint instead of a rectangle | `view.chase`, `chaseCamera`, `groundFootprint` |
 | **Corner window / look window** | Small inset showing the other view | `drawLook3d` |
 | **Software camera** | 2D Canvas renderer (`pov.js`, `pov/camera.js`) | – |
 | **GL camera** | WebGL renderer (`gl/camera.js`) | `povCamera`, `overviewCamera` |

@@ -27,7 +27,7 @@ function rayHit(g, ox, oy, dx, dy, max) {
 }
 
 export function reversing(g) {
-  return g.status === 'play' && g.fl.speed < -0.05;
+  return g.status === 'play' && g.fl.gear === 'R';
 }
 
 // Returns null when not reversing (or the centre is inside a wall), else

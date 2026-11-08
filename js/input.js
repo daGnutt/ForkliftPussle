@@ -1,4 +1,4 @@
-const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyZ', 'KeyM', 'KeyF', 'KeyC', 'Tab', 'KeyP', 'Escape']);
+const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyZ', 'KeyQ', 'KeyW', 'KeyM', 'KeyF', 'KeyC', 'Tab', 'KeyP', 'Escape']);
 
 export function createInput(handlers) {
   const down = new Set();
@@ -10,7 +10,7 @@ export function createInput(handlers) {
     else if (code === 'KeyR') handlers.restart?.();
     else if (code === 'Enter') handlers.next?.();
     else if (code === 'KeyM' || code === 'Tab') handlers.swapView?.();
-    else if (code === 'KeyC') handlers.toggleSmall?.();
+    else if (code === 'KeyC') handlers.toggleChase?.();
     else if (code === 'KeyF') handlers.fullscreen?.();
     else if (code === 'KeyP') handlers.pause?.();
     else if (code === 'Escape') handlers.menu?.();
@@ -118,6 +118,8 @@ export function createInput(handlers) {
       down: down.has('ArrowDown') || stick.down,
       left: down.has('ArrowLeft') || stick.left,
       right: down.has('ArrowRight') || stick.right,
+      lookL: down.has('KeyW'),
+      lookR: down.has('KeyQ'),
     }),
   };
 }

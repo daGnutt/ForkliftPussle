@@ -1,9 +1,10 @@
 import { COLORS } from '../level.js';
 import { HIT_LIFE, WONKY_LIFE, zoneDone } from '../game.js';
 import { label } from '../pov/overlay.js';
-import { povCamera, overviewCamera } from './camera.js';
+import { povCamera, overviewCamera, chaseCamera, groundFootprint } from './camera.js';
 import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';
+import { toWorld, FL } from '../forklift.js';
 
 // Screen-space glue between the WebGL scene and the 2D game canvas: view entry points and the text overlays
 // (cabin zone counts, damage popups) that are drawn in 2D over the 3D image through the camera projection.
@@ -31,9 +32,9 @@ function lineClear(g, x0, y0, x1, y1) {
 function hitText(h) { return h.wonky ? `Wonky −${h.pts}` : `−${h.pts}`; }
 
 // Cabin view into the css-px box (x, y, w, h). Returns false if WebGL is unavailable.
-export function drawPov3d(ctx, g, x, y, w, h, dpr) {
+export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
   if (!glAvailable()) return false;
-  const cam = povCamera(g, w, h);
+  const cam = povCamera(g, w, h, look);
   const proj = drawGl(ctx, g, 'pov', cam, x, y, dpr);
   if (!proj) return false;
   ctx.save();
@@ -62,9 +63,21 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr) {
 }
 
 // Overview into the css-px rect (rx, ry, rw, rh): centre (cx, cy) in tiles, s px per tile at the centre.
-export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr) {
+// `orbit` ({ yaw, tilt } radians, set by dragging) swings the camera around the forklift instead; `chase` (tiles visible vertically) uses the
+// third-person camera behind the forklift at the sprung `heading` (cx, cy, s ignored); `orbit` then orbits the tines' middle.
+// Returns false without WebGL, else true (chase: the floor footprint polygon, for the minimap).
+export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = null, chase = 0, heading = g.fl.a) {
   if (!glAvailable()) return false;
-  const proj = drawGl(ctx, g, 'ov', overviewCamera(cx, cy, rh / s, rw, rh), rx, ry, dpr);
+  let cam, foot = true;
+  if (chase) {
+    cam = chaseCamera(g, rw, rh, chase, heading, orbit);
+    s = rh / chase;
+    foot = groundFootprint(cam);
+  } else if (orbit) {
+    const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0), co = Math.cos(orbit.yaw), si = Math.sin(orbit.yaw);
+    cam = overviewCamera(c.x, c.y, rh / s, rw, rh, [si, -co], orbit.tilt);
+  } else cam = overviewCamera(cx, cy, rh / s, rw, rh);
+  const proj = drawGl(ctx, g, 'ov', cam, rx, ry, dpr);
   if (!proj) return false;
   ctx.save();
   ctx.beginPath();
@@ -89,7 +102,7 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr) {
   }
   ctx.globalAlpha = 1;
   ctx.restore();
-  return true;
+  return foot;
 }
 
 // Small look window (css px box x, y, w, h) centred on world (cx, cy) showing `tilesH` tiles vertically, with `up` pointing up the screen.

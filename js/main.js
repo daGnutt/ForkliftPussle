@@ -6,10 +6,12 @@ import { serializeGame, deserializeGame, encodeState, decodeState } from './save
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
+import { setBareForks, bareForksEnabled } from './gl/models.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
 import { glEnabled, setGlEnabled } from './gl/renderer.js';
 import { themeMode, setThemeMode } from './theme.js';
 import { discoEnabled, setDiscoEnabled } from './disco.js';
+import { CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
@@ -17,7 +19,7 @@ import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, play
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
 const isTouch = matchMedia('(pointer: coarse)').matches;
-const view = { width: 0, height: 0, dpr: 1, povBig: !isTouch && localStorage.getItem('forklift-cab-view') === '1', showSmall: false, touch: isTouch };
+const view = { width: 0, height: 0, dpr: 1, povBig: !isTouch && localStorage.getItem('forklift-cab-view') === '1', chase: localStorage.getItem('forklift-chase-cam') === '1', chaseZoom: localStorage.getItem('forklift-chase-zoom') === null ? null : Number(localStorage.getItem('forklift-chase-zoom')), touch: isTouch };
 
 function resize() {
   view.width = canvas.clientWidth;
@@ -108,10 +110,17 @@ function toggleFullscreen() {
 
 function nextLevel() { if (game.status === 'won') load(level + 1); }
 
+function toggleChase() {
+  if (view.povBig || !glEnabled()) return;
+  view.chase = !view.chase;
+  view.orbit = null;
+  localStorage.setItem('forklift-chase-cam', view.chase ? '1' : '0');
+}
+
 const input = createInput({
   anyKey: startAudio,
   fullscreen: toggleFullscreen,
-  toggleSmall: () => { view.showSmall = !view.showSmall; },
+  toggleChase,
   swapView: () => {
     if (isTouch) return;
     view.povBig = !view.povBig;
@@ -143,6 +152,61 @@ if (isTouch) canvas.addEventListener('pointerdown', (e) => {
   if (h && x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) view.povBig = !view.povBig;
   else nextLevel();
 });
+
+// Look around in the 3D views: drag the canvas or hold Q/W. The big view's camera swings around the forklift (overview,
+// view.orbit { yaw, tilt }) or turns on the spot (cabin, view.look { yaw, pitch }); driving springs it back.
+const ORBIT_HOME = 0.35, ORBIT_TILT_MAX = 1.3, LOOK_PITCH_MAX = 0.7, LOOK_SPEED = 2;
+const CAM_SPRING = 3;
+const wrap = (a) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
+const orbitHome = () => (view.chase ? CHASE_TILT : ORBIT_HOME);
+function lookState() {
+  view.snap = false;
+  return view.povBig ? (view.look ||= { yaw: 0, pitch: 0 }) : (view.orbit ||= { yaw: 0, tilt: orbitHome() });
+}
+function lookBy(dyaw, dpitch) {
+  const o = lookState();
+  o.yaw = wrap(o.yaw - dyaw);
+  if (view.povBig) o.pitch = Math.min(LOOK_PITCH_MAX, Math.max(-LOOK_PITCH_MAX, o.pitch + dpitch));
+  else o.tilt = Math.min(ORBIT_TILT_MAX, Math.max(0.05, o.tilt + dpitch));
+}
+function springBack(dt) {
+  const k = 1 - Math.exp(-7 * dt);
+  const o = view.orbit, l = view.look;
+  if (o) { o.yaw -= o.yaw * k; o.tilt -= (o.tilt - orbitHome()) * k; if (Math.abs(o.yaw) + Math.abs(o.tilt - orbitHome()) < 0.003) view.orbit = null; }
+  if (l) { l.yaw -= l.yaw * k; l.pitch -= l.pitch * k; if (Math.abs(l.yaw) + Math.abs(l.pitch) < 0.003) view.look = null; }
+  if (!view.orbit && !view.look) view.snap = false;
+}
+let drag = null;
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.target !== canvas || !glEnabled() || splashOn || recordOpen || view.menuOpen) return;
+  drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+  drag.moved = true;
+  drag.x = e.clientX; drag.y = e.clientY;
+  lookBy(dx * 0.008, dy * 0.006);
+});
+// Double tap (or double click) on the GL overview toggles the third-person camera.
+let lastTap = null;
+const DOUBLE_TAP_MS = 350, DOUBLE_TAP_PX = 30;
+function tapped(e) {
+  const now = performance.now();
+  if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX) {
+    lastTap = null;
+    toggleChase();
+  } else lastTap = { t: now, x: e.clientX, y: e.clientY };
+}
+const endDrag = (e) => {
+  if (drag && e.pointerId === drag.id) {
+    if (!drag.moved && e.type === 'pointerup') tapped(e);
+    drag = null;
+  }
+};
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
 
 const pending = {};
 recordName.addEventListener('keydown', (e) => e.stopPropagation());
@@ -195,7 +259,8 @@ const TUTORIAL = [
 ];
 if (isTouch) TUTORIAL.pop();
 const tutorialEl = document.getElementById('tutorial');
-let tutStep = localStorage.getItem('forklift-tutorial-done') ? -1 : 0;
+// ?skip hides the tutorial for this visit without saving it as done.
+let tutStep = localStorage.getItem('forklift-tutorial-done') || new URLSearchParams(location.search).has('skip') ? -1 : 0;
 function showTutorial() {
   tutorialEl.classList.toggle('hide', tutStep < 0);
   if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep]}`;
@@ -295,6 +360,10 @@ setGlEnabled(glParam ? glParam !== '0' : localStorage.getItem('forklift-gl-off')
 setDecalsEnabled(localStorage.getItem('forklift-decals-off') !== '1');
 const themeSel = document.getElementById('themeSel');
 setThemeMode(localStorage.getItem('forklift-theme'));
+const bareOpt = document.getElementById('bareOpt');
+const chaseOpt = document.getElementById('chaseOpt');
+const chaseZoomSel = document.getElementById('chaseZoom');
+setBareForks(localStorage.getItem('forklift-bare-forks') === '1');
 const discoOpt = document.getElementById('discoOpt');
 setDiscoEnabled(localStorage.getItem('forklift-disco') === '1');
 const menuHardOpt = document.getElementById('menuHardOpt');
@@ -324,6 +393,9 @@ function toggleMenu(open) {
     decalOpt.checked = decalsEnabled();
     glOpt.checked = glEnabled();
     discoOpt.checked = discoEnabled();
+    bareOpt.checked = bareForksEnabled();
+    chaseOpt.checked = view.chase;
+    chaseZoomSel.value = view.chaseZoom ?? chaseZoomOf(view.ovTiles || 14);
     themeSel.value = themeMode();
     menuHardOpt.checked = hard;
     menuLevel.value = level;
@@ -352,6 +424,25 @@ themeSel.addEventListener('change', () => {
 discoOpt.addEventListener('change', () => {
   setDiscoEnabled(discoOpt.checked);
   localStorage.setItem('forklift-disco', discoOpt.checked ? '1' : '0');
+});
+chaseZoomSel.addEventListener('input', () => {
+  view.chaseZoom = Number(chaseZoomSel.value);
+  localStorage.setItem('forklift-chase-zoom', String(view.chaseZoom));
+});
+document.getElementById('chaseZoomReset').addEventListener('click', (e) => {
+  e.preventDefault();
+  view.chaseZoom = null;
+  localStorage.removeItem('forklift-chase-zoom');
+  chaseZoomSel.value = chaseZoomOf(view.ovTiles || 14);
+});
+chaseOpt.addEventListener('change', () => {
+  view.chase = chaseOpt.checked;
+  view.orbit = null;
+  localStorage.setItem('forklift-chase-cam', view.chase ? '1' : '0');
+});
+bareOpt.addEventListener('change', () => {
+  setBareForks(bareOpt.checked);
+  localStorage.setItem('forklift-bare-forks', bareOpt.checked ? '1' : '0');
 });
 const touchSel = document.getElementById('touchSel');
 const touchPad = document.getElementById('touch');
@@ -428,7 +519,9 @@ window.addEventListener('keydown', (e) => {
       themeSel.value = o[(o.indexOf(themeSel.value) + 1) % o.length];
       themeSel.dispatchEvent(new Event('change'));
     },
+    KeyB: () => toggle(bareOpt),
     KeyI: () => toggle(discoOpt),
+    KeyH: () => toggle(chaseOpt),
     KeyG: () => { showPage('game'); menuLevel.focus(); menuLevel.select(); },
     KeyL: () => document.getElementById('menuLowest').click(),
     KeyF: toggleFullscreen,
@@ -498,6 +591,8 @@ const debug = debugEnabled(location.search) ? createDebug() : null;
 initTestingBanner();
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
+// ?skip in the URL bypasses the splash (keeps saved settings; no audio until a key/click starts it)
+if (new URLSearchParams(location.search).has('skip')) startGame();
 function frame(now) {
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
@@ -505,7 +600,22 @@ function frame(now) {
   const t0 = performance.now();
   let steps = 0;
   while (!splashOn && !view.paused && acc >= STEP) {
-    update(game, input.state(), STEP);
+    const inp = input.state();
+    if (inp.up || inp.down || inp.left || inp.right) view.snap = true;
+    if (!splashOn && glEnabled() && (inp.lookL || inp.lookR)) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * STEP, 0);
+    if (view.snap) springBack(STEP);
+    update(game, inp, STEP);
+    // chase camera heading follows the forklift on a spring
+    if (view.camA == null || game !== view.camG) { view.camA = game.fl.a; view.camG = game; }
+    else {
+      // in reverse (same delay as the cabin's look-back) the camera orbits round to the front of the forklift
+      const target = game.fl.a + (game.rv > 0.5 ? Math.PI - 0.001 : 0);
+      view.camA += wrap(target - view.camA) * (1 - Math.exp(-CAM_SPRING * STEP));
+    }
+    {
+      const tgt = view.chase ? view.chaseLiftTarget || 0 : 0, cur = view.chaseLift || 0;
+      view.chaseLift = cur + (tgt - cur) * (1 - Math.exp(-(tgt > cur ? 8 : 3) * STEP));
+    }
     acc -= STEP;
     steps++;
   }
@@ -513,7 +623,7 @@ function frame(now) {
   checkTutorial();
   checkRecord();
   const st = input.state();
-  setEngine(game.fl.speed, st.up || st.down);
+  setEngine(game.fl.speed, st.up || st.down, game.fl.gear === 'R');
   const done = doneSet();
   const fresh = [...done].filter((z) => !doneZones.has(z));
   if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();

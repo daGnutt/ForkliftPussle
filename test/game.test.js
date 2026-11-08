@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { generateLevel, parseSeed, isReachable } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
-import { FL, toLocal, maxSteerFor } from '../js/forklift.js';
+import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState } from '../js/savestate.js';
-import { povCamera, overviewCamera } from '../js/gl/camera.js';
+import { povCamera, overviewCamera, chaseCamera, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
@@ -718,14 +718,14 @@ console.log('all tests passed');
   const g = newGame(1);
   assert.equal(reverseLight(g), null, 'no light when stationary');
   g.fl.x = g.w / 2; g.fl.y = g.h / 2; g.fl.a = 0;
-  g.fl.speed = -1;
+  g.fl.speed = -1; g.fl.gear = 'R';
   const L = reverseLight(g);
   assert.ok(L && L.pts.every((p) => Math.hypot(p.x - L.x, p.y - L.y) <= REV_RADIUS + 1e-9));
-  g.fl.speed = 1;
+  g.fl.speed = 1; g.fl.gear = 'D';
   assert.equal(reverseLight(g), null, 'no light driving forward');
   // Light centre 0.5 from the right border wall, rear pointing at it.
   const wall = g.walls.reduce((b, w) => (w.x > b.x ? w : b));
-  g.fl.a = Math.PI; g.fl.y = g.h / 2; g.fl.speed = -1;
+  g.fl.a = Math.PI; g.fl.y = g.h / 2; g.fl.speed = -1; g.fl.gear = 'R';
   g.fl.x = wall.x - 0.5 + (FL.back - 1.0);
   const M = reverseLight(g);
   assert.ok(M.pts.every((p) => p.x <= wall.x + 1e-9), 'light stops at wall');
@@ -957,6 +957,31 @@ console.log('all tests passed');
   assert.ok(Math.abs(c[0] - 400) < 1 && Math.abs(c[1] - 250) < 1, 'overview centres its target');
   const up = projectPoint(ov.vp, 8, 3, 0, 800, 500), down = projectPoint(ov.vp, 8, 7, 0, 800, 500);
   assert.ok(up[1] < c[1] && down[1] > c[1], 'default overview has -y up the screen');
+  for (const a of [0, 1.2, -2.5]) {
+    g.fl.a = a;
+    const ch = chaseCamera(g, 800, 500);
+    const fx = g.fl.x, fy = g.fl.y, hx = Math.cos(a), hy = Math.sin(a);
+    const here = projectPoint(ch.vp, fx, fy, 0, 800, 500), ahead = projectPoint(ch.vp, fx + hx * 2, fy + hy * 2, 0, 800, 500);
+    assert.ok(ahead[1] < here[1] && Math.abs(ahead[0] - here[0]) < 1, 'chase camera: the forklift heading is straight up the screen');
+    assert.ok(chaseTiles(0) > 54 && chaseTiles(100) === 11 && chaseZoom(chaseTiles(40)) === 40, 'chase zoom range: fully in = 11 tiles, out = 80% smaller');
+    assert.ok((ch.eye[0] - fx) * hx + (ch.eye[1] - fy) * hy < 0 && ch.eye[2] > 1, 'chase camera sits behind and above the forklift');
+  }
+  {
+    g.fl.a = 0.7;
+    for (const cam of [chaseCamera(g, 800, 500), chaseCamera(g, 800, 500, 11, 0.7, { yaw: 0, tilt: 1.4 })]) {
+      const fp = groundFootprint(cam), [tl, tr, br, bl] = fp;
+      assert.ok(fp.every((q) => q.every(Number.isFinite)), 'footprint corners are finite');
+      assert.ok(Math.hypot(tl[0] - tr[0], tl[1] - tr[1]) > Math.hypot(bl[0] - br[0], bl[1] - br[1]), 'footprint is wider far than near');
+      const inside = fp.every((q, i) => { const n = fp[(i + 1) % 4], o = fp[(i + 2) % 4]; return (n[0] - q[0]) * (g.fl.y - q[1]) - (n[1] - q[1]) * (g.fl.x - q[0]) >= 0 === ((n[0] - q[0]) * (o[1] - q[1]) - (n[1] - q[1]) * (o[0] - q[0]) >= 0); });
+      assert.ok(inside, 'footprint contains the forklift');
+    }
+    const tm = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, 0);
+    const sprung = chaseCamera(g, 800, 500, 11, 0.2), orb = chaseCamera(g, 800, 500, 11, 0.7, { yaw: 1.5, tilt: 0.6 });
+    const ahead = projectPoint(sprung.vp, tm.x + Math.cos(0.2), tm.y + Math.sin(0.2), 0, 800, 500), mid = projectPoint(sprung.vp, tm.x, tm.y, 0, 800, 500);
+    assert.ok(ahead[1] < mid[1], 'chase camera follows the sprung heading, not the forklift heading');
+    const ang = Math.atan2(orb.eye[1] - tm.y, orb.eye[0] - tm.x), want = 0.7 + 1.5 + Math.PI;
+    assert.ok(Math.abs(Math.atan2(Math.sin(ang - want), Math.cos(ang - want))) < 0.5, 'chase orbit swings the camera around the tines');
+  }
   for (const mode of ['pov', 'ov']) {
     const s = staticMeshes(g, mode);
     assert.equal(staticMeshes(g, mode), s, 'static meshes are cached per game state');
@@ -967,7 +992,7 @@ console.log('all tests passed');
   console.log('gl scene ok');
 }
 
-// Dark mode: headlights, reverse/brake lights and ceiling lights, the truck giving ~75% of the light
+// Dark mode: headlights, reverse/brake lights; ceiling fixtures give no point light
 {
   const g = newGame(1);
   const eye = [g.fl.x, g.fl.y];
@@ -975,24 +1000,20 @@ console.log('all tests passed');
   setThemeMode('dark');
   setDiscoEnabled(false);
   let ls = dynamicMeshes(g, 'pov', eye).lights;
-  const strength = (l) => l.col[0] + l.col[1] + l.col[2];
-  const truck = (ls) => ls.filter((l) => l.cone === 0.62).reduce((a, l) => a + strength(l), 0);
   assert.equal(ls.filter((l) => l.cone === 0.62).length, 2, 'two headlights');
-  assert.equal(ls.filter((l) => l.dir).length, 4, 'headlights plus idle tail glow while standing still');
-  const ceil = ls.filter((l) => !l.dir).reduce((a, l) => a + strength(l), 0);
-  assert.ok(Math.abs(truck(ls) / (truck(ls) + ceil) - 0.75) < 0.01, 'truck provides 75% of the light');
-  assert.ok(ls.filter((l) => !l.dir || l.cone === 0.62).every((l) => l.z > 1.3), 'head and ceiling lights are high up');
+  assert.equal(ls.length, 4, 'headlights plus idle tail glow while standing still');
+  assert.ok(ls.filter((l) => l.cone === 0.62).every((l) => l.z > 1.3), 'headlights are high up');
   run(g, { down: true }, 0.5);
   ls = dynamicMeshes(g, 'pov', eye).lights;
-  assert.ok(g.fl.speed < -0.05 && ls.filter((l) => l.dir).length === 6, 'reversing adds two reverse lights');
+  assert.ok(g.fl.speed < -0.05 && ls.length === 6, 'reversing adds two reverse lights');
   run(g, { up: true }, 0.03);
-  assert.ok(g.fl.brake && dynamicMeshes(g, 'pov', eye).lights.filter((l) => l.dir).length >= 6, 'throttle against the motion brakes');
+  assert.ok(g.fl.brake && dynamicMeshes(g, 'pov', eye).lights.length >= 6, 'throttle against the motion brakes');
   setThemeMode('light');
   setDiscoEnabled(true);
   console.log('dark lights ok');
 }
 
-// Zone labels never sit under a wall (e.g. a drop point at the south border)
+// Zone labels never sit under a wall (e.g. a drop point at the south border); all drop points of an area near the south wall are labelled above
 {
   for (let n = 1; n <= 40; n++) {
     const g = newGame(n);
@@ -1000,6 +1021,52 @@ console.log('all tests passed');
       const p = zoneLabelPos(g, z);
       assert.ok(!g.walls.some((w) => p.x + 0.4 > w.x && p.x - 0.4 < w.x + w.w && p.y + 0.25 > w.y && p.y - 0.25 < w.y + w.h), `zone label hidden by a wall on level ${n}`);
     }
+    for (const c of new Set(g.zones.map((z) => z.color))) {
+      const side = g.zones.filter((z) => z.color === c).map((z) => Math.sign(zoneLabelPos(g, z).y - z.y));
+      assert.ok(side.every((v) => v === side[0]) || g.zones.length < 2, `mixed label sides in one area on level ${n}`);
+    }
   }
   console.log('zone labels ok');
+}
+
+// Gear D/R only flips after a complete stop, when about to move the other way
+{
+  const g = newGame(1);
+  assert.equal(g.fl.gear, 'D');
+  g.fl.speed = 2;
+  let flipped = false;
+  for (let i = 0; i < 600 && !flipped; i++) {
+    update(g, { down: true }, 1 / 120);
+    if (g.fl.gear === 'R') flipped = true; else assert.ok(g.fl.speed > -0.001, 'stays in D while still moving forward');
+  }
+  assert.ok(flipped && Math.abs(g.fl.speed) < 0.05, 'R engages at standstill');
+  run(g, {}, 3);
+  assert.equal(g.fl.gear, 'R', 'coasting keeps R');
+  run(g, { up: true }, 2);
+  assert.equal(g.fl.gear, 'D');
+  console.log('gear ok');
+}
+
+// The chase camera only looks back after reversing for a while; the cabin camera always looks forward
+{
+  const g = newGame(1);
+  run(g, { down: true }, 0.6);
+  assert.ok(g.fl.gear === 'R' && g.rv < 0.01, 'short reverse keeps looking forward');
+  run(g, { down: true }, 1.5);
+  assert.ok(g.rv > 0.9, 'long reverse looks back');
+  const cab = povCamera(g, 800, 500), back = projectPoint(cab.vp, g.fl.x + Math.cos(g.fl.a) * 6, g.fl.y + Math.sin(g.fl.a) * 6, 0.5, 800, 500);
+  assert.ok(back && Math.abs(back[0] - 400) < 400, 'cabin camera still looks along the heading in reverse');
+  console.log('look back delay ok');
+}
+
+// chase camera orbits upwards when a wall hides the forklift
+{
+  const g = newGame(1);
+  g.walls = [];
+  assert.equal(clearChaseTilt(g, 11, g.fl.a, 0, CHASE_TILT), CHASE_TILT);
+  const a = g.fl.a, p = toWorld(g.fl, FL.back, 0);
+  g.walls = [{ x: p.x - Math.cos(a) * 3 - 1, y: p.y - Math.sin(a) * 3 - 1, w: 2, h: 2 }]; // between camera and truck
+  const t = clearChaseTilt(g, 11, a, 0, CHASE_TILT);
+  assert.ok(t < CHASE_TILT, 'camera should lift over the wall');
+  console.log('chase wall clearing ok');
 }

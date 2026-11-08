@@ -26,12 +26,12 @@
   .row figure { flex: 1.2; margin: 0; }
   figure img { width: 100%; border-radius: 8px; border: 1px solid #2a313b; box-shadow: 0 6px 24px #0008; display: block; }
   figcaption { font-size: 1.1vw; color: #9aa4b2; margin-top: 1vh; }
-  .chart { display: flex; gap: 1.2vw; align-items: flex-end; justify-content: center; height: 52vh; margin-top: 1vh; }
-  .col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 6.5vw; }
-  .col .n { font-size: 2.2vw; font-weight: bold; color: #ffc933; margin-bottom: .6vh; }
+  .chart { display: flex; gap: .5vw; align-items: flex-end; justify-content: center; height: 52vh; margin-top: 1vh; }
+  .col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 4.2vw; }
+  .col .n { font-size: 1.6vw; font-weight: bold; color: #ffc933; margin-bottom: .6vh; }
   .col .stack { display: flex; flex-direction: column-reverse; width: 100%; border-bottom: 3px solid #6b7684; padding-bottom: 2px; }
   .col .stack i { display: block; width: 100%; margin-top: 1px; border-radius: 2px; box-sizing: border-box; border: 1px solid #0006; box-shadow: inset 0 -2px #0004, inset 0 2px #fff3; }
-  .col .d { font-size: 1.2vw; color: #9aa4b2; margin-top: .8vh; text-align: center; line-height: 1.3; }
+  .col .d { font-size: .9vw; color: #9aa4b2; margin-top: .8vh; text-align: center; line-height: 1.3; }
   .legend { display: flex; gap: 1.4vw; justify-content: center; font-size: 1.1vw; white-space: nowrap; color: #9aa4b2; margin-top: 1.5vh; }
   .legend i { display: inline-block; width: 1.2vw; height: 1.2vw; border-radius: 2px; vertical-align: middle; margin-right: .5vw; }
   .posters { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2.2vw 2vw; align-items: center; justify-items: center; }
@@ -44,7 +44,7 @@
 <section class="slide">
   <h1>Pallet Polka</h1>
   <div class="sub">The development timeline of a top-down, keyboard-only forklift puzzle</div>
-  <div class="sub" style="margin-top:3vh">21 October – 2 November 2026 · 331 commits · vanilla JS + Canvas 2D · no build, no dependencies</div>
+  <div class="sub" style="margin-top:3vh">21 October – 8 November 2026 · 463 commits · vanilla JS + Canvas 2D · no build, no dependencies</div>
   <div class="sub" style="margin-top:6vh;font-size:1.4vw">← / → or Space to navigate</div>
 </section>
 
@@ -55,13 +55,13 @@
     <li>Rear-wheel-steering bicycle model: the tail swings out</li>
     <li>Deterministic seeded level generator (<code>mulberry32</code>)</li>
     <li>DOM-free game logic, so the tests run in plain Node</li>
-    <li>Static files on GitHub Pages (and an installable PWA); Firefox is the primary target</li>
+    <li>Static files on GitHub Pages (and an installable PWA); Firefox is the primary target, WebGL2 for the 3D views</li>
   </ul>
   <div class="stats">
-    <div class="stat"><b>~4.5k</b><span>lines of JS</span></div>
-    <div class="stat"><b>331</b><span>commits</span></div>
+    <div class="stat"><b>~6.3k</b><span>lines of JS</span></div>
+    <div class="stat"><b>463</b><span>commits</span></div>
     <div class="stat"><b>0</b><span>dependencies</span></div>
-    <div class="stat"><b>13</b><span>days (11 with commits)</span></div>
+    <div class="stat"><b>19</b><span>days (15 with commits)</span></div>
   </div>
 </section>
 
@@ -269,18 +269,88 @@
 <section class="slide">
   <div class="date">Day 15 · 4 Nov</div>
   <h2>Disco in the dark</h2>
-  <ul>
+  <div class="row"><ul>
     <li>Dark mode gets glitter balls and coloured light pools sweeping the floor, in the cabin view and (as lights only) the overview</li>
     <li>Balls are scattered randomly per level; the forklift carries its own light</li>
     <li>Menu options: disco lights on/off, and colour mode Follow OS / Light / Dark</li>
+  </ul>
+  <figure><img src="shots/14-cabin-disco.png" alt=""><figcaption>Disco lights in the 3D cabin view (HEAD, dark mode)</figcaption></figure></div>
+</section>
+
+<section class="slide">
+  <div class="date">Day 15 · 4 Nov</div>
+  <h2>Renamed: Pallet Polka</h2>
+  <ul>
+    <li>The game became <b>Pallet Polka</b>: new title on the splash and wall posters, polka MIDI as default music</li>
+    <li>Cover image (SVG source + PNG), a short description text and a new production address, palletpolka.gnutt.se</li>
+    <li>Level start and end screens show the local and global top 10</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="date">Day 18 · 7 Nov</div>
+  <h2>True 3D with WebGL2</h2>
+  <div class="row"><ul style="font-size:1.5vw">
+    <li>The overview, cabin view and look windows are now real 3D scenes (depth buffer, lighting, fog), no libraries; the 2D renderers remain as a fallback (<code>?gl=0</code>)</li>
+    <li>Dark mode headlights, brake/reverse lights, an idle tail glow, ceiling lights and disco spots as real point lights</li>
+    <li>Richer forklift model: carriage plates, lift chains, mast head and cylinder rod</li>
+    <li>Wall decals and zone labels painted into the 3D overview</li>
+    <li>Damaged boxes crumple: dented lids, corners and sides, scaled by damage</li>
+  </ul>
+  <figure><img src="shots/06-overview-latest.png" alt=""><figcaption>The 3D overview in dark mode (HEAD)</figcaption></figure></div>
+</section>
+
+<section class="slide">
+  <div class="date">Day 18 · 7 Nov</div>
+  <h2>A new menu, splash &amp; touch schemes</h2>
+  <div class="row"><ul>
+    <li>Pause menu redesigned: one option per row, submenus for sound, visuals, levels and state, primary actions on top</li>
+    <li>Short landscape phones get a two-column menu</li>
+    <li>Splash: Disco start button with a dancing man, a story blurb, random music; music and disco are off by default</li>
+    <li>Touch control schemes: classic buttons, rotated buttons, or a virtual joystick with fork buttons</li>
+  </ul>
+  <figure><img src="shots/13-menu-visuals.png" alt=""><figcaption>The Visuals &amp; controls submenu (HEAD, dark mode)</figcaption></figure></div>
+</section>
+
+<section class="slide">
+  <div class="date">Day 18 · 7 Nov</div>
+  <h2>Splash and joystick on the phone</h2>
+  <div style="display:flex;gap:2vw;align-items:center;justify-content:center">
+    <figure style="margin:0;flex:1.3"><img src="shots/17-splash-latest.png" alt=""><figcaption style="text-align:center">Splash screen, dark mode</figcaption></figure>
+    <figure style="margin:0;flex:1.6"><img src="shots/15-touch-joystick-landscape.png" alt=""><figcaption style="text-align:center">Joystick scheme, landscape</figcaption></figure>
+    <figure style="margin:0;flex:.55"><img src="shots/16-touch-joystick-portrait.png" alt=""><figcaption style="text-align:center">Portrait</figcaption></figure>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="date">Day 19 · 8 Nov</div>
+  <h2>Chase camera &amp; look around</h2>
+  <div class="row"><ul style="font-size:1.6vw">
+    <li>Third-person chase camera for the overview (<b>C</b>, menu option or double tap): spring-mounted, orbits to the front when reversing and upwards when a wall hides the forklift</li>
+    <li>Drag to orbit the overview; <b>W</b>/<b>Q</b> or drag to look around in the cabin; camera zoom slider with reset</li>
+    <li>The overview cuts walls at a low height; the minimap shows the chase camera's floor footprint</li>
+    <li>D/R gear state drives reverse lights and beeper; a mirrored reversing-camera inset in the cabin</li>
+    <li>"Bare forks" option for an unobstructed cabin view</li>
+  </ul>
+  <figure><img src="shots/12-chase-camera.png" alt=""><figcaption>Chase camera with minimap footprint (HEAD, dark mode)</figcaption></figure></div>
+</section>
+
+<section class="slide">
+  <div class="date">Day 19 · 8 Nov</div>
+  <h2>Doorway flair &amp; tidier walls</h2>
+  <ul>
+    <li>Doorways get hazard chevrons on the wall ends, amber beacons on the jamb posts and a glowing header lamp</li>
+    <li>Roller doors and window signs on outer walls only; no decals inside doorways; toilet doors stay off interior walls</li>
+    <li>GL overview walls use the cabin-view look; dark-mode ceiling spots with capped strength</li>
+    <li>Look windows separated in the touch landscape cabin view; <code>?skip</code> URL parameter bypasses the splash</li>
   </ul>
 </section>
 
 <section class="slide">
   <h2>Where it ended up</h2>
   <div style="display:flex;gap:2vw;align-items:flex-start;justify-content:center">
-    <figure style="margin:0;flex:1"><img src="shots/06-overview-latest.png" alt=""><figcaption style="text-align:center">Overview: tutorial, fork gauge, yellow drop-off outlines</figcaption></figure>
-    <figure style="margin:0;flex:1"><img src="shots/07-cabin-latest.png" alt=""><figcaption style="text-align:center">Cabin view: look windows, ceiling lights, decals and zone labels</figcaption></figure>
+    <figure style="margin:0;flex:1"><img src="shots/06-overview-latest.png" alt=""><figcaption style="text-align:center">Overview in 3D: fork gauge, yellow drop-off outlines, doorway beacons</figcaption></figure>
+    <figure style="margin:0;flex:1"><img src="shots/07-cabin-latest.png" alt=""><figcaption style="text-align:center">Cabin view: reversing camera, look windows, decals and zone labels</figcaption></figure>
   </div>
 </section>
 
@@ -307,9 +377,10 @@
     <li><b>25 Oct</b> – reversing aids, music, saves, touch controls, PWA</li>
     <li><b>26 – 28 Oct</b> – landscape layout, animated splash, new soundtrack, cabin view rebuilt</li>
     <li><b>29 Oct – 2 Nov</b> – look windows, online scores, wonky stacks, 43 slogan posters</li>
+    <li><b>4 – 8 Nov</b> – Pallet Polka, disco, WebGL2 3D views, new menu, touch joystick, chase camera, doorway flair</li>
   </ul>
-  <div class="bar"><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div></div>
-  <div class="sub" style="margin-top:1vh;font-size:1.3vw">21 Oct – 2 Nov, 13 days (no commits on the 22nd and 30th) · biggest day was day 1, then steady polish</div>
+  <div class="bar"><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div></div><div></div><div class="on"></div><div class="on"></div></div>
+  <div class="sub" style="margin-top:1vh;font-size:1.3vw">21 Oct – 8 Nov, 19 days (no commits on 22 Oct, 30 Oct, 5 and 6 Nov) · biggest day was day 1, then steady polish</div>
 </section>
 
 <section class="slide">
@@ -319,7 +390,7 @@
 
 <div id="nav"></div>
 <script>
-  const perDay = {"21 Oct":[851,243,23,147,109,14,24,65,40,57,56,1,54,2,4,121,33,23,35,28,35,63,78,169,141,2,86,50,87,10,7,6,12,104,118,83,18,43,21,14,7,39,15,3,0,41,13,44,2,18,40,17,106,19,19,52,78,14,4,7,0,11,0,52,11,13,12,4,25,6,29,55,7,0,39,8,2,4,2],"22 Oct":[],"23 Oct":[100,46,48,35,30,29,53,0,86,0,67,176,2,0,105,35,84,21,16,29,11,22,399,55,25,35,88,17],"24 Oct":[50,0,19,0,51,0,16,0,250,21,129,39,29,75,2,0,19,25,31,2,10,74,44,90,36,23],"25 Oct":[20,26,107,6,14,20,202,62,41,42,156,194,96,28,0,132,7,4,18,36,3,96,41,4,58,187,28,28,0,3,59,8,126,4,50,10,7,0,43,70,72,6,6,9,152,8,2,57,4],"26 Oct":[33,0,48,6,21,100,1,0],"27 Oct":[8,8,0,11,0,20,0,2,2,14,0,43,2,2,6,6,4,27,33,11,25,15,41,9],"28 Oct":[9,0,12,0,10,8,23,112,8,25,1,62,16,53,18,17,31,20,2,11,11,147,0,10,4,2,0,1,1,1,1161],"29 Oct":[9,9,10,2,46,37,2,6,27,24,127,18,24,28,1,1,155,0,2,86,35,2,0,13,15,4,72,10,0,3],"30 Oct":[],"31 Oct":[32,0,0,19,3,5],"1 Nov":[83,77,61,12,0,26,0,0,10,0,5,0,6,2,0,0,18,72,0,7,7,0,14,24,0,91,2,10,2,4,20,0,4,0],"2 Nov":[15,0,40,0,64,18,0,30,0,0,12,0,58,10,25,66]};
+  const perDay = {"21 Oct":[851,243,23,147,109,14,24,65,40,57,56,1,54,2,4,121,33,23,35,28,35,63,78,169,141,2,86,50,87,10,7,6,12,104,118,83,18,43,21,14,7,39,15,3,0,41,13,44,2,18,40,17,106,19,19,52,78,14,4,7,0,11,0,52,11,13,12,4,25,6,29,55,7,0,39,8,2,4,2],"22 Oct":[],"23 Oct":[100,46,48,35,30,29,53,0,86,0,67,176,2,0,105,35,84,21,16,29,11,22,399,55,25,35,88,17],"24 Oct":[50,0,19,0,51,0,16,0,250,21,129,39,29,75,2,0,19,25,31,2,10,74,44,90,36,23],"25 Oct":[20,26,107,6,14,20,202,62,41,42,156,194,96,28,0,132,7,4,18,36,3,96,41,4,58,187,28,28,0,3,59,8,126,4,50,10,7,0,43,70,72,6,6,9,152,8,2,57,4],"26 Oct":[33,0,48,6,21,100,1,0],"27 Oct":[8,8,0,11,0,20,0,2,2,14,0,43,2,2,6,6,4,27,33,11,25,15,41,9],"28 Oct":[9,0,12,0,10,8,23,112,8,25,1,62,16,53,18,17,31,20,2,11,11,147,0,10,4,2,0,1,1,1,1161],"29 Oct":[9,9,10,2,46,37,2,6,27,24,127,18,24,28,1,1,155,0,2,86,35,2,0,13,15,4,72,10,0,3],"30 Oct":[],"31 Oct":[32,0,0,19,3,5],"1 Nov":[83,77,61,12,0,26,0,0,10,0,5,0,6,2,0,0,18,72,0,7,7,0,14,24,0,91,2,10,2,4,20,0,4,0],"2 Nov":[15,0,40,0,64,18,0,30,0,0,12,0,58,10,25,66,79,7,0,0,0,14],"3 Nov":[8],"4 Nov":[22,12,0,46,0,3,2,0,2,4,0,140,36,24,43,17,2,34,2,10,0,0,115,0],"5 Nov":[],"6 Nov":[],"7 Nov":[171,54,0,96,2,0,0,3,0,69,104,42,12,6,0,65,3,0,0,966,21,140,0,0,82,0,59,0,98,20,2,0,5,0,8,0,8,2],"8 Nov":[40,63,10,6,8,0,6,0,51,7,4,14,6,18,23,15,27,0,17,0,15,0,8,0,4,7,81,50,11,10,48,36,27,25,0,37,0,8,0,76,0,9,23,6,16,21,0,8,0,107,73,24,0,68,0,37,9,33,0,7,0,8,0]};
   const chart = document.getElementById('chart');
   for (const [day, commits] of Object.entries(perDay)) {
     const total = commits.reduce((a, b) => a + b, 0);

@@ -7,10 +7,11 @@ Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift an
 On touch devices, on-screen buttons replace the keyboard (big steer left/right buttons on the left; on the right the top row raises/lowers the forks and the bottom row drives back/forward, plus Menu (top right); the Menu's "Touch controls" option switches layout: classic, rotated (forks up/down in the left column, drive forward/back in the right column of the bottom-right pad), or a virtual joystick bottom left for driving with only the fork buttons bottom right; tap the level-complete board for the next level; the cabin view is not offered on touch, except as a hidden easter egg: in landscape, tap the minimap to swap between overview and cab view; rotating to portrait switches back to the overview; plus Next after a win).
 | Key | Action |
 |-----|--------|
-| ↑ / ↓ | Drive forward / reverse |
+| ↑ / ↓ | Drive forward / reverse (the truck stays in gear D or R until it has stopped and starts moving the other way; R turns on reverse lights and beeps, the GL cabin view keeps looking forward and doesn't swivel round) |
 | ← / → | Steer (rear wheels steer, so the tail swings out) |
 | A / Z | Forks up / down one level |
-| C | Show / hide the small corner window (cabin view, or the overview while the big view is the cabin) |
+| C | Switch the 3D overview between the top-down camera and a third-person camera (behind and above the forklift, which always points up the screen while the world rotates); also a menu option, or double-tap (double-click) the 3D overview |
+| W / Q | Look around in the 3D (WebGL) views: turn the cabin view left (W) / right (Q), or swing the overview around the forklift. Dragging the view with the mouse/touch does the same (also tilts); driving springs the camera back |
 | M / Tab | Swap the big view between the top-down overview and the cabin (first-person) view. The cabin view has two small top-down windows at the top centre: rear on the left, front on the right |
 | R | Restart level |
 | (pause menu) | Button to stop or restart the on-screen tutorial (shown once on first play: drive, forks, place a stack, cab view; each step disappears when you do it) |
@@ -19,7 +20,7 @@ On touch devices, on-screen buttons replace the keyboard (big steer left/right b
 | Enter | Next level (after winning) |
 
 ## 3D graphics
-The overview, cabin view and look windows are rendered in true 3D with WebGL2 (depth-buffered, lit, fogged; no libraries). If WebGL2 isn't available the game falls back to the old 2D canvas renderers. The pause menu's "3D graphics (WebGL)" option (or `?gl=0` / `?gl=1` in the URL) switches between them.
+The overview, cabin view and look windows are rendered in true 3D with WebGL2 (depth-buffered, lit, fogged; no libraries). If WebGL2 isn't available the game falls back to the old 2D canvas renderers. The pause menu's "3D graphics (WebGL)" option (or `?gl=0` / `?gl=1`, see [URL parameters](#url-parameters)) switches between them.
 
 ## Saved progress
 The level in progress (stacks, forklift, forks, timer) is saved in your browser every second, so reloading the page resumes where you left off. The pause menu has **Export state** (fills the text box with a compressed base64 string, or plain JSON in `?debug` mode, and copies it to the clipboard) and **Import state** (paste a previously exported state into the box to load it, including its seed, hard mode and level).
@@ -41,7 +42,17 @@ Fork level is a whole number 0–5 (height above the floor in box heights), chan
 - The gauge on the right shows the fork level, the stack the forks are in, and what you carry. A stack shows its top colour, plus a coloured number for every box below it (number = layer from the bottom).
 
 ## Debug overlay
-Add `?debug` to the URL (e.g. `index.html?debug`) for an FPS counter, frame/update/draw timings and their share of frame time (update/draw/debug/idle %, where debug is the overlay's own cost), boxes in the right place and other state, for troubleshooting performance.
+Add `?debug` to the URL (see [URL parameters](#url-parameters)) for an FPS counter, frame/update/draw timings and their share of frame time (update/draw/debug/idle %, where debug is the overlay's own cost), boxes in the right place and other state, for troubleshooting performance.
+
+## URL parameters
+Combine with `&`, e.g. `index.html?skip&debug&gl=0`.
+
+| Parameter | Effect |
+|-----------|--------|
+| `?gl=0` / `?gl=1` | Force the 2D canvas / WebGL2 renderers (overrides the saved setting) |
+| `?debug` | Show the [debug overlay](#debug-overlay); state export is plain JSON |
+| `?skip` | Skip the splash screen and start the game, with the tutorial off for that visit (saved settings are kept) |
+| `?testing` | Show the TESTING banner/favicon (always on when not served from the production host) |
 
 ## Run / deploy
 No build step. Serve the folder statically (ES modules need http): `python3 -m http.server`, then open http://localhost:8000.

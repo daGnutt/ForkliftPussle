@@ -17,6 +17,7 @@ const CRASH_COOLDOWN = 0.4;
 const BONK_MIN_SPEED = 1.2;
 const BONK_LOSS = 0.4; // fraction of forward motion lost in one step that counts as a bonk
 const BONK_COOLDOWN = 0.2;
+const LOOK_BACK_DELAY = 1; // s in gear R before the chase camera swings round to look backwards
 const SCRAPE_MIN_SPEED = 0.3; // speed while touching a wall that scrapes
 const FORK_PUSH_FAST = 2; // above this speed a fork push damages the whole stack, not just the boxes below the forks
 const FORK_BLOCK_POINTS = 10;
@@ -223,6 +224,8 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     H: 0,
     hf: 0,
     ef: 0,
+    revTime: 0, // seconds spent in gear R; the chase camera only looks back after LOOK_BACK_DELAY
+    rv: 0, // 0..1 smoothed: how far the chase camera has turned to look backwards (gear R)
     status: 'play',
     time: 0,
     started: false,
@@ -435,6 +438,9 @@ export function update(g, input, dt) {
   }
 
   g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
+  if (f.gear === 'D') g.revTime = 0;
+  else g.revTime += dt;
+  g.rv += ((f.gear === 'R' && g.revTime > LOOK_BACK_DELAY ? 1 : 0) - g.rv) * (1 - Math.exp(-dt / 0.15));
   g.ef += (g.hf - g.ef) * (1 - Math.exp(-dt / 0.22)); // cabin eye trails the forks
   // visual lowering of a just-released stack ends when the forks reach it
   for (const s of g.stacks) if (s.dropFrom != null && (g.hf <= s.dropFrom + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;
@@ -581,8 +587,11 @@ export function zoneDone(g, z) {
 }
 
 // Where the overview paints a zone's "×count": just below the zone, or above it when a wall (e.g. the south border) would cover that spot.
+// The choice is shared by every drop point of the drop-off area, so a row of labels never mixes above and below.
 export function zoneLabelPos(g, z) {
-  const hit = (y) => g.walls.some((w) => z.x + 0.4 > w.x && z.x - 0.4 < w.x + w.w && y + 0.25 > w.y && y - 0.25 < w.y + w.h);
-  const below = z.y + 0.92;
-  return { x: z.x, y: hit(below) && !hit(z.y - 0.92) ? z.y - 0.92 : below };
+  const hit = (x, y) => g.walls.some((w) => x + 0.4 > w.x && x - 0.4 < w.x + w.w && y + 0.25 > w.y && y - 0.25 < w.y + w.h);
+  const mates = g.zones.filter((o) => o.color === z.color);
+  const southWall = mates.some((o) => hit(o.x, o.y + 0.92));
+  const above = southWall && !hit(z.x, z.y - 0.92);
+  return { x: z.x, y: above ? z.y - 0.92 : z.y + 0.92 };
 }

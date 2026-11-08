@@ -3,6 +3,7 @@ import { FL, toWorld } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
+import { chaseTiles as chaseTilesFor, clearChaseTilt, CHASE_TILT } from './gl/camera.js';
 import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
@@ -257,7 +258,27 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
       ctx.fillRect(rx, ry, rw, rh);
     }
   }
-  if (drawOverview3d(ctx, g, rx, ry, rw, rh, (rx + rw / 2 - ox) / s, (ry + rh / 2 - oy) / s, s, view.dpr)) {
+  view.ovTiles = rh / s;
+  const chaseTiles = view.chaseZoom == null ? view.ovTiles : chaseTilesFor(view.chaseZoom);
+  if (follow && view.chase) {
+    // wall in the way: orbit upwards (smaller tilt) until half the forklift is visible; main.js eases view.chaseLift toward the target
+    const heading = view.camA ?? g.fl.a, yaw = view.orbit ? view.orbit.yaw : 0, base = view.orbit ? view.orbit.tilt : CHASE_TILT;
+    view.chaseLiftTarget = base - clearChaseTilt(g, chaseTiles, heading, yaw, base);
+  }
+  const lifted = view.chase && view.chaseLift > 0.001 ? { yaw: view.orbit ? view.orbit.yaw : 0, tilt: Math.max(0.05, (view.orbit ? view.orbit.tilt : CHASE_TILT) - view.chaseLift) } : view.orbit;
+  const foot = follow && view.chase && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, lifted, chaseTiles, view.camA ?? g.fl.a);
+  if (foot) {
+    if (zoomed) ctx.restore();
+    return { x: 0, y: 0, w: g.w, h: g.h, poly: foot }; // chase: the minimap outlines the tilted floor footprint
+  }
+  if (follow && view.chaseZoom != null) { // user zoom: centred on the forklift at the slider's zoom
+    const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0), s2 = rh / chaseTilesFor(view.chaseZoom);
+    if (drawOverview3d(ctx, g, rx, ry, rw, rh, c.x, c.y, s2, view.dpr, view.orbit)) {
+      if (zoomed) ctx.restore();
+      return { x: c.x - rw / s2 / 2, y: c.y - rh / s2 / 2, w: rw / s2, h: rh / s2 };
+    }
+  }
+  if (drawOverview3d(ctx, g, rx, ry, rw, rh, (rx + rw / 2 - ox) / s, (ry + rh / 2 - oy) / s, s, view.dpr, follow ? view.orbit : null)) {
     if (zoomed) ctx.restore();
     return cam;
   }
@@ -318,7 +339,15 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   ctx.fill();
   ctx.stroke();
   ctx.strokeStyle = '#f9a825';
-  ctx.strokeRect(cam.x * s, cam.y * s, cam.w * s, cam.h * s);
+  if (cam.poly) {
+    ctx.beginPath();
+    ctx.rect(0, 0, w, h);
+    ctx.clip();
+    ctx.beginPath();
+    cam.poly.forEach(([px, py], i) => (i ? ctx.lineTo(px * s, py * s) : ctx.moveTo(px * s, py * s)));
+    ctx.closePath();
+    ctx.stroke();
+  } else ctx.strokeRect(cam.x * s, cam.y * s, cam.w * s, cam.h * s);
   ctx.restore();
 }
 
@@ -629,33 +658,21 @@ export function draw(ctx, g, view) {
   const strip = view.touch && !view.povBig && width > height;
   let mmBox = null;
   view.miniHit = null;
-  const POV_W = 300, POV_H = 170, hx0 = view.showSmall ? 20 + POV_W + 16 : 20;
+  const hx0 = 20;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   if (view.povBig) {
-    if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr)) drawPov(ctx, g, 0, 0, width, height);
+    if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr, view.look)) drawPov(ctx, g, 0, 0, width, height);
     if (view.touch && width > height) { // easter egg: the minimap stays tappable to swap back to the overview
       const mm = miniSize(g, 120, 70), mx = (width - mm.w) / 2, my = height - 8 - mm.h;
       drawMiniMap(ctx, g, { x: 0, y: 0, w: g.w, h: g.h }, mx, my, mm.s);
       view.miniHit = { x: mx - 3, y: my - 3, w: mm.w + 6, h: mm.h + 6 };
     }
     const mw = Math.min(150, width * 0.14), mh = mw * 0.75;
-    drawLookWindow(ctx, g, width / 2 - mw - 4, 8, mw, mh, true, view.dpr);
-    drawLookWindow(ctx, g, width / 2 + 4, 8, mw, mh, false, view.dpr);
+    // Touch landscape: leave a wide gap between the windows so the view straight ahead stays visible.
+    const half = view.touch && width > height ? Math.max(4, width * 0.2) : 4;
+    drawLookWindow(ctx, g, width / 2 - mw - half, 8, mw, mh, true, view.dpr);
+    drawLookWindow(ctx, g, width / 2 + half, 8, mw, mh, false, view.dpr);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-    if (view.showSmall) {
-      ctx.fillStyle = theme().bg;
-      ctx.fillRect(10, 10, POV_W, POV_H);
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(10, 10, POV_W, POV_H);
-      ctx.clip();
-      drawOverview(ctx, g, view, 10, 10, POV_W, POV_H, 48);
-      ctx.restore();
-      ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-      ctx.strokeStyle = '#111';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(10, 10, POV_W, POV_H);
-    }
   } else {
     // On touch the control buttons take the bottom 208px (two 84px fork buttons + gap + margin), so the field ends above them.
     // In landscape the buttons are smaller (see style.css): steering bottom left, drive/forks bottom right, a small minimap
@@ -671,7 +688,7 @@ export function draw(ctx, g, view) {
     const touchLand = view.touch && !portrait;
     const zoomedIn = Math.min(48, rw / g.w, rh / g.h) < MIN_FOLLOW_SCALE;
     if (touchLand && !zoomedIn) { rw = width - rx - GAUGE_W; rh = Math.min(rh, height - ry - PAD_H); }
-    let mmX = 13, mmY = (view.showSmall ? 190 : 100) + 6;
+    let mmX = 13, mmY = 100 + 6;
     if (strip) {
       mmX = (width - mm.w) / 2;
       mmY = height - 8 - mm.h;
@@ -684,7 +701,6 @@ export function draw(ctx, g, view) {
     const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true, touchLand && zoomedIn ? GAUGE_W : 0, touchLand && zoomedIn ? PAD_H : 0);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
     if (strip || cam) drawMiniMap(ctx, g, cam || { x: 0, y: 0, w: g.w, h: g.h }, mmX, mmY, mm.s);
-    if (view.showSmall && !drawPov3d(ctx, g, 10, 10, POV_W, POV_H, view.dpr)) drawPov(ctx, g, 10, 10, POV_W, POV_H);
   }
   // screen-space HUD
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
