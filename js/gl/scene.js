@@ -283,9 +283,8 @@ function discoLights(g, eye) {
   return out.sort((p, q) => p.d - q.d).slice(0, LIGHT_MAX);
 }
 
-// Dark mode: headlights, reverse and brake lights plus downward-pointing ceiling fixtures near the camera.
-// Fixtures have a fixed strength (faded near the range limit) and a downward cone so they don't light walls sideways.
-const HEAD_I = 1.5, CEIL_MAX = 12, CEIL_I = 0.2, CEIL_FAR = 16, CEIL_FADE = 4, CEIL_CONE = 0.35, WARM = [1, 0.95, 0.8];
+// Dark mode: headlights, reverse and brake lights; the ceiling fixtures are only decals, the room's glow is ambient (`DARK_LIGHT`).
+const HEAD_I = 1.5, WARM = [1, 0.95, 0.8];
 function darkLights(g, eye) {
   const f = g.fl, c = Math.cos(f.a), s = Math.sin(f.a), out = [];
   const lamp = (lx, ly, z, r, col, dir, cone) => {
@@ -298,14 +297,6 @@ function darkLights(g, eye) {
   for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 1.8, [0.5, 0.05, 0.03], back, 0.2); // idle tail glow
   if (f.gear === 'R') for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 4.5, [0.9, 0.9, 0.95], back, 0.45);
   if (f.brake) for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 2.2, [0.8, 0.1, 0.06], back, 0.3);
-  const down = [0, 0, -1];
-  const near = overheadDecals(g).lights
-    .map((l) => ({ l, d: Math.hypot(l.x - eye[0], l.y - eye[1]) }))
-    .filter((e) => e.d < CEIL_FAR).sort((p, q) => p.d - q.d).slice(0, CEIL_MAX); // LIGHT_MAX slots are shared with truck and disco lights
-  for (const { l, d } of near) {
-    const fade = Math.min(1, (CEIL_FAR - d) / CEIL_FADE); // no pop when a fixture enters or leaves range
-    out.push({ x: l.x, y: l.y, z: WALL_H - 0.2, r: 8, col: WARM.map((v) => v * CEIL_I * fade), dir: down, cone: CEIL_CONE });
-  }
   return out;
 }
 
