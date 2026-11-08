@@ -1,5 +1,5 @@
 import { theme } from '../theme.js';
-import { staticMeshes, dynamicMeshes, LIGHT_MAX } from './scene.js';
+import { staticMeshes, dynamicMeshes, wallClip, LIGHT_MAX } from './scene.js';
 import { parseColor } from './mesh.js';
 import { projectPoint } from './mat.js';
 
@@ -25,6 +25,7 @@ precision highp float;
 in vec3 vN;
 in vec4 vC;
 in vec3 vW;
+uniform vec4 uClip; // xy normal, z offset, w height: static geometry beyond the plane is cut above that height
 uniform vec3 uEye, uSun, uSunCol, uAmbUp, uAmbDown, uFogCol;
 uniform float uFogA, uFogB, uFogMax, uAdd;
 const int NL = 24;
@@ -34,6 +35,7 @@ uniform vec3 uLC[NL];
 uniform vec4 uLD[NL]; // xyz spot direction, w cone cosine (-2 = omni)
 out vec4 o;
 void main() {
+  if (vW.z > uClip.w && dot(vW.xy, uClip.xy) > uClip.z) discard;
   vec3 col = vC.rgb;
   if (dot(vN, vN) > 0.01) {
     vec3 n = normalize(vN);
@@ -92,7 +94,7 @@ function init() {
   u.uLP = gl.getUniformLocation(prog, 'uLP[0]');
   u.uLC = gl.getUniformLocation(prog, 'uLC[0]');
   u.uLD = gl.getUniformLocation(prog, 'uLD[0]');
-  for (const n of ['uVP', 'uEye', 'uSun', 'uSunCol', 'uAmbUp', 'uAmbDown', 'uFogCol', 'uFogA', 'uFogB', 'uFogMax', 'uAdd', 'uNL']) u[n] = gl.getUniformLocation(prog, n);
+  for (const n of ['uVP', 'uEye', 'uSun', 'uSunCol', 'uAmbUp', 'uAmbDown', 'uFogCol', 'uFogA', 'uFogB', 'uFogMax', 'uAdd', 'uNL', 'uClip']) u[n] = gl.getUniformLocation(prog, n);
   canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); R = null; });
   canvas.addEventListener('webglcontextrestored', () => { failed = false; });
   return { canvas, gl, prog, u, vao: gl.createVertexArray(), buf: gl.createBuffer(), statics: { pov: null, ov: null } };
@@ -206,7 +208,10 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
   gl.uniform3fv(u.uLC, lc);
   gl.uniform4fv(u.uLD, ld);
 
+  const off = [0, 0, 1e9, 1e9];
+  gl.uniform4fv(u.uClip, mode === 'ov' ? wallClip(g, cam) : off);
   drawBuffer(r, st.opaque.buf, st.opaque.count);
+  gl.uniform4fv(u.uClip, off);
   drawMesh(r, dyn.opaque);
 
   gl.enable(gl.BLEND);
@@ -214,7 +219,9 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
   gl.depthMask(false);
   gl.enable(gl.POLYGON_OFFSET_FILL);
   gl.polygonOffset(-2, -2);
+  gl.uniform4fv(u.uClip, mode === 'ov' ? wallClip(g, cam) : off);
   drawBuffer(r, st.trans.buf, st.trans.count);
+  gl.uniform4fv(u.uClip, off);
   drawMesh(r, dyn.trans);
   gl.disable(gl.POLYGON_OFFSET_FILL);
   gl.depthMask(true);

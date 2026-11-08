@@ -43,7 +43,7 @@ export function overviewCamera(cx, cy, tilesH, w, h, up = [0, -1], tilt = OV_TIL
   const f2h = 1 / Math.tan(OV_VFOV / 2);
   const proj = perspective((f2h * h) / w, f2h, 0, dist * 0.15, dist * 3);
   const view = viewBasis(eye, [-uy, ux, 0], [ux * ct, uy * ct, st], [ux * st, uy * st, -ct]);
-  return { vp: mul(proj, view), eye, w, h };
+  return { vp: mul(proj, view), eye, w, h, down: [-ux, -uy] };
 }
 
 export const CHASE_TILES = 11, CHASE_TILT = 0.95, CHASE_OUT = 0.8;
