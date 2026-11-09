@@ -178,6 +178,7 @@ function springBack(dt) {
   if (!view.orbit && !view.look) view.snap = false;
 }
 let drag = null;
+canvas.addEventListener('pointerdown', () => { if (!splashOn) view.startHidden = true; }, true);
 canvas.addEventListener('pointerdown', (e) => {
   if (e.target !== canvas || !glEnabled() || splashOn || recordOpen || view.menuOpen) return;
   drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
@@ -605,9 +606,14 @@ const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 // ?skip in the URL bypasses the splash (keeps saved settings; no audio until a key/click starts it)
 if (new URLSearchParams(location.search).has('skip')) startGame();
+const START_BOARD_SECS = 10;
 function frame(now) {
-  acc += Math.min(0.1, (now - last) / 1000);
+  const dtReal = Math.min(0.1, (now - last) / 1000);
+  acc += dtReal;
   last = now;
+  // the start board hides on touch/click (below) or after START_BOARD_SECS of being visible
+  if (view.startG !== game) { view.startG = game; view.startT = 0; view.startHidden = false; }
+  if (!splashOn && !view.paused && !view.menuOpen && !game.started && (view.startT += dtReal) > START_BOARD_SECS) view.startHidden = true;
   if (view.paused) acc = 0;
   const t0 = performance.now();
   let steps = 0;
