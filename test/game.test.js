@@ -453,7 +453,7 @@ console.log('all tests passed');
   assert.equal(newGame(2, 7).seed, 7);
 }
 
-// Nudging a box slowly squares it to the forklift; a stack's bottom box takes a little damage.
+// Nudging a box slowly squares it to the forklift; it causes no damage.
 {
   const g = newGame(1);
   flatWorld(g);
@@ -467,7 +467,7 @@ console.log('all tests passed');
   }
   const s = g.stacks[0];
   assert.ok(Math.abs(s.a) < 0.01 && Math.abs(s.rots[1]) < 0.01, 'stack turned square to the forklift');
-  assert.ok(s.pen[0].crash > 0 && s.pen[0].crash < 10, 'bottom box takes a little damage');
+  assert.equal(s.pen[0].crash, 0, 'nudging does not damage the bottom box');
   assert.equal(s.pen[1].crash, 0, 'upper box undamaged');
   console.log('box-align ok');
 }

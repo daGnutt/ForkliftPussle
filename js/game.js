@@ -26,7 +26,6 @@ const CEILING_POINTS = 10; // crash points per box on the forks each time they h
 const PALLET_INERTIA = 0.17; // radius of gyration squared of a unit box
 const ALIGN_MIN_SPEED = 0.05;
 const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
-const ALIGN_DAMAGE = 10; // crash points per radian turned, bottom box of a multi-box stack only
 
 // `deco` is the box's decal kind; it lives in the pen entry so it travels with the box.
 const newPen = (col = 0, seed = 0) => ({ crash: 0, sq: 0, deco: boxDecalKind(col, seed) });
@@ -373,10 +372,8 @@ function alignStack(g, s, dt) {
     return Math.max(-step, Math.min(step, diff));
   };
   ensure(s);
-  const t0 = turn(s.rots[0]);
   s.rots = s.rots.map((r) => r + turn(r));
   s.a = (s.a || 0) + turn(s.a || 0);
-  if (s.layers.length > 1) s.pen[0].crash = Math.min(CRASH_POINTS, s.pen[0].crash + Math.abs(t0) * ALIGN_DAMAGE);
 }
 
 // A pallet on the tines is held sideways with the forks (the whole stack moves) but can still slide along them;
