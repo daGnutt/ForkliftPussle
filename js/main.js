@@ -109,6 +109,15 @@ function toggleFullscreen() {
   else document.documentElement.requestFullscreen?.().catch(() => {});
 }
 
+let cursorTimer = 0;
+function wakeCursor() {
+  canvas.classList.remove('idle');
+  clearTimeout(cursorTimer);
+  if (document.fullscreenElement) cursorTimer = setTimeout(() => canvas.classList.add('idle'), 2000);
+}
+canvas.addEventListener('mousemove', wakeCursor);
+document.addEventListener('fullscreenchange', wakeCursor);
+
 function nextLevel() { if (game.status === 'won') load(level + 1); }
 
 function toggleChase() {
