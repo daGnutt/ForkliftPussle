@@ -1,5 +1,5 @@
 // Online high score server (https://highscore.gnutt.se). Every call fails soft: offline keeps the local score.
-import { unsynced, markSynced } from './highscores.js';
+import { unsynced, markSynced, mergeRemote } from './highscores.js';
 import { isTesting } from './testing.js';
 
 const API = 'https://highscore.gnutt.se/api/games';
@@ -39,6 +39,32 @@ export async function syncScores(store, submit = submitScore) {
     sent++;
   }
   return sent;
+}
+
+// One page of a player's scores across all boards ({data, total}), or null when offline.
+async function fetchPlayerPage(name, offset, limit) {
+  try {
+    const res = await fetch(`${API}/${GAME}/players/${encodeURIComponent(name)}/scores?limit=${limit}&offset=${offset}`);
+    const json = await res.json();
+    return json.status === 'success' ? json : null;
+  } catch { return null; }
+}
+
+const PAGE = 100, MAX_PAGES = 20;
+
+// Downloads all of a player's global scores into the local high scores. Resolves to { fetched, added } or null when offline.
+export async function pullScores(store, name, fetchPage = fetchPlayerPage) {
+  let fetched = 0, added = 0;
+  for (let page = 0, offset = 0; page < MAX_PAGES; page++, offset += PAGE) {
+    const res = await fetchPage(name, offset, PAGE);
+    if (!res) return null;
+    for (const e of res.data) {
+      fetched++;
+      if (mergeRemote(store, e.board, { score: e.points, time: e.time ?? 0, name: e.name })) added++;
+    }
+    if (!res.data.length || offset + PAGE >= res.total) break;
+  }
+  return { fetched, added };
 }
 
 // Resolves to the top 10 entries, or null when offline.

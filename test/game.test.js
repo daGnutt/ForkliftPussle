@@ -522,6 +522,20 @@ console.log('all tests passed');
   assert.equal(unsynced(st3).length, 1);
   saveBest(st3, 7, 1, { score: 11, time: 5, name: 'a' }); // new best is unsynced again
   assert.equal(unsynced(st3).length, 2);
+  const { pullScores } = await import('../js/globalscores.js');
+  const st4 = { d: {}, getItem(k) { return this.d[k] ?? null; }, setItem(k, v) { this.d[k] = v; } };
+  saveBest(st4, 7, 1, { score: 50, time: 5, name: 'me' });
+  const remote = [{ board: '7:1', name: 'me', points: 30, time: 9 }, { board: '7:2', name: 'me', points: 20, time: 6 }, { board: 'default', name: 'me', points: 1, time: 1 }];
+  const fetchPage = async () => ({ data: remote, total: 3 });
+  assert.deepEqual(await pullScores(st4, 'me', fetchPage), { fetched: 3, added: 2 });
+  assert.deepEqual(getBest(st4, 7, 1), { score: 50, time: 5, name: 'me' }, 'a worse remote score keeps the local best');
+  assert.deepEqual(getBest(st4, 7, 2), { score: 20, time: 6, name: 'me', synced: true }, 'a pulled best counts as synced');
+  assert.equal(getTop(st4, 7, 1).length, 2, 'the pulled run joins the local top list');
+  assert.deepEqual(await pullScores(st4, 'me', fetchPage), { fetched: 3, added: 0 }, 'pulling twice adds nothing');
+  assert.equal(await pullScores(st4, 'me', async () => null), null, 'offline');
+  const offsets = [];
+  await pullScores(st4, 'me', async (n, o) => { offsets.push(o); return { data: [remote[0]], total: 150 }; });
+  assert.deepEqual(offsets, [0, 100], 'pages through all scores');
   console.log('highscores ok');
 }
 
