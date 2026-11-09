@@ -122,7 +122,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 |------|---------|---------|
 | **HUD** | Score, time, best, loss breakdown overlay | `render.js` |
 | **Status strip** | Compact HUD line (e.g. with the cabin view) | `render.js` |
-| **Start board** | Level + local/global best shown until the truck first moves | `drawStartBoard` |
+| **Start board** | Level + local/global best shown until the truck first moves, the canvas is touched/clicked, or 10 s have passed | `drawStartBoard` |
 | **Level complete overlay** | End-of-level breakdown with top lists | `render.js` |
 | **Splash** | Title screen: seed, Start, Disco start, options | `#splash` |
 | **Menu / pause menu** | Esc/P menu with pages: main, sound, display, game, info, state | `#menu` |

@@ -785,7 +785,7 @@ export function draw(ctx, g, view) {
   ctx.fillStyle = '#f9a825';
   ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
 
-  if (g.status === 'play' && !g.started && !view.paused && !view.menuOpen) drawStartBoard(ctx, g, view, width, height);
+  if (g.status === 'play' && !g.started && !view.startHidden && !view.paused && !view.menuOpen) drawStartBoard(ctx, g, view, width, height);
   if (view.paused) {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(0, 0, width, height);
