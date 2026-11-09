@@ -742,18 +742,31 @@ export function draw(ctx, g, view) {
   const ready = g.status === 'play' && isSolved(g) && scoreEnough(g);
   const now = performance.now();
   const sig = `${g.level}|${g.seed}|${done}|${score(g)}|${lostNow.crash}|${lostNow.square}|${hint}`;
-  if (view.hudSig !== sig) {
-    if (view.hudSig !== undefined) view.hudShownAt = now;
-    view.hudSig = sig;
-  }
+  // A change only (re)triggers the HUD while it is hidden or on its way up; otherwise it is locked.
+  const hudTrigger = view.hudSig !== undefined && view.hudSig !== sig;
+  view.hudSig = sig;
   if (ready && !view.hudReady) view.flashAt = now;
   view.hudReady = ready;
   // Full screen: the HUD floats down from the top when something changes, waits, then floats back up.
   let hudOff = 0;
   if (view.fullscreen && !(view.touch && width > height)) { // touch landscape: the strip obstructs nothing, so it stays
-    const t = (now - (view.hudShownAt ?? -1e9)) / 1000;
     const IN = 0.45, HOLD = 2, OUT = 0.5;
-    const p = t < IN ? t / IN : t < IN + HOLD ? 1 : t < IN + HOLD + OUT ? 1 - (t - IN - HOLD) / OUT : 0;
+    const dt = Math.min(0.1, Math.max(0, (now - (view.hudLast ?? now)) / 1000));
+    let a = view.hudAnim;
+    if (!a) a = view.hudAnim = { phase: 'idle', p: 0, hold: 0 };
+    if (hudTrigger && (a.phase === 'idle' || a.phase === 'out')) a.phase = 'in';
+    if (a.phase === 'in') {
+      a.p = Math.min(1, a.p + dt / IN);
+      if (a.p >= 1) { a.phase = 'hold'; a.hold = 0; }
+    } else if (a.phase === 'hold') {
+      a.hold += dt;
+      if (a.hold >= HOLD) a.phase = 'out';
+    } else if (a.phase === 'out') {
+      a.p = Math.max(0, a.p - dt / OUT);
+      if (a.p <= 0) a.phase = 'idle';
+    }
+    const p = a.p;
+    view.hudLast = now;
     hudOff = (1 - p * p * (3 - 2 * p)) * (strip ? -130 : 130);
   }
   const hudHidden = Math.abs(hudOff) >= 130;
