@@ -606,15 +606,12 @@ const debug = debugEnabled(location.search) ? createDebug() : null;
 initTestingBanner();
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
-// ?skip in the URL bypasses the splash (keeps saved settings; no audio until a key/click starts it)
+// ?skip in the URL bypasses the splash and opens the main menu (keeps saved settings; no audio until a key/click starts it)
 if (new URLSearchParams(location.search).has('skip')) {
   startGame();
-  // On touch, enter fullscreen on the first tap (browsers require a user gesture); the saved setting is untouched
-  if (isTouch) {
-    document.addEventListener('pointerup', () => {
-      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
-    }, { once: true });
-  }
+  // Start in the main menu: leaving it is the user gesture that lets auto full-screen kick in (on touch, for this visit only; not saved)
+  if (isTouch) { autoFs = true; autoFsOpt.checked = true; }
+  toggleMenu(true);
 }
 const START_BOARD_SECS = 10;
 function frame(now) {
