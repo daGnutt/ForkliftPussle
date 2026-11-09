@@ -17,6 +17,7 @@
   article { display: flex; gap: 1.5rem; align-items: flex-start; margin: 1.6rem 0; flex-wrap: wrap; }
   .shots { flex: 2 1 28rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: .6rem; }
   .shots img { width: 100%; border-radius: 8px; border: 1px solid #2a313b; box-shadow: 0 6px 24px #0008; }
+  .shots img.portrait { width: auto; max-width: 100%; max-height: 28rem; justify-self: start; }
   .txt { flex: 1 1 14rem; }
   h3 { margin: 0 0 .4rem; font-size: 1.2rem; }
   p { margin: 0 0 .5rem; line-height: 1.5; color: #cfd6df; }
@@ -61,7 +62,7 @@
 <article><div class="shots"><img src="devlog/22-revlight.webp" loading="lazy" alt="Reversing light and beeper"></div><div class="txt"><h3>Reversing light and beeper</h3><p>A blue light and a warning beep while reversing.</p><code>8733a65</code></div></article>
 <article><div class="shots"><img src="devlog/23-music.webp" loading="lazy" alt="Music"></div><div class="txt"><h3>Music</h3><p>Selectable music tracks, later replaced by public-domain, CC0 and CC-BY MIDI songs played by a small synth.</p><code>aae9c6e</code></div></article>
 <article><div class="shots"><img src="devlog/24-charger.webp" loading="lazy" alt="Wall charger"></div><div class="txt"><h3>Wall charger</h3><p>The truck parks tail-first against a red wall-mounted charger.</p><code>9999fde</code></div></article>
-<article><div class="shots"><img src="devlog/25-touch.webp" loading="lazy" alt="Touch controls"></div><div class="txt"><h3>Touch controls</h3><p>On-screen buttons, a follow-camera overview with minimap, and an installable PWA.</p><code>c1cfc88</code></div></article>
+<article><div class="shots"><img class="portrait" src="devlog/25-touch.webp" loading="lazy" alt="Touch controls"></div><div class="txt"><h3>Touch controls</h3><p>On-screen buttons, a follow-camera overview with minimap, and an installable PWA.</p><code>c1cfc88</code></div></article>
 <article><div class="shots"><img src="devlog/26-landscape.webp" loading="lazy" alt="Landscape layout"></div><div class="txt"><h3>Landscape layout</h3><p>The touch UI rotates: pads beside the field, minimap between them.</p><code>8da8e2e</code></div></article>
 </section>
 <section class="day" id="d2026-10-28"><h2><span>2026-10-28</span> Splash and polish</h2>
