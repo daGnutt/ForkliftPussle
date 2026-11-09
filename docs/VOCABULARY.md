@@ -121,6 +121,8 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | Term | Meaning | In code |
 |------|---------|---------|
 | **HUD** | Score, time, best, loss breakdown overlay | `render.js` |
+| **HUD pop-up** | In full screen the HUD is hidden and floats down for ~2 s when score/zones/hint change | `render.js` |
+| **Unlock flash** | Full-screen centre banner when the parking spot unlocks | `render.js` |
 | **Status strip** | Compact HUD line (e.g. with the cabin view) | `render.js` |
 | **Start board** | Level + local/global best shown until the truck first moves, the canvas is touched/clicked, or 10 s have passed | `drawStartBoard` |
 | **Level complete overlay** | End-of-level breakdown with top lists | `render.js` |

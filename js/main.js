@@ -652,6 +652,7 @@ function frame(now) {
   setScrape(game.scrape);
   if (game.bonks !== bonkCount) { if (game.bonks > bonkCount) playBonk(game.bonkPower); bonkCount = game.bonks; }
   const t2 = performance.now();
+  view.fullscreen = !!document.fullscreenElement;
   draw(ctx, game, view);
   if (debug) {
     const t3 = performance.now();
