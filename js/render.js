@@ -5,6 +5,7 @@ import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
 import { labelRows, hitRows } from './pov/overlay.js';
 import { chaseTiles as chaseTilesFor, clearChaseTilt, CHASE_TILT } from './gl/camera.js';
+import { beginGlFrame } from './gl/renderer.js';
 import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
@@ -672,8 +673,10 @@ function drawReadyFlash(ctx, width, height, t) {
 export function draw(ctx, g, view) {
   const { width, height } = view;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = theme().bg;
-  ctx.fillRect(0, 0, width, height);
+  if (!beginGlFrame(ctx, theme().bg)) {
+    ctx.fillStyle = theme().bg;
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  }
   const strip = view.touch && !view.povBig && width > height;
   let mmBox = null;
   view.miniHit = null;

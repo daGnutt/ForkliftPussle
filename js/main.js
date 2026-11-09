@@ -8,7 +8,7 @@ import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { setBareForks, bareForksEnabled } from './gl/models.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
-import { glEnabled, setGlEnabled } from './gl/renderer.js';
+import { glEnabled, setGlEnabled, attachGlCanvas } from './gl/renderer.js';
 import { themeMode, setThemeMode } from './theme.js';
 import { discoEnabled, setDiscoEnabled } from './disco.js';
 import { CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
@@ -18,7 +18,8 @@ import { startSplash3d } from './splash3d.js';
 import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d', { alpha: false });
+const ctx = canvas.getContext('2d');
+attachGlCanvas(document.getElementById('gameGl'), ctx);
 const isTouch = matchMedia('(pointer: coarse)').matches;
 const view = { width: 0, height: 0, dpr: 1, povBig: !isTouch && localStorage.getItem('forklift-cab-view') === '1', chase: localStorage.getItem('forklift-chase-cam') === '1', chaseZoom: localStorage.getItem('forklift-chase-zoom') === null ? null : Number(localStorage.getItem('forklift-chase-zoom')), touch: isTouch };
 

@@ -5,6 +5,9 @@ html, body { --bg: #e8e6e1; --bar: #d6d3cc; --fg: #333; --accent: #b36b00; --spl
 html[data-theme="dark"], html[data-theme="dark"] body { --bg: #1b1f23; --bar: #111; --fg: #ccc; --accent: #f9a825; --splash1: #2b3138; --splash2: #111; --title: #eee; --shadow: #000; --input: #1b1f24; --border: #555; color-scheme: dark; }
 html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; font-family: sans-serif; }
 body { display: flex; flex-direction: column; }
+#stage { flex: 1; position: relative; min-height: 0; }
+#stage canvas { position: absolute; inset: 0; height: 100%; }
+#gameGl { pointer-events: none; }
 canvas { flex: 1; width: 100%; min-height: 0; display: block; }
 footer { color: var(--fg); padding: 8px 16px; font-size: 14px; background: var(--bar); text-align: center; }
 html:fullscreen footer { display: none; }

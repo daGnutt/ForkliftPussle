@@ -3,9 +3,11 @@ import { staticMeshes, dynamicMeshes, wallClip, wallCaps, LIGHT_MAX } from './sc
 import { parseColor } from './mesh.js';
 import { projectPoint } from './mat.js';
 
-// WebGL2 renderer. Draws into one hidden canvas and copies the result into the 2D game canvas, so the HUD,
-// minimap and menus stay plain 2D. Returns false from `drawGl` when WebGL2 is unavailable (callers fall back
-// to the canvas renderers).
+// WebGL2 renderer. In the game, the GL canvas (`attachGlCanvas`) sits visibly behind the transparent 2D canvas, which
+// punches holes (clearRect) where a 3D view goes, so the HUD, minimap and menus stay plain 2D without any per-frame
+// GL->2D copy (slow in Firefox). Without an attached canvas (splash) it draws into one hidden canvas and copies the
+// result into the given 2D context. Returns null from `drawGl` when WebGL2 is unavailable (callers fall back to the
+// canvas renderers).
 
 const VS = `#version 300 es
 layout(location=0) in vec3 aPos;
@@ -67,6 +69,7 @@ const DARK_LIGHT = {
 };
 
 let R = null; // { canvas, gl, prog, u, dyn, statics } | null; undefined while untried
+let D = null; // { r, ctx } for the visible GL canvas attached with attachGlCanvas
 let failed = false;
 let enabled = true;
 export const glEnabled = () => enabled;
@@ -80,9 +83,9 @@ function compile(gl, type, src) {
   return s;
 }
 
-function init() {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 2;
+function init(visible) {
+  const canvas = visible || document.createElement('canvas');
+  if (!visible) canvas.width = canvas.height = 2;
   const gl = canvas.getContext('webgl2', { alpha: false, antialias: true, depth: true, powerPreference: 'high-performance' });
   if (!gl) throw new Error('no webgl2');
   const prog = gl.createProgram();
@@ -95,7 +98,7 @@ function init() {
   u.uLC = gl.getUniformLocation(prog, 'uLC[0]');
   u.uLD = gl.getUniformLocation(prog, 'uLD[0]');
   for (const n of ['uVP', 'uEye', 'uSun', 'uSunCol', 'uAmbUp', 'uAmbDown', 'uFogCol', 'uFogA', 'uFogB', 'uFogMax', 'uAdd', 'uNL', 'uClip']) u[n] = gl.getUniformLocation(prog, n);
-  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); R = null; });
+  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); if (visible) D = null; else R = null; });
   canvas.addEventListener('webglcontextrestored', () => { failed = false; });
   return { canvas, gl, prog, u, vao: gl.createVertexArray(), buf: gl.createBuffer(), statics: { pov: null, ov: null } };
 }
@@ -107,7 +110,35 @@ function get() {
   return R;
 }
 
-export function glAvailable() { return enabled && !!get(); }
+export function glAvailable() { return enabled && (!!D || !!get()); }
+
+// Uses `glCanvas` (visible, stacked behind the game canvas whose context is `ctx`) for drawGl calls made with `ctx`.
+// Returns false (and leaves the copy path in place) if WebGL2 is unavailable.
+export function attachGlCanvas(glCanvas, ctx) {
+  try { D = { r: init(glCanvas), ctx, canvas: glCanvas }; } catch (e) { D = null; glCanvas.hidden = true; return false; }
+  return true;
+}
+
+// Call at the start of each frame. Returns true if the GL canvas is in use: it is sized like the 2D canvas and cleared to
+// `bg`, and the (transparent) 2D canvas cleared. Otherwise returns false and the caller must paint the background in 2D.
+export function beginGlFrame(ctx, bg) {
+  const on = !!D && D.ctx === ctx && enabled && !D.r.gl.isContextLost();
+  if (D && D.ctx === ctx) D.canvas.hidden = !on;
+  if (!on) return false;
+  const { canvas } = D, c = ctx.canvas;
+  if (canvas.width !== c.width || canvas.height !== c.height) { canvas.width = c.width; canvas.height = c.height; }
+  const { gl } = D.r, col = parseColor(bg);
+  gl.disable(gl.SCISSOR_TEST);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(col[0], col[1], col[2], 1);
+  gl.depthMask(true);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.restore();
+  return true;
+}
 
 const fogColor = () => parseColor(theme().floorFar);
 
@@ -155,14 +186,20 @@ function drawMesh(r, mesh) {
 
 // Renders game state `g` with `cam` (see camera.js) into the css-px rect (x, y, w, h) of `ctx`, whose transform
 // must map css px (dpr already applied). mode: 'pov' | 'ov'. Returns a projector (world x, y, z) -> [sx, sy, depth]
-// in ctx css px, or null if WebGL is unavailable.
+// in ctx css px, or null if WebGL is unavailable. With the attached GL canvas the rect is punched out of `ctx` instead.
 export function drawGl(ctx, g, mode, cam, x, y, dpr) {
-  const r = get();
+  const direct = !!D && D.ctx === ctx && enabled && !D.r.gl.isContextLost() && !D.canvas.hidden;
+  const r = direct ? D.r : get();
   if (!r) return null;
   const { gl, canvas, u } = r;
   const w = cam.w, h = cam.h;
   const pw = Math.max(1, Math.round(w * dpr)), ph = Math.max(1, Math.round(h * dpr));
-  if (canvas.width < pw || canvas.height < ph) {
+  let vx = 0, vy = 0;
+  if (direct) {
+    vx = Math.round(x * dpr);
+    vy = canvas.height - Math.round(y * dpr) - ph;
+    ctx.clearRect(x, y, w, h);
+  } else if (canvas.width < pw || canvas.height < ph) {
     canvas.width = Math.max(canvas.width, pw);
     canvas.height = Math.max(canvas.height, ph);
   }
@@ -174,9 +211,9 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
 
   gl.bindVertexArray(r.vao);
   gl.useProgram(r.prog);
-  gl.viewport(0, 0, pw, ph);
+  gl.viewport(vx, vy, pw, ph);
   gl.enable(gl.SCISSOR_TEST);
-  gl.scissor(0, 0, pw, ph);
+  gl.scissor(vx, vy, pw, ph);
   gl.clearColor(bg[0], bg[1], bg[2], 1);
   gl.depthMask(true);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -229,7 +266,7 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
   gl.depthMask(true);
   gl.disable(gl.BLEND);
 
-  ctx.drawImage(canvas, 0, canvas.height - ph, pw, ph, x, y, w, h);
+  if (!direct) ctx.drawImage(canvas, 0, canvas.height - ph, pw, ph, x, y, w, h);
   return (wx, wy, wz) => {
     const p = projectPoint(cam.vp, wx, wy, wz, w, h);
     return p && [x + p[0], y + p[1], p[2]];
