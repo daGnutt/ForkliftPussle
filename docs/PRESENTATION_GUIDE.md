@@ -35,3 +35,11 @@ Headless Firefox (snap) has **no WebGL** (`getContext('webgl2')` is null, even w
 
 ## Keeping it up to date
 After a merge to `main` that adds a notable feature or visual change, extend the presentation (new bullets/slide, stats, possibly a new screenshot) in the same merge flow, following the repo branch rules. Skip it for small fixes and refactors.
+
+## Devlog (`docs/devlog.html`)
+A scrolling, self-contained page (no JS) with one `<article>` per milestone (feature or visual change; pure bugfixes skipped), grouped in `<section class="day" id="dYYYY-MM-DD">` per day. Each article has `<div class="shots"><img src="devlog/NN-name.webp"></div>` plus a `.txt` block (`<h3>`, `<p>`, `<code>` commit hash). Assets are animated/still WebP in `docs/devlog/`, named `NN-name[-anim].webp`. Add an entry for each notable feature merged to `main` (skip small fixes); keep the nav links and the milestone count in the header in sync.
+
+Capturing (everything in `/tmp`, not the repo):
+- Chromium via Playwright (see above) works for **all** commits, old 2D ones too: serve a directory of `git worktree add --detach /tmp/wt/<hash> <hash>` checkouts and open `/<hash>/index.html`. Add `--disable-accelerated-2d-canvas` to the launch args, otherwise `page.screenshot` hangs on pages with a busy 2D canvas.
+- Old commits: set `forklift-tutorial-done=1` in `localStorage`, press `Enter` on the splash (no `?skip` before 0322845), swap view with `F` (before f470fef) or `M`; hold `ArrowUp`/`ArrowRight` for the driving shot, and check that boxes are in view. Level `N` via `forklift-level`. Commit 804168c hangs after the splash (tutorial bug); use 8ffe630.
+- Animations: do **not** use Playwright's `record_video_dir` (low-bitrate VP8, blocky once converted). Open a CDP session (`ctx.new_cdp_session(page)`), `Page.startScreencast` with `format: 'png'` after the page has booted, ack each `Page.screencastFrame`, save frames with their `metadata.timestamp` (sort by it), and encode with the concat demuxer (`file`/`duration` lines): `ffmpeg -f concat -i list.txt -vf fps=15,scale=800:-2:flags=lanczos -loop 0 -quality 78 -compression_level 5 out.webp`. This gives ~20 fps lossless frames even with SwiftShader. Keep each animation to ~3-8 s and under ~1 MB. Stills: `ffmpeg -i still.png -quality 82 out.webp`.
