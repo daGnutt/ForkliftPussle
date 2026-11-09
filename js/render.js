@@ -750,7 +750,7 @@ export function draw(ctx, g, view) {
   view.hudReady = ready;
   // Full screen: the HUD floats down from the top when something changes, waits, then floats back up.
   let hudOff = 0;
-  if (view.fullscreen) {
+  if (view.fullscreen && !(view.touch && width > height)) { // touch landscape: the strip obstructs nothing, so it stays
     const t = (now - (view.hudShownAt ?? -1e9)) / 1000;
     const IN = 0.45, HOLD = 2, OUT = 0.5;
     const p = t < IN ? t / IN : t < IN + HOLD ? 1 : t < IN + HOLD + OUT ? 1 - (t - IN - HOLD) / OUT : 0;
