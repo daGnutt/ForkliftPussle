@@ -472,8 +472,9 @@ document.getElementById('menuLowest').addEventListener('click', () => {
   toggleMenu(false);
 });
 const pullMsg = document.getElementById('pullMsg');
+const pullName = document.getElementById('pullName');
 document.getElementById('menuPull').addEventListener('click', async () => {
-  let name = (localStorage.getItem('forklift-player') || '').trim();
+  let name = pullName.value.trim() || (localStorage.getItem('forklift-player') || '').trim();
   if (!name) name = (prompt('Player name to pull scores for:') || '').trim();
   if (!name) return;
   pullMsg.textContent = 'Pulling…';
@@ -511,13 +512,14 @@ document.getElementById('menuRestart').addEventListener('click', () => {
 window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
+  const typing = e.target === menuLevel || e.target === pullName;
   if (e.target === stateText) { if (e.code === 'Escape') { e.preventDefault(); showPage('main'); } return; }
   if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage('main'); return; }
-  if (e.code === 'Escape' || (e.code === 'KeyP' && e.target !== menuLevel)) { e.preventDefault(); toggleMenu(false); return; }
-  if (e.code === 'Enter' && e.target !== menuLevel) { e.preventDefault(); toggleMenu(false); return; }
+  if (e.code === 'Escape' || (e.code === 'KeyP' && !typing)) { e.preventDefault(); toggleMenu(false); return; }
+  if (e.code === 'Enter' && e.target !== menuLevel && e.target !== pullName) { e.preventDefault(); toggleMenu(false); return; }
   if (e.target === trackSel && e.code !== 'KeyT') return;
   if (e.target === themeSel && e.code !== 'KeyC') return;
-  if (e.target === menuLevel || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (typing || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
   const toggle = (el) => { el.checked = !el.checked; el.dispatchEvent(new Event('change')); };
   const actions = {
     KeyA: () => toggle(muteOpt),
