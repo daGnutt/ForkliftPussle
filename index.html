@@ -31,11 +31,11 @@
         <button type="button" id="menuRestart" class="sec"><u>R</u>estart level</button>
         <label class="item"><input type="checkbox" id="muteOpt"> Mute <u>a</u>ll sounds</label>
         <hr>
+        <button type="button" class="nav" data-go="game"><span>Game &amp; levels</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="sound"><span><u>S</u>ound settings</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="display"><span><u>V</u>isuals &amp; controls</span><i>&#9656;</i></button>
-        <button type="button" class="nav" data-go="game"><span>Game &amp; levels</span><i>&#9656;</i></button>
-        <button type="button" class="nav" data-go="info"><span>Info &amp; scoring</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="state"><span>Save / load state</span><i>&#9656;</i></button>
+        <button type="button" class="nav" data-go="info"><span>Info &amp; scoring</span><i>&#9656;</i></button>
       </div>
       <div class="page" data-page="sound" hidden>
         <h3>Sound</h3>
@@ -65,7 +65,8 @@
         <button type="button" id="menuTutorial" class="sec"></button>
         <form id="menuGoto" autocomplete="off"><label><u>G</u>o to level <input type="number" id="menuLevel" min="1" step="1"></label> <button type="submit" class="sec">Go</button></form>
         <button type="button" id="menuLowest" class="sec" title="Lowest level with no saved score on this seed">Jump to <u>l</u>owest unscored level</button>
-        <button type="button" id="menuPull" class="sec" title="Download your scores (by player name) from the online list into this browser">Pull my scores from server</button>
+        <label class="row" title="Player whose scores to pull; empty = your own saved name"><span>Player name</span> <input type="text" id="pullName" maxlength="40" placeholder="your name" autocomplete="off"></label>
+        <button type="button" id="menuPull" class="sec" title="Download a player's scores (by name) from the online list into this browser">Pull scores from server</button>
         <small id="pullMsg"></small>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
       </div>
