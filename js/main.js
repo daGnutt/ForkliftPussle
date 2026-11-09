@@ -1,6 +1,6 @@
 import { newGame, update, forkUp, forkDown, zoneDone, zoneWonky, score } from './game.js';
 import { createInput } from './input.js';
-import { syncScores, fetchTopList } from './globalscores.js';
+import { syncScores, fetchTopList, pullScores } from './globalscores.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
 import { serializeGame, deserializeGame, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
@@ -469,6 +469,17 @@ document.getElementById('menuGoto').addEventListener('submit', (e) => {
 document.getElementById('menuLowest').addEventListener('click', () => {
   load(lowestUnscored(localStorage, seed));
   toggleMenu(false);
+});
+const pullMsg = document.getElementById('pullMsg');
+document.getElementById('menuPull').addEventListener('click', async () => {
+  let name = (localStorage.getItem('forklift-player') || '').trim();
+  if (!name) name = (prompt('Player name to pull scores for:') || '').trim();
+  if (!name) return;
+  pullMsg.textContent = 'Pulling…';
+  const r = await pullScores(localStorage, name);
+  if (!r) { pullMsg.textContent = 'Offline: could not reach the score server.'; return; }
+  refreshBest();
+  pullMsg.textContent = r.fetched ? `Pulled ${r.fetched} score${r.fetched === 1 ? '' : 's'} for ${name}; ${r.added} new or better.` : `No online scores found for ${name}.`;
 });
 const menuTutorial = document.getElementById('menuTutorial');
 function updateTutorialBtn() {

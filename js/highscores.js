@@ -56,6 +56,23 @@ export function addTop(store, seed, level, result) {
   return true;
 }
 
+// Adds a score downloaded from the global list (board "seed:level"). It is flagged synced since the server already has it.
+// Returns true if it changed the local data (new top-10 entry or new best); an identical entry is never added twice.
+export function mergeRemote(store, board, r) {
+  const m = /^(-?\d+):(\d+)$/.exec(board);
+  if (!m) return false;
+  const seed = Number(m[1]), level = Number(m[2]);
+  const result = { score: r.score, time: Math.round(r.time), name: r.name };
+  let changed = false;
+  if (!getTop(store, seed, level).some((e) => e.score === result.score && e.time === result.time && e.name === result.name)) changed = addTop(store, seed, level, result);
+  if (beats(result, getBest(store, seed, level))) {
+    saveBest(store, seed, level, result);
+    markSynced(store, board, result);
+    changed = true;
+  }
+  return changed;
+}
+
 const write = (store, all) => {
   try { store.setItem(KEY, JSON.stringify(all)); } catch { /* storage unavailable */ }
 };
