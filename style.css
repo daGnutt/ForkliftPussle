@@ -8,6 +8,7 @@ body { display: flex; flex-direction: column; }
 canvas { flex: 1; width: 100%; min-height: 0; display: block; }
 footer { color: var(--fg); padding: 8px 16px; font-size: 14px; background: var(--bar); text-align: center; }
 html:fullscreen footer { display: none; }
+html:fullscreen canvas { cursor: none; }
 footer b { color: var(--accent); }
 
 #splash { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
