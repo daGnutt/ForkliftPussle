@@ -76,7 +76,8 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Crash points** | Deduction (≤ 50/box) from hits at speed | `pen.crash`, `hurt` |
 | **Squareness points** | Deduction (≤ 50/box) for boxes not at 90° | `pen.sq` |
 | **Damage popup** | Floating red `−pts` text | `g.hits`, `drawHits` |
-| **Wonky popup** | Amber `Wonky −pts` when placing crooked boxes on a drop point | `wonkyPopup` |
+| **Score popup** | Floating popup for a drop point's stack: `Score: ±N` (completed / moved off) | `scorePopups`, `zonePoints`, `hitRows` |
+| **Wonkiness popup** | Separate floating popup, one row lower: `Wonkiness: ±N` when a stack is placed or nudged more/less crooked; re-pops on every change | `scorePopups`, `hitRows` |
 | **Dent / crumple** | Cosmetic damage shape on a box | `dents.js` |
 | **Final score** | Score minus time penalty, submitted to the high scores | `finalScore` |
 | **Local / global top list** | Local top 10 / online top 10 per seed+level | `highscores.js`, `globalscores.js` |

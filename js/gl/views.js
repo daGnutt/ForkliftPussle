@@ -1,13 +1,13 @@
 import { COLORS } from '../level.js';
-import { HIT_LIFE, WONKY_LIFE, zoneDone } from '../game.js';
-import { label } from '../pov/overlay.js';
+import { hitLife, zoneDone } from '../game.js';
+import { label, labelRows, hitRows } from '../pov/overlay.js';
 import { povCamera, overviewCamera, chaseCamera, groundFootprint } from './camera.js';
 import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';
 import { toWorld, FL } from '../forklift.js';
 
 // Screen-space glue between the WebGL scene and the 2D game canvas: view entry points and the text overlays
-// (cabin zone counts, damage popups) that are drawn in 2D over the 3D image through the camera projection.
+// (cabin zone counts, damage and score popups) that are drawn in 2D over the 3D image through the camera projection.
 
 export { glAvailable };
 
@@ -29,8 +29,6 @@ function lineClear(g, x0, y0, x1, y1) {
   return true;
 }
 
-function hitText(h) { return h.wonky ? `Wonky −${h.pts}` : `−${h.pts}`; }
-
 // Cabin view into the css-px box (x, y, w, h). Returns false if WebGL is unavailable.
 export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
   if (!glAvailable()) return false;
@@ -48,11 +46,11 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
     label(ctx, `×${z.count}`, p[0], p[1], Math.max(8, Math.min(48, (0.5 / p[2]) * (w / 2))), COLORS[z.color]);
   }
   for (const hh of g.hits || []) {
-    const k = (g.clock - hh.t) / (hh.wonky ? WONKY_LIFE : HIT_LIFE);
+    const k = (g.clock - hh.t) / hitLife(hh);
     const p = proj(hh.x, hh.y, hh.z * (BOX_H + PAL) + 0.3 + k * 0.8);
     if (!p) continue;
     ctx.globalAlpha = Math.max(0, 1 - k * k);
-    label(ctx, hitText(hh), p[0], p[1], Math.max(10, Math.min(60, (0.45 / p[2]) * (w / 2))), hh.wonky ? '#ffb74d' : '#ff5252');
+    labelRows(ctx, hitRows(hh), p[0], p[1], Math.max(10, Math.min(60, (0.45 / p[2]) * (w / 2))));
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -83,22 +81,12 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = n
   ctx.beginPath();
   ctx.rect(rx, ry, rw, rh);
   ctx.clip();
-  const text = (str, p, size, fill, stroke) => {
-    ctx.font = `bold ${size}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.lineWidth = size * 0.18;
-    ctx.strokeStyle = stroke;
-    ctx.strokeText(str, p[0], p[1]);
-    ctx.fillStyle = fill;
-    ctx.fillText(str, p[0], p[1]);
-  };
   for (const h of g.hits || []) {
-    const k = (g.clock - h.t) / (h.wonky ? WONKY_LIFE : HIT_LIFE);
+    const k = (g.clock - h.t) / hitLife(h);
     const p = proj(h.x, h.y, h.z * (BOX_H + PAL) + 0.4 + k * 1.2);
     if (!p) continue;
     ctx.globalAlpha = Math.max(0, 1 - k * k);
-    text(hitText(h), p, 0.55 * s, h.wonky ? '#ffb74d' : '#ff5252', '#000');
+    labelRows(ctx, hitRows(h), p[0], p[1], 0.55 * s);
   }
   ctx.globalAlpha = 1;
   ctx.restore();

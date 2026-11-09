@@ -80,7 +80,8 @@ function settle(g, S) {
 
 
 export const HIT_LIFE = 1.2; // seconds a damage popup lives
-export const WONKY_LIFE = 2.2; // wonky-placement popups stay longer so they can be read
+export const SCORE_LIFE = 2.2; // finished-stack score popups stay longer so they can be read
+export const hitLife = (h) => (h.score ? SCORE_LIFE : HIT_LIFE);
 const HIT_MERGE = 0.6; // further damage to the same stack within this time adds to its popup
 
 // Applies crash points and records the actual loss as a floating popup (x, y, z in box heights).
@@ -94,14 +95,6 @@ function hurt(g, pens, pts, x, y, z, owner = null) {
   if (prev) { prev.pts += lost; prev.x = x; prev.y = y; prev.z = z; prev.t = g.clock; }
   else g.hits.push({ x, y, z, pts: lost, t: g.clock, owner });
   g.hitCount = (g.hitCount || 0) + 1;
-}
-
-// Combined squareness points of the boxes just put down on a drop point, shown as one popup.
-function wonkyPopup(g, pens, x, y, z) {
-  if (!g.zones.some((zn) => Math.abs(x - zn.x) < 0.5 && Math.abs(y - zn.y) < 0.5)) return;
-  const pts = pens.reduce((n, p) => n + p.sq, 0);
-  if (pts <= 0) return;
-  (g.hits ||= []).push({ x, y, z, pts, t: g.clock, owner: null, wonky: true });
 }
 
 // Crumples the boxes in `pens` where they were hit. `dent` = {kind: 's'|'c', dx, dy (world direction from the boxes
@@ -411,7 +404,7 @@ function wallContact(g, speed, kept) {
 export function update(g, input, dt) {
   const f = g.fl;
   g.clock += dt;
-  if (g.hits) g.hits = g.hits.filter((h) => g.clock - h.t < (h.wonky ? WONKY_LIFE : HIT_LIFE));
+  if (g.hits) g.hits = g.hits.filter((h) => g.clock - h.t < hitLife(h));
   const forked = g.hard ? forkedStack(g) : null;
   const forkedY = forked ? toLocal(f, boxPos(forked, g.H).x, boxPos(forked, g.H).y).y : 0;
   const prevA = f.a;
@@ -442,7 +435,36 @@ export function update(g, input, dt) {
   // visual lowering of a just-released stack ends when the forks reach it
   for (const s of g.stacks) if (s.dropFrom != null && (g.hf <= s.dropFrom + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;
 
+  scorePopups(g);
   if (g.status === 'play' && isFinished(g)) g.status = 'won';
+}
+
+// Score popups are hits with `score` = { total } (points of the drop point's stack before wonkiness: shown when it is completed, negative when
+// it is moved off) or { wonky } (signed score change from crooked placement or from nudging the stack more or less crooked). The two kinds pop
+// up separately, so the stack score can fade while nudging keeps refreshing the wonkiness. A wonkiness popup still showing for the same drop
+// point is merged into and refreshed. Zones already complete on the first call stay quiet.
+function scorePopups(g) {
+  const prev = g.zonePts;
+  g.zonePts = g.zones.map((z) => zonePoints(g, z));
+  if (!prev) return;
+  const popup = (i, kind) => g.hits.find((h) => h.zone === i && h.score && kind in h.score);
+  const drop = (h) => h && g.hits.splice(g.hits.indexOf(h), 1);
+  g.zones.forEach((z, i) => {
+    const was = prev[i], now = g.zonePts[i];
+    const add = (n, score) => g.hits.push({ x: z.x, y: z.y, z: n, t: g.clock, owner: null, zone: i, score });
+    if (was && !now) {
+      drop(popup(i, 'total')); drop(popup(i, 'wonky'));
+      add(was.n, { total: -was.base });
+    } else if (!was && now) {
+      add(now.n, { total: now.base });
+      if (now.square) add(now.n, { wonky: -now.square });
+    } else if (was && now && was.square !== now.square) {
+      const old = popup(i, 'wonky');
+      const change = was.square - now.square + (old ? old.score.wonky : 0);
+      drop(old);
+      if (change) add(now.n, { wonky: change });
+    }
+  });
 }
 
 export function stackInZone(g) {
@@ -524,7 +546,6 @@ export function forkDown(g) {
     const worldRots = g.carriedRots.map((r) => r + g.fl.a);
     g.carriedPen.forEach((p, i) => { p.sq = squareLoss(worldRots[i]); });
     const p = toWorld(g.fl, FL.carryX, 0);
-    wonkyPopup(g, g.carriedPen, p.x, p.y, n + g.carried.length);
     const c = Math.cos(g.fl.a), sn = Math.sin(g.fl.a);
     while (g.carriedOffs.length < g.carried.length) g.carriedOffs.push({ x: 0, y: 0 });
     const world = g.carriedOffs.map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c }));
@@ -577,6 +598,16 @@ const stackFillsZone = (s, z) =>
 // A completed drop point holds a stack with crooked boxes (squareness points lost).
 export function zoneWonky(g, z) {
   return g.stacks.some((s) => stackFillsZone(s, z) && (refreshSquare(s), s.pen.some((p) => p.sq > 0)));
+}
+
+// Points of the stack completing zone z: `base` (max for the stack minus crash damage), `total` (also minus crooked placement `square`); null while the zone is open.
+export function zonePoints(g, z) {
+  const S = g.stacks.find((s) => stackFillsZone(s, z));
+  if (!S) return null;
+  refreshSquare(S);
+  const crash = S.pen.reduce((n, p) => n + p.crash, 0), square = S.pen.reduce((n, p) => n + p.sq, 0);
+  const base = Math.round(BOX_POINTS * S.layers.length - crash);
+  return { n: S.layers.length, base, total: base - Math.round(square), crash: Math.round(crash), square: Math.round(square) };
 }
 
 export function zoneDone(g, z) {

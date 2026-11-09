@@ -11,7 +11,7 @@ import { setThemeMode } from '../js/theme.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
 import { rectPoly, sat } from '../js/geom.js';
-import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneLabelPos } from '../js/game.js';
+import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos } from '../js/game.js';
 
 const NONE = {};
 const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
@@ -890,30 +890,67 @@ console.log('all tests passed');
   console.log('wonky stacks ok');
 }
 
-// Dropping crooked boxes on a drop point shows one combined wonky popup; straight or off-zone drops show none.
+// Score popups: separate popups for the stack's points (completed / moved off) and its wonkiness (placed / nudged).
 {
-  const drop = (x, rot) => {
+  const drop = (x, rot, crash = 0) => {
     const g = newGame(1);
     flatWorld(g);
     g.zones = [{ x: 12, y: 5, color: 0, count: 2 }];
     g.stacks = [];
     g.fl.x = x - FL.carryX; g.fl.y = 5; g.fl.a = 0;
     g.carried = [0, 0]; g.carriedRots = [rot, rot]; g.carriedRel = rot;
-    g.carriedPen = [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }]; g.carriedOffs = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
+    g.carriedPen = [{ crash, sq: 0 }, { crash: 0, sq: 0 }]; g.carriedOffs = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
     g.H = 0;
+    update(g, {}, 1 / 120);
     forkDown(g);
+    update(g, {}, 1 / 120);
     return g;
   };
   const g = drop(12, Math.PI / 4);
-  const wonky = g.hits.filter((h) => h.wonky);
-  assert.equal(wonky.length, 1, 'one combined popup');
-  assert.equal(wonky[0].pts, g.stacks[0].pen[0].sq + g.stacks[0].pen[1].sq);
-  assert.ok(wonky[0].pts > 0 && g.hitCount === 0, 'not a crash');
+  const pts = zonePoints(g, g.zones[0]);
+  const scores = (h) => h.hits.map((x) => x.score);
+  assert.equal(pts.square, g.stacks[0].pen[0].sq + g.stacks[0].pen[1].sq);
+  assert.ok(pts.square > 0 && pts.crash === 0 && g.hitCount === 0, 'wonky, not a crash');
+  assert.deepEqual(scores(g), [{ total: 200 }, { wonky: -pts.square }], 'separate stack and wonkiness popups, no damage row');
+  assert.deepEqual(scores(drop(12, Math.PI / 4, 10)), [{ total: 190 }, { wonky: -pts.square }], 'damage is in the points, wonkiness stays separate');
+  assert.deepEqual(scores(drop(12, 0)), [{ total: 200 }], 'no wonkiness popup for a straight stack');
+  assert.equal(drop(8, 0).hits.length, 0, 'no popup off a drop point');
+  update(g, {}, 1 / 120);
+  assert.equal(g.hits.length, 2, 'no repeat while the zone stays complete');
+
+  // nudging: the stack popup fades while the wonkiness popup keeps re-popping
+  const n = drop(12, Math.PI / 4);
+  run(n, {}, 1.5);
+  assert.equal(n.hits.length, 2, 'both popups still showing');
+  n.stacks[0].rots = n.stacks[0].rots.map(() => Math.PI / 8); // nudged less crooked: merged and refreshed
+  update(n, {}, 1 / 120);
+  const left = 200 - zonePoints(n, n.zones[0]).total;
+  assert.deepEqual(scores(n), [{ total: 200 }, { wonky: -left }], 'merged into one wonkiness popup');
+  run(n, {}, 1);
+  assert.deepEqual(scores(n), [{ wonky: -left }], 'stack popup gone, wonkiness popup refreshed');
+  n.stacks[0].rots = n.stacks[0].rots.map(() => 0); // nudged straight: cancels out
+  update(n, {}, 1 / 120);
+  assert.equal(n.hits.length, 0);
+  n.stacks[0].rots = n.stacks[0].rots.map(() => Math.PI / 4); // nudged crooked
+  update(n, {}, 1 / 120);
+  const lost = 200 - zonePoints(n, n.zones[0]).total;
+  assert.deepEqual(scores(n), [{ wonky: -lost }], 'wonkiness deduction only');
+  run(n, {}, 2.3);
+  update(n, {}, 1 / 120);
+  n.stacks[0].x += 3; // pushed off the drop point
+  update(n, {}, 1 / 120);
+  assert.deepEqual(scores(n), [{ total: -200 }], 'negative points when moved off');
+  assert.equal(pts.total, 200 - pts.square);
+  assert.equal(pts.total, score(g), 'matches the score');
+  g.stacks[0].pen[0].crash = 10;
+  const hurt = zonePoints(g, g.zones[0]);
+  assert.deepEqual([hurt.crash, hurt.total], [10, 200 - 10 - pts.square]);
+  assert.equal(hurt.total, score(g));
   assert.ok(zoneWonky(g, g.zones[0]));
-  assert.equal(drop(12, 0).hits.filter((h) => h.wonky).length, 0, 'straight');
-  assert.equal(drop(8, Math.PI / 4).hits.filter((h) => h.wonky).length, 0, 'off a drop point');
+  assert.equal(zonePoints(drop(12, 0), { x: 12, y: 5, color: 0, count: 2 }).total, 200, 'straight stack is worth full points');
+  assert.equal(zonePoints(drop(8, 0), g.zones[0]), null, 'open zone has no points');
   assert.ok(!zoneWonky(drop(12, 0), { x: 12, y: 5, color: 0, count: 2 }));
-  console.log('wonky popup ok');
+  console.log('stack points ok');
 }
 
 {

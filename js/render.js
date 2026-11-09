@@ -3,13 +3,14 @@ import { FL, toWorld } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
+import { labelRows, hitRows } from './pov/overlay.js';
 import { chaseTiles as chaseTilesFor, clearChaseTilt, CHASE_TILT } from './gl/camera.js';
 import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, HIT_LIFE, WONKY_LIFE, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
+import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -284,19 +285,10 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
   }
   ctx.setTransform(s * view.dpr, 0, 0, s * view.dpr, ox * view.dpr, oy * view.dpr);
   drawWorld(ctx, g, null, s * view.dpr);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = 'bold 0.55px sans-serif';
-  ctx.lineWidth = 0.1;
   for (const h of g.hits || []) {
-    const k = (g.clock - h.t) / (h.wonky ? WONKY_LIFE : HIT_LIFE);
-    const x = h.x + h.z * PX, y = h.y + h.z * PY - k * 1.2;
-    const text = h.wonky ? `Wonky −${h.pts}` : `−${h.pts}`;
+    const k = (g.clock - h.t) / hitLife(h);
     ctx.globalAlpha = Math.max(0, 1 - k * k);
-    ctx.strokeStyle = '#000';
-    ctx.strokeText(text, x, y);
-    ctx.fillStyle = h.wonky ? '#ffb74d' : '#ff5252';
-    ctx.fillText(text, x, y);
+    labelRows(ctx, hitRows(h), h.x + h.z * PX, h.y + h.z * PY - k * 1.2, 0.55, 0.1);
   }
   ctx.globalAlpha = 1;
   if (zoomed) ctx.restore();
