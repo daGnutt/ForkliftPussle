@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pallet Polka – Devlog</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; background: #14171c; color: #eee; font-family: system-ui, sans-serif; }
+  header { padding: 6vh 8vw 2vh; }
+  h1 { font-size: 2.6rem; margin: 0 0 .4rem; color: #ffc933; }
+  header p { color: #9aa4b2; margin: 0; max-width: 60rem; }
+  nav { position: sticky; top: 0; background: #14171ce8; padding: .6rem 8vw; display: flex; gap: 1rem; flex-wrap: wrap; border-bottom: 1px solid #2a313b; z-index: 1; }
+  nav a { color: #6fb1ff; text-decoration: none; font-size: .9rem; }
+  main { padding: 0 8vw 8vh; max-width: 80rem; margin: auto; }
+  h2 { color: #ffc933; font-size: 1.7rem; margin: 3.5rem 0 1rem; border-bottom: 1px solid #2a313b; padding-bottom: .4rem; scroll-margin-top: 3rem; }
+  h2 span { color: #6fb1ff; font-size: 1rem; letter-spacing: .1em; margin-right: .6rem; }
+  article { display: flex; gap: 1.5rem; align-items: flex-start; margin: 1.6rem 0; flex-wrap: wrap; }
+  .shots { flex: 2 1 28rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: .6rem; }
+  .shots img { width: 100%; border-radius: 8px; border: 1px solid #2a313b; box-shadow: 0 6px 24px #0008; }
+  .shots img.portrait { width: auto; max-width: 100%; max-height: 28rem; justify-self: start; }
+  .txt { flex: 1 1 14rem; }
+  h3 { margin: 0 0 .4rem; font-size: 1.2rem; }
+  p { margin: 0 0 .5rem; line-height: 1.5; color: #cfd6df; }
+  code { color: #9aa4b2; font-size: .85rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pallet Polka – Devlog</h1>
+  <p>45 milestones from the first prototype to today, newest features last. Bug fixes, refactors and tooling are skipped; each entry names the commit it was captured from. Screenshots and animations are taken from the actual game at that commit (see <code>docs/PRESENTATION_GUIDE.md</code>). The shorter slide deck is <a href="presentation.html" style="color:#6fb1ff">presentation.html</a>.</p>
+</header>
+<nav><a href="#d2026-10-21">10-21</a><a href="#d2026-10-23">10-23</a><a href="#d2026-10-24">10-24</a><a href="#d2026-10-25">10-25</a><a href="#d2026-10-28">10-28</a><a href="#d2026-10-29">10-29</a><a href="#d2026-11-01">11-01</a><a href="#d2026-11-04">11-04</a><a href="#d2026-11-07">11-07</a><a href="#d2026-11-08">11-08</a><a href="#d2026-11-09">11-09</a></nav>
+<main>
+<section class="day" id="d2026-10-21"><h2><span>2026-10-21</span> The prototype</h2>
+<article><div class="shots"><img src="devlog/01-prototype-anim.webp" loading="lazy" alt="First prototype"></div><div class="txt"><h3>First prototype</h3><p>Top-down forklift on a tiled floor. A rear-wheel-steering bicycle model makes the tail swing out; push coloured boxes onto matching zones.</p><code>6974f64</code></div></article>
+<article><div class="shots"><img src="devlog/02-fork-levels.webp" loading="lazy" alt="Fork levels"></div><div class="txt"><h3>Fork levels</h3><p>Forks get whole levels 0–5 (A/Z). Boxes stack into towers, tines never collide with boxes, and a gauge shows the fork height.</p><code>483ab49</code></div></article>
+<article><div class="shots"><img src="devlog/03-scoring.webp" loading="lazy" alt="Scoring"></div><div class="txt"><h3>Scoring</h3><p>Per-box scoring: crashes and crooked placement deduct points; the HUD shows locked damage and fixable placement deductions.</p><code>024454d</code></div></article>
+<article><div class="shots"><img src="devlog/04-parking.webp" loading="lazy" alt="Parking spot"></div><div class="txt"><h3>Parking spot</h3><p>Finishing needs the truck parked in the marked spot with at least 50% score.</p><code>9052fe1</code></div></article>
+<article><div class="shots"><img src="devlog/05-overhaul.webp" loading="lazy" alt="Graphical overhaul"></div><div class="txt"><h3>Graphical overhaul</h3><p>The game gets a name (Forklift Frenzy), a splash screen, a favicon and 3D-looking boxes.</p><code>ca4b8d9</code></div></article>
+<article><div class="shots"><img src="devlog/06-3d-forklift.webp" loading="lazy" alt="Extruded 3D forklift"></div><div class="txt"><h3>Extruded 3D forklift</h3><p>The truck is drawn as extruded blocks, matching the boxes.</p><code>16d0c1e</code></div></article>
+<article><div class="shots"><img src="devlog/07-cabin-first-anim.webp" loading="lazy" alt="First cabin view"></div><div class="txt"><h3>First cabin view</h3><p>A first-person POV window renders the world from the driver&#x27;s seat with a hand-written projection, no WebGL.</p><code>157176a</code></div></article>
+<article><div class="shots"><img src="devlog/08-cabin-better.webp" loading="lazy" alt="Cabin view grows up"></div><div class="txt"><h3>Cabin view grows up</h3><p>Pallets under every box, forks, drop zones, parking spot and lids on box tops; F swaps big and small views.</p><code>06af15d</code></div></article>
+<article><div class="shots"><img src="devlog/09-dark-light.webp" loading="lazy" alt="Dark mode"></div><div class="txt"><h3>Dark mode</h3><p>Colour scheme follows the OS (shown here in light mode).</p><code>e5d7189</code></div></article>
+<article><div class="shots"><img src="devlog/10-tutorial.webp" loading="lazy" alt="Tutorial"></div><div class="txt"><h3>Tutorial</h3><p>A step-by-step tutorial where each step disappears when you do it. The cabin view is the default for now.</p><code>8ffe630</code></div></article>
+<article><div class="shots"><img src="devlog/11-mirrors.webp" loading="lazy" alt="Mirrors"></div><div class="txt"><h3>Mirrors</h3><p>Rear-view and side mirrors in the cabin view.</p><code>3ad7200</code></div></article>
+<article><div class="shots"><img src="devlog/12-floor-grid.webp" loading="lazy" alt="Floor grid and walls"></div><div class="txt"><h3>Floor grid and walls</h3><p>Textured floor and walls give the cabin view a sense of speed.</p><code>7b459a8</code></div></article>
+<article><div class="shots"><img src="devlog/19-forks-anim.webp" loading="lazy" alt="Fork gauge in action"></div><div class="txt"><h3>Fork gauge in action</h3><p>Forks going up and down one level at a time (shown on the day-1 build).</p><code>7b459a8</code></div></article>
+</section>
+<section class="day" id="d2026-10-23"><h2><span>2026-10-23</span> Realistic pallets and real levels</h2>
+<article><div class="shots"><img src="devlog/13-hard-pallets.webp" loading="lazy" alt="Hard mode: pallet physics"></div><div class="txt"><h3>Hard mode: pallet physics</h3><p>Tines collide with the runners of pallets and turn them by the push torque; slide in straight or push the pallet away.</p><code>b534a9e</code></div></article>
+<article><div class="shots"><img src="devlog/14-crooked-towers.webp" loading="lazy" alt="Crooked towers"></div><div class="txt"><h3>Crooked towers</h3><p>Boxes need 50% support on the box below or fall off; stacks keep individual offsets so towers can be built crooked or toppled.</p><code>c26932d</code></div></article>
+<article><div class="shots"><img src="devlog/15-rooms.webp" loading="lazy" alt="Rooms and corridors"></div><div class="txt"><h3>Rooms and corridors</h3><p>The level generator makes rooms and corridors instead of random pillars.</p><code>c328e96</code></div></article>
+<article><div class="shots"><img src="devlog/16-menu.webp" loading="lazy" alt="Escape menu"></div><div class="txt"><h3>Escape menu</h3><p>Engine whine, music, hard mode and restart in a pause menu.</p><code>a0ae615</code></div></article>
+<article><div class="shots"><img src="devlog/17-poly-cab-anim.webp" loading="lazy" alt="Polygon-projection cabin renderer"></div><div class="txt"><h3>Polygon-projection cabin renderer</h3><p>The cabin view is rewritten as a depth-sorted polygon renderer with smoother tine sorting.</p><code>67764be</code></div></article>
+<article><div class="shots"><img src="devlog/18-damage.webp" loading="lazy" alt="Damage popups"></div><div class="txt"><h3>Damage popups</h3><p>Floating damage numbers and a break sound when you crash.</p><code>a7c6dbb</code></div></article>
+</section>
+<section class="day" id="d2026-10-24"><h2><span>2026-10-24</span> A lived-in factory</h2>
+<article><div class="shots"><img src="devlog/20-decals.webp" loading="lazy" alt="Floor decals"></div><div class="txt"><h3>Floor decals</h3><p>Tire marks, yellow markings, wall windows, doors and signs make the warehouse look used.</p><code>83bbd37</code></div></article>
+<article><div class="shots"><img src="devlog/21-ceiling.webp" loading="lazy" alt="Ceiling, lights and fans"></div><div class="txt"><h3>Ceiling, lights and fans</h3><p>The cabin view gets a ceiling, factory lights and spinning fans; walls are high enough for a five-box stack.</p><code>9f1b87f</code></div></article>
+</section>
+<section class="day" id="d2026-10-25"><h2><span>2026-10-25</span> Sound, phones and PWA</h2>
+<article><div class="shots"><img src="devlog/22-revlight.webp" loading="lazy" alt="Reversing light and beeper"></div><div class="txt"><h3>Reversing light and beeper</h3><p>A blue light and a warning beep while reversing.</p><code>8733a65</code></div></article>
+<article><div class="shots"><img src="devlog/23-music.webp" loading="lazy" alt="Music"></div><div class="txt"><h3>Music</h3><p>Selectable music tracks, later replaced by public-domain, CC0 and CC-BY MIDI songs played by a small synth.</p><code>aae9c6e</code></div></article>
+<article><div class="shots"><img src="devlog/24-charger.webp" loading="lazy" alt="Wall charger"></div><div class="txt"><h3>Wall charger</h3><p>The truck parks tail-first against a red wall-mounted charger.</p><code>9999fde</code></div></article>
+<article><div class="shots"><img class="portrait" src="devlog/25-touch.webp" loading="lazy" alt="Touch controls"></div><div class="txt"><h3>Touch controls</h3><p>On-screen buttons, a follow-camera overview with minimap, and an installable PWA.</p><code>c1cfc88</code></div></article>
+<article><div class="shots"><img src="devlog/26-landscape.webp" loading="lazy" alt="Landscape layout"></div><div class="txt"><h3>Landscape layout</h3><p>The touch UI rotates: pads beside the field, minimap between them.</p><code>8da8e2e</code></div></article>
+</section>
+<section class="day" id="d2026-10-28"><h2><span>2026-10-28</span> Splash and polish</h2>
+<article><div class="shots"><img src="devlog/27-splash8.webp" loading="lazy" alt="Figure-eight splash"></div><div class="txt"><h3>Figure-eight splash</h3><p>The splash screen shows a forklift drifting a figure eight, with skid marks and smoke.</p><code>3aaed13</code></div></article>
+<article><div class="shots"><img src="devlog/28-restyle.webp" loading="lazy" alt="Forklift restyle"></div><div class="txt"><h3>Forklift restyle</h3><p>The in-game truck is restyled to match the splash look.</p><code>823323b</code></div></article>
+</section>
+<section class="day" id="d2026-10-29"><h2><span>2026-10-29</span> Cabin details and look windows</h2>
+<article><div class="shots"><img src="devlog/29-decorations.webp" loading="lazy" alt="Decorations"></div><div class="txt"><h3>Decorations</h3><p>AC units, floor grates, toilet doors, a deer sign and wall posters with humorous slogans.</p><code>cd9c3ed</code></div></article>
+<article><div class="shots"><img src="devlog/30-lookwindows.webp" loading="lazy" alt="Look windows"></div><div class="txt"><h3>Look windows</h3><p>Mirrors are replaced by front and rear top-down look windows.</p><code>e04b07d</code></div></article>
+<article><div class="shots"><img src="devlog/31-doorways-anim.webp" loading="lazy" alt="Doorways"></div><div class="txt"><h3>Doorways</h3><p>Hazard thresholds, lane lines, jamb posts and a header beam decorate doorways.</p><code>1b574cb</code></div></article>
+</section>
+<section class="day" id="d2026-11-01"><h2><span>2026-11-01</span> Online scores</h2>
+<article><div class="shots"><img src="devlog/32-highscores.webp" loading="lazy" alt="Global high scores"></div><div class="txt"><h3>Global high scores</h3><p>Local scores are uploaded to an online server; the HUD and a start board show local and global best.</p><code>abcaff1</code></div></article>
+<article><div class="shots"><img src="devlog/33-wonky.webp" loading="lazy" alt="Wonky stacks"></div><div class="txt"><h3>Wonky stacks</h3><p>Fresh stacks are slightly crooked; crooked zone stacks get a sad-trombone wah-wah.</p><code>89ecf50</code></div></article>
+</section>
+<section class="day" id="d2026-11-04"><h2><span>2026-11-04</span> Pallet Polka and disco</h2>
+<article><div class="shots"><img src="devlog/34-polka.webp" loading="lazy" alt="Renamed Pallet Polka"></div><div class="txt"><h3>Renamed Pallet Polka</h3><p>New name, polka MIDI as default music, a new cover image and a new domain.</p><code>73777a7</code></div></article>
+<article><div class="shots"><img src="devlog/35-disco-anim.webp" loading="lazy" alt="Disco lights"></div><div class="txt"><h3>Disco lights</h3><p>In dark mode, coloured disco spots and glitter balls light the warehouse.</p><code>48ffe6b</code></div></article>
+</section>
+<section class="day" id="d2026-11-07"><h2><span>2026-11-07</span> Menus, dents and WebGL</h2>
+<article><div class="shots"><img src="devlog/36-dents.webp" loading="lazy" alt="Crumpled boxes"></div><div class="txt"><h3>Crumpled boxes</h3><p>Damaged boxes get dented lids, corners and sides, scaled by damage.</p><code>05894bd</code></div></article>
+<article><div class="shots"><img src="devlog/37-joystick.webp" loading="lazy" alt="Touch schemes"></div><div class="txt"><h3>Touch schemes</h3><p>Rotated buttons or a virtual joystick for phones.</p><code>6876aa3</code></div></article>
+<article><div class="shots"><img src="devlog/38-menu.webp" loading="lazy" alt="Menu redesign"></div><div class="txt"><h3>Menu redesign</h3><p>Grouped submenus for sound, visuals, levels and state.</p><code>3cc334b</code></div></article>
+<article><div class="shots"><img src="devlog/39-webgl-cab.webp" loading="lazy" alt="True 3D with WebGL2"><img src="devlog/39-webgl-over.webp" loading="lazy" alt="True 3D with WebGL2"></div><div class="txt"><h3>True 3D with WebGL2</h3><p>Overview, cabin view and look windows are rendered with WebGL2: depth-buffered, lit and fogged, no libraries. The 2D renderers remain as fallback.</p><code>e5065e6</code></div></article>
+<article><div class="shots"><img src="devlog/40-gl-lights.webp" loading="lazy" alt="Dark-mode lighting"></div><div class="txt"><h3>Dark-mode lighting</h3><p>Truck headlights, brake and reverse lights and ceiling lights in the dark.</p><code>a9fb6ee</code></div></article>
+</section>
+<section class="day" id="d2026-11-08"><h2><span>2026-11-08</span> Cameras and doorway flair</h2>
+<article><div class="shots"><img src="devlog/41-gl-orbit-anim.webp" loading="lazy" alt="Orbiting the overview"></div><div class="txt"><h3>Orbiting the overview</h3><p>Drag to orbit the 3D overview around the forklift; it springs back when you drive.</p><code>fd00ecb</code></div></article>
+<article><div class="shots"><img src="devlog/42-chase-anim.webp" loading="lazy" alt="Chase camera"></div><div class="txt"><h3>Chase camera</h3><p>A spring-mounted third-person camera follows the truck (C or double tap).</p><code>1d3a66a</code></div></article>
+<article><div class="shots"><img src="devlog/43-beacons.webp" loading="lazy" alt="Doorway beacons"></div><div class="txt"><h3>Doorway beacons</h3><p>Amber beacons on jamb posts and a glowing header lamp.</p><code>709362d</code></div></article>
+<article><div class="shots"><img src="devlog/44-gl-splash-anim.webp" loading="lazy" alt="WebGL splash diorama"></div><div class="txt"><h3>WebGL splash diorama</h3><p>The splash screen shows a 3D diorama of the warehouse.</p><code>1aa5728</code></div></article>
+</section>
+<section class="day" id="d2026-11-09"><h2><span>2026-11-09</span> Today</h2>
+<article><div class="shots"><img src="devlog/45-latest-over.webp" loading="lazy" alt="Where it stands"><img src="devlog/45-latest-cab.webp" loading="lazy" alt="Where it stands"><img src="devlog/45-latest-chase.webp" loading="lazy" alt="Where it stands"></div><div class="txt"><h3>Where it stands</h3><p>Overview, cabin view and chase camera, in dark mode with WebGL2.</p><code>eaa7b3c</code></div></article>
+</section>
+</main>
+</body>
+</html>

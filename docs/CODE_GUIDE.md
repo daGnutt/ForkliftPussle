@@ -94,3 +94,4 @@ The splash has two submit buttons: `#startBtn` (Start, keeps saved settings; Ent
 - Each fix or feature goes on its own local branch (not pushed); never merge into `main` unless the user explicitly asks; delete the branch only after such a merge.
 - Update `README.md` when controls or rules change (its "URL parameters" table lists `?gl`, `?debug`, `?skip`, `?testing`; keep it updated when adding one), and this guide when structure changes.
 - `docs/presentation.html` (+ `docs/shots/`) is the development-timeline slide deck; `docs/PRESENTATION_GUIDE.md` explains how to regenerate/update it. Update it on merges that add notable features.
+- `docs/devlog.html` (+ `docs/devlog/*.webp`) is the detailed scrolling devlog (one entry per milestone, with screenshot or animation); see the *Devlog* section of `docs/PRESENTATION_GUIDE.md`.
