@@ -650,6 +650,33 @@ function drawStatusStrip(ctx, g, view, mm, title, bestText, globalText, hint, wi
   ctx.fillStyle = '#eee';
 }
 
+// Pulsing banner in the middle of the screen when the parking space unlocks.
+function drawReadyFlash(ctx, width, height, t) {
+  const DUR = 3;
+  if (t < 0 || t > DUR) return;
+  const fade = Math.min(1, (DUR - t) / 0.6);
+  const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 6);
+  const pop = 1 + 0.25 * Math.max(0, 1 - t * 4);
+  ctx.save();
+  ctx.translate(width / 2, height / 2);
+  ctx.scale(pop, pop);
+  ctx.globalAlpha = fade;
+  const w = Math.min(width - 20, 520), h = 90;
+  ctx.fillStyle = `rgba(0,0,0,${0.55 + 0.15 * pulse})`;
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = `rgba(255,224,130,${0.4 + 0.6 * pulse})`;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(-w / 2, -h / 2, w, h);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = pulse > 0.5 ? '#fff59d' : '#ffe082';
+  ctx.font = 'bold 34px sans-serif';
+  ctx.fillText('PARKING SPOT UNLOCKED', 0, -10, w - 20);
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('Return to the parking spot (P)', 0, 26, w - 20);
+  ctx.restore();
+}
+
 export function draw(ctx, g, view) {
   const { width, height } = view;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -711,7 +738,29 @@ export function draw(ctx, g, view) {
   const hint = g.status === 'play' && isSolved(g)
     ? (scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish')
     : '';
-  if (view.povBig && view.touch && width > height) { /* cab view on touch landscape: no scoring HUD */ }
+  const lostNow = lostBreakdown(g);
+  const ready = g.status === 'play' && isSolved(g) && scoreEnough(g);
+  const now = performance.now();
+  const sig = `${g.level}|${g.seed}|${done}|${score(g)}|${lostNow.crash}|${lostNow.square}|${hint}`;
+  if (view.hudSig !== sig) {
+    if (view.hudSig !== undefined) view.hudShownAt = now;
+    view.hudSig = sig;
+  }
+  if (ready && !view.hudReady) view.flashAt = now;
+  view.hudReady = ready;
+  // Full screen: the HUD floats down from the top when something changes, waits, then floats back up.
+  let hudOff = 0;
+  if (view.fullscreen) {
+    const t = (now - (view.hudShownAt ?? -1e9)) / 1000;
+    const IN = 0.45, HOLD = 2, OUT = 0.5;
+    const p = t < IN ? t / IN : t < IN + HOLD ? 1 : t < IN + HOLD + OUT ? 1 - (t - IN - HOLD) / OUT : 0;
+    hudOff = (1 - p * p * (3 - 2 * p)) * (strip ? -130 : 130);
+  }
+  const hudHidden = Math.abs(hudOff) >= 130;
+  ctx.save();
+  ctx.translate(0, -hudOff);
+  if (hudHidden) { /* hidden in full screen */ }
+  else if (view.povBig && view.touch && width > height) { /* cab view on touch landscape: no scoring HUD */ }
   else if (mmBox) drawStatusStrip(ctx, g, view, mmBox, title, bestText, globalText, hint, width, height);
   else {
     ctx.textAlign = 'left';
@@ -746,6 +795,7 @@ export function draw(ctx, g, view) {
       ctx.fillText(hint, hx0, 92);
     }
   }
+  ctx.restore();
 
   // fork height gauge: 0 = floor; box layer i fills the cell at height i-1
   const gx = width - 70, gy = 70, cell = 26, top = 5;
@@ -785,6 +835,7 @@ export function draw(ctx, g, view) {
   ctx.fillStyle = '#f9a825';
   ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
 
+  if (view.fullscreen && view.flashAt != null && ready) drawReadyFlash(ctx, width, height, (now - view.flashAt) / 1000);
   if (g.status === 'play' && !g.started && !view.startHidden && !view.paused && !view.menuOpen) drawStartBoard(ctx, g, view, width, height);
   if (view.paused) {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
