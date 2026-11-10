@@ -625,38 +625,72 @@ function forkedStack(g) {
   return S && S.layers.length > g.H ? S : null;
 }
 
-// Moves the stack on `from`'s forks onto `to`'s forks, keeping its world angles; it snaps to `to`'s carry position.
-function transferCarried(from, to) {
+// Moves the boxes from index `k` up of the stack on `from`'s forks onto `to`'s forks (k > 0 splits the stack), keeping their
+// world angles. With `onto` they are put on top of the stack `to` already carries instead; otherwise `to` carries nothing yet.
+function transferCarried(from, to, k = 0, onto = false) {
+  const n = from.carried.length;
+  while (from.carriedPen.length < n) from.carriedPen.push(newPen(from.carried[from.carriedPen.length], from.carriedPen.length));
+  while (from.carriedRots.length < n) from.carriedRots.push(from.carriedRel);
+  while (from.carriedOffs.length < n) from.carriedOffs.push({ x: 0, y: 0 });
   const d = from.fl.a - to.fl.a, c = Math.cos(d), sn = Math.sin(d);
-  to.carried = from.carried;
-  to.carriedPen = from.carriedPen;
-  to.carriedRots = from.carriedRots.map((r) => r + d);
-  to.carriedRel = from.carriedRel + d;
-  to.carriedOffs = from.carriedOffs.map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c }));
-  from.carried = null;
-  from.carriedRots = [];
-  from.carriedPen = [];
-  from.carriedOffs = [];
+  const rot = (o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c });
+  const base = from.carriedOffs[k];
+  let shift = { x: 0, y: 0 };
+  if (onto) {
+    // from's bottom box relative to to's bottom box, in to's frame
+    const pf = toWorld(from.fl, FL.carryX, 0), pt = toWorld(to.fl, FL.carryX, 0);
+    shift = toLocal({ x: 0, y: 0, a: to.fl.a }, pf.x - pt.x, pf.y - pt.y);
+  }
+  const offs = from.carriedOffs.slice(k).map((o) => { const r = rot({ x: o.x - base.x, y: o.y - base.y }); return { x: r.x + shift.x, y: r.y + shift.y }; });
+  const rots = from.carriedRots.slice(k).map((r) => r + d);
+  const layers = from.carried.slice(k), pen = from.carriedPen.slice(k);
+  if (onto) {
+    to.carried = to.carried.concat(layers);
+    to.carriedPen = to.carriedPen.concat(pen);
+    to.carriedRots = to.carriedRots.concat(rots);
+    to.carriedOffs = to.carriedOffs.concat(offs);
+  } else {
+    to.carried = layers;
+    to.carriedPen = pen;
+    to.carriedRots = rots;
+    to.carriedOffs = offs;
+    to.carriedRel = rots[0];
+  }
+  if (k > 0) {
+    from.carried = from.carried.slice(0, k);
+    from.carriedRots = from.carriedRots.slice(0, k);
+    from.carriedPen = from.carriedPen.slice(0, k);
+    from.carriedOffs = from.carriedOffs.slice(0, k);
+  } else {
+    from.carried = null;
+    from.carriedRots = [];
+    from.carriedPen = [];
+    from.carriedOffs = [];
+  }
 }
 
-// Trucks hand stacks over on their tines. A truck whose empty tines are under another truck's carried stack, at the same height
-// or lower, takes it by raising the tines up to that height (without lifting it higher); a truck carrying a stack over another
-// one's empty tines gives it away by lowering it down to them. Ghosts to each other never trade.
+const atCarryPoint = (g, o) => {
+  const p = toWorld(g.fl, FL.carryX, 0), l = toLocal(o.fl, p.x, p.y);
+  return Math.abs(l.x - FL.carryX) < 0.55 && Math.abs(l.y) < 0.5;
+};
+
+// Trucks hand stacks over on their tines. A truck whose empty tines are under another truck's carried stack takes it by raising
+// the tines up to its height (from below) or, with the tines inside the stack, takes the boxes from that level up and leaves the
+// rest on the other forks. A truck lowering a carried stack over another truck's tines gives it away, or puts it on top of the
+// stack that truck carries (max 5 layers). Ghosts to each other never trade.
 function stackOnMyTines(g) {
   for (const o of otherTrucks(g)) {
-    if (!o.carried || o.H < g.H || ghostBetween(g, g.truck.id, o.truck.id)) continue;
-    const p = toWorld(o.fl, FL.carryX, 0), l = toLocal(g.fl, p.x, p.y);
-    if (Math.abs(l.x - FL.carryX) < 0.55 && Math.abs(l.y) < 0.5) return o;
+    if (!o.carried || o.H > g.H + 1 || g.H >= o.H + o.carried.length || ghostBetween(g, g.truck.id, o.truck.id)) continue;
+    if (atCarryPoint(o, g)) return o;
   }
   return null;
 }
 
 function tinesUnderMyStack(g) {
-  const p = toWorld(g.fl, FL.carryX, 0);
   for (const o of otherTrucks(g)) {
-    if (o.carried || o.H > g.H || ghostBetween(g, g.truck.id, o.truck.id)) continue;
-    const l = toLocal(o.fl, p.x, p.y);
-    if (Math.abs(l.x - FL.carryX) < 0.55 && Math.abs(l.y) < 0.5) return o;
+    if (ghostBetween(g, g.truck.id, o.truck.id) || !atCarryPoint(g, o)) continue;
+    if (!o.carried && o.H <= g.H) return o;
+    if (o.carried && o.H + o.carried.length <= g.H && o.carried.length + g.carried.length <= MAX_LAYERS) return o;
   }
   return null;
 }
@@ -665,9 +699,9 @@ function tinesUnderMyStack(g) {
 export function forkUp(g) {
   if (!g.carried) {
     const o = stackOnMyTines(g);
-    if (o && o.H - g.H <= 1) {
-      g.H = o.H;
-      transferCarried(o, g);
+    if (o) {
+      g.H = Math.max(g.H, o.H);
+      transferCarried(o, g, g.H - o.H);
       return;
     }
   }
@@ -702,8 +736,9 @@ export function forkUp(g) {
 export function forkDown(g) {
   if (g.carried) {
     const o = tinesUnderMyStack(g);
-    if (o && g.H - 1 <= o.H) {
-      transferCarried(g, o);
+    const rest = o ? o.H + (o.carried ? o.carried.length : 0) : 0;
+    if (o && g.H - 1 <= rest) {
+      transferCarried(g, o, 0, !!o.carried);
       g.H = Math.max(0, g.H - 1);
       return;
     }

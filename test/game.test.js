@@ -1201,6 +1201,35 @@ console.log('all tests passed');
   assert.equal(g.carried, null);
   assert.equal(g.H, 1);
 
+  // split: truck 0 puts its tines inside a carried stack and takes only the boxes from that level up; then puts them back on top
+  {
+    const g4 = newGame(1);
+    addTruck(g4, 'B');
+    g4.ghostPairs = [];
+    const a = g4.trucks[0], b = g4.trucks[1];
+    Object.assign(b.fl, { x: 10, y: 10, a: 0, speed: 0 });
+    const pc = toWorld(b.fl, FL.carryX, 0);
+    Object.assign(a.fl, { x: pc.x + FL.carryX, y: pc.y, a: Math.PI, speed: 0 });
+    b.H = 1; b.carried = [0, 1, 2]; b.carriedRots = [0, 0, 0]; b.carriedPen = []; b.carriedOffs = [{ x: 0, y: 0 }, { x: 0, y: 0.05 }, { x: 0.1, y: 0.05 }]; b.carriedRel = 0;
+    a.H = 2;
+    forkUp(g4);
+    assert.deepEqual(a.carried, [1, 2], 'took the boxes from its tines up');
+    assert.deepEqual(b.carried, [0], 'the lower box stays on the other forks');
+    assert.equal(a.H, 2);
+    assert.ok(Math.abs(a.carriedOffs[1].x) > 0.09 || Math.abs(a.carriedOffs[1].y) > 0.09, 'keeps its crookedness');
+    const sum = a.carried.length + b.carried.length;
+    forkDown(g4);
+    assert.equal(a.carried, null, 'put the boxes onto the other stack');
+    assert.deepEqual(b.carried, [0, 1, 2]);
+    assert.equal(b.carriedOffs.length, 3);
+    assert.equal(sum, 3);
+    assert.equal(a.H, 1);
+    // a full stack is not merged into
+    b.carried = [0, 1, 2, 3]; a.carried = [1, 2]; a.carriedRots = [0, 0]; a.carriedPen = []; a.carriedOffs = []; a.H = 4;
+    forkDown(g4);
+    assert.equal(b.carried.length, 4, 'over MAX_LAYERS is refused');
+  }
+
   // a player leaving puts the carried boxes down and frees the slot
   removeTruck(g, 1);
   assert.equal(boxes(g), total, 'no box lost when a player leaves');
