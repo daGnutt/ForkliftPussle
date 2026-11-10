@@ -626,7 +626,8 @@ function skidStep(f, dt) {
   f.x += (f.sx || 0) * dt;
   f.y += (f.sy || 0) * dt;
   f.spin *= Math.exp(-SPIN_DECAY * dt); f.sx *= Math.exp(-SKID_DECAY * dt); f.sy *= Math.exp(-SKID_DECAY * dt);
-  const q = (v) => Math.round(v * 1e3) / 1e3; // keeps saved states compact
+  // keeps saved states compact; small values snap to 0 (rounding alone would freeze them, as one step's decay is below the rounding)
+  const q = (v) => (Math.abs(v) < 0.03 ? 0 : Math.round(v * 1e3) / 1e3);
   f.spin = q(f.spin); f.sx = q(f.sx); f.sy = q(f.sy);
 }
 
