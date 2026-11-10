@@ -1571,18 +1571,18 @@ console.log('all tests passed');
 {
   const g = newEndless(1);
   const step = (secs) => { for (let i = 0; i < secs * 60; i++) { update(g, NONE, 1 / 60); stepEndless(g, 1 / 60); } };
-  g.fl.x = 13; g.fl.y = 6; // well away from the trucks
+  g.fl.x = 13; g.fl.y = 7; g.fl.a = 0; // well away from the trucks
   step(3);
   assert.ok(g.stacks.length >= 1 && g.stacks[0].x > 1.1, 'a box rides the belt');
   g.stacks = [{ x: 5, y: 1.5, layers: [0] }];
   const x0 = g.stacks[0].x;
   step(1);
   assert.ok(g.stacks[0].x > x0, 'belt moves while the fence is intact');
-  g.fl.x = 13; g.fl.y = 3.5; g.fl.a = -Math.PI / 2; // forks across the laser beam
+  g.fl.x = 13; g.fl.y = 4; g.fl.a = -Math.PI / 2; // forks across the laser beam
   const x1 = g.stacks[0].x;
   step(1);
   assert.ok(g.endless.broken && g.stacks[0].x === x1, 'a broken laser beam pauses the belt');
-  g.fl.y = 6;
+  g.fl.y = 7; g.fl.a = 0;
   step(0.2);
   assert.ok(!g.endless.broken);
   const bay = g.endless.bays[1];
@@ -1613,7 +1613,7 @@ console.log('all tests passed');
 
   // boxes that reach the end of the belt are missed
   const m = newEndless(3);
-  m.fl.x = 13; m.fl.y = 6;
+  m.fl.x = 13; m.fl.y = 7; m.fl.a = 0;
   m.stacks = Array.from({ length: MAX_MISSED }, (_, i) => ({ x: 25 + i * 0.01, y: 1.5, layers: [0] }));
   m.endless.spawnT = 1e9;
   for (let i = 0; i < 180; i++) stepEndless(m, 1 / 60);

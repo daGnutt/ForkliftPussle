@@ -10,6 +10,7 @@ export const ENDLESS_H = 14;
 export const ENDLESS_COLORS = 4;
 export const MAX_MISSED = 10;
 const BELT = { x0: 0.2, y0: 0.5, x1: ENDLESS_W - 1.2, y1: 2.5 };
+const ROAD = 2.8; // depth of the truck road between the belt and the laser fence
 const BELT_SPEED = 0.4; // tiles/s
 const SPAWN_X = 1.0;
 const SLOT = 2; // spacing of the delivery truck's four stack slots
@@ -52,11 +53,11 @@ export function newEndless(seed = 0, hard = false) {
   }
   const layout = {
     w: ENDLESS_W, h: ENDLESS_H, walls: [], charger: null, zones, areas, bays: [], doors: [], stacks: [],
-    start: { x: ENDLESS_W / 2, y: 6, a: -Math.PI / 2 },
+    start: { x: ENDLESS_W / 2, y: 7, a: -Math.PI / 2 },
   };
   const g = gameFromLayout(layout, 0, seed, hard);
   g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, spawnT: 2, spawned: 0, missed: 0, broken: false, delivered: 0, boxes: 0, points: 0, over: false, bays };
-  g.belt = { ...BELT, speed: BELT_SPEED, beamY: BELT.y1 + 0.2 };
+  g.belt = { ...BELT, speed: BELT_SPEED, beamY: BELT.y1 + ROAD };
   g.layoutVersion = 0;
   for (const b of bays) {
     const r = bayRects(b.x0, 0);
@@ -170,7 +171,8 @@ export function stepEndless(g, dt) {
 }
 
 // Floor art of the belt as [{pts, fill}] polygons, drawn in order: rollers between hazard-striped rails, chevrons along the
-// direction of travel, the red pit at the end, and the laser fence (posts plus a beam) along the south edge. The beam is
+// direction of travel, the truck road along its south side, the red pit at the end, and the laser fence (posts plus a beam)
+// along the road's south edge. The beam is
 // bright while intact and dark while broken.
 export function beltArt(b, broken = false) {
   const out = [];
@@ -186,6 +188,8 @@ export function beltArt(b, broken = false) {
   for (let x = b.x0 + 1.2; x < b.x1 - 1; x += 1.6) {
     out.push({ pts: [[x, cy - h * 0.5], [x + 0.45, cy], [x, cy + h * 0.5], [x - 0.22, cy + h * 0.5], [x + 0.23, cy], [x - 0.22, cy - h * 0.5]], fill: '#8d949b' });
   }
+  rect(b.x0, b.y1, b.x1 - b.x0, b.beamY - b.y1, '#7b8087');
+  for (let x = b.x0 + 0.3; x < b.x1 - 0.5; x += 1.2) rect(x, (b.y1 + b.beamY) / 2 - 0.04, 0.6, 0.08, '#eceff1');
   rect(b.x1, b.y0, ENDLESS_W - b.x1, b.y1 - b.y0, '#c62828');
   for (let y = b.y0; y < b.y1 - 1e-6; y += 0.4) rect(b.x1, y, 0.2, 0.2, '#1a1a1a');
   rect(b.x0, b.beamY - 0.025, b.x1 - b.x0, 0.05, broken ? '#4a1a1a' : '#ff1744');
