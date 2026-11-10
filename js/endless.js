@@ -4,23 +4,24 @@ import { gameFromLayout, wonkyStack, solidPolys, zoneDone, zonePoints } from './
 // Endless mode: single boxes ride a conveyor belt along the north wall; the player moves them onto the delivery truck of their
 // colour (one bay per colour). A full truck (4 slots x 4 boxes) closes its gate once no forklift is inside, drives off with its
 // load and is replaced by a new one. Boxes that reach the end of the belt are missed; too many ends the game.
-export const ENDLESS_W = 28;
-export const ENDLESS_H = 24;
+export const ENDLESS_W = 26;
+export const ENDLESS_H = 14;
 export const ENDLESS_COLORS = 4;
 export const MAX_MISSED = 10;
 const BELT = { x0: 0.2, y0: 0.5, x1: ENDLESS_W - 1.2, y1: 2.5 };
-const BELT_SPEED = 1; // tiles/s
+const BELT_SPEED = 0.8; // tiles/s
 const SPAWN_X = 1.0;
 const SLOT = 2; // spacing of the delivery truck's four stack slots
 const TRUCK_W = 4.6, TRUCK_D = 4.6, WALL = 0.3;
-const FIRST_X = 1.9, BAY_STEP = 6.4;
+const FIRST_X = 2.3, BAY_STEP = 5.6;
 const GONE = 200; // a truck that is away is parked this far off the map
 const OUT_DIST = 9;
 const GATE_DELAY = 1; // s between the gate closing and the truck driving off
 const AWAY_TIME = 2; // s before the replacement truck arrives
 const STACK_BOXES = 4;
 
-export const interval = (elapsed) => Math.max(3, 6 - elapsed / 90);
+// Average gap between spawns; each gap is randomised (x0.4..x1.6) so the boxes arrive irregularly.
+export const interval = (elapsed) => Math.max(4, 8 - elapsed / 80);
 
 function bayRects(x0, off) {
   const y = ENDLESS_H - TRUCK_D + off;
@@ -50,7 +51,7 @@ export function newEndless(seed = 0, hard = false) {
   }
   const layout = {
     w: ENDLESS_W, h: ENDLESS_H, walls: [], charger: null, zones, areas, bays: [], doors: [], stacks: [],
-    start: { x: ENDLESS_W / 2, y: 11, a: -Math.PI / 2 },
+    start: { x: ENDLESS_W / 2, y: 6, a: -Math.PI / 2 },
   };
   const g = gameFromLayout(layout, 0, seed, hard);
   g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, spawnT: 2, spawned: 0, missed: 0, delivered: 0, boxes: 0, points: 0, over: false, bays };
@@ -152,9 +153,11 @@ export function stepEndless(g, dt) {
     const y = (B.y0 + B.y1) / 2 + (rnd(e) - 0.5) * 0.3;
     if (g.stacks.some((s) => Math.hypot(s.x - SPAWN_X, s.y - y) < 1.2)) e.spawnT = 0.2;
     else {
-      g.stacks.push(wonkyStack({ x: SPAWN_X, y, layers: [Math.floor(rnd(e) * ENDLESS_COLORS)] }));
+      const n = rnd(e) < 0.15 ? 3 : rnd(e) < 0.3 ? 2 : 1; // now and then a ready-made stack of one colour
+      const col = Math.floor(rnd(e) * ENDLESS_COLORS);
+      g.stacks.push(wonkyStack({ x: SPAWN_X, y, layers: Array(n).fill(col) }));
       e.spawned++;
-      e.spawnT = interval(e.elapsed);
+      e.spawnT = interval(e.elapsed) * (0.4 + 1.2 * rnd(e));
     }
   }
   for (const b of e.bays) stepBay(g, b, dt);

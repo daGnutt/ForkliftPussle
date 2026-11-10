@@ -1571,7 +1571,7 @@ console.log('all tests passed');
 {
   const g = newEndless(1);
   const step = (secs) => { for (let i = 0; i < secs * 60; i++) { update(g, NONE, 1 / 60); stepEndless(g, 1 / 60); } };
-  g.fl.x = 14; g.fl.y = 11; // well away from the trucks
+  g.fl.x = 13; g.fl.y = 6; // well away from the trucks
   step(3);
   assert.ok(g.stacks.length >= 1 && g.stacks[0].x > 1.5, 'a box rides the belt');
   const bay = g.endless.bays[1];
@@ -1602,7 +1602,7 @@ console.log('all tests passed');
 
   // boxes that reach the end of the belt are missed
   const m = newEndless(3);
-  m.fl.x = 14; m.fl.y = 11;
+  m.fl.x = 13; m.fl.y = 6;
   m.stacks = Array.from({ length: MAX_MISSED }, (_, i) => ({ x: 25 + i * 0.01, y: 1.5, layers: [0] }));
   m.endless.spawnT = 1e9;
   for (let i = 0; i < 180; i++) stepEndless(m, 1 / 60);
