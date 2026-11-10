@@ -15,8 +15,8 @@ let randomOn = localStorage.getItem(RANDOM_KEY) !== '0';
 let onTrackChange = null;
 let timer = null, noiseBuf = null;
 let trackIdx = 0, trackBus = null;
-let engine = null;
-let beeper = null;
+const engines = new Map(); // truck id -> engine voice
+const beepers = new Map(); // truck id -> reversing beeper voice
 const ALL_KEY = 'forklift-all-muted';
 let allMuted = localStorage.getItem(ALL_KEY) === '1';
 const MASTER_VOL = 0.8;
@@ -345,8 +345,10 @@ export function isEngineOn() { return engineOn; }
 export function setEngineOn(on) {
   engineOn = on;
   localStorage.setItem(ENGINE_KEY, on ? '0' : '1');
-  if (!on && engine && ctx) engine.g.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
-  if (!on && beeper && ctx) beeper.g.gain.setTargetAtTime(0, ctx.currentTime, 0.01);
+  if (!on && ctx) {
+    for (const e of engines.values()) e.g.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+    for (const b of beepers.values()) b.g.gain.setTargetAtTime(0, ctx.currentTime, 0.01);
+  }
 }
 
 export function setMusicMuted(m) {
@@ -362,14 +364,14 @@ function toggleMusic() {
 }
 
 // Soft hydraulic hum with a little fluid hiss, sweeping up (raise) or down (lower).
-export function playFork(up) {
-  if (!ctx || ctx.state !== 'running') return;
+export function playFork(up, vol = 1) {
+  if (!ctx || ctx.state !== 'running' || vol <= 0) return;
   const t = ctx.currentTime, dur = 0.34;
-  const o = tone(sfxBus, 1, t, dur, { type: 'triangle', gain: 0.1, attack: 0.06, release: 0.14, cutoff: 700 });
+  const o = tone(sfxBus, 1, t, dur, { type: 'triangle', gain: 0.1 * vol, attack: 0.06, release: 0.14, cutoff: 700 });
   o.frequency.cancelScheduledValues(t);
   o.frequency.setValueAtTime(up ? 110 : 190, t);
   o.frequency.linearRampToValueAtTime(up ? 190 : 110, t + dur);
-  noise(sfxBus, t, dur, { gain: 0.05, cutoff: 1800, type: 'bandpass' });
+  noise(sfxBus, t, dur, { gain: 0.05 * vol, cutoff: 1800, type: 'bandpass' });
 }
 
 // Descending buzz when the forks are refused a move through a box.
@@ -474,21 +476,28 @@ function startEngine() {
   g.connect(sfxBus);
   o.start();
   o2.start();
-  engine = { o, o2, f, g };
+  return { o, o2, f, g };
 }
 
-// Call every frame. speed in tiles/s (signed); throttle: a drive key is held.
-export function setEngine(speed, throttle, reversing = false) {
-  if (!ctx || ctx.state !== 'running' || !engineOn) return;
-  if (!engine) startEngine();
-  const v = Math.min(1, Math.abs(speed) / 4);
+// Call every frame per truck. speed in tiles/s (signed); throttle: a drive key is held; id: truck id (each has its own
+// slightly different pitch); vol 0..1 scales the hum and the reversing beeper (by distance for other trucks).
+export function setEngine(speed, throttle, reversing = false, id = 0, vol = 1) {
+  if (!ctx || ctx.state !== 'running') return;
   const t = ctx.currentTime;
-  const pitch = 55 + v * 80 + (throttle ? 6 : 0);
+  let engine = engines.get(id);
+  if (!engine) {
+    if (vol <= 0) return;
+    engine = startEngine();
+    engines.set(id, engine);
+  }
+  if (!engineOn) { setBeeper(false, t, id, vol); return; }
+  const v = Math.min(1, Math.abs(speed) / 4);
+  const pitch = (55 + v * 80 + (throttle ? 6 : 0)) * (1 + 0.04 * id);
   engine.o.frequency.setTargetAtTime(pitch, t, 0.15);
   engine.o2.frequency.setTargetAtTime(pitch * 0.5, t, 0.15);
   engine.f.frequency.setTargetAtTime(250 + v * 350, t, 0.15);
-  engine.g.gain.setTargetAtTime(v < 0.02 && !throttle ? 0.008 : 0.02 + v * 0.05, t, 0.15);
-  setBeeper(reversing, t);
+  engine.g.gain.setTargetAtTime((v < 0.02 && !throttle ? 0.008 : 0.02 + v * 0.05) * vol, t, 0.15);
+  setBeeper(reversing, t, id, vol);
 }
 
 // Horns: one voice per truck (two detuned saws), held for as long as the truck's horn key is down.
@@ -525,8 +534,10 @@ export function setHorns(list) {
 }
 
 // Reversing warning: 880 Hz soft sine beep, 0.4 s on / 0.4 s off while backing up.
-function setBeeper(reversing, t) {
+function setBeeper(reversing, t, id, vol) {
+  let beeper = beepers.get(id);
   if (!beeper) {
+    if (!reversing) return;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = 'sine';
@@ -536,7 +547,8 @@ function setBeeper(reversing, t) {
     g.connect(sfxBus);
     o.start();
     beeper = { o, g };
+    beepers.set(id, beeper);
   }
   const on = reversing && t % 0.8 < 0.4;
-  beeper.g.gain.setTargetAtTime(on ? 0.035 : 0, t, 0.01);
+  beeper.g.gain.setTargetAtTime(on ? 0.035 * vol : 0, t, 0.01);
 }

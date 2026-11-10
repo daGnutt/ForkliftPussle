@@ -83,6 +83,7 @@ let doneZones = doneSet();
 let hitCount = game.hitCount;
 let bonkCount = game.bonks;
 let otherBonks = new Map(); // truck id -> last seen bonk count (other trucks' bumps are heard, quieter with distance)
+const otherH = new Map(); // truck id -> last seen fork level
 refreshBest();
 // Loudness 0..1 of a sound at (x, y), falling off with the distance from the local truck (same curve as the horns).
 const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8);
@@ -108,6 +109,7 @@ function load(n) {
   hitCount = game.hitCount;
   bonkCount = game.bonks;
   otherBonks.clear();
+  otherH.clear();
   partyGameChanged();
   refreshBest();
   saveState();
@@ -915,7 +917,7 @@ function frame(now) {
   checkTutorial();
   checkRecord();
   const st = input.state();
-  setEngine(game.fl.speed, st.up || st.down, game.fl.gear === 'R');
+  setEngine(game.fl.speed, st.up || st.down, game.fl.gear === 'R', game.self);
   game.horn = !!st.horn && !splashOn && !view.paused;
   setHorns(game.trucks.map((t, i) => {
     const own = i === game.self, d = Math.hypot(t.fl.x - game.fl.x, t.fl.y - game.fl.y);
@@ -932,8 +934,12 @@ function frame(now) {
   let scrapeV = game.scrape, scrapeVol = 1;
   for (let i = 0; i < game.trucks.length; i++) {
     const t = game.trucks[i];
-    if (i === game.self || t.gone) continue;
+    if (i === game.self) continue;
+    if (t.gone) { setEngine(0, false, false, t.id, 0); otherH.delete(t.id); continue; }
     const vol = hearVol(t.fl.x, t.fl.y);
+    if (t.H !== (otherH.get(t.id) ?? t.H)) playFork(t.H > otherH.get(t.id), vol);
+    otherH.set(t.id, t.H);
+    setEngine(t.fl.speed, t.input?.up || t.input?.down, t.fl.gear === 'R', t.id, vol);
     if (t.bonks > (otherBonks.get(t.id) ?? t.bonks)) playBonk(t.bonkPower, vol);
     otherBonks.set(t.id, t.bonks);
     if (t.scrape * vol > scrapeV * scrapeVol) { scrapeV = t.scrape; scrapeVol = vol; }
