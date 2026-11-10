@@ -155,13 +155,13 @@ const input = createInput({
     if (tutStep === 3 && view.povBig) nextTutorial();
   },
   up: () => {
-    if (mp?.role === 'guest') { mp.guest.sendFork('up'); return; }
+    if (mp?.role === 'guest') { mp.guest.sendFork('up'); if (mp.guest.predictor.fork('up', performance.now() / 1000) === 'blocked') playBlocked(); return; }
     const h = game.H;
     if (forkUp(game) === 'blocked') playBlocked();
     else if (game.H !== h) playFork(true);
   },
   down: () => {
-    if (mp?.role === 'guest') { mp.guest.sendFork('down'); return; }
+    if (mp?.role === 'guest') { mp.guest.sendFork('down'); if (mp.guest.predictor.fork('down', performance.now() / 1000) === 'blocked') playBlocked(); return; }
     const h = game.H;
     if (forkDown(game) === 'blocked') playBlocked();
     else if (game.H !== h) playFork(false);

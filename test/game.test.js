@@ -1332,6 +1332,19 @@ console.log('all tests passed');
     pr.onSnapshot({ ...auth }, 1, 0);
     pr.apply(pg, 1);
     assert.ok(Math.abs(pg.trucks[1].fl.x - (ahead.x - 10)) < 1e-6, 'large error snaps');
+    // forks are predicted too: shown at once, and the host's answer wins once it should have arrived
+    pr.fork('up', 2);
+    pr.apply(pg, 2);
+    assert.equal(pg.trucks[1].H, 1, 'fork level predicted at once');
+    const refused = snapshot(pg);
+    refused.trucks[1].H = 0;
+    pr.onSnapshot(refused, 2.1, 0.05);
+    pr.apply(pg, 2.1);
+    assert.equal(pg.trucks[1].H, 1, 'still the prediction while the host has not confirmed');
+    pr.onSnapshot(refused, 3, 0.05);
+    pr.fork('up', 4);
+    pr.apply(pg, 4);
+    assert.equal(pg.trucks[1].H, 1, 'the host refused the first raise, so the prediction was reset to level 0');
   }
 
   // a new level keeps everyone in their slot
