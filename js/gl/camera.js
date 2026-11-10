@@ -10,7 +10,7 @@ const LOW_LIFT = 0.22; // radians the view is raised above the fork-tip line whe
 
 // The driver looks into the turn: a small yaw proportional to the steering angle, regardless of speed or direction.
 const HEAD_TURN = 0.3;
-function headTurn(f) {
+export function headTurn(f) {
   return HEAD_TURN * (f.steer / FL.maxSteer);
 }
 

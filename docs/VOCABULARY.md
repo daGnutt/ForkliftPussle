@@ -106,6 +106,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Cabin view / POV** | First-person view from the driver's seat | `drawPov`, `drawPov3d` |
 | **Orbit / look** | Drag or Q/W in the GL views: swings the overview around the forklift (`view.orbit`) or turns the cab camera (`view.look`); driving springs it back (`view.snap`) | `view.orbit`, `view.look` |
 | **Big view** | Which of overview/cabin fills the screen | `view.povBig` |
+| **Compass** | Small needle under the fork gauge pointing north (world up) as seen from the current camera | `drawCompass` |
 | **Chase camera** | Third-person GL overview camera behind the forklift on a spring (`view.camA` lags the forklift heading, so the tail swings); drag/Q/W orbit it around the middle of the tines, driving springs it back; a wall hiding more than half the forklift makes it orbit upwards (`view.chaseLift`) (C / menu / double tap on the canvas); the minimap outlines its tilted floor footprint instead of a rectangle | `view.chase`, `chaseCamera`, `groundFootprint` |
 | **Corner window / look window** | Small inset showing the other view | `drawLook3d` |
 | **Software camera** | 2D Canvas renderer (`pov.js`, `pov/camera.js`) | – |

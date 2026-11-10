@@ -4,7 +4,7 @@ import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
 import { labelRows, hitRows, honkers, drawHonk } from './pov/overlay.js';
-import { chaseTiles as chaseTilesFor, clearChaseTilt, CHASE_TILT } from './gl/camera.js';
+import { chaseTiles as chaseTilesFor, clearChaseTilt, CHASE_TILT, headTurn } from './gl/camera.js';
 import { beginGlFrame } from './gl/renderer.js';
 import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
@@ -717,6 +717,42 @@ function drawPartyBadge(ctx, g, party, width) {
   ctx.restore();
 }
 
+// Small compass under the fork gauge: the needle points to north (world -y) as seen from the current camera.
+function drawCompass(ctx, g, view, width) {
+  let a; // world heading of the screen's "up"
+  if (view.povBig) a = g.fl.a + (view.look ? view.look.yaw : 0) + headTurn(g.fl);
+  else if (view.chase) a = (view.camA ?? g.fl.a) + (view.orbit ? view.orbit.yaw : 0);
+  else a = view.orbit ? view.orbit.yaw - Math.PI / 2 : -Math.PI / 2;
+  const theta = Math.atan2(-Math.cos(a), -Math.sin(a)), cx = width - 29, cy = 262, r = 18;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, r + 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.rotate(theta);
+  ctx.fillStyle = '#e53935';
+  ctx.beginPath();
+  ctx.moveTo(0, -r); ctx.lineTo(5, 2); ctx.lineTo(-5, 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#ddd';
+  ctx.beginPath();
+  ctx.moveTo(0, r - 4); ctx.lineTo(4, 2); ctx.lineTo(-4, 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.rotate(-theta);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('N', Math.sin(theta) * (r - 9), -Math.cos(theta) * (r - 9));
+  ctx.restore();
+}
+
 export function draw(ctx, g, view) {
   const { width, height } = view;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -892,6 +928,7 @@ export function draw(ctx, g, view) {
   ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);
   ctx.fillStyle = tc.body;
   ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
+  drawCompass(ctx, g, view, width);
 
   if (view.fullscreen && view.flashAt != null && ready) drawReadyFlash(ctx, width, height, (now - view.flashAt) / 1000);
   if (g.status === 'play' && !g.started && !view.startHidden && !view.paused && !view.menuOpen) drawStartBoard(ctx, g, view, width, height);
