@@ -32,6 +32,13 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 
 Gear: `g.fl.gear` is `'D'` or `'R'` (set in `drive`, flips only at standstill when the opposite throttle is held). R drives reverse lights/beeper; the GL cabin camera keeps looking forward and does not swivel round in R. `g.rv` (0..1, smoothed, set in `update`) is 1 after `LOOK_BACK_DELAY` (1 s) in R and only flips the chase camera (`main.js`).
 
+## Multiplayer (party)
+- `game.js` keeps per-truck state in `g.trucks[]` (`makeTruck`: `fl`, `H`, `hf`, `carried*`, `input`, `name`, `color`, `gone`, ghost flags). `g` itself is the *view* of the local truck (`g.self`); `truckView(g, i)` Proxies expose other trucks with the same field names. Never serialise views or hit `owner` fields. `addTruck(g, name, slot)`/`removeTruck`, `liveTrucks`, `otherTrucks`, `isGhost`/`ghostBetween` (trucks overlapping at spawn are ghosts to each other until separated), solid truck-vs-truck SAT in `resolve()`, and stack handoff (`transferCarried` in `forkUp`/`forkDown`: tines under another truck's carried stack at height <= theirs take it on reaching its height; lowering over another's tines gives it). `isFinished` = any live truck parked. `dropLift` is shared by the cabin renderers.
+- `forklift.js`: `MAX_PLAYERS` (4), `TRUCK_COLORS` (yellow, red, blue, green; `body/roof/counter/dark`), `truckColor(i)`. The fork gauge backdrop uses `dark`.
+- `js/net/`: `relay.js` (hiScore party API: create/info/join/signal/end + SSE events), `peer.js` (RTCPeerConnection with reliable `ctl` and unordered `state` channels, serial signal handling, ICE buffering), `protocol.js` (`snapshot`, `createSnapshotter`, `applySnapshot`, `createInterpolator` ~100 ms delay, 30 Hz), `host.js` (authoritative: `hello` -> `addTruck` -> `welcome`, applies `in`/`fork`, broadcasts snapshots), `guest.js` (sends inputs, `interp` renders snapshots; no prediction). All DOM-free and tested in Node with an in-memory relay and loopback links.
+- `main.js` holds `mp` (`{role, code, host|guest, ...}`): guests never call `update`; hosts broadcast every frame; the menu does not pause in a party; savestates/import are disabled for guests/parties. Party UI: splash `#party` block, `#menuLeave`, party badge `drawPartyBadge` in `render.js`.
+- Party scores: host calls `submitPartyScore` (`globalscores.js`) to board `<seed||0>:<level>:p<N>` with `players`, `partyCode`, `hostToken`.
+
 ## Units and coordinates
 - Simulation units are tiles; one box is 1×1. The renderer scales the canvas.
 - x right, y down; angle `a` in radians, 0 = facing +x.

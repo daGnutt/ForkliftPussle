@@ -54,6 +54,9 @@ Combine with `&`, e.g. `index.html?skip&debug&gl=0`.
 | `?skip` | Skip the splash screen and start the game, with the tutorial off for that visit (saved settings are kept); on touch devices it opens the main menu and leaving it enters fullscreen |
 | `?testing` | Show the TESTING banner/favicon (always on when not served from the production host) |
 
+## Multiplayer
+Up to 4 players share a level (co-op, one shared score). On the start screen enter a name and press **Host game** to get a party code, share it, and friends enter it under **Join game**; the host presses Start. Each truck has its own colour (yellow, red, blue, green) and the fork gauge backdrop matches it. Trucks spawning in the parking spot overlap as translucent *ghosts* until they separate, then collide. Put your tines under another truck's carried stack (same or lower height) and raise them to its height to take the stack; the carrier can lower its tines over yours to give it. Connection is peer-to-peer (WebRTC) via the high score service as relay; the host runs the game.
+
 ## Run / deploy
 No build step. Serve the folder statically (ES modules need http): `python3 -m http.server`, then open http://localhost:8000.
 GitHub Pages: Settings → Pages → deploy from branch, root folder.
