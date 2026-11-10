@@ -783,7 +783,7 @@ export function draw(ctx, g, view) {
       drawMiniMap(ctx, g, { x: 0, y: 0, w: g.w, h: g.h }, mx, my, mm.s);
       view.miniHit = { x: mx - 3, y: my - 3, w: mm.w + 6, h: mm.h + 6 };
     } else if (!view.touch) { // non-touch cab view: whole-map minimap bottom left, with the truck's heading
-      const mm = miniSize(g, 180, 120);
+      const mm = miniSize(g, 320, 200);
       drawMiniMap(ctx, g, { x: 0, y: 0, w: g.w, h: g.h }, 16, height - 16 - mm.h, mm.s);
     }
     const mw = Math.min(150, width * 0.14), mh = mw * 0.75;
