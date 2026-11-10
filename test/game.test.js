@@ -12,6 +12,7 @@ import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
 import { createHost } from '../js/net/host.js';
 import { createGuest } from '../js/net/guest.js';
+import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos } from '../js/game.js';
@@ -1309,6 +1310,29 @@ console.log('all tests passed');
   ip2.push(b, 1);
   ip2.apply(guestGame, 0.5);
   assert.ok(Math.abs(guestGame.fl.x - (a.trucks[1].fl.x + 1)) < 1e-6, 'halfway between snapshots');
+
+  // prediction: the guest's truck moves at once, and a snapshot from one round trip ago pulls it back in line
+  {
+    const pg = newGame(7, 3, false);
+    addTruck(pg, 'Bob');
+    pg.self = 1;
+    const pr = createPredictor();
+    pr.reset(pg);
+    const x0 = pg.trucks[1].fl.x;
+    for (let i = 0; i < 60; i++) { pr.step(pg, { up: true }, 1 / 60, i / 60); pr.apply(pg, i / 60); }
+    assert.ok(Math.abs(pg.trucks[1].fl.x - x0) + Math.abs(pg.trucks[1].fl.y - 0) > 0.1, 'predicted truck moved without a snapshot');
+    const ahead = { ...pg.trucks[1].fl };
+    const auth = snapshot(pg);
+    auth.trucks[1].fl = { ...ahead, x: ahead.x - 0.5 };
+    pr.onSnapshot({ ...auth }, 1, 0);
+    pr.apply(pg, 1);
+    const moved = Math.hypot(pg.trucks[1].fl.x - ahead.x, pg.trucks[1].fl.y - ahead.y);
+    assert.ok(moved > 0.01 && moved < 0.5, 'small error is blended, not snapped');
+    auth.trucks[1].fl = { ...ahead, x: ahead.x - 10 };
+    pr.onSnapshot({ ...auth }, 1, 0);
+    pr.apply(pg, 1);
+    assert.ok(Math.abs(pg.trucks[1].fl.x - (ahead.x - 10)) < 1e-6, 'large error snaps');
+  }
 
   // a new level keeps everyone in their slot
   host = newGame(8, 3, false);
