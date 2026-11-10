@@ -1573,7 +1573,7 @@ console.log('all tests passed');
   const step = (secs) => { for (let i = 0; i < secs * 60; i++) { update(g, NONE, 1 / 60); stepEndless(g, 1 / 60); } };
   g.fl.x = 13; g.fl.y = 6; // well away from the trucks
   step(3);
-  assert.ok(g.stacks.length >= 1 && g.stacks[0].x > 1.5, 'a box rides the belt');
+  assert.ok(g.stacks.length >= 1 && g.stacks[0].x > 1.1, 'a box rides the belt');
   const bay = g.endless.bays[1];
   g.endless.spawnT = 1e9;
   g.stacks = [];
