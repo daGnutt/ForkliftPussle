@@ -1093,8 +1093,9 @@ console.log('all tests passed');
     if (g.fl.gear === 'R') flipped = true; else assert.ok(g.fl.speed > -0.001, 'stays in D while still moving forward');
   }
   assert.ok(flipped && Math.abs(g.fl.speed) < 0.05, 'R engages at standstill');
-  run(g, {}, 3);
-  assert.equal(g.fl.gear, 'R', 'coasting keeps R');
+  run(g, {}, 0.5);
+  assert.equal(g.fl.gear, 'R', 'brief idle keeps R');
+  run(g, { down: true }, 0.2);
   run(g, { up: true }, 2);
   assert.equal(g.fl.gear, 'D');
   console.log('gear ok');
@@ -1146,4 +1147,17 @@ console.log('all tests passed');
   assert.ok(carriedSeen, 'demo carries stacks');
   assert.ok(g.stacks.length === 3 || g.carried, 'stacks conserved');
   console.log('splash demo ok');
+}
+
+{
+  const g = newGame(1);
+  run(g, { down: true }, 0.8);
+  assert.equal(g.fl.gear, 'R', 'reversing');
+  run(g, {}, 0.5);
+  assert.equal(g.fl.gear, 'R', 'brief pause stays in R');
+  run(g, { down: true }, 0.3);
+  run(g, {}, 4);
+  assert.ok(Math.abs(g.fl.speed) < 0.05);
+  assert.equal(g.fl.gear, 'D', 'idling in R for >1 s switches to D');
+  console.log('idle reverse to D ok');
 }
