@@ -386,6 +386,21 @@ function spinStack(s, from, tip, nx, ny, sx, sy) {
   if (from === 0) s.a = (s.a || 0) + da;
 }
 
+// A hard hit shoves the upper boxes of a stack further than the bottom one (they have more lever arm and nothing
+// holds them), nudging them off the boxes below; settle() then drops the ones left without enough support.
+const NUDGE_K = 0.06; // tiles per squared box height per tile/s of impact speed
+function nudgeStack(g, s, from, dx, dy, speed) {
+  if (speed < CRASH_MIN_SPEED || s.layers.length < 2 || g.clock - (s.nudgeAt ?? -1) < CRASH_COOLDOWN) return;
+  s.nudgeAt = g.clock;
+  ensure(s);
+  const len = Math.hypot(dx, dy) || 1;
+  for (let j = Math.max(1, from + 1); j < s.layers.length; j++) {
+    const n = NUDGE_K * speed * (j - from) ** 2;
+    s.offs[j].x += (dx / len) * n; s.offs[j].y += (dy / len) * n;
+  }
+  settle(g, s);
+}
+
 const deepest = (poly, nx, ny) => poly.reduce((t, p) => (p.x * nx + p.y * ny > t.x * nx + t.y * ny ? p : t), poly[0]);
 
 function shiftPoly(poly, dx, dy) {
@@ -466,6 +481,7 @@ function resolve(g) {
         const sx = -m.x * d * (ws / (wf + ws)), sy = -m.y * d * (ws / (wf + ws));
         shiftBoxes(s, from, sx, sy);
         if (sh.tine || Math.abs(f.speed) >= CRASH_MIN_SPEED) spinStack(s, from, deepest(sh.poly, -m.x, -m.y), -m.x, -m.y, sx, sy);
+        if (!sh.tine) nudgeStack(g, s, from, -m.x, -m.y, Math.abs(f.speed));
         if (from > 0) settle(g, s);
       }
     }
@@ -504,6 +520,9 @@ function resolve(g) {
         spinStack(b, 0, deepest(pa, -m.x, -m.y), -m.x, -m.y, bx, by);
         a.x += ax; a.y += ay;
         b.x += bx; b.y += by;
+        const sp = Math.abs(f.speed);
+        nudgeStack(g, a, 0, m.x, m.y, sp);
+        nudgeStack(g, b, 0, -m.x, -m.y, sp);
       }
     }
   }

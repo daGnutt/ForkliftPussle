@@ -1518,3 +1518,22 @@ console.log('all tests passed');
   assert.ok(g.stacks.some((s) => Math.abs(s.a || 0) > 0.02), 'off-centre push turns a stack');
   console.log('stack spin ok');
 }
+
+// A hard hit nudges the upper boxes of a tall stack sideways, toppling the top when pushed far enough; a gentle push does not.
+{
+  const mk = (speed) => {
+    const g = newGame(1);
+    flatWorld(g);
+    g.zones = [];
+    g.stacks = [{ x: 10, y: 5, layers: [0, 1, 2, 3] }];
+    g.fl.x = 6; g.fl.y = 5; g.fl.a = 0; g.fl.speed = speed;
+    return g;
+  };
+  const hard = mk(4);
+  run(hard, { up: true }, 1.2);
+  assert.ok(hard.stacks.length > 1, 'hard crash topples the upper boxes');
+  const soft = mk(0.5);
+  run(soft, {}, 0.5);
+  assert.equal(soft.stacks.length, 1, 'gentle bump keeps the stack standing');
+  console.log('stack nudge ok');
+}
