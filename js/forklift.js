@@ -44,7 +44,7 @@ function steerSpeedFactor(speed) {
 }
 
 const idleR = new WeakMap(); // per-forklift idle time in R (kept out of the serialised state)
-const IDLE_TO_D = 1; // s idling in gear R before it switches to D
+const IDLE_TO_D = 3; // s idling in gear R before it switches to D
 
 export function maxSteerFor(speed) {
   return FL.maxSteer * steerSpeedFactor(speed);
