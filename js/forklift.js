@@ -43,6 +43,9 @@ function steerSpeedFactor(speed) {
   return 1 - (1 - MIN_STEER_SPEED_FACTOR) * s;
 }
 
+const idleR = new WeakMap(); // per-forklift idle time in R (kept out of the serialised state)
+const IDLE_TO_D = 3; // s idling in gear R before it switches to D
+
 export function maxSteerFor(speed) {
   return FL.maxSteer * steerSpeedFactor(speed);
 }
@@ -87,6 +90,12 @@ export function drive(f, inp, dt, h = 0) {
   // The gear only flips once the truck has stopped and is about to move the other way.
   if (f.gear === 'D' && th < 0 && f.speed <= 0) f.gear = 'R';
   else if (f.gear === 'R' && th > 0 && f.speed >= 0) f.gear = 'D';
+  // Idling in R (stopped, no throttle) for IDLE_TO_D seconds drops back to D to silence the beeper.
+  if (f.gear === 'R' && th === 0 && Math.abs(f.speed) < 0.05) {
+    const t = (idleR.get(f) || 0) + dt;
+    idleR.set(f, t);
+    if (t > IDLE_TO_D) f.gear = 'D';
+  } else idleR.delete(f);
 
   const steerCap = maxSteerFor(f.speed);
   const target = ((inp.right ? 1 : 0) - (inp.left ? 1 : 0)) * steerCap;
