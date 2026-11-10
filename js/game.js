@@ -375,18 +375,18 @@ function palletRunners(g, s) {
   return RUNNERS.map(([off, hw]) => rectPoly(c.x - uy * off, c.y + ux * off, 0.5, hw, ang));
 }
 
-// A tine pushing a pallet off its centre turns it by the lever arm of the push (boxes from the fork level upward).
-function spinPallet(g, s, tine, m, sx, sy) {
-  const nx = -m.x, ny = -m.y;
-  let tip = tine[0];
-  for (const p of tine) if (p.x * nx + p.y * ny > tip.x * nx + tip.y * ny) tip = p;
-  const c = boxPos(s, g.H);
+// Pushing a stack off its centre turns it by the lever arm of the push (the boxes from `from` upward).
+// `tip` is the pushing shape's vertex deepest into the stack, (nx, ny) the push direction, (sx, sy) how far it moved the stack.
+function spinStack(s, from, tip, nx, ny, sx, sy) {
+  const c = boxPos(s, from);
   const rx = tip.x - c.x, ry = tip.y - c.y;
   const raw = ((rx * ny - ry * nx) * Math.hypot(sx, sy)) / (rx * rx + ry * ry + PALLET_INERTIA);
   const da = Math.max(-0.01, Math.min(0.01, raw));
-  s.rots = s.rots.map((r, i) => (i >= g.H ? r + da : r));
-  if (g.H === 0) s.a = (s.a || 0) + da;
+  s.rots = s.rots.map((r, i) => (i >= from ? r + da : r));
+  if (from === 0) s.a = (s.a || 0) + da;
 }
+
+const deepest = (poly, nx, ny) => poly.reduce((t, p) => (p.x * nx + p.y * ny > t.x * nx + t.y * ny ? p : t), poly[0]);
 
 function shiftPoly(poly, dx, dy) {
   for (const p of poly) { p.x += dx; p.y += dy; }
@@ -465,7 +465,7 @@ function resolve(g) {
         }
         const sx = -m.x * d * (ws / (wf + ws)), sy = -m.y * d * (ws / (wf + ws));
         shiftBoxes(s, from, sx, sy);
-        if (sh.tine) spinPallet(g, s, sh.poly, m, sx, sy);
+        if (sh.tine || Math.abs(f.speed) >= CRASH_MIN_SPEED) spinStack(s, from, deepest(sh.poly, -m.x, -m.y), -m.x, -m.y, sx, sy);
         if (from > 0) settle(g, s);
       }
     }
@@ -497,8 +497,13 @@ function resolve(g) {
         crash(g, b.pen, b, b.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: b.rots });
         const wa = 1 / a.layers.length, wb = 1 / b.layers.length;
         const d = m.depth * 1.001;
-        a.x += m.x * d * (wa / (wa + wb)); a.y += m.y * d * (wa / (wa + wb));
-        b.x -= m.x * d * (wb / (wa + wb)); b.y -= m.y * d * (wb / (wa + wb));
+        const ax = m.x * d * (wa / (wa + wb)), ay = m.y * d * (wa / (wa + wb));
+        const bx = -m.x * d * (wb / (wa + wb)), by = -m.y * d * (wb / (wa + wb));
+        const pa = stackPoly(a), pb = stackPoly(b);
+        spinStack(a, 0, deepest(pb, m.x, m.y), m.x, m.y, ax, ay);
+        spinStack(b, 0, deepest(pa, -m.x, -m.y), -m.x, -m.y, bx, by);
+        a.x += ax; a.y += ay;
+        b.x += bx; b.y += by;
       }
     }
   }
