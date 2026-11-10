@@ -1537,3 +1537,15 @@ console.log('all tests passed');
   assert.equal(soft.stacks.length, 1, 'gentle bump keeps the stack standing');
   console.log('stack nudge ok');
 }
+
+// Boxes knocked off a stack land on another stack's top box when it is within stackable reach.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.zones = [];
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1, 2, 3] }, { x: 11.5, y: 5, layers: [4] }];
+  g.fl.x = 6; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 4;
+  run(g, { up: true }, 1.5);
+  assert.ok(g.stacks.some((s) => s.layers.includes(4) && s.layers.length > 1), 'fallen boxes came to rest on the stack behind');
+  console.log('stack landing ok');
+}

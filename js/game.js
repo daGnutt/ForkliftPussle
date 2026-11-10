@@ -190,10 +190,22 @@ function settle(g, S) {
     hurt(g, pen, CRASH_POINTS, S.x + dx * 1.45, S.y + dy * 1.45, pen.length);
     const offs = S.offs.splice(i);
     const rots = S.rots.splice(i);
-    g.stacks.push({
-      x: S.x + dx * 1.45, y: S.y + dy * 1.45, layers: S.layers.splice(i), rots, pen, a: rots[0],
-      offs: offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y })),
+    const nx = S.x + dx * 1.45, ny = S.y + dy * 1.45;
+    const layers = S.layers.splice(i);
+    const rel = offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y }));
+    // Landing within stackable reach of another stack's top box, the fallen boxes come to rest on it.
+    const under = g.stacks.find((t) => {
+      if (t === S || t.layers.length + layers.length > MAX_LAYERS) return false;
+      const c = boxPos(t, t.layers.length - 1);
+      return Math.abs(c.x - nx) < 0.55 && Math.abs(c.y - ny) < 0.55;
     });
+    if (under) {
+      under.layers.push(...layers); under.rots.push(...rots); under.pen.push(...pen);
+      under.offs.push(...rel.map((o) => ({ x: nx + o.x - under.x, y: ny + o.y - under.y })));
+      settle(g, under);
+    } else {
+      g.stacks.push({ x: nx, y: ny, layers, rots, pen, a: rots[0], offs: rel });
+    }
     break;
   }
 }
