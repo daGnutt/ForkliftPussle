@@ -11,7 +11,7 @@ import { setThemeMode } from '../js/theme.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
 import { rectPoly, sat } from '../js/geom.js';
-import { newGame, update, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos } from '../js/game.js';
 
 const NONE = {};
 const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
@@ -1146,4 +1146,68 @@ console.log('all tests passed');
   assert.ok(carriedSeen, 'demo carries stacks');
   assert.ok(g.stacks.length === 3 || g.carried, 'stacks conserved');
   console.log('splash demo ok');
+}
+
+// Multiplayer trucks: ghosts at spawn, collisions once separated, stack handoff on the tines, leaving players
+{
+  const boxes = (g) => g.stacks.reduce((n, s) => n + s.layers.length, 0) + g.trucks.reduce((n, t) => n + (t.carried ? t.carried.length : 0), 0);
+  const g = newGame(1);
+  const total = boxes(g);
+  assert.equal(addTruck(g, 'B'), 1);
+  assert.equal(g.trucks[1].color, 1, 'second truck is red');
+  assert.deepEqual(g.ghostPairs, [[0, 1]], 'a truck spawning inside another is a ghost to it');
+  assert.ok(isGhost(g, 0) && isGhost(g, 1) && ghostBetween(g, 1, 0));
+  // truck 0 drives off through the ghost; once clear they are solid
+  run(g, { up: true }, 0.5);
+  assert.ok(g.ghostPairs.length === 1 || g.trucks[0].fl.speed > 0, 'still overlapping or moving');
+  run(g, { up: true }, 3);
+  assert.deepEqual(g.ghostPairs, [], 'ghosts become real once separated');
+  // a solid truck is pushed along by the other one instead of being driven through
+  const t0 = g.trucks[0].fl, t1 = g.trucks[1].fl;
+  Object.assign(t0, { x: 3, y: 8.5, a: 0, speed: 0 });
+  Object.assign(t1, { x: 6.2, y: 8.5, a: 0, speed: 0 });
+  run(g, { up: true }, 2);
+  assert.ok(t1.x - t0.x > 2.2, 'the driver did not pass through the other truck');
+  assert.ok(t1.x > 6.5, 'and pushed it along');
+
+  // handoff: truck 1 lifts a floor stack, truck 0 takes it over by raising its tines under it, then gives it back by lowering
+  g.ghostPairs = [];
+  const S = g.stacks[0], n = S.layers.length;
+  Object.assign(t1, { x: S.x - FL.carryX, y: S.y, a: 0, speed: 0 });
+  const v1 = truckView(g, 1);
+  forkUp(v1);
+  assert.equal(g.trucks[1].carried.length, n, 'truck 1 carries the stack');
+  assert.equal(g.trucks[1].H, 1);
+  const p = toWorld(t1, FL.carryX, 0);
+  Object.assign(t0, { x: p.x + FL.carryX, y: p.y, a: Math.PI, speed: 0 });
+  g.trucks[0].H = 0;
+  forkUp(g);
+  assert.equal(g.carried.length, n, 'truck 0 took the stack');
+  assert.equal(g.H, 1, 'but did not lift it higher than it was');
+  assert.equal(g.trucks[1].carried, null);
+  assert.equal(boxes(g), total);
+  forkDown(g);
+  assert.equal(g.carried, null, 'lowering the stack over the other tines gives it away');
+  assert.equal(g.trucks[1].carried.length, n);
+  assert.equal(g.trucks[1].H, 1, 'the receiver stays at its height');
+  assert.equal(g.H, 0);
+  // not under the tines: nothing happens
+  Object.assign(t0, { x: 5, y: 5 });
+  forkUp(g);
+  assert.equal(g.carried, null);
+  assert.equal(g.H, 1);
+
+  // a player leaving puts the carried boxes down and frees the slot
+  removeTruck(g, 1);
+  assert.equal(boxes(g), total, 'no box lost when a player leaves');
+  assert.equal(g.trucks[1].gone, true);
+  assert.equal(addTruck(g, 'C'), 1, 'the slot is reused');
+  for (let i = 0; i < 3; i++) addTruck(g, 'x');
+  assert.equal(addTruck(g, 'full'), -1, 'at most four trucks');
+
+  // any parked truck finishes the level
+  const g2 = newGame(1);
+  addTruck(g2, 'B');
+  assert.equal(g2.trucks.length, 2);
+  console.log('multiplayer trucks ok');
 }

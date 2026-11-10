@@ -1,6 +1,6 @@
 import { boxDecalKind } from './decals.js';
 import { rectPoly, sat, overlapArea } from './geom.js';
-import { FL, MAX_H, MAX_LAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
+import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { generateLevel } from './level.js';
 
@@ -29,6 +29,118 @@ const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
 
 // `deco` is the box's decal kind; it lives in the pen entry so it travels with the box.
 const newPen = (col = 0, seed = 0) => ({ crash: 0, sq: 0, deco: boxDecalKind(col, seed) });
+
+// Trucks. Every player drives one entry of `g.trucks`; the fields below belong to a truck. `g` itself is the view of
+// the local truck (`g.self`): g.fl, g.H, g.carried... forward to `g.trucks[g.self]`, so single-player code and
+// tests just use `g`. `truckView(g, i)` gives the same view for another truck (a Proxy), which every per-truck
+// function (update steps, forkUp/forkDown, resolve) accepts in place of `g`.
+const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'H', 'hf', 'ef', 'revTime', 'rv', 'hitAt'];
+const TRUCK_SET = new Set(TRUCK_KEYS);
+
+export function makeTruck(start, id = 0, name = '') {
+  return {
+    id, color: id, name, gone: false, input: {},
+    fl: makeForklift(start.x, start.y, start.a),
+    carried: null, carriedRel: 0, carriedRots: [], carriedPen: [], carriedOffs: [],
+    bonks: 0, bonkPower: 0, bonkAt: -1, scrape: 0, wallPush: null,
+    H: 0, hf: 0, ef: 0,
+    revTime: 0, // seconds spent in gear R; the chase camera only looks back after LOOK_BACK_DELAY
+    rv: 0, // 0..1 smoothed: how far the chase camera has turned to look backwards (gear R)
+  };
+}
+
+function bindTrucks(g) {
+  Object.defineProperty(g, 'root', { value: g });
+  Object.defineProperty(g, 'truck', { get() { return this.trucks[this.self]; } });
+  for (const k of TRUCK_KEYS) {
+    Object.defineProperty(g, k, { get() { return this.trucks[this.self][k]; }, set(v) { this.trucks[this.self][k] = v; }, configurable: true });
+  }
+}
+
+const views = new WeakMap();
+// The game seen from truck i: `g` itself for the local truck, otherwise a Proxy that redirects the truck fields.
+export function truckView(g, i) {
+  const root = g.root;
+  if (i === root.self) return root;
+  const t = root.trucks[i];
+  let v = views.get(t);
+  if (!v) {
+    v = new Proxy(root, {
+      get: (_, k) => (k === 'truck' ? t : TRUCK_SET.has(k) ? t[k] : root[k]),
+      set: (_, k, val) => { if (TRUCK_SET.has(k)) t[k] = val; else root[k] = val; return true; },
+    });
+    views.set(t, v);
+  }
+  return v;
+}
+
+// The live truck objects.
+export const liveTrucks = (g) => g.root.trucks.filter((t) => !t.gone);
+// Views of the live trucks other than the one `g` is the view of.
+export const otherTrucks = (g) => g.root.trucks.map((t, i) => (t.gone || t === g.truck ? null : truckView(g.root, i))).filter(Boolean);
+
+const bodyPoly = (t) => {
+  const c = toWorld(t.fl, (FL.back + FL.front) / 2, 0);
+  return rectPoly(c.x, c.y, (FL.front - FL.back) / 2, FL.halfW, t.fl.a);
+};
+const carriedPoly = (t) => {
+  if (!t.carried) return null;
+  const c = toWorld(t.fl, FL.carryX, 0);
+  return rectPoly(c.x, c.y, 0.5, 0.5, t.fl.a + t.carriedRel);
+};
+const solidPolys = (t) => [bodyPoly(t), carriedPoly(t)].filter(Boolean);
+const trucksOverlap = (a, b) => {
+  if (Math.hypot(a.fl.x - b.fl.x, a.fl.y - b.fl.y) > 6) return false;
+  const pb = solidPolys(b);
+  return solidPolys(a).some((p) => pb.some((q) => sat(p, q)));
+};
+
+// Two trucks that are inside each other when one spawns are ghosts to each other (drawn translucent, no collision) until they separate.
+export const ghostBetween = (g, i, j) => g.root.ghostPairs.some(([a, b]) => (a === i && b === j) || (a === j && b === i));
+export const isGhost = (g, i) => g.root.ghostPairs.some((p) => p.includes(i));
+
+function updateGhosts(g) {
+  g.ghostPairs = g.ghostPairs.filter(([a, b]) => {
+    const ta = g.trucks[a], tb = g.trucks[b];
+    return ta && tb && !ta.gone && !tb.gone && trucksOverlap(ta, tb);
+  });
+}
+
+// Adds a player's truck in the parking spot (first free slot); returns its index, or -1 when the game is full.
+export function addTruck(g, name = '') {
+  let i = g.trucks.findIndex((t) => t.gone);
+  if (i < 0) { if (g.trucks.length >= MAX_PLAYERS) return -1; i = g.trucks.length; }
+  const t = makeTruck(g.start, i, name);
+  g.trucks[i] = t;
+  g.ghostPairs = g.ghostPairs.filter((p) => !p.includes(i));
+  g.trucks.forEach((o, j) => { if (j !== i && !o.gone && trucksOverlap(t, o)) g.ghostPairs.push([j, i]); });
+  return i;
+}
+
+// A leaving player's truck disappears; boxes on its forks are put down in front of it so the level stays solvable.
+export function removeTruck(g, i) {
+  const t = g.trucks[i];
+  if (!t || t.gone) return;
+  if (t.carried) {
+    const v = truckView(g, i);
+    const p = toWorld(t.fl, FL.carryX, 0), c = Math.cos(t.fl.a), sn = Math.sin(t.fl.a);
+    const n = t.carried.length;
+    while (t.carriedPen.length < n) t.carriedPen.push(newPen(t.carried[t.carriedPen.length], t.carriedPen.length));
+    while (t.carriedRots.length < n) t.carriedRots.push(t.carriedRel);
+    while (t.carriedOffs.length < n) t.carriedOffs.push({ x: 0, y: 0 });
+    g.stacks.push({
+      x: p.x, y: p.y, layers: t.carried, rots: t.carriedRots.map((r) => r + t.fl.a), pen: t.carriedPen,
+      offs: t.carriedOffs.map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c })), a: t.fl.a + t.carriedRel,
+    });
+    Object.assign(v, { carried: null, carriedRots: [], carriedPen: [], carriedOffs: [] });
+  }
+  t.gone = true;
+  g.ghostPairs = g.ghostPairs.filter((pr) => !pr.includes(i));
+  for (const s of g.stacks) if (s.dropFrom != null && (s.dropTruck ?? 0) === i) delete s.dropFrom;
+}
+
+// Visual lowering (in box heights) of a just-released stack: it follows the forks of the truck that put it down.
+export const dropLift = (g, st) => (st.dropFrom != null ? Math.max(0, (g.root.trucks[st.dropTruck ?? 0]?.hf ?? 0) - st.dropFrom) : 0);
 
 function ensure(S) {
   if (!S.rots) S.rots = S.layers.map(() => S.a || 0);
@@ -136,7 +248,7 @@ function refreshSquare(S) {
 }
 
 export function maxScore(g) {
-  return BOX_POINTS * (g.stacks.reduce((n, s) => n + s.layers.length, 0) + (g.carried ? g.carried.length : 0));
+  return BOX_POINTS * (g.stacks.reduce((n, s) => n + s.layers.length, 0) + g.root.trucks.reduce((n, t) => n + (t.carried ? t.carried.length : 0), 0));
 }
 
 // Points lost to crashes (permanent) and to crooked placement (recoverable).
@@ -147,7 +259,7 @@ export function lostBreakdown(g) {
     for (const p of S.pen) crashLost += p.crash;
     if (g.zones.some((z) => stackFillsZone(S, z))) for (const p of S.pen) squareLost += p.sq;
   }
-  for (const p of g.carriedPen) crashLost += p.crash;
+  for (const t of g.root.trucks) for (const p of t.carriedPen) crashLost += p.crash;
   return { crash: Math.round(crashLost), square: Math.round(squareLost) };
 }
 
@@ -185,7 +297,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
   add(-T, 0, T, lvl.h);
   add(lvl.w, 0, T, lvl.h);
   for (const r of lvl.walls) add(r.x, r.y, r.w, r.h, r === lvl.charger);
-  return {
+  const g = {
     level: levelNumber,
     seed,
     hard,
@@ -200,29 +312,19 @@ export function newGame(levelNumber, seed = 0, hard = false) {
     doors: lvl.doors,
     stacks: lvl.stacks.map((s) => wonkyStack(s)),
     parking: { ...toWorld(lvl.start, (FL.back + FL.front) / 2, 0), a: lvl.start.a },
-    fl: makeForklift(lvl.start.x, lvl.start.y, lvl.start.a),
-    carried: null,
-    carriedRel: 0,
-    carriedRots: [],
-    carriedPen: [],
-    carriedOffs: [],
+    start: { x: lvl.start.x, y: lvl.start.y, a: lvl.start.a },
+    trucks: [makeTruck(lvl.start)],
+    self: 0, // index of the local player's truck
+    ghostPairs: [], // [i, j] truck pairs that spawned inside each other and pass through each other until they separate
     hits: [],
     hitCount: 0,
-    bonks: 0,
-    bonkPower: 0,
-    bonkAt: -1,
-    scrape: 0,
-    wallPush: null,
-    H: 0,
-    hf: 0,
-    ef: 0,
-    revTime: 0, // seconds spent in gear R; the chase camera only looks back after LOOK_BACK_DELAY
-    rv: 0, // 0..1 smoothed: how far the chase camera has turned to look backwards (gear R)
     status: 'play',
     time: 0,
     started: false,
     clock: 0,
   };
+  bindTrucks(g);
+  return g;
 }
 
 const stackPoly = (s) => rectPoly(s.x, s.y, 0.5, 0.5, s.a || 0);
@@ -296,6 +398,26 @@ function resolve(g) {
           moveF(m.x * m.depth, m.y * m.depth);
           const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
           wp.x += m.x * m.depth; wp.y += m.y * m.depth;
+          if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 'c', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
+        }
+      }
+    }
+
+    // Other trucks are solid (body and carried stack, not their tines) unless they are ghosts to this one; each moves half the overlap.
+    for (const o of otherTrucks(g)) {
+      if (Math.hypot(o.fl.x - f.x, o.fl.y - f.y) > 6 || ghostBetween(g, g.truck.id, o.truck.id)) continue;
+      const theirs = solidPolys(o.truck);
+      for (const sh of shapes) {
+        if (sh.tine) continue;
+        for (const q of theirs) {
+          const m = sat(sh.poly, q);
+          if (!m) continue;
+          const d = m.depth * 0.5005;
+          moveF(m.x * d, m.y * d);
+          o.fl.x -= m.x * d; o.fl.y -= m.y * d;
+          shiftPoly(q, -m.x * d, -m.y * d);
+          const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
+          wp.x += m.x * d; wp.y += m.y * d;
           if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 'c', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
         }
       }
@@ -401,16 +523,25 @@ function wallContact(g, speed, kept) {
   }
 }
 
+// Steps the game. `input` drives the local truck; the other trucks use their `input` field (set by the host from the network).
 export function update(g, input, dt) {
+  const root = g.root;
+  root.clock += dt;
+  if (root.hits) root.hits = root.hits.filter((h) => root.clock - h.t < hitLife(h));
+  root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self ? input : t.input, dt); });
+  updateGhosts(root);
+  if (root.status === 'play' && root.started) root.time += dt; // the level timer runs from the first move until solved
+  scorePopups(root);
+  if (root.status === 'play' && isFinished(root)) root.status = 'won';
+}
+
+function stepTruck(g, input, dt) {
   const f = g.fl;
-  g.clock += dt;
-  if (g.hits) g.hits = g.hits.filter((h) => g.clock - h.t < hitLife(h));
   const forked = g.hard ? forkedStack(g) : null;
   const forkedY = forked ? toLocal(f, boxPos(forked, g.H).x, boxPos(forked, g.H).y).y : 0;
   const prevA = f.a;
   drive(f, input, dt, g.H);
-  if (f.speed !== 0) g.started = true; // the level timer starts when the truck first moves
-  if (g.status === 'play' && g.started) g.time += dt; // and stops once solved
+  if (f.speed !== 0) g.started = true; // the level timer starts when a truck first moves
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;
   g.aligning = new Set();
@@ -433,10 +564,7 @@ export function update(g, input, dt) {
   g.rv += ((f.gear === 'R' && g.revTime > LOOK_BACK_DELAY ? 1 : 0) - g.rv) * (1 - Math.exp(-dt / 0.15));
   g.ef += (g.hf - g.ef) * (1 - Math.exp(-dt / 0.22)); // cabin eye trails the forks
   // visual lowering of a just-released stack ends when the forks reach it
-  for (const s of g.stacks) if (s.dropFrom != null && (g.hf <= s.dropFrom + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;
-
-  scorePopups(g);
-  if (g.status === 'play' && isFinished(g)) g.status = 'won';
+  for (const s of g.stacks) if (s.dropFrom != null && (s.dropTruck ?? 0) === g.truck.id && (g.hf <= s.dropFrom + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;
 }
 
 // Score popups are hits with `score` = { total } (points of the drop point's stack before wonkiness: shown when it is completed, negative when
@@ -492,8 +620,52 @@ function forkedStack(g) {
   return S && S.layers.length > g.H ? S : null;
 }
 
+// Moves the stack on `from`'s forks onto `to`'s forks, keeping its world angles; it snaps to `to`'s carry position.
+function transferCarried(from, to) {
+  const d = from.fl.a - to.fl.a, c = Math.cos(d), sn = Math.sin(d);
+  to.carried = from.carried;
+  to.carriedPen = from.carriedPen;
+  to.carriedRots = from.carriedRots.map((r) => r + d);
+  to.carriedRel = from.carriedRel + d;
+  to.carriedOffs = from.carriedOffs.map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c }));
+  from.carried = null;
+  from.carriedRots = [];
+  from.carriedPen = [];
+  from.carriedOffs = [];
+}
+
+// Trucks hand stacks over on their tines. A truck whose empty tines are under another truck's carried stack, at the same height
+// or lower, takes it by raising the tines up to that height (without lifting it higher); a truck carrying a stack over another
+// one's empty tines gives it away by lowering it down to them. Ghosts to each other never trade.
+function stackOnMyTines(g) {
+  for (const o of otherTrucks(g)) {
+    if (!o.carried || o.H < g.H || ghostBetween(g, g.truck.id, o.truck.id)) continue;
+    const p = toWorld(o.fl, FL.carryX, 0), l = toLocal(g.fl, p.x, p.y);
+    if (Math.abs(l.x - FL.carryX) < 0.55 && Math.abs(l.y) < 0.5) return o;
+  }
+  return null;
+}
+
+function tinesUnderMyStack(g) {
+  const p = toWorld(g.fl, FL.carryX, 0);
+  for (const o of otherTrucks(g)) {
+    if (o.carried || o.H > g.H || ghostBetween(g, g.truck.id, o.truck.id)) continue;
+    const l = toLocal(o.fl, p.x, p.y);
+    if (Math.abs(l.x - FL.carryX) < 0.55 && Math.abs(l.y) < 0.5) return o;
+  }
+  return null;
+}
+
 // Raising carried boxes into the ceiling is refused ('blocked') and damages every carried box.
 export function forkUp(g) {
+  if (!g.carried) {
+    const o = stackOnMyTines(g);
+    if (o && o.H - g.H <= 1) {
+      g.H = o.H;
+      transferCarried(o, g);
+      return;
+    }
+  }
   if (g.carried) {
     if (g.H + g.carried.length >= CEILING_LEVELS) {
       while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen(g.carried[g.carriedPen.length], g.carriedPen.length));
@@ -523,6 +695,14 @@ export function forkUp(g) {
 
 // Lowering empty forks through a box is refused ('blocked') and damages that box.
 export function forkDown(g) {
+  if (g.carried) {
+    const o = tinesUnderMyStack(g);
+    if (o && g.H - 1 <= o.H) {
+      transferCarried(g, o);
+      g.H = Math.max(0, g.H - 1);
+      return;
+    }
+  }
   if (!g.carried) {
     const S = g.H > 0 ? stackInZone(g) : null;
     if (S && S.layers.length >= g.H) {
@@ -555,9 +735,10 @@ export function forkDown(g) {
       S.pen.push(...g.carriedPen);
       S.offs.push(...world.map((o) => ({ x: p.x + o.x - S.x, y: p.y + o.y - S.y })));
       S.dropFrom = n;
+      S.dropTruck = g.truck.id;
       settle(g, S);
     } else {
-      g.stacks.push({ x: p.x, y: p.y, layers: g.carried, rots: worldRots, pen: g.carriedPen, offs: world, a: g.fl.a + g.carriedRel, dropFrom: 0 });
+      g.stacks.push({ x: p.x, y: p.y, layers: g.carried, rots: worldRots, pen: g.carriedPen, offs: world, a: g.fl.a + g.carriedRel, dropFrom: 0, dropTruck: g.truck.id });
     }
     g.carried = null;
     g.carriedRots = [];
@@ -580,9 +761,9 @@ export function isParked(g) {
 
 export const scoreEnough = (g) => score(g) >= MIN_SCORE_FRACTION * maxScore(g);
 
-// A level is finished: every zone filled, enough score, forklift back in its parking spot.
+// A level is finished: every zone filled, enough score, and a forklift (any player's) back in its parking spot.
 export function isFinished(g) {
-  return isSolved(g) && scoreEnough(g) && isParked(g);
+  return isSolved(g) && scoreEnough(g) && g.root.trucks.some((t, i) => !t.gone && isParked(truckView(g.root, i)));
 }
 
 export function isSolved(g) {

@@ -47,6 +47,17 @@ export function maxSteerFor(speed) {
   return FL.maxSteer * steerSpeedFactor(speed);
 }
 
+// Multiplayer: up to MAX_PLAYERS trucks, one primary colour each (slot i uses TRUCK_COLORS[i]).
+// `dark` is a deep shade of the colour, used behind the fork gauge.
+export const MAX_PLAYERS = 4;
+export const TRUCK_COLORS = [
+  { name: 'Yellow', body: '#f9a825', roof: '#a1730f', counter: '#6d4c00', dark: '#3d2c06' },
+  { name: 'Red', body: '#e53935', roof: '#8e1b18', counter: '#5a1210', dark: '#3d1210' },
+  { name: 'Blue', body: '#1e88e5', roof: '#0d4f8f', counter: '#0a3560', dark: '#0e2740' },
+  { name: 'Green', body: '#43a047', roof: '#256b29', counter: '#173f19', dark: '#12301a' },
+];
+export const truckColor = (i) => TRUCK_COLORS[i] || TRUCK_COLORS[0];
+
 export function makeForklift(x, y, a) {
   return { x, y, a, speed: 0, steer: 0, brake: false, gear: 'D' };
 }
