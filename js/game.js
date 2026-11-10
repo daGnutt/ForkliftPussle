@@ -190,10 +190,22 @@ function settle(g, S) {
     hurt(g, pen, CRASH_POINTS, S.x + dx * 1.45, S.y + dy * 1.45, pen.length);
     const offs = S.offs.splice(i);
     const rots = S.rots.splice(i);
-    g.stacks.push({
-      x: S.x + dx * 1.45, y: S.y + dy * 1.45, layers: S.layers.splice(i), rots, pen, a: rots[0],
-      offs: offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y })),
+    const nx = S.x + dx * 1.45, ny = S.y + dy * 1.45;
+    const layers = S.layers.splice(i);
+    const rel = offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y }));
+    // Landing within stackable reach of another stack's top box, the fallen boxes come to rest on it.
+    const under = g.stacks.find((t) => {
+      if (t === S || t.layers.length + layers.length > MAX_LAYERS) return false;
+      const c = boxPos(t, t.layers.length - 1);
+      return Math.abs(c.x - nx) < 0.55 && Math.abs(c.y - ny) < 0.55;
     });
+    if (under) {
+      under.layers.push(...layers); under.rots.push(...rots); under.pen.push(...pen);
+      under.offs.push(...rel.map((o) => ({ x: nx + o.x - under.x, y: ny + o.y - under.y })));
+      settle(g, under);
+    } else {
+      g.stacks.push({ x: nx, y: ny, layers, rots, pen, a: rots[0], offs: rel });
+    }
     break;
   }
 }
@@ -375,18 +387,33 @@ function palletRunners(g, s) {
   return RUNNERS.map(([off, hw]) => rectPoly(c.x - uy * off, c.y + ux * off, 0.5, hw, ang));
 }
 
-// A tine pushing a pallet off its centre turns it by the lever arm of the push (boxes from the fork level upward).
-function spinPallet(g, s, tine, m, sx, sy) {
-  const nx = -m.x, ny = -m.y;
-  let tip = tine[0];
-  for (const p of tine) if (p.x * nx + p.y * ny > tip.x * nx + tip.y * ny) tip = p;
-  const c = boxPos(s, g.H);
+// Pushing a stack off its centre turns it by the lever arm of the push (the boxes from `from` upward).
+// `tip` is the pushing shape's vertex deepest into the stack, (nx, ny) the push direction, (sx, sy) how far it moved the stack.
+function spinStack(s, from, tip, nx, ny, sx, sy) {
+  const c = boxPos(s, from);
   const rx = tip.x - c.x, ry = tip.y - c.y;
   const raw = ((rx * ny - ry * nx) * Math.hypot(sx, sy)) / (rx * rx + ry * ry + PALLET_INERTIA);
   const da = Math.max(-0.01, Math.min(0.01, raw));
-  s.rots = s.rots.map((r, i) => (i >= g.H ? r + da : r));
-  if (g.H === 0) s.a = (s.a || 0) + da;
+  s.rots = s.rots.map((r, i) => (i >= from ? r + da : r));
+  if (from === 0) s.a = (s.a || 0) + da;
 }
+
+// A hard hit shoves the upper boxes of a stack further than the bottom one (they have more lever arm and nothing
+// holds them), nudging them off the boxes below; settle() then drops the ones left without enough support.
+const NUDGE_K = 0.06; // tiles per squared box height per tile/s of impact speed
+function nudgeStack(g, s, from, dx, dy, speed) {
+  if (speed < CRASH_MIN_SPEED || s.layers.length < 2 || g.clock - (s.nudgeAt ?? -1) < CRASH_COOLDOWN) return;
+  s.nudgeAt = g.clock;
+  ensure(s);
+  const len = Math.hypot(dx, dy) || 1;
+  for (let j = Math.max(1, from + 1); j < s.layers.length; j++) {
+    const n = NUDGE_K * speed * (j - from) ** 2;
+    s.offs[j].x += (dx / len) * n; s.offs[j].y += (dy / len) * n;
+  }
+  settle(g, s);
+}
+
+const deepest = (poly, nx, ny) => poly.reduce((t, p) => (p.x * nx + p.y * ny > t.x * nx + t.y * ny ? p : t), poly[0]);
 
 function shiftPoly(poly, dx, dy) {
   for (const p of poly) { p.x += dx; p.y += dy; }
@@ -395,6 +422,7 @@ function shiftPoly(poly, dx, dy) {
 function resolve(g) {
   const f = g.fl;
   g.wallPush = null;
+  g.impacts = [];
   for (let it = 0; it < 8; it++) {
     const shapes = forkShapes(g);
     const moveF = (dx, dy) => {
@@ -410,6 +438,7 @@ function resolve(g) {
           for (const p of sh.poly) if (p.x * m.x + p.y * m.y < tip.x * m.x + tip.y * m.y) tip = p;
           g.contact = { x: tip.x, y: tip.y, nx: m.x, ny: m.y };
           moveF(m.x * m.depth, m.y * m.depth);
+          g.impacts.push({ x: tip.x, y: tip.y, nx: m.x, ny: m.y, w: 1 });
           const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
           wp.x += m.x * m.depth; wp.y += m.y * m.depth;
           if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 'c', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
@@ -456,9 +485,15 @@ function resolve(g) {
         if (!sh.carried && !sh.tine && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
         const d = m.depth * 1.001;
         moveF(m.x * d * (wf / (wf + ws)), m.y * d * (wf / (wf + ws)));
+        if (!sh.tine && Math.abs(f.speed) >= CRASH_MIN_SPEED) {
+          let tip = sh.poly[0];
+          for (const p of sh.poly) if (p.x * m.x + p.y * m.y < tip.x * m.x + tip.y * m.y) tip = p;
+          g.impacts.push({ x: tip.x, y: tip.y, nx: m.x, ny: m.y, w: wf / (wf + ws) });
+        }
         const sx = -m.x * d * (ws / (wf + ws)), sy = -m.y * d * (ws / (wf + ws));
         shiftBoxes(s, from, sx, sy);
-        if (sh.tine) spinPallet(g, s, sh.poly, m, sx, sy);
+        if (sh.tine || Math.abs(f.speed) >= CRASH_MIN_SPEED) spinStack(s, from, deepest(sh.poly, -m.x, -m.y), -m.x, -m.y, sx, sy);
+        if (!sh.tine) nudgeStack(g, s, from, -m.x, -m.y, Math.abs(f.speed));
         if (from > 0) settle(g, s);
       }
     }
@@ -490,8 +525,16 @@ function resolve(g) {
         crash(g, b.pen, b, b.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: b.rots });
         const wa = 1 / a.layers.length, wb = 1 / b.layers.length;
         const d = m.depth * 1.001;
-        a.x += m.x * d * (wa / (wa + wb)); a.y += m.y * d * (wa / (wa + wb));
-        b.x -= m.x * d * (wb / (wa + wb)); b.y -= m.y * d * (wb / (wa + wb));
+        const ax = m.x * d * (wa / (wa + wb)), ay = m.y * d * (wa / (wa + wb));
+        const bx = -m.x * d * (wb / (wa + wb)), by = -m.y * d * (wb / (wa + wb));
+        const pa = stackPoly(a), pb = stackPoly(b);
+        spinStack(a, 0, deepest(pb, m.x, m.y), m.x, m.y, ax, ay);
+        spinStack(b, 0, deepest(pa, -m.x, -m.y), -m.x, -m.y, bx, by);
+        a.x += ax; a.y += ay;
+        b.x += bx; b.y += by;
+        const sp = Math.abs(f.speed);
+        nudgeStack(g, a, 0, m.x, m.y, sp);
+        nudgeStack(g, b, 0, -m.x, -m.y, sp);
       }
     }
   }
@@ -554,6 +597,41 @@ function tireSlip(g, input, dt) {
   return push < SLIP_MIN_PUSH ? 0 : Math.min(1, 0.4 + push / 1.5);
 }
 
+const SPIN_K = 3; // yaw kick per unit of off-centre impact
+const SKID_K = 1.5; // sideways bounce kick away from the obstacle
+const SPIN_DECAY = 3.5, SKID_DECAY = 3; // per second (tyre grip bleeds the motion off)
+const MAX_SPIN = 2.5, MAX_SKID = 2;
+const IMPACT_MIN_SPEED = 0.3;
+const CENTRE_X = -0.7; // local x of the truck's centre of mass
+
+// Hitting something off-centre while moving makes the truck pivot around the contact point (spin) and
+// its tail/nose slide sideways away from the obstacle (skid); both fade quickly through tyre grip.
+function impactKick(g, speed, dt) {
+  const f = g.fl;
+  if (!g.impacts.length) return;
+  const c = toWorld(f, CENTRE_X, 0), vx = Math.cos(f.a) * speed, vy = Math.sin(f.a) * speed;
+  for (const im of g.impacts) {
+    const vn = -(vx * im.nx + vy * im.ny);
+    if (vn < IMPACT_MIN_SPEED) continue;
+    const arm = (im.x - c.x) * im.ny - (im.y - c.y) * im.nx;
+    f.spin = clamp((f.spin || 0) + arm * vn * im.w * SPIN_K * dt, -MAX_SPIN, MAX_SPIN);
+    f.sx = clamp((f.sx || 0) + im.nx * vn * im.w * SKID_K * dt, -MAX_SKID, MAX_SKID);
+    f.sy = clamp((f.sy || 0) + im.ny * vn * im.w * SKID_K * dt, -MAX_SKID, MAX_SKID);
+  }
+}
+
+function skidStep(f, dt) {
+  if (!f.spin && !f.sx && !f.sy) return;
+  f.a += (f.spin || 0) * dt;
+  f.x += (f.sx || 0) * dt;
+  f.y += (f.sy || 0) * dt;
+  f.spin *= Math.exp(-SPIN_DECAY * dt); f.sx *= Math.exp(-SKID_DECAY * dt); f.sy *= Math.exp(-SKID_DECAY * dt);
+  const q = (v) => Math.round(v * 1e3) / 1e3; // keeps saved states compact
+  f.spin = q(f.spin); f.sx = q(f.sx); f.sy = q(f.sy);
+}
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
 // Steps the game. `input` drives the local truck; the other trucks use their `input` field (set by the host from the network).
 export function update(g, input, dt) {
   const root = g.root;
@@ -573,12 +651,15 @@ function stepTruck(g, input, dt) {
   const forkedY = forked ? toLocal(f, boxPos(forked, g.H).x, boxPos(forked, g.H).y).y : 0;
   const prevA = f.a;
   drive(f, input, dt, g.H);
+  skidStep(f, dt);
   if (f.speed !== 0) g.started = true; // the level timer starts when a truck first moves
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;
   g.aligning = new Set();
   if (forked && f.a !== prevA) glideWithForks(g, forked, forkedY, f.a - prevA, g.H);
+  const speed0 = f.speed;
   resolve(g);
+  impactKick(g, speed0, dt);
   for (const s of g.aligning) alignStack(g, s, dt);
 
   if (Math.abs(intended) > 1e-6) {
