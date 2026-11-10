@@ -1224,6 +1224,18 @@ console.log('all tests passed');
     assert.equal(b.carriedOffs.length, 3);
     assert.equal(sum, 3);
     assert.equal(a.H, 1);
+    // a stack of four held at height 2 is dropped onto a single box carried at level 1; the carried stacks do not push each other
+    b.carried = [0]; b.carriedRots = [0]; b.carriedOffs = [{ x: 0, y: 0 }]; b.carriedPen = []; b.H = 1;
+    Object.assign(b.fl, { x: 6, y: 7, a: 0, speed: 0 });
+    const pc2 = toWorld(b.fl, FL.carryX, 0);
+    Object.assign(a.fl, { x: pc2.x + FL.carryX, y: pc2.y, a: Math.PI, speed: 0 });
+    a.carried = [1, 2, 3, 0]; a.carriedRots = [0, 0, 0, 0]; a.carriedPen = []; a.carriedOffs = []; a.H = 2;
+    const ax = a.fl.x, ay = a.fl.y;
+    for (let i = 0; i < 20; i++) update(g4, {}, 1 / 120);
+    assert.ok(Math.abs(a.fl.x - ax) < 0.01 && Math.abs(a.fl.y - ay) < 0.01, 'stacks at different heights do not collide');
+    forkDown(g4);
+    assert.equal(a.carried, null);
+    assert.deepEqual(b.carried, [0, 1, 2, 3, 0], 'four boxes from height 2 land on the single carried box');
     // a full stack is not merged into
     b.carried = [0, 1, 2, 3]; a.carried = [1, 2]; a.carriedRots = [0, 0]; a.carriedPen = []; a.carriedOffs = []; a.H = 4;
     forkDown(g4);

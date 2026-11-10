@@ -411,10 +411,13 @@ function resolve(g) {
     // Other trucks are solid (body and carried stack, not their tines) unless they are ghosts to this one; each moves half the overlap.
     for (const o of otherTrucks(g)) {
       if (Math.hypot(o.fl.x - f.x, o.fl.y - f.y) > 6 || ghostBetween(g, g.truck.id, o.truck.id)) continue;
-      const theirs = solidPolys(o.truck);
+      const theirCarried = carriedPoly(o.truck), theirs = [bodyPoly(o.truck), theirCarried].filter(Boolean);
+      // carried stacks only touch when their height ranges overlap (a stack held above or below another passes it)
+      const apart = g.carried && o.carried && (g.H >= o.H + o.carried.length || o.H >= g.H + g.carried.length);
       for (const sh of shapes) {
         if (sh.tine) continue;
         for (const q of theirs) {
+          if (apart && sh.carried && q === theirCarried) continue;
           const m = sat(sh.poly, q);
           if (!m) continue;
           const d = m.depth * 0.5005;
