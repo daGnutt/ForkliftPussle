@@ -383,12 +383,12 @@ export function playBlocked() {
 }
 
 // Splintering crack of a damaged box: noise burst plus a few woody clicks.
-export function playBreak() {
-  if (!ctx || ctx.state !== 'running') return;
+export function playBreak(vol = 1) {
+  if (!ctx || ctx.state !== 'running' || vol <= 0) return;
   const t = ctx.currentTime;
-  noise(sfxBus, t, 0.18, { gain: 0.22, cutoff: 1400, type: 'bandpass' });
+  noise(sfxBus, t, 0.18, { gain: 0.22 * vol, cutoff: 1400, type: 'bandpass' });
   for (let i = 0; i < 3; i++) {
-    const o = tone(sfxBus, 1, t + i * 0.035, 0.08, { type: 'triangle', gain: 0.14, attack: 0.002, release: 0.05, cutoff: 1500 });
+    const o = tone(sfxBus, 1, t + i * 0.035, 0.08, { type: 'triangle', gain: 0.14 * vol, attack: 0.002, release: 0.05, cutoff: 1500 });
     o.frequency.cancelScheduledValues(t);
     o.frequency.setValueAtTime(260 - i * 50, t + i * 0.035);
     o.frequency.exponentialRampToValueAtTime(60, t + i * 0.035 + 0.08);
@@ -396,9 +396,9 @@ export function playBreak() {
 }
 
 // Dull thud of hitting a wall head-on; power 0..1.
-export function playBonk(power = 0.5) {
-  if (!ctx || ctx.state !== 'running') return;
-  const t = ctx.currentTime, k = 0.5 + power;
+export function playBonk(power = 0.5, vol = 1) {
+  if (!ctx || ctx.state !== 'running' || vol <= 0) return;
+  const t = ctx.currentTime, k = (0.5 + power) * vol;
   const o = tone(sfxBus, 1, t, 0.22, { type: 'sine', gain: 0.7 * k, attack: 0.003, release: 0.15 });
   o.frequency.cancelScheduledValues(t);
   o.frequency.setValueAtTime(150, t);
@@ -408,7 +408,7 @@ export function playBonk(power = 0.5) {
 
 // Metal scraping along a wall: gritty filtered noise whose level and pitch follow the sliding speed (0 = silent).
 let scrapeNode = null;
-export function setScrape(speed) {
+export function setScrape(speed, vol = 1) {
   if (!ctx || ctx.state !== 'running') return;
   if (!scrapeNode) {
     if (speed <= 0) return;
@@ -429,7 +429,7 @@ export function setScrape(speed) {
   }
   const t = ctx.currentTime, v = Math.min(1, speed / 4);
   scrapeNode.f.frequency.setTargetAtTime(900 + v * 1300, t, 0.05);
-  scrapeNode.g.gain.setTargetAtTime(speed > 0 ? 0.05 + v * 0.12 : 0, t, 0.04);
+  scrapeNode.g.gain.setTargetAtTime(speed > 0 ? (0.05 + v * 0.12) * vol : 0, t, 0.04);
 }
 
 // Cheerful rising arpeggio when a zone is filled.

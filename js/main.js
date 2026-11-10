@@ -82,7 +82,10 @@ const doneSet = () => new Set(game.zones.filter((z) => zoneDone(game, z)));
 let doneZones = doneSet();
 let hitCount = game.hitCount;
 let bonkCount = game.bonks;
+let otherBonks = new Map(); // truck id -> last seen bonk count (other trucks' bumps are heard, quieter with distance)
 refreshBest();
+// Loudness 0..1 of a sound at (x, y), falling off with the distance from the local truck (same curve as the horns).
+const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8);
 let recordOpen = false, recorded = false;
 const recordEl = document.getElementById('record');
 const recordName = document.getElementById('recordName');
@@ -104,6 +107,7 @@ function load(n) {
   doneZones = doneSet();
   hitCount = game.hitCount;
   bonkCount = game.bonks;
+  otherBonks.clear();
   partyGameChanged();
   refreshBest();
   saveState();
@@ -915,14 +919,26 @@ function frame(now) {
   game.horn = !!st.horn && !splashOn && !view.paused;
   setHorns(game.trucks.map((t, i) => {
     const own = i === game.self, d = Math.hypot(t.fl.x - game.fl.x, t.fl.y - game.fl.y);
-    return { id: t.id, on: !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : 1 / (1 + d / 8) };
+    return { id: t.id, on: !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : hearVol(t.fl.x, t.fl.y) };
   }));
   const done = doneSet();
   const fresh = [...done].filter((z) => !doneZones.has(z));
   if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();
   doneZones = done;
-  if (game.hitCount !== hitCount) { if (game.hitCount > hitCount) playBreak(); hitCount = game.hitCount; }
-  setScrape(game.scrape);
+  if (game.hitCount !== hitCount) {
+    if (game.hitCount > hitCount) { const h = game.hits?.[game.hits.length - 1]; playBreak(h ? hearVol(h.x, h.y) : 1); }
+    hitCount = game.hitCount;
+  }
+  let scrapeV = game.scrape, scrapeVol = 1;
+  for (let i = 0; i < game.trucks.length; i++) {
+    const t = game.trucks[i];
+    if (i === game.self || t.gone) continue;
+    const vol = hearVol(t.fl.x, t.fl.y);
+    if (t.bonks > (otherBonks.get(t.id) ?? t.bonks)) playBonk(t.bonkPower, vol);
+    otherBonks.set(t.id, t.bonks);
+    if (t.scrape * vol > scrapeV * scrapeVol) { scrapeV = t.scrape; scrapeVol = vol; }
+  }
+  setScrape(scrapeV, scrapeVol);
   if (game.bonks !== bonkCount) { if (game.bonks > bonkCount) playBonk(game.bonkPower); bonkCount = game.bonks; }
   const t2 = performance.now();
   view.fullscreen = !!document.fullscreenElement;
