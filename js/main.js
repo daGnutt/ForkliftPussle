@@ -152,7 +152,7 @@ const input = createInput({
     if (isTouch) return;
     view.povBig = !view.povBig;
     localStorage.setItem('forklift-cab-view', view.povBig ? '1' : '0');
-    if (tutStep === 3 && view.povBig) nextTutorial();
+    if (view.povBig) tutDone.cab = true;
   },
   up: () => {
     if (mp?.role === 'guest') { mp.guest.sendFork('up'); if (mp.guest.predictor.fork('up', performance.now() / 1000) === 'blocked') playBlocked(); return; }
@@ -308,19 +308,28 @@ let splashOn = true;
 const seedInput = document.getElementById('seed');
 seedInput.value = seedText;
 
+// Each step is done when its action has happened (also if it happened earlier, so
+// early presses are credited), but every step stays visible for at least MIN_MS.
 const TUTORIAL = [
-  'Use <b>↑/↓</b> to drive and <b>←/→</b> to steer (the rear wheels steer!).  Release the throttle to engine-brake.',
-  'Press <b>A</b> to raise the forks and <b>Z</b> to lower them.',
-  'Drive the forks under a stack, lift it, and set it down on the matching coloured zone. Then park on the marked spot.',
-  'If you want an more immersive experience, press <b>Tab</b> or <b>M</b> to switch to the cab view (and again to return to the overview).',
+  { done: 'drive', html: 'Use <b>↑/↓</b> to drive and <b>←/→</b> to steer (the rear wheels steer, so the tail swings out!). Release the throttle to engine-brake.' },
+  { done: 'fork', html: 'Press <b>A</b> to raise the forks and <b>Z</b> to lower them. Drive the forks in under a stack to lift it.' },
+  { done: 'zone', html: 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Press <b>R</b> to restart if you get stuck.' },
+  { done: 'cab', html: 'For a more immersive experience, press <b>Tab</b> or <b>M</b> to switch to the cab view (and again to return to the overview).' },
+  { done: 'info', html: isTouch
+    ? 'Hold two fingers on the canvas to <b>honk</b>. Open <b>Menu</b> → <b>Info</b> for scoring and more tips.'
+    : 'Extras: <b>C</b> chase camera, <b>W</b>/<b>Q</b> rotate the camera (or drag it), hold <b>H</b> to honk, <b>F</b> full screen. Press <b>P</b> / <b>Esc</b> for the menu → <b>Info</b> for scoring and more tips.' },
 ];
-if (isTouch) TUTORIAL.pop();
+if (isTouch) TUTORIAL.splice(3, 1);
+const TUT_MIN_MS = 2500, TUT_INFO_MS = 20000;
 const tutorialEl = document.getElementById('tutorial');
 // ?skip hides the tutorial for this visit without saving it as done.
 let tutStep = localStorage.getItem('forklift-tutorial-done') || new URLSearchParams(location.search).has('skip') ? -1 : 0;
+let tutDone = {};
+let tutShownAt = performance.now();
 function showTutorial() {
+  tutShownAt = performance.now();
   tutorialEl.classList.toggle('hide', tutStep < 0);
-  if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep]}`;
+  if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep].html}`;
 }
 function nextTutorial() {
   tutStep = tutStep + 1 >= TUTORIAL.length ? -1 : tutStep + 1;
@@ -332,10 +341,16 @@ function checkTutorial() {
   if (tutStart.g !== game) tutStart = { x: game.fl.x, y: game.fl.y, g: game };
   if (tutStep < 0) return;
   const g = game;
-  if (tutStep === 0 && Math.hypot(g.fl.x - tutStart.x, g.fl.y - tutStart.y) > 0.5) nextTutorial();
-  else if (tutStep === 1 && g.H !== 0) nextTutorial();
-  else if (tutStep === 2 && countDone() > 0) nextTutorial();
+  if (Math.hypot(g.fl.x - tutStart.x, g.fl.y - tutStart.y) > 0.5) tutDone.drive = true;
+  if (g.H !== tutLastH) tutDone.fork = true;
+  tutLastH = g.H;
+  if (countDone() > 0) tutDone.zone = true;
+  if (view.menuOpen && !splashOn && TUTORIAL[tutStep].done === 'info' && performance.now() - tutShownAt > TUT_MIN_MS) tutDone.info = true;
+  const age = performance.now() - tutShownAt;
+  const step = TUTORIAL[tutStep];
+  if (step.done === 'info' ? tutDone.info || age > TUT_INFO_MS : tutDone[step.done] && age > TUT_MIN_MS) nextTutorial();
 }
+let tutLastH = game.H;
 const tutorialOpt = document.getElementById('tutorialOpt');
 tutorialOpt.checked = tutStep >= 0;
 const hardOpt = document.getElementById('hardOpt');
@@ -365,6 +380,7 @@ function startGame(disco = false) {
   if (tutorialOpt.checked) {
     localStorage.removeItem('forklift-tutorial-done');
     tutStep = 0;
+    tutDone = {};
   } else {
     tutStep = -1;
     localStorage.setItem('forklift-tutorial-done', '1');
@@ -704,6 +720,7 @@ menuTutorial.addEventListener('click', () => {
     localStorage.setItem('forklift-tutorial-done', '1');
   } else {
     tutStep = 0;
+    tutDone = {};
     localStorage.removeItem('forklift-tutorial-done');
     tutStart = { x: game.fl.x, y: game.fl.y, g: game };
   }

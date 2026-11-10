@@ -131,7 +131,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Splash** | Title screen: seed, Start, Disco start, options | `#splash` |
 | **Menu / pause menu** | Esc/P menu with pages: main, sound, display, game, info, state | `#menu` |
 | **Record prompt** | Name entry when a record is set | `#record` |
-| **Tutorial banner** | 4-step hint strip | `#tutorial` |
+| **Tutorial banner** | 5-step hint strip | `#tutorial` |
 | **Testing banner** | Red "TEST" banner on non-official hosts | `#testingBanner` |
 | **Touch controls** | On-screen buttons or joystick (classic / rotated / joystick) | `#touch`, `#stick` |
 | **Paused overlay** | Drawn when the window is unfocused | `view.paused` |
