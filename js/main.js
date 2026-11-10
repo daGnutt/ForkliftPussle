@@ -144,8 +144,12 @@ document.addEventListener('fullscreenchange', wakeCursor);
 function nextLevel() { if (game.status === 'won') load(level + 1); }
 
 function toggleChase() {
-  if (view.povBig || !glEnabled()) return;
-  view.chase = !view.chase;
+  if (!glEnabled()) return;
+  if (view.povBig) {
+    view.povBig = false;
+    localStorage.setItem('forklift-cab-view', '0');
+    view.chase = true;
+  } else view.chase = !view.chase;
   view.orbit = null;
   localStorage.setItem('forklift-chase-cam', view.chase ? '1' : '0');
 }
