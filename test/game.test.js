@@ -1264,6 +1264,16 @@ console.log('all tests passed');
   Object.assign(g3.trucks[1].fl, { x: 20, y: 10 });
   update(g3, {}, 1 / 120);
   assert.ok(dynamicMeshes(g3, 'ov', [0, 0]).opaque.count > solo.opaque.count, 'solid truck drawn opaque');
+
+  // horns follow each truck's key and travel in snapshots
+  update(g3, { horn: true }, 1 / 120);
+  g3.trucks[1].input = {};
+  assert.equal(g3.horn, true, 'own horn sounds while held');
+  assert.equal(g3.trucks[1].horn, false);
+  g3.trucks[1].input = { horn: true };
+  update(g3, {}, 1 / 120);
+  assert.deepEqual(g3.trucks.map((t) => t.horn), [false, true], 'other truck horn follows its input');
+  assert.deepEqual(snapshot(g3).trucks.map((t) => t.horn), [false, true], 'horn is in snapshots');
   console.log('multiplayer trucks ok');
 }
 

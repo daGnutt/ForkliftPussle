@@ -1,4 +1,4 @@
-const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyZ', 'KeyQ', 'KeyW', 'KeyM', 'KeyF', 'KeyC', 'Tab', 'KeyP', 'Escape']);
+const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyZ', 'KeyQ', 'KeyW', 'KeyM', 'KeyF', 'KeyC', 'Tab', 'KeyP', 'KeyH', 'Escape']);
 
 export function createInput(handlers) {
   const down = new Set();
@@ -120,6 +120,7 @@ export function createInput(handlers) {
       right: down.has('ArrowRight') || stick.right,
       lookL: down.has('KeyW'),
       lookR: down.has('KeyQ'),
+      horn: down.has('KeyH'),
     }),
   };
 }

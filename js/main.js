@@ -20,7 +20,7 @@ import { CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
-import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setHorns, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -846,6 +846,10 @@ function frame(now) {
   checkRecord();
   const st = input.state();
   setEngine(game.fl.speed, st.up || st.down, game.fl.gear === 'R');
+  setHorns(game.trucks.map((t, i) => {
+    const own = i === game.self, d = Math.hypot(t.fl.x - game.fl.x, t.fl.y - game.fl.y);
+    return { id: t.id, on: !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : 1 / (1 + d / 8) };
+  }));
   const done = doneSet();
   const fresh = [...done].filter((z) => !doneZones.has(z));
   if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();

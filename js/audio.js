@@ -491,6 +491,39 @@ export function setEngine(speed, throttle, reversing = false) {
   setBeeper(reversing, t);
 }
 
+// Horns: one voice per truck (two detuned saws), held for as long as the truck's horn key is down.
+// Each truck has its own pitch so a party can tell them apart. `list` = [{ id, on, vol }] (vol 0..1, e.g. by distance).
+const horns = new Map();
+export const hornFreq = (id) => 196 * 1.06 ** id;
+export function setHorns(list) {
+  if (!ctx || ctx.state !== 'running') return;
+  const t = ctx.currentTime;
+  for (const { id, on, vol = 1 } of list) {
+    let h = horns.get(id);
+    if (!h && !on) continue;
+    if (!h) {
+      const f = ctx.createBiquadFilter();
+      const g = ctx.createGain();
+      f.type = 'lowpass';
+      f.frequency.value = 1400;
+      g.gain.value = 0;
+      f.connect(g);
+      g.connect(sfxBus);
+      const os = [1, 1.26].map((m) => {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = hornFreq(id) * m;
+        o.connect(f);
+        o.start();
+        return o;
+      });
+      h = { os, g };
+      horns.set(id, h);
+    }
+    h.g.gain.setTargetAtTime(on ? 0.07 * vol : 0, t, 0.02);
+  }
+}
+
 // Reversing warning: 880 Hz soft sine beep, 0.4 s on / 0.4 s off while backing up.
 function setBeeper(reversing, t) {
   if (!beeper) {

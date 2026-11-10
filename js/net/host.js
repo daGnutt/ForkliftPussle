@@ -43,7 +43,7 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
     } else if (m.slot >= 0) {
       const t = g.trucks[m.slot];
       if (!t || t.gone) return;
-      if (msg.t === 'in') t.input = { up: !!msg.up, down: !!msg.down, left: !!msg.left, right: !!msg.right };
+      if (msg.t === 'in') t.input = { up: !!msg.up, down: !!msg.down, left: !!msg.left, right: !!msg.right, horn: !!msg.horn };
       else if (msg.t === 'fork') (msg.dir === 'up' ? forkUp : forkDown)(truckView(g, m.slot));
     }
   }

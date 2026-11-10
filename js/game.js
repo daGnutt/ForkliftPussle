@@ -34,7 +34,7 @@ const newPen = (col = 0, seed = 0) => ({ crash: 0, sq: 0, deco: boxDecalKind(col
 // the local truck (`g.self`): g.fl, g.H, g.carried... forward to `g.trucks[g.self]`, so single-player code and
 // tests just use `g`. `truckView(g, i)` gives the same view for another truck (a Proxy), which every per-truck
 // function (update steps, forkUp/forkDown, resolve) accepts in place of `g`.
-const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'H', 'hf', 'ef', 'revTime', 'rv', 'hitAt'];
+const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'H', 'hf', 'ef', 'revTime', 'rv', 'hitAt', 'horn'];
 const TRUCK_SET = new Set(TRUCK_KEYS);
 
 export function makeTruck(start, id = 0, name = '') {
@@ -44,6 +44,7 @@ export function makeTruck(start, id = 0, name = '') {
     carried: null, carriedRel: 0, carriedRots: [], carriedPen: [], carriedOffs: [],
     bonks: 0, bonkPower: 0, bonkAt: -1, scrape: 0, wallPush: null,
     H: 0, hf: 0, ef: 0,
+    horn: false, // the horn key is held
     revTime: 0, // seconds spent in gear R; the chase camera only looks back after LOOK_BACK_DELAY
     rv: 0, // 0..1 smoothed: how far the chase camera has turned to look backwards (gear R)
   };
@@ -545,6 +546,7 @@ export function update(g, input, dt) {
 
 function stepTruck(g, input, dt) {
   const f = g.fl;
+  g.horn = !!input.horn;
   const forked = g.hard ? forkedStack(g) : null;
   const forkedY = forked ? toLocal(f, boxPos(forked, g.H).x, boxPos(forked, g.H).y).y : 0;
   const prevA = f.a;

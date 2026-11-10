@@ -1,12 +1,12 @@
 // Wire format and state sync of a party. The host runs the simulation and sends snapshots; guests send their inputs.
 //
-//   guest -> host (reliable): { t: 'hello', name } | { t: 'in', up, down, left, right } | { t: 'fork', dir: 'up' | 'down' } | { t: 'gping', n } (answered with { t: 'gpong', n }; the guest's round-trip measurement)
+//   guest -> host (reliable): { t: 'hello', name } | { t: 'in', up, down, left, right, horn } | { t: 'fork', dir: 'up' | 'down' } | { t: 'gping', n } (answered with { t: 'gpong', n }; the guest's round-trip measurement)
 //   host -> guest (reliable): { t: 'welcome', slot, started, ...level } | { t: 'level', ...level } | { t: 'bye' }
 //     where level = { level, seed, hard, seedText, snap } (snap is a full snapshot)
 //   host -> guest (fast):     { t: 'snap', ...snapshot }
 import { makeTruck } from '../game.js';
 
-const TRUCK_FIELDS = ['id', 'color', 'name', 'gone', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'H', 'hf', 'ef', 'rv', 'hitAt'];
+const TRUCK_FIELDS = ['id', 'color', 'name', 'gone', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'H', 'hf', 'ef', 'rv', 'hitAt', 'horn'];
 export const SNAPSHOT_HZ = 30;
 const STACK_RESEND = 5; // snapshots are unreliable, so changed stacks are repeated this many times
 const STACK_REFRESH = 2; // seconds between full stack refreshes while nothing changes
