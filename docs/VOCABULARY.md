@@ -137,7 +137,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Touch controls** | On-screen buttons or joystick (classic / rotated / joystick) | `#touch`, `#stick` |
 | **Paused overlay** | Drawn when the window is unfocused | `view.paused` |
 | **Debug overlay** | `?debug` timing panel | `debug.js` |
-| **State export/import** | Save-game text in the menu | `savestate.js` |
+| **State export/import** | Save-game text in the menu (testing builds only) | `savestate.js` |
 
 ## Multiplayer
 

@@ -17,7 +17,7 @@ import { glEnabled, setGlEnabled, attachGlCanvas } from './gl/renderer.js';
 import { themeMode, setThemeMode, theme } from './theme.js';
 import { discoEnabled, setDiscoEnabled } from './disco.js';
 import { CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
-import { initTestingBanner } from './testing.js';
+import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
 import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setHorns, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
@@ -863,6 +863,7 @@ applyPause();
 
 const debug = debugEnabled(location.search) ? createDebug() : null;
 initTestingBanner();
+if (!isTesting()) menuEl.querySelector('[data-go="state"]')?.remove();
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 // ?skip in the URL bypasses the splash (on touch it opens the main menu; keeps saved settings; no audio until a key/click starts it)
