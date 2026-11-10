@@ -414,15 +414,10 @@ function paintFloor(ctx, g, vis) {
   }
 
   if (g.belt) {
-    const art = beltArt(g.belt);
-    ctx.fillStyle = '#4a4f55';
-    ctx.fillRect(...art.rect);
-    ctx.fillStyle = '#c62828';
-    ctx.fillRect(...art.pit);
-    ctx.fillStyle = '#f4c414';
-    for (const c of art.chevrons) {
+    for (const { pts, fill } of beltArt(g.belt, g.endless?.broken)) {
+      ctx.fillStyle = fill;
       ctx.beginPath();
-      c.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
       ctx.fill();
     }
   }

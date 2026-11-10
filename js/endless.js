@@ -1,4 +1,5 @@
 import { rectPoly, sat } from './geom.js';
+import { FL, toWorld } from './forklift.js';
 import { gameFromLayout, wonkyStack, solidPolys, zoneDone, zonePoints } from './game.js';
 
 // Endless mode: single boxes ride a conveyor belt along the north wall; the player moves them onto the delivery truck of their
@@ -54,8 +55,8 @@ export function newEndless(seed = 0, hard = false) {
     start: { x: ENDLESS_W / 2, y: 6, a: -Math.PI / 2 },
   };
   const g = gameFromLayout(layout, 0, seed, hard);
-  g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, spawnT: 2, spawned: 0, missed: 0, delivered: 0, boxes: 0, points: 0, over: false, bays };
-  g.belt = { ...BELT, speed: BELT_SPEED };
+  g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, spawnT: 2, spawned: 0, missed: 0, broken: false, delivered: 0, boxes: 0, points: 0, over: false, bays };
+  g.belt = { ...BELT, speed: BELT_SPEED, beamY: BELT.y1 + 0.2 };
   g.layoutVersion = 0;
   for (const b of bays) {
     const r = bayRects(b.x0, 0);
@@ -141,15 +142,19 @@ function stepBay(g, b, dt) {
 export function stepEndless(g, dt) {
   const e = g.endless;
   if (!e || e.over) return;
-  e.elapsed += dt;
   const B = g.belt;
-  for (const s of [...g.stacks]) {
+  // The laser fence: any truck part (body, carried boxes, tine tips) across the beam pauses the belt and the arrivals.
+  const broken = g.trucks.some((t) => !t.gone && (solidPolys(t).some((p) => p.some((v) => v.y < B.beamY))
+    || [-FL.tineOff, FL.tineOff].some((o) => toWorld(t.fl, FL.tineX1, o).y < B.beamY)));
+  if (broken !== e.broken) { e.broken = broken; g.layoutVersion++; }
+  if (!broken) e.elapsed += dt;
+  for (const s of broken ? [] : [...g.stacks]) {
     if (s.dropFrom != null || s.y < B.y0 || s.y > B.y1 || s.x < B.x0 || s.x > B.x1 + 1) continue;
     s.x += B.speed * dt;
     if (s.x > B.x1) { e.missed += s.layers.length; g.stacks.splice(g.stacks.indexOf(s), 1); }
   }
-  e.spawnT -= dt;
-  if (e.spawnT <= 0) {
+  if (!broken) e.spawnT -= dt;
+  if (e.spawnT <= 0 && !broken) {
     const y = (B.y0 + B.y1) / 2 + (rnd(e) - 0.5) * 0.3;
     if (g.stacks.some((s) => Math.hypot(s.x - SPAWN_X, s.y - y) < 1.2)) e.spawnT = 0.2;
     else {
@@ -164,10 +169,28 @@ export function stepEndless(g, dt) {
   if (e.missed >= MAX_MISSED) { e.over = true; g.status = 'over'; }
 }
 
-// Floor art of the belt: the belt rectangle, the red pit at its end where missed boxes fall, and chevrons pointing along it.
-export function beltArt(b) {
+// Floor art of the belt as [{pts, fill}] polygons, drawn in order: rollers between hazard-striped rails, chevrons along the
+// direction of travel, the red pit at the end, and the laser fence (posts plus a beam) along the south edge. The beam is
+// bright while intact and dark while broken.
+export function beltArt(b, broken = false) {
+  const out = [];
+  const rect = (x, y, w, h, fill) => out.push({ pts: [[x, y], [x + w, y], [x + w, y + h], [x, y + h]], fill });
   const cy = (b.y0 + b.y1) / 2, h = (b.y1 - b.y0) / 2;
-  const chevrons = [];
-  for (let x = b.x0 + 1; x < b.x1 - 0.6; x += 1.6) chevrons.push([[x, cy - h * 0.55], [x + 0.5, cy], [x, cy + h * 0.55], [x - 0.25, cy + h * 0.55], [x + 0.25, cy], [x - 0.25, cy - h * 0.55]]);
-  return { rect: [b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0], pit: [b.x1, b.y0, ENDLESS_W - b.x1, b.y1 - b.y0], chevrons };
+  rect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, '#3b3f45');
+  for (let x = b.x0 + 0.25; x < b.x1; x += 0.5) rect(x, b.y0 + 0.2, 0.07, b.y1 - b.y0 - 0.4, '#2a2d32');
+  for (let x = b.x0, i = 0; x < b.x1 - 1e-6; x += 0.4, i++) {
+    const w = Math.min(0.4, b.x1 - x), fill = i % 2 ? '#1a1a1a' : '#f4c414';
+    rect(x, b.y0, w, 0.2, fill);
+    rect(x, b.y1 - 0.2, w, 0.2, fill);
+  }
+  for (let x = b.x0 + 1.2; x < b.x1 - 1; x += 1.6) {
+    out.push({ pts: [[x, cy - h * 0.5], [x + 0.45, cy], [x, cy + h * 0.5], [x - 0.22, cy + h * 0.5], [x + 0.23, cy], [x - 0.22, cy - h * 0.5]], fill: '#8d949b' });
+  }
+  rect(b.x1, b.y0, ENDLESS_W - b.x1, b.y1 - b.y0, '#c62828');
+  for (let y = b.y0; y < b.y1 - 1e-6; y += 0.4) rect(b.x1, y, 0.2, 0.2, '#1a1a1a');
+  rect(b.x0, b.beamY - 0.025, b.x1 - b.x0, 0.05, broken ? '#4a1a1a' : '#ff1744');
+  const posts = [b.x0, b.x1 - 0.3];
+  for (let x = b.x0 + 6; x < b.x1 - 3; x += 6) posts.push(x);
+  for (const x of posts) { rect(x, b.beamY - 0.15, 0.3, 0.3, '#222'); rect(x + 0.08, b.beamY - 0.07, 0.14, 0.14, broken ? '#ffb300' : '#ff1744'); }
+  return out;
 }

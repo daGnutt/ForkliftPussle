@@ -61,12 +61,7 @@ function parkingCorners(g) {
 }
 
 export function drawFloorMarks(ctx, g, cam) {
-  if (g.belt) {
-    const art = beltArt(g.belt), rect = ([x, y, w, h]) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
-    floorPoly(ctx, cam, rect(art.rect), '#4a4f55', '#4a4f55');
-    floorPoly(ctx, cam, rect(art.pit), '#c62828', '#c62828');
-    for (const c of art.chevrons) floorPoly(ctx, cam, c, '#f4c414', '#f4c414');
-  }
+  if (g.belt) for (const { pts, fill } of beltArt(g.belt, g.endless?.broken)) floorPoly(ctx, cam, pts, fill, fill);
   for (const z of g.zones) {
     const done = zoneDone(g, z), r = 0.6;
     floorPoly(ctx, cam, [[z.x - r, z.y - r], [z.x + r, z.y - r], [z.x + r, z.y + r], [z.x - r, z.y + r]],

@@ -1574,6 +1574,17 @@ console.log('all tests passed');
   g.fl.x = 13; g.fl.y = 6; // well away from the trucks
   step(3);
   assert.ok(g.stacks.length >= 1 && g.stacks[0].x > 1.1, 'a box rides the belt');
+  g.stacks = [{ x: 5, y: 1.5, layers: [0] }];
+  const x0 = g.stacks[0].x;
+  step(1);
+  assert.ok(g.stacks[0].x > x0, 'belt moves while the fence is intact');
+  g.fl.x = 13; g.fl.y = 3.5; g.fl.a = -Math.PI / 2; // forks across the laser beam
+  const x1 = g.stacks[0].x;
+  step(1);
+  assert.ok(g.endless.broken && g.stacks[0].x === x1, 'a broken laser beam pauses the belt');
+  g.fl.y = 6;
+  step(0.2);
+  assert.ok(!g.endless.broken);
   const bay = g.endless.bays[1];
   g.endless.spawnT = 1e9;
   g.stacks = [];
