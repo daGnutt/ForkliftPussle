@@ -331,22 +331,24 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
     ctx.fillStyle = COLORS[st.layers[st.layers.length - 1]];
     ctx.fillRect(st.x * s - dot / 2, st.y * s - dot / 2, dot, dot);
   }
-  ctx.fillStyle = '#fff';
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 1;
-  const fr = Math.max(4, s * 1.1); // heading arrow: the tip points where the forklift faces
-  ctx.save();
-  ctx.translate(g.fl.x * s, g.fl.y * s);
-  ctx.rotate(g.fl.a);
-  ctx.beginPath();
-  ctx.moveTo(fr, 0);
-  ctx.lineTo(-fr * 0.7, fr * 0.7);
-  ctx.lineTo(-fr * 0.3, 0);
-  ctx.lineTo(-fr * 0.7, -fr * 0.7);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
+  const fr = Math.max(4, s * 1.1); // heading arrow in the truck's colour: the tip points where the forklift faces
+  for (const t of [...otherTrucks(g), g]) {
+    ctx.fillStyle = truckColor(t.truck.color).body;
+    ctx.save();
+    ctx.translate(t.fl.x * s, t.fl.y * s);
+    ctx.rotate(t.fl.a);
+    ctx.beginPath();
+    ctx.moveTo(fr, 0);
+    ctx.lineTo(-fr * 0.7, fr * 0.7);
+    ctx.lineTo(-fr * 0.3, 0);
+    ctx.lineTo(-fr * 0.7, -fr * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.strokeStyle = '#f9a825';
   if (cam.poly) {
     ctx.beginPath();
