@@ -155,13 +155,13 @@ const input = createInput({
     if (tutStep === 3 && view.povBig) nextTutorial();
   },
   up: () => {
-    if (mp?.role === 'guest') { mp.guest.sendFork('up'); return; }
+    if (mp?.role === 'guest') { mp.guest.sendFork('up'); if (mp.guest.predictor.fork('up', performance.now() / 1000) === 'blocked') playBlocked(); return; }
     const h = game.H;
     if (forkUp(game) === 'blocked') playBlocked();
     else if (game.H !== h) playFork(true);
   },
   down: () => {
-    if (mp?.role === 'guest') { mp.guest.sendFork('down'); return; }
+    if (mp?.role === 'guest') { mp.guest.sendFork('down'); if (mp.guest.predictor.fork('down', performance.now() / 1000) === 'blocked') playBlocked(); return; }
     const h = game.H;
     if (forkDown(game) === 'blocked') playBlocked();
     else if (game.H !== h) playFork(false);
@@ -501,6 +501,7 @@ function onGuestGame(m) {
   game = newGame(level, seed, hard);
   game.self = m.slot;
   applySnapshot(game, m.snap);
+  mp.guest.predictor.reset(game);
   doneZones = doneSet();
   hitCount = game.hitCount;
   bonkCount = game.bonks;
@@ -820,9 +821,12 @@ function frame(now) {
   if (mp?.role === 'guest') {
     // a guest never steps the game: it sends its keys and shows what the host sends
     acc = 0;
-    if (!splashOn && mp.go && mp.guest.interp.apply(game, performance.now() / 1000)) {
+    const sec = performance.now() / 1000;
+    if (!splashOn && mp.go && mp.guest.interp.apply(game, sec)) {
       const inp = input.state();
       mp.guest.sendInput(inp);
+      if (!view.paused) mp.guest.predictor.step(game, inp, dtReal, sec);
+      mp.guest.predictor.apply(game, sec);
       cameraStep(inp, dtReal);
       followStep(dtReal);
       if (game.H !== mp.lastH) { if (mp.lastH != null) playFork(game.H > mp.lastH); mp.lastH = game.H; }

@@ -1,6 +1,6 @@
 // Wire format and state sync of a party. The host runs the simulation and sends snapshots; guests send their inputs.
 //
-//   guest -> host (reliable): { t: 'hello', name } | { t: 'in', up, down, left, right } | { t: 'fork', dir: 'up' | 'down' }
+//   guest -> host (reliable): { t: 'hello', name } | { t: 'in', up, down, left, right } | { t: 'fork', dir: 'up' | 'down' } | { t: 'gping', n } (answered with { t: 'gpong', n }; the guest's round-trip measurement)
 //   host -> guest (reliable): { t: 'welcome', slot, started, ...level } | { t: 'level', ...level } | { t: 'bye' }
 //     where level = { level, seed, hard, seedText, snap } (snap is a full snapshot)
 //   host -> guest (fast):     { t: 'snap', ...snapshot }

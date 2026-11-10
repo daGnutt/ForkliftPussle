@@ -35,6 +35,8 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
       m.slot = slot;
       m.link.sendReliable({ t: 'welcome', slot, started: isStarted(), ...payload(g) });
       onChange?.();
+    } else if (msg.t === 'gping') {
+      m.link.sendReliable({ t: 'gpong', n: msg.n });
     } else if (msg.t === 'pong') {
       m.ping = Math.max(0, Math.round((clock() - msg.n) * 1000));
       onChange?.();
