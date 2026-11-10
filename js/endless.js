@@ -9,7 +9,7 @@ export const ENDLESS_H = 14;
 export const ENDLESS_COLORS = 4;
 export const MAX_MISSED = 10;
 const BELT = { x0: 0.2, y0: 0.5, x1: ENDLESS_W - 1.2, y1: 2.5 };
-const BELT_SPEED = 0.8; // tiles/s
+const BELT_SPEED = 0.4; // tiles/s
 const SPAWN_X = 1.0;
 const SLOT = 2; // spacing of the delivery truck's four stack slots
 const TRUCK_W = 4.6, TRUCK_D = 4.6, WALL = 0.3;
