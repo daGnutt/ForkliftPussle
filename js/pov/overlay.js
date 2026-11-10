@@ -1,5 +1,6 @@
 import { COLORS } from '../level.js';
 import { hitLife, zoneDone } from '../game.js';
+import { truckColor } from '../forklift.js';
 import { toCam, BOX_H, PAL, MAX_DIST } from './camera.js';
 
 // Text overlays drawn over the finished scene.
@@ -84,7 +85,7 @@ export function honkText(elapsed) {
 }
 export function drawHonk(ctx, t, clock, sx, sy, size) {
   const bob = Math.sin(clock * 16 + t.id * 2) * size * 0.1;
-  label(ctx, honkText(Math.max(0, clock - (honkStart.get(t.id) ?? clock))), sx, sy + bob, size, '#ffd54f');
+  label(ctx, honkText(Math.max(0, clock - (honkStart.get(t.id) ?? clock))), sx, sy + bob, size, truckColor(t.color).body);
 }
 
 // Damage popups floating up from the damaged box.
