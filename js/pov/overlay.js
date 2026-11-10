@@ -69,10 +69,22 @@ export function zoneLabelItems(g, cam) {
 export const hitRows = (h) => (h.score ? pointsRows(h.score) : [[{ text: `−${h.pts}`, color: DAMAGE_COLOR }]]);
 
 // Trucks whose horn is sounding, and their "HOOOONK" label (bobbing a little, at screen point (sx, sy)).
-export const honkers = (g) => g.trucks.filter((t) => !t.gone && t.horn);
+// The text grows while the horn is held: HONK, an extra O every 0.5 s up to five, then *HOOOOONK* a second later.
+const honkStart = new Map();
+export const honkers = (g) => {
+  for (const t of g.trucks) {
+    if (!t.gone && t.horn) { if (!honkStart.has(t.id)) honkStart.set(t.id, g.clock); } else honkStart.delete(t.id);
+  }
+  return g.trucks.filter((t) => !t.gone && t.horn);
+};
+export function honkText(elapsed) {
+  const o = Math.min(5, 1 + Math.floor(elapsed / 0.5));
+  const text = `H${'O'.repeat(o)}NK`;
+  return elapsed >= 3 ? `*${text}*` : text;
+}
 export function drawHonk(ctx, t, clock, sx, sy, size) {
   const bob = Math.sin(clock * 16 + t.id * 2) * size * 0.1;
-  label(ctx, 'HOOOONK', sx, sy + bob, size, '#ffd54f');
+  label(ctx, honkText(Math.max(0, clock - (honkStart.get(t.id) ?? clock))), sx, sy + bob, size, '#ffd54f');
 }
 
 // Damage popups floating up from the damaged box.
