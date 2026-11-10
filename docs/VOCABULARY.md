@@ -146,6 +146,8 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Truck colour** | Per-player palette (yellow, red, blue, green) | `TRUCK_COLORS`, `truckColor` |
 | **Ghost** | Translucent truck that overlaps another at spawn; not solid until separated | `isGhost`, `ghostBetween` |
 | **Handoff** | Taking or giving a carried stack via tines | `transferCarried` |
+| **Multiplayer page** | Menu page for hosting, roster, ping, kick/ban | `#mpList`, `renderMpPage` |
+| **Kick / ban** | Host removes a guest; a ban refuses that name for the party | `host.kick` |
 | **Party badge** | Top-right party code and player list | `drawPartyBadge` |
 
 ## Audio
