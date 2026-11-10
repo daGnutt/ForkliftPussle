@@ -850,14 +850,14 @@ export function zoneWonky(g, z) {
   return g.stacks.some((s) => stackFillsZone(s, z) && (refreshSquare(s), s.pen.some((p) => p.sq > 0)));
 }
 
-// Points of the stack completing zone z: `base` (max for the stack minus crash damage), `total` (also minus crooked placement `square`); null while the zone is open.
+// Points of the stack completing zone z: `base` (max for the stack: what the popup shows, since crash damage is already in the live score), `total` (base minus crash and crooked placement `square`); null while the zone is open.
 export function zonePoints(g, z) {
   const S = g.stacks.find((s) => stackFillsZone(s, z));
   if (!S) return null;
   refreshSquare(S);
   const crash = S.pen.reduce((n, p) => n + p.crash, 0), square = S.pen.reduce((n, p) => n + p.sq, 0);
-  const base = Math.round(BOX_POINTS * S.layers.length - crash);
-  return { n: S.layers.length, base, total: base - Math.round(square), crash: Math.round(crash), square: Math.round(square) };
+  const base = BOX_POINTS * S.layers.length;
+  return { n: S.layers.length, base, total: base - Math.round(crash) - Math.round(square), crash: Math.round(crash), square: Math.round(square) };
 }
 
 export function zoneDone(g, z) {
