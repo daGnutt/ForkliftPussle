@@ -52,6 +52,7 @@ Combine with `&`, e.g. `index.html?skip&debug&gl=0`.
 | `?gl=0` / `?gl=1` | Force the 2D canvas / WebGL2 renderers (overrides the saved setting) |
 | `?debug` | Show the [debug overlay](#debug-overlay); state export is plain JSON |
 | `?skip` | Skip the splash screen and start the game, with the tutorial off for that visit (saved settings are kept); on touch devices it opens the main menu and leaving it enters fullscreen |
+| `?endless` | Start in endless mode (also in the menu's Game page) |
 | `?testing` | Show the TESTING banner/favicon (always on when not served from the production host) |
 
 ## Multiplayer

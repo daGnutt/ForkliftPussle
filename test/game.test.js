@@ -15,6 +15,7 @@ import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
+import { newEndless, stepEndless, MAX_MISSED } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos } from '../js/game.js';
 
 const NONE = {};
@@ -1564,4 +1565,47 @@ console.log('all tests passed');
   run(g, { up: true }, 1.5);
   assert.ok(g.stacks.some((s) => s.layers.includes(4) && s.layers.length > 1), 'fallen boxes came to rest on the stack behind');
   console.log('stack landing ok');
+}
+
+// Endless mode: boxes ride the belt, a full truck closes its gate, drives off with its load and is replaced; missed boxes end the game.
+{
+  const g = newEndless(1);
+  const step = (secs) => { for (let i = 0; i < secs * 60; i++) { update(g, NONE, 1 / 60); stepEndless(g, 1 / 60); } };
+  g.fl.x = 14; g.fl.y = 11; // well away from the trucks
+  step(3);
+  assert.ok(g.stacks.length >= 1 && g.stacks[0].x > 1.5, 'a box rides the belt');
+  const bay = g.endless.bays[1];
+  g.endless.spawnT = 1e9;
+  g.stacks = [];
+  g.stacks = bay.zones.map((z) => ({ x: z.x, y: z.y, layers: [1, 1, 1, 1] }));
+  step(0.2);
+  assert.ok(g.walls.includes(bay.parts.gate), 'gate closes when the truck is full');
+  step(1.2 + 1);
+  assert.ok(bay.off > 0 && g.stacks.length === 4, 'truck drives off with its load');
+  step(4);
+  assert.equal(g.endless.delivered, 1);
+  assert.equal(g.endless.boxes, 16);
+  assert.ok(g.endless.points > 1500, 'delivered boxes are scored');
+  assert.equal(g.stacks.length, 0, 'the load left with the truck');
+  step(8);
+  assert.ok(bay.state === 'open' && bay.off === 0 && !g.walls.includes(bay.parts.gate), 'a new truck waits with an open gate');
+  assert.ok(g.layoutVersion > 0);
+
+  // a forklift inside keeps the gate open
+  const h = newEndless(2);
+  h.endless.spawnT = 1e9;
+  const b2 = h.endless.bays[0];
+  h.stacks = b2.zones.map((z) => ({ x: z.x, y: z.y, layers: [0, 0, 0, 0] }));
+  h.fl.x = b2.zones[2].x; h.fl.y = b2.zones[2].y + 0.2; h.fl.a = -Math.PI / 2;
+  stepEndless(h, 1 / 60);
+  assert.equal(b2.state, 'open', 'gate stays open while the forklift is inside');
+
+  // boxes that reach the end of the belt are missed
+  const m = newEndless(3);
+  m.fl.x = 14; m.fl.y = 11;
+  m.stacks = Array.from({ length: MAX_MISSED }, (_, i) => ({ x: 25 + i * 0.01, y: 1.5, layers: [0] }));
+  m.endless.spawnT = 1e9;
+  for (let i = 0; i < 180; i++) stepEndless(m, 1 / 60);
+  assert.equal(m.status, 'over');
+  console.log('endless ok');
 }

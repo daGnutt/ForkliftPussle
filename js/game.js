@@ -91,7 +91,7 @@ const carriedPoly = (t) => {
   const c = toWorld(t.fl, FL.carryX, 0);
   return rectPoly(c.x, c.y, 0.5, 0.5, t.fl.a + t.carriedRel);
 };
-const solidPolys = (t) => [bodyPoly(t), carriedPoly(t)].filter(Boolean);
+export const solidPolys = (t) => [bodyPoly(t), carriedPoly(t)].filter(Boolean);
 const trucksOverlap = (a, b) => {
   if (Math.hypot(a.fl.x - b.fl.x, a.fl.y - b.fl.y) > 6) return false;
   const pb = solidPolys(b);
@@ -302,7 +302,7 @@ export function score(g) {
 
 // Fresh stacks get a little deterministic wonkiness: each box is turned up to WONK_ROT and shifted up to WONK_OFF.
 const WONK_ROT = 15 * Math.PI / 180, WONK_OFF = 0.06;
-function wonkyStack(s) {
+export function wonkyStack(s) {
   const base = Math.floor(s.x * 31 + s.y * 17);
   const r = (i, k) => { const t = Math.sin((base + i * 7.13 + k * 3.7) * 12.9898) * 43758.5453; return (t - Math.floor(t)) * 2 - 1; };
   const rots = s.layers.map((_, i) => r(i, 1) * WONK_ROT);
@@ -311,7 +311,11 @@ function wonkyStack(s) {
 }
 
 export function newGame(levelNumber, seed = 0, hard = false) {
-  const lvl = generateLevel(levelNumber, seed);
+  return gameFromLayout(generateLevel(levelNumber, seed), levelNumber, seed, hard);
+}
+
+// Builds the game state from a layout (`generateLevel`'s shape: w, h, walls, charger, zones, areas, bays, doors, stacks, start).
+export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
   const walls = [];
   const T = 3;
   const add = (x, y, w, h, charger) => walls.push({ x, y, w, h, poly: rectPoly(x + w / 2, y + h / 2, w / 2, h / 2), ...(charger && { charger }) });
@@ -499,6 +503,7 @@ function resolve(g) {
     }
 
     for (const s of g.stacks) {
+      if (s.leaving) continue; // a load riding away on a delivery truck passes through the border
       for (const w of g.walls) {
         if (s.x + 0.71 < w.x || s.x - 0.71 > w.x + w.w || s.y + 0.71 < w.y || s.y - 0.71 > w.y + w.h) continue;
         const m = sat(stackPoly(s), w.poly);
@@ -642,7 +647,7 @@ export function update(g, input, dt) {
   updateGhosts(root);
   if (root.status === 'play' && root.started) root.time += dt; // the level timer runs from the first move until solved
   scorePopups(root);
-  if (root.status === 'play' && isFinished(root)) root.status = 'won';
+  if (root.status === 'play' && !root.endless && isFinished(root)) root.status = 'won';
 }
 
 function stepTruck(g, input, dt) {

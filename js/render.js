@@ -1,4 +1,5 @@
 import { COLORS } from './level.js';
+import { beltArt, MAX_MISSED } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
@@ -368,7 +369,7 @@ const MAX_FLOOR_PX = 16e6;
 let floorCache = null;
 function drawFloor(ctx, g, vis, pxPerTile) {
   if (vis || !pxPerTile || g.w * g.h * pxPerTile * pxPerTile > MAX_FLOOR_PX) return paintFloor(ctx, g, vis);
-  const key = [theme(), decalsEnabled(), Math.round(pxPerTile * 100)];
+  const key = [theme(), decalsEnabled(), Math.round(pxPerTile * 100), g.layoutVersion || 0];
   const c = floorCache;
   if (!c || c.g !== g || c.key.some((k, i) => k !== key[i])) {
     const cv = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(1, 1) : document.createElement('canvas');
@@ -412,6 +413,19 @@ function paintFloor(ctx, g, vis) {
     ctx.fill();
   }
 
+  if (g.belt) {
+    const art = beltArt(g.belt);
+    ctx.fillStyle = '#4a4f55';
+    ctx.fillRect(...art.rect);
+    ctx.fillStyle = '#c62828';
+    ctx.fillRect(...art.pit);
+    ctx.fillStyle = '#f4c414';
+    for (const c of art.chevrons) {
+      ctx.beginPath();
+      c.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.fill();
+    }
+  }
   for (const a of g.areas) {
     if (!seen(a.x - 0.3, a.y - 0.3, a.w + 0.6, a.h + 0.6)) continue;
     ctx.fillStyle = COLORS[a.color];
@@ -623,7 +637,7 @@ function drawTopLists(ctx, view, cx, y, width) {
 
 // Shown on a freshly loaded level until the truck first moves.
 function drawStartBoard(ctx, g, view, width, height) {
-  const title = `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`;
+  const title = g.endless ? 'Endless mode' : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`;
   const h = 40 + 18 * 11 + 22, y = Math.max(10, height * 0.12);
   const w = Math.min(width - 20, 560);
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -633,6 +647,12 @@ function drawStartBoard(ctx, g, view, width, height) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(title, width / 2, y + 20);
+  if (g.endless) {
+    ctx.font = '16px sans-serif';
+    ['Boxes arrive on the belt (top).', 'Stack four of a colour on each of the four spots', 'of that colour\'s delivery truck. A full truck closes,', 'drives off and is replaced.', `${MAX_MISSED} boxes off the end of the belt: game over.`]
+      .forEach((t, i) => ctx.fillText(t, width / 2, y + 60 + i * 24));
+    return;
+  }
   drawTopLists(ctx, view, width / 2, y + 40, w / 2);
 }
 
@@ -652,8 +672,9 @@ function drawStatusStrip(ctx, g, view, mm, title, bestText, globalText, hint, wi
   ctx.fillRect(PAD - 4, bottom - rows * lh - 9, lx - PAD + 4, rows * lh + 14);
   ctx.fillRect(rx - 4, bottom - rows * lh - 9, width - PAD - rx + 8, rows * lh + 14);
   const lw = lx - PAD, rw = width - PAD - rx;
-  line(`Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`, lx, 2, '#eee', 'right', lw, true);
-  line(`Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}`, lx, 1, '#eee', 'right', lw);
+  const E = g.endless;
+  line(E ? 'Endless' : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`, lx, 2, '#eee', 'right', lw, true);
+  line(E ? `Trucks ${E.delivered}   Score ${E.points}` : `Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}`, lx, 1, '#eee', 'right', lw);
   line(formatTime(g.time), lx, 0, '#eee', 'right', lw);
   line(globalText, rx, 3, '#c5e1a5', 'left', rw);
   line(bestText, rx, 2, '#b3e5fc', 'left', rw);
@@ -826,9 +847,10 @@ export function draw(ctx, g, view) {
   // screen-space HUD
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
   const best = view.best;
-  const title = `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${formatTime(g.time)}`;
-  const bestText = best ? `Best ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Best: none yet';
-  const globalText = globalLine(view.global);
+  const E = g.endless;
+  const title = E ? `Endless   Trucks ${E.delivered}   Boxes ${E.boxes}   Missed ${E.missed}/${MAX_MISSED}   Score ${E.points}   ${formatTime(g.time)}` : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${formatTime(g.time)}`;
+  const bestText = E ? `Missed ${E.missed}/${MAX_MISSED}` : best ? `Best ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Best: none yet';
+  const globalText = E ? '' : globalLine(view.global);
   const hint = g.status === 'play' && isSolved(g)
     ? (scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish')
     : '';
@@ -951,6 +973,19 @@ export function draw(ctx, g, view) {
   if (view.paused) {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(0, 0, width, height);
+  }
+  if (g.status === 'over') {
+    const E = g.endless;
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(0, height / 2 - 90, width, 180);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText('Game over!', width / 2, height / 2 - 40);
+    ctx.font = '20px sans-serif';
+    ctx.fillText(`${E.delivered} trucks delivered, ${E.boxes} boxes, ${E.points} points, ${formatTime(g.time)}`, width / 2, height / 2);
+    ctx.fillText(view.touch ? 'Tap to play again' : 'Press Enter to play again', width / 2, height / 2 + 40);
   }
   if (g.status === 'won') {
     const lost = lostBreakdown(g);

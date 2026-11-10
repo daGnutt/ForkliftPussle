@@ -1,4 +1,5 @@
 import { newGame, update, forkUp, forkDown, zoneDone, zoneWonky, score, liveTrucks } from './game.js';
+import { newEndless, stepEndless } from './endless.js';
 import { createInput } from './input.js';
 import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
 import { createRelay } from './net/relay.js';
@@ -74,7 +75,7 @@ function refreshBest() {
 // Party state: null when playing alone, else { role: 'host' | 'guest', code, name, host | guest, go }. A guest mirrors the host's game and never steps it.
 let mp = null;
 function saveState() {
-  if (mp) return;
+  if (mp || game.endless) return;
   localStorage.setItem('forklift-state', JSON.stringify(serializeGame(game, seedText)));
 }
 const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
@@ -114,6 +115,17 @@ function load(n) {
   refreshBest();
   saveState();
 }
+function loadEndless() {
+  if (mp) return;
+  if (recordOpen) closeRecord();
+  recorded = true;
+  game = newEndless(seed, hard);
+  doneZones = doneSet();
+  hitCount = game.hitCount;
+  bonkCount = game.bonks;
+  otherBonks.clear();
+  otherH.clear();
+}
 // After the host's game was replaced: the guests get their trucks back in the new game.
 function partyGameChanged() {
   if (mp?.role !== 'host') return;
@@ -141,7 +153,10 @@ function wakeCursor() {
 canvas.addEventListener('mousemove', wakeCursor);
 document.addEventListener('fullscreenchange', wakeCursor);
 
-function nextLevel() { if (game.status === 'won') load(level + 1); }
+function nextLevel() {
+  if (game.status === 'won') load(level + 1);
+  else if (game.endless && game.status === 'over') loadEndless();
+}
 
 function toggleChase() {
   if (!glEnabled()) return;
@@ -763,7 +778,11 @@ document.getElementById('menuRestart').addEventListener('click', () => {
   hard = menuHardOpt.checked;
   localStorage.setItem('forklift-hard', hard ? '1' : '0');
   hardOpt.checked = hard;
-  load(level);
+  if (game.endless) loadEndless(); else load(level);
+  toggleMenu(false);
+});
+document.getElementById('menuEndless').addEventListener('click', () => {
+  loadEndless();
   toggleMenu(false);
 });
 // While the menu is open it swallows all keys (so the game keys do nothing); Tab/Space/Enter still work on its controls.
@@ -866,6 +885,7 @@ initTestingBanner();
 if (!isTesting()) menuEl.querySelector('[data-go="state"]')?.remove();
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
+if (new URLSearchParams(location.search).has('endless')) loadEndless();
 // ?skip in the URL bypasses the splash (on touch it opens the main menu; keeps saved settings; no audio until a key/click starts it)
 if (new URLSearchParams(location.search).has('skip')) {
   startGame();
@@ -926,6 +946,7 @@ function frame(now) {
     const inp = input.state();
     cameraStep(inp, STEP);
     update(game, inp, STEP);
+    stepEndless(game, STEP);
     followStep(STEP);
     acc -= STEP;
     steps++;

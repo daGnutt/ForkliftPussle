@@ -1,4 +1,5 @@
 import { COLORS } from '../level.js';
+import { beltArt } from '../endless.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
@@ -153,6 +154,12 @@ function addFloor(sm, tm, g, mode) {
   for (let x = 0; x <= g.w; x++) tm.poly([[x - gw, 0], [x + gw, 0], [x + gw, g.h], [x - gw, g.h]], 0, grid);
   for (let y = 0; y <= g.h; y++) tm.poly([[0, y - gw], [g.w, y - gw], [g.w, y + gw], [0, y + gw]], 0, grid);
   if (decalsEnabled()) for (const d of floorDecals(g)) tm.poly(d.pts, 0, d.fill);
+  if (g.belt) {
+    const art = beltArt(g.belt), rect = ([x, y, w, h]) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+    tm.poly(rect(art.rect), 0, parseColor('#4a4f55'));
+    tm.poly(rect(art.pit), 0, parseColor('#c62828'));
+    for (const c of art.chevrons) tm.poly(c, 0.002, parseColor('#f4c414'));
+  }
   for (const a of g.areas) {
     const c = parseColor(COLORS[a.color]);
     tm.poly([[a.x - 0.3, a.y - 0.3], [a.x + a.w + 0.3, a.y - 0.3], [a.x + a.w + 0.3, a.y + a.h + 0.3], [a.x - 0.3, a.y + a.h + 0.3]], 0, [c[0], c[1], c[2], 0.12]);
@@ -163,7 +170,7 @@ const cache = new WeakMap();
 
 // { opaque, trans } meshes that only change with the level, theme and decal switch.
 export function staticMeshes(g, mode) {
-  const key = [theme(), decalsEnabled(), mode];
+  const key = [theme(), decalsEnabled(), mode, g.layoutVersion || 0];
   let e = cache.get(g);
   if (!e) cache.set(g, (e = {}));
   const hit = e[mode];
