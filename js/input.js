@@ -74,14 +74,18 @@ export function createInput(handlers) {
   for (const type of ['pointerup', 'pointercancel']) stickEl?.addEventListener(type, (e) => { if (e.pointerType !== 'touch' && e.pointerId === stickId) stickRelease(); });
   const padTouches = new Set();
   const touchKeys = new Set();
+  let twoFingerHorn = false;
   const syncTouches = (e) => {
     if (handlers.blocked?.()) { // menu open: drop all pad touches so they neither steer nor steal taps from the menu
       stickRelease();
+      twoFingerHorn = false;
       if (padTouches.size || touchKeys.size) { padTouches.clear(); touchKeys.clear(); down.clear(); buttons.forEach((b) => b.classList.remove('on')); }
       return;
     }
     const live = new Map();
     for (const t of e.touches) live.set(t.identifier, t);
+    // Two fingers resting on the canvas (not on the pad) hold the horn; one finger still orbits/taps.
+    twoFingerHorn = [...live.values()].filter((t) => t.target?.id === 'game').length >= 2;
     for (const t of e.changedTouches) {
       if (e.type === 'touchstart' && stickId === null && inStick(t.clientX, t.clientY)) { stickId = t.identifier; stickByTouch = true; handlers.anyKey?.(); }
       if (e.type === 'touchstart' && buttonAt(t.clientX, t.clientY)) padTouches.add(t.identifier);
@@ -110,9 +114,9 @@ export function createInput(handlers) {
     press(e.code);
   });
   window.addEventListener('keyup', (e) => down.delete(e.code));
-  window.addEventListener('blur', () => { stickRelease(); down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); });
+  window.addEventListener('blur', () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); });
   return {
-    clear: () => { stickRelease(); down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); buttons.forEach((b) => b.classList.remove('on')); },
+    clear: () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); buttons.forEach((b) => b.classList.remove('on')); },
     state: () => ({
       up: down.has('ArrowUp') || stick.up,
       down: down.has('ArrowDown') || stick.down,
@@ -120,7 +124,7 @@ export function createInput(handlers) {
       right: down.has('ArrowRight') || stick.right,
       lookL: down.has('KeyW'),
       lookR: down.has('KeyQ'),
-      horn: down.has('KeyH'),
+      horn: down.has('KeyH') || twoFingerHorn,
     }),
   };
 }
