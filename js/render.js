@@ -334,10 +334,19 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   ctx.fillStyle = '#fff';
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 1;
+  const fr = Math.max(4, s * 1.1); // heading arrow: the tip points where the forklift faces
+  ctx.save();
+  ctx.translate(g.fl.x * s, g.fl.y * s);
+  ctx.rotate(g.fl.a);
   ctx.beginPath();
-  ctx.arc(g.fl.x * s, g.fl.y * s, Math.max(3, s * 0.7), 0, Math.PI * 2);
+  ctx.moveTo(fr, 0);
+  ctx.lineTo(-fr * 0.7, fr * 0.7);
+  ctx.lineTo(-fr * 0.3, 0);
+  ctx.lineTo(-fr * 0.7, -fr * 0.7);
+  ctx.closePath();
   ctx.fill();
   ctx.stroke();
+  ctx.restore();
   ctx.strokeStyle = '#f9a825';
   if (cam.poly) {
     ctx.beginPath();
@@ -773,6 +782,9 @@ export function draw(ctx, g, view) {
       const mm = miniSize(g, 120, 70), mx = (width - mm.w) / 2, my = height - 8 - mm.h;
       drawMiniMap(ctx, g, { x: 0, y: 0, w: g.w, h: g.h }, mx, my, mm.s);
       view.miniHit = { x: mx - 3, y: my - 3, w: mm.w + 6, h: mm.h + 6 };
+    } else if (!view.touch) { // non-touch cab view: whole-map minimap bottom left, with the truck's heading
+      const mm = miniSize(g, 180, 120);
+      drawMiniMap(ctx, g, { x: 0, y: 0, w: g.w, h: g.h }, 16, height - 16 - mm.h, mm.s);
     }
     const mw = Math.min(150, width * 0.14), mh = mw * 0.75;
     // Touch landscape: leave a wide gap between the windows so the view straight ahead stays visible.
