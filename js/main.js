@@ -172,7 +172,6 @@ const input = createInput({
     if (forkDown(game) === 'blocked') playBlocked();
     else if (game.H !== h) playFork(false);
   },
-  restart: () => load(level),
   next: () => nextLevel(),
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
@@ -325,7 +324,7 @@ const TUTORIAL = [
     : 'Press <b>A</b> to raise the forks and <b>Z</b> to lower them. Drive the forks in under a stack to lift it.' },
   { done: 'zone', html: isTouch
     ? 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Restart if you get stuck.'
-    : 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Press <b>R</b> to restart if you get stuck.' },
+    : 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Game → Restart level if you get stuck.' },
   { done: 'cab', html: 'For a more immersive experience, press <b>Tab</b> or <b>M</b> to switch to the cab view (and again to return to the overview).' },
   { done: 'info', html: isTouch
     ? 'Hold two fingers on the canvas to <b>honk</b>. Open <b>Menu</b> → <b>Info</b> for scoring and more tips.'
@@ -795,7 +794,6 @@ window.addEventListener('keydown', (e) => {
     KeyG: () => { showPage('game'); menuLevel.focus(); menuLevel.select(); },
     KeyL: () => document.getElementById('menuLowest').click(),
     KeyF: toggleFullscreen,
-    KeyR: () => document.getElementById('menuRestart').click(),
   };
   if (actions[e.code]) { e.preventDefault(); actions[e.code](); }
 }, true);

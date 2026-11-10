@@ -77,7 +77,7 @@ footer b { color: var(--accent); }
 #menu button.nav, #menu button.back { display: flex; justify-content: space-between; align-items: center; text-align: left; background: transparent; color: var(--fg); font-weight: normal; padding: 9px 4px; border-radius: 0; border-bottom: 1px solid rgba(128,128,128,.2); }
 #menu button.nav:hover, #menu button.back:hover, #menu button.nav:focus-visible, #menu button.back:focus-visible { background: rgba(128,128,128,.18); }
 #menu button.nav i { font-style: normal; opacity: .6; }
-#menu button.back { justify-content: flex-start; margin-top: 4px; }
+
 #menu .pair { display: flex; gap: 8px; }
 #menu .pair button { flex: 1; }
 #menu h2 { margin: 0; color: var(--accent); text-align: center; }
@@ -88,7 +88,9 @@ footer b { color: var(--accent); }
 #menu label[hidden] { display: none; }
 #menu select { max-width: 60%; }
 #menu button.sec { background: transparent; color: var(--fg); border: 1px solid rgba(128,128,128,.6); padding: 6px 10px; }
-#menu button.primary { padding: 10px 14px; }
+#menu button.primary, #menu button.back { padding: 10px 14px; }
+#menu button.back { justify-content: center; margin-top: 4px; background: var(--accent); color: #111; font-weight: bold; border-bottom: 0; border-radius: 4px; }
+#menu button.back:hover, #menu button.back:focus-visible { background: var(--accent); filter: brightness(1.15); }
 #menu #stateText { font: 12px monospace; resize: vertical; width: 100%; box-sizing: border-box; }
 #menu #stateMsg { min-height: 1em; opacity: .8; }
 #menu button { padding: 8px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
