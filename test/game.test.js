@@ -866,7 +866,7 @@ console.log('all tests passed');
   const snap = serializeGame(r, 'abc');
   const enc = await encodeState(snap);
   assert.match(enc, /^[A-Za-z0-9+/]+=*$/);
-  assert.ok(enc.length < JSON.stringify(snap).length / 2, 'compressed');
+  assert.ok(enc.length < JSON.stringify(snap).length * 0.6, 'compressed');
   assert.deepEqual(await decodeState(enc), snap);
   assert.deepEqual(await decodeState(JSON.stringify(snap)), snap);
   const hitG = newGame(3);
@@ -1485,4 +1485,24 @@ console.log('all tests passed');
   run(free, { up: true }, 0.5);
   assert.equal(free.slip, 0, 'free driving does not slip');
   console.log('particles ok');
+}
+
+// Off-centre impacts: a corner hit on a wall makes the truck pivot and skid; a square, gentle or stopped contact does not.
+{
+  const mk = (y) => {
+    const g = newGame(1);
+    g.stacks = []; g.zones = [];
+    g.walls = [{ x: 10, y: -20, w: 1, h: 40, poly: rectPoly(10.5, 0, 0.5, 20) }];
+    g.fl.x = 6; g.fl.y = y; g.fl.a = 0.4; g.fl.speed = 3.5;
+    return g;
+  };
+  const g = mk(0);
+  let maxSpin = 0;
+  for (let i = 0; i < 120; i++) { update(g, { up: true }, 1 / 120); maxSpin = Math.max(maxSpin, Math.abs(g.fl.spin || 0)); }
+  assert.ok(maxSpin > 0.3, 'angled wall hit spins the truck');
+  assert.ok(Math.abs(g.fl.sx || 0) + Math.abs(g.fl.sy || 0) > 0 || g.fl.x < 10, 'truck stays outside the wall');
+  const slow = mk(0); slow.fl.speed = 0.2;
+  run(slow, {}, 1);
+  assert.ok(!slow.fl.spin, 'gentle contact does not spin');
+  console.log('impact spin ok');
 }

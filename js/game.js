@@ -395,6 +395,7 @@ function shiftPoly(poly, dx, dy) {
 function resolve(g) {
   const f = g.fl;
   g.wallPush = null;
+  g.impacts = [];
   for (let it = 0; it < 8; it++) {
     const shapes = forkShapes(g);
     const moveF = (dx, dy) => {
@@ -410,6 +411,7 @@ function resolve(g) {
           for (const p of sh.poly) if (p.x * m.x + p.y * m.y < tip.x * m.x + tip.y * m.y) tip = p;
           g.contact = { x: tip.x, y: tip.y, nx: m.x, ny: m.y };
           moveF(m.x * m.depth, m.y * m.depth);
+          g.impacts.push({ x: tip.x, y: tip.y, nx: m.x, ny: m.y, w: 1 });
           const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
           wp.x += m.x * m.depth; wp.y += m.y * m.depth;
           if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 'c', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
@@ -456,6 +458,11 @@ function resolve(g) {
         if (!sh.carried && !sh.tine && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
         const d = m.depth * 1.001;
         moveF(m.x * d * (wf / (wf + ws)), m.y * d * (wf / (wf + ws)));
+        if (!sh.tine && Math.abs(f.speed) >= CRASH_MIN_SPEED) {
+          let tip = sh.poly[0];
+          for (const p of sh.poly) if (p.x * m.x + p.y * m.y < tip.x * m.x + tip.y * m.y) tip = p;
+          g.impacts.push({ x: tip.x, y: tip.y, nx: m.x, ny: m.y, w: wf / (wf + ws) });
+        }
         const sx = -m.x * d * (ws / (wf + ws)), sy = -m.y * d * (ws / (wf + ws));
         shiftBoxes(s, from, sx, sy);
         if (sh.tine) spinPallet(g, s, sh.poly, m, sx, sy);
@@ -554,6 +561,41 @@ function tireSlip(g, input, dt) {
   return push < SLIP_MIN_PUSH ? 0 : Math.min(1, 0.4 + push / 1.5);
 }
 
+const SPIN_K = 3; // yaw kick per unit of off-centre impact
+const SKID_K = 1.5; // sideways bounce kick away from the obstacle
+const SPIN_DECAY = 3.5, SKID_DECAY = 3; // per second (tyre grip bleeds the motion off)
+const MAX_SPIN = 2.5, MAX_SKID = 2;
+const IMPACT_MIN_SPEED = 0.3;
+const CENTRE_X = -0.7; // local x of the truck's centre of mass
+
+// Hitting something off-centre while moving makes the truck pivot around the contact point (spin) and
+// its tail/nose slide sideways away from the obstacle (skid); both fade quickly through tyre grip.
+function impactKick(g, speed, dt) {
+  const f = g.fl;
+  if (!g.impacts.length) return;
+  const c = toWorld(f, CENTRE_X, 0), vx = Math.cos(f.a) * speed, vy = Math.sin(f.a) * speed;
+  for (const im of g.impacts) {
+    const vn = -(vx * im.nx + vy * im.ny);
+    if (vn < IMPACT_MIN_SPEED) continue;
+    const arm = (im.x - c.x) * im.ny - (im.y - c.y) * im.nx;
+    f.spin = clamp((f.spin || 0) + arm * vn * im.w * SPIN_K * dt, -MAX_SPIN, MAX_SPIN);
+    f.sx = clamp((f.sx || 0) + im.nx * vn * im.w * SKID_K * dt, -MAX_SKID, MAX_SKID);
+    f.sy = clamp((f.sy || 0) + im.ny * vn * im.w * SKID_K * dt, -MAX_SKID, MAX_SKID);
+  }
+}
+
+function skidStep(f, dt) {
+  if (!f.spin && !f.sx && !f.sy) return;
+  f.a += (f.spin || 0) * dt;
+  f.x += (f.sx || 0) * dt;
+  f.y += (f.sy || 0) * dt;
+  f.spin *= Math.exp(-SPIN_DECAY * dt); f.sx *= Math.exp(-SKID_DECAY * dt); f.sy *= Math.exp(-SKID_DECAY * dt);
+  const q = (v) => Math.round(v * 1e3) / 1e3; // keeps saved states compact
+  f.spin = q(f.spin); f.sx = q(f.sx); f.sy = q(f.sy);
+}
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
 // Steps the game. `input` drives the local truck; the other trucks use their `input` field (set by the host from the network).
 export function update(g, input, dt) {
   const root = g.root;
@@ -573,12 +615,15 @@ function stepTruck(g, input, dt) {
   const forkedY = forked ? toLocal(f, boxPos(forked, g.H).x, boxPos(forked, g.H).y).y : 0;
   const prevA = f.a;
   drive(f, input, dt, g.H);
+  skidStep(f, dt);
   if (f.speed !== 0) g.started = true; // the level timer starts when a truck first moves
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;
   g.aligning = new Set();
   if (forked && f.a !== prevA) glideWithForks(g, forked, forkedY, f.a - prevA, g.H);
+  const speed0 = f.speed;
   resolve(g);
+  impactKick(g, speed0, dt);
   for (const s of g.aligning) alignStack(g, s, dt);
 
   if (Math.abs(intended) > 1e-6) {
