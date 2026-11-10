@@ -155,6 +155,6 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | Term | Meaning | In code |
 |------|---------|---------|
 | **Music / track** | MIDI songs, random by default | `TRACKS`, `audio.js` |
-| **Horn** | Key H (hold): continuous two-tone horn, one voice per truck with its own pitch; `truck.horn` is synced in snapshots and the guest's `in` message | `setHorns`, `hornFreq` |
+| **Horn** | Key H (hold): continuous two-tone horn with a floating "HOOOONK" label over the honking truck (`honkers`/`drawHonk` in `pov/overlay.js`, drawn in all four views), one voice per truck with its own pitch; `truck.horn` is synced in snapshots and the guest's `in` message | `setHorns`, `hornFreq` |
 | **Engine whine / beep** | Electric motor sound and reversing beep | `setEngine` |
 | **Fork sound / blocked / break / bonk / scrape / success** | Sound effects | `playFork`, `playBlocked`, `playBreak`, `playBonk`, `setScrape`, `playSuccess` |

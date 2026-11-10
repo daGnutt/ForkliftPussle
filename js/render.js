@@ -3,7 +3,7 @@ import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
-import { labelRows, hitRows } from './pov/overlay.js';
+import { labelRows, hitRows, honkers, drawHonk } from './pov/overlay.js';
 import { chaseTiles as chaseTilesFor, clearChaseTilt, CHASE_TILT } from './gl/camera.js';
 import { beginGlFrame } from './gl/renderer.js';
 import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
@@ -293,6 +293,12 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
     labelRows(ctx, hitRows(h), h.x + h.z * PX, h.y + h.z * PY - k * 1.2, 0.55, 0.1);
   }
   ctx.globalAlpha = 1;
+  for (const t of honkers(g)) {
+    ctx.save();
+    ctx.scale(0.01, 0.01);
+    drawHonk(ctx, t, g.clock, (t.fl.x + 1.5 * PX) * 100, (t.fl.y + 1.5 * PY - 1.2) * 100, 70);
+    ctx.restore();
+  }
   if (zoomed) ctx.restore();
   return cam;
 }

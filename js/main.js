@@ -846,6 +846,7 @@ function frame(now) {
   checkRecord();
   const st = input.state();
   setEngine(game.fl.speed, st.up || st.down, game.fl.gear === 'R');
+  game.horn = !!st.horn && !splashOn && !view.paused;
   setHorns(game.trucks.map((t, i) => {
     const own = i === game.self, d = Math.hypot(t.fl.x - game.fl.x, t.fl.y - game.fl.y);
     return { id: t.id, on: !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : 1 / (1 + d / 8) };

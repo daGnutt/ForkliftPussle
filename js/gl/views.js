@@ -1,6 +1,6 @@
 import { COLORS } from '../level.js';
 import { hitLife, zoneDone } from '../game.js';
-import { label, labelRows, hitRows } from '../pov/overlay.js';
+import { label, labelRows, hitRows, honkers, drawHonk } from '../pov/overlay.js';
 import { povCamera, overviewCamera, chaseCamera, groundFootprint } from './camera.js';
 import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';
@@ -53,6 +53,10 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
     labelRows(ctx, hitRows(hh), p[0], p[1], Math.max(10, Math.min(60, (0.45 / p[2]) * (w / 2))));
   }
   ctx.globalAlpha = 1;
+  for (const t of honkers(g)) {
+    const p = proj(t.fl.x, t.fl.y, 1.8);
+    if (p && p[2] >= 0.3 && p[2] <= 60) drawHonk(ctx, t, g.clock, p[0], p[1], Math.max(10, Math.min(60, (0.6 / p[2]) * (w / 2))));
+  }
   ctx.restore();
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 3;
@@ -89,6 +93,10 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = n
     labelRows(ctx, hitRows(h), p[0], p[1], 0.55 * s);
   }
   ctx.globalAlpha = 1;
+  for (const t of honkers(g)) {
+    const p = proj(t.fl.x, t.fl.y, 1.8);
+    if (p) drawHonk(ctx, t, g.clock, p[0], p[1], 0.7 * s);
+  }
   ctx.restore();
   return foot;
 }

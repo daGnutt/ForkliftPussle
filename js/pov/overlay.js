@@ -68,6 +68,13 @@ export function zoneLabelItems(g, cam) {
 // Rows of a popup: the red damage `−pts`, or a finished stack's score breakdown.
 export const hitRows = (h) => (h.score ? pointsRows(h.score) : [[{ text: `−${h.pts}`, color: DAMAGE_COLOR }]]);
 
+// Trucks whose horn is sounding, and their "HOOOONK" label (bobbing a little, at screen point (sx, sy)).
+export const honkers = (g) => g.trucks.filter((t) => !t.gone && t.horn);
+export function drawHonk(ctx, t, clock, sx, sy, size) {
+  const bob = Math.sin(clock * 16 + t.id * 2) * size * 0.1;
+  label(ctx, 'HOOOONK', sx, sy + bob, size, '#ffd54f');
+}
+
 // Damage popups floating up from the damaged box.
 export function drawHits(ctx, g, cam) {
   for (const h of g.hits || []) {
@@ -79,4 +86,9 @@ export function drawHits(ctx, g, cam) {
     labelRows(ctx, hitRows(h), sx, sy, Math.max(10, Math.min(60, (0.45 / fw) * cam.f)));
   }
   ctx.globalAlpha = 1;
+  for (const t of honkers(g)) {
+    const [fw, rt] = toCam(cam, t.fl.x, t.fl.y, 0);
+    if (fw <= 0.3) continue;
+    drawHonk(ctx, t, g.clock, cam.cx + (rt / fw) * cam.f, cam.cy - ((1.8 - cam.z) / fw) * cam.f, Math.max(10, Math.min(60, (0.6 / fw) * cam.f)));
+  }
 }
