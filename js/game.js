@@ -107,9 +107,14 @@ function updateGhosts(g) {
 }
 
 // Adds a player's truck in the parking spot (first free slot); returns its index, or -1 when the game is full.
-export function addTruck(g, name = '') {
-  let i = g.trucks.findIndex((t) => t.gone);
-  if (i < 0) { if (g.trucks.length >= MAX_PLAYERS) return -1; i = g.trucks.length; }
+// A given `slot` is used when it is free (a rebuilt level keeps every player's colour).
+export function addTruck(g, name = '', slot = -1) {
+  let i = slot;
+  if (i < 0) {
+    i = g.trucks.findIndex((t) => t.gone);
+    if (i < 0) { if (g.trucks.length >= MAX_PLAYERS) return -1; i = g.trucks.length; }
+  } else if (i >= MAX_PLAYERS || (g.trucks[i] && !g.trucks[i].gone)) return -1;
+  while (g.trucks.length < i) g.trucks.push({ ...makeTruck(g.start, g.trucks.length), gone: true });
   const t = makeTruck(g.start, i, name);
   g.trucks[i] = t;
   g.ghostPairs = g.ghostPairs.filter((p) => !p.includes(i));

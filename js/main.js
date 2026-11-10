@@ -1,6 +1,11 @@
-import { newGame, update, forkUp, forkDown, zoneDone, zoneWonky, score } from './game.js';
+import { newGame, update, forkUp, forkDown, zoneDone, zoneWonky, score, liveTrucks } from './game.js';
 import { createInput } from './input.js';
-import { syncScores, fetchTopList, pullScores } from './globalscores.js';
+import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
+import { createRelay } from './net/relay.js';
+import { createHost } from './net/host.js';
+import { createGuest } from './net/guest.js';
+import { applySnapshot } from './net/protocol.js';
+import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
 import { serializeGame, deserializeGame, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
@@ -66,7 +71,10 @@ function refreshBest() {
   view.globalList = undefined;
   refreshGlobal();
 }
+// Party state: null when playing alone, else { role: 'host' | 'guest', code, name, host | guest, go }. A guest mirrors the host's game and never steps it.
+let mp = null;
 function saveState() {
+  if (mp) return;
   localStorage.setItem('forklift-state', JSON.stringify(serializeGame(game, seedText)));
 }
 const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
@@ -87,6 +95,7 @@ function closeRecord() {
 }
 
 function load(n) {
+  if (mp?.role === 'guest') return; // only the host changes levels
   if (recordOpen) closeRecord();
   recorded = false;
   level = Math.max(1, n);
@@ -95,8 +104,15 @@ function load(n) {
   doneZones = doneSet();
   hitCount = game.hitCount;
   bonkCount = game.bonks;
+  partyGameChanged();
   refreshBest();
   saveState();
+}
+// After the host's game was replaced: the guests get their trucks back in the new game.
+function partyGameChanged() {
+  if (mp?.role !== 'host') return;
+  game.trucks[0].name = mp.name;
+  mp.host.levelLoaded(game);
 }
 
 let autoFs = localStorage.getItem('forklift-auto-fullscreen') === '1';
@@ -139,11 +155,13 @@ const input = createInput({
     if (tutStep === 3 && view.povBig) nextTutorial();
   },
   up: () => {
+    if (mp?.role === 'guest') { mp.guest.sendFork('up'); return; }
     const h = game.H;
     if (forkUp(game) === 'blocked') playBlocked();
     else if (game.H !== h) playFork(true);
   },
   down: () => {
+    if (mp?.role === 'guest') { mp.guest.sendFork('down'); return; }
     const h = game.H;
     if (forkDown(game) === 'blocked') playBlocked();
     else if (game.H !== h) playFork(false);
@@ -240,6 +258,12 @@ document.getElementById('recordForm').addEventListener('submit', (e) => {
 function checkRecord() {
   if (game.status !== 'won' || recorded) return;
   recorded = true;
+  if (mp?.role === 'guest') return; // the host submits the shared score
+  if (mp && liveTrucks(game).length > 1) {
+    const players = game.trucks.filter((t) => !t.gone).map((t) => t.name || 'Player');
+    submitPartyScore(partyBoard(seed, level, players.length), { name: mp.name, points: finalScore(score(game), game.time), time: game.time, level, party: { players, partyCode: mp.code, hostToken: mp.host.token } });
+    return;
+  }
   const result = { score: finalScore(score(game), game.time), time: game.time };
   if (!beats(result, getBest(localStorage, seed, level))) {
     if (addTop(localStorage, seed, level, { ...result, name: localStorage.getItem('forklift-player') || 'Anonymous' })) view.localList = getTop(localStorage, seed, level);
@@ -302,14 +326,15 @@ function startGame(disco = false) {
     setDiscoEnabled(true);
     localStorage.setItem('forklift-disco', '1');
   }
+  if (mp?.role === 'guest' && !mp.go) return; // waiting for the host
   const text = seedInput.value.trim();
-  if (text !== seedText) {
+  if (mp?.role !== 'guest' && text !== seedText) {
     seedText = text;
     seed = parseSeed(text);
     localStorage.setItem('forklift-seed', text);
     load(1);
   }
-  if (hardOpt.checked !== hard) {
+  if (mp?.role !== 'guest' && hardOpt.checked !== hard) {
     hard = hardOpt.checked;
     localStorage.setItem('forklift-hard', hard ? '1' : '0');
     load(level);
@@ -328,6 +353,7 @@ function startGame(disco = false) {
   splash.classList.add('hide');
   seedInput.blur();
   last = performance.now();
+  if (mp?.role === 'host') mp.host.started(game);
 }
 
 document.getElementById('seedRandom').addEventListener('click', () => {
@@ -346,10 +372,104 @@ document.getElementById('seedForm').addEventListener('submit', (e) => {
   startGame(e.submitter && e.submitter.id === 'discoStart');
 });
 window.addEventListener('keydown', (e) => {
-  if (!splashOn || e.target === seedInput) return;
+  if (!splashOn || e.target === seedInput || e.target === partyName || e.target === joinCode) return;
   e.stopImmediatePropagation();
   if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); startAudio(); startGame(); }
 }, true);
+
+// ---- Party (multiplayer): host a game from the splash and share the code, or join with a code ----
+const partyName = document.getElementById('partyName');
+const joinCode = document.getElementById('joinCode');
+const menuLeave = document.getElementById('menuLeave');
+const hostBtn = document.getElementById('hostBtn');
+const joinBtn = document.getElementById('joinBtn');
+const partyBox = document.getElementById('partyBox');
+const partyList = document.getElementById('partyList');
+const partyMsg = document.getElementById('partyMsg');
+const partyErr = document.getElementById('partyErr');
+partyName.value = localStorage.getItem('forklift-player') || '';
+const partyNotice = sessionStorage.getItem('forklift-party-msg');
+if (partyNotice) { partyErr.textContent = partyNotice; sessionStorage.removeItem('forklift-party-msg'); }
+for (const el of [partyName, joinCode]) el.addEventListener('keydown', (e) => e.stopPropagation());
+joinCode.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); joinParty(); } });
+hostBtn.addEventListener('click', () => { startAudio(); hostParty(); });
+joinBtn.addEventListener('click', () => { startAudio(); joinParty(); });
+const leaveParty = () => { mp?.host?.close(); mp?.guest?.close(); mp = null; location.reload(); };
+document.getElementById('partyLeave').addEventListener('click', leaveParty);
+menuLeave.addEventListener('click', leaveParty);
+window.addEventListener('pagehide', () => { mp?.host?.close(); mp?.guest?.close(); });
+const busy = (on) => { hostBtn.disabled = joinBtn.disabled = on; };
+function playerName() {
+  const name = partyName.value.trim() || 'Player';
+  localStorage.setItem('forklift-player', name);
+  return name;
+}
+// The party ended or the connection dropped: back to a clean splash with a note.
+function partyClosed(why) {
+  if (why === 'left') return;
+  sessionStorage.setItem('forklift-party-msg', why);
+  location.reload();
+}
+function showParty(msg) {
+  partyBox.hidden = false;
+  document.getElementById('partyCode').textContent = mp.code;
+  partyMsg.textContent = msg;
+}
+// `trucks` are the player slots ({ name, gone }); also feeds the in-game badge (view.party).
+function refreshParty(trucks) {
+  view.party = mp ? { code: mp.code } : null;
+  partyList.replaceChildren(...trucks.map((t, i) => {
+    if (t.gone) return null;
+    const li = document.createElement('li');
+    li.style.setProperty('--c', truckColor(i).body);
+    li.textContent = t.name || `Player ${i + 1}`;
+    return li;
+  }).filter(Boolean));
+}
+async function hostParty() {
+  if (mp) return;
+  const name = playerName();
+  partyErr.textContent = '';
+  busy(true);
+  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText }), isStarted: () => !splashOn, name, onChange: () => refreshParty(game.trucks), onClosed: partyClosed });
+  try { await host.start(); } catch (e) { busy(false); partyErr.textContent = e.message; return; }
+  mp = { role: 'host', code: host.code, name, host };
+  game.trucks[0].name = name;
+  showParty('Press Start when everyone has joined (others can still join later).');
+  refreshParty(game.trucks);
+}
+async function joinParty() {
+  if (mp) return;
+  const code = joinCode.value.trim().toUpperCase();
+  if (code.length < 4) { partyErr.textContent = 'Enter the party code you were given'; return; }
+  const name = playerName();
+  partyErr.textContent = '';
+  busy(true);
+  const guest = createGuest({ relay: createRelay(), code, name, onGame: onGuestGame, onClosed: partyClosed });
+  mp = { role: 'guest', code, name, guest, go: false, connected: false, lastH: null };
+  try { await guest.join(); } catch (e) { mp = null; busy(false); partyErr.textContent = e.message; return; }
+  showParty('Connecting…');
+  mp.timer = setTimeout(() => { if (mp && !mp.connected) partyClosed('Could not connect to the host (a firewall may be blocking the connection)'); }, 20000);
+}
+// The host's level (welcome, and again on every level change): build it and mirror the host's state.
+function onGuestGame(m) {
+  if (mp?.role !== 'guest') return;
+  mp.connected = true;
+  clearTimeout(mp.timer);
+  level = m.level; seed = m.seed; seedText = m.seedText || ''; hard = m.hard;
+  game = newGame(level, seed, hard);
+  game.self = m.slot;
+  applySnapshot(game, m.snap);
+  doneZones = doneSet();
+  hitCount = game.hitCount;
+  bonkCount = game.bonks;
+  recorded = true; // only the host records scores
+  mp.lastH = null;
+  refreshBest();
+  refreshParty(m.snap.trucks);
+  if (m.started) { mp.go = true; if (splashOn) startGame(); }
+  else showParty('Connected – waiting for the host to start…');
+}
 
 const menuEl = document.getElementById('menu');
 const engineOpt = document.getElementById('engineOpt');
@@ -411,6 +531,8 @@ function toggleMenu(open) {
     themeSel.value = themeMode();
     menuHardOpt.checked = hard;
     menuLevel.value = level;
+    for (const el of menuEl.querySelectorAll('[data-hostonly]')) el.hidden = mp?.role === 'guest';
+    menuLeave.hidden = !mp;
     updateTutorialBtn();
     showPage('main');
   } else {
@@ -567,6 +689,7 @@ document.getElementById('stateExport').addEventListener('click', async () => {
   } catch { stateMsg.textContent = 'Exported; copy the text above.'; }
 });
 document.getElementById('stateImport').addEventListener('click', async () => {
+  if (mp?.role === 'guest') return;
   let g, data;
   try {
     data = await decodeState(stateText.value);
@@ -590,6 +713,7 @@ document.getElementById('stateImport').addEventListener('click', async () => {
   doneZones = doneSet();
   hitCount = g.hitCount;
   bonkCount = g.bonks;
+  partyGameChanged();
   refreshBest();
   saveState();
   toggleMenu(false);
@@ -599,13 +723,13 @@ setInterval(() => { if (!splashOn && !view.paused) saveState(); }, 1000);
 
 const lostFocus = () => document.hidden || !document.hasFocus();
 function applyPause() {
-  const p = !!view.menuOpen;
+  const p = !!view.menuOpen && !mp; // the others keep driving, so a party never pauses
   if (!p && view.paused) last = performance.now();
   view.paused = p;
-  setSilenced(p);
+  setSilenced(!!view.menuOpen);
 }
 // Losing focus opens the same pause menu as Esc/P; the player must click Resume (or press Esc/P) to continue, just like any other pause.
-const pauseOnBlur = () => { if (!splashOn && !recordOpen && lostFocus()) toggleMenu(true); };
+const pauseOnBlur = () => { if (!splashOn && !recordOpen && !mp && lostFocus()) toggleMenu(true); };
 window.addEventListener('blur', pauseOnBlur);
 window.addEventListener('focus', applyPause);
 document.addEventListener('visibilitychange', pauseOnBlur);
@@ -633,26 +757,43 @@ function frame(now) {
   if (view.paused) acc = 0;
   const t0 = performance.now();
   let steps = 0;
-  while (!splashOn && !view.paused && acc >= STEP) {
-    const inp = input.state();
+  // Camera follow-up for one step of `dt` seconds (the heading of the chase camera, look-around spring-back).
+  const cameraStep = (inp, dt) => {
     if (inp.up || inp.down || inp.left || inp.right) view.snap = true;
-    if (!splashOn && glEnabled() && (inp.lookL || inp.lookR)) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * STEP, 0);
-    if (view.snap) springBack(STEP);
-    update(game, inp, STEP);
+    if (!splashOn && glEnabled() && (inp.lookL || inp.lookR)) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * dt, 0);
+    if (view.snap) springBack(dt);
+  };
+  const followStep = (dt) => {
     // chase camera heading follows the forklift on a spring
     if (view.camA == null || game !== view.camG) { view.camA = game.fl.a; view.camG = game; }
     else {
       // in reverse (same delay as the cabin's look-back) the camera orbits round to the front of the forklift
       const target = game.fl.a + (game.rv > 0.5 ? Math.PI - 0.001 : 0);
-      view.camA += wrap(target - view.camA) * (1 - Math.exp(-CAM_SPRING * STEP));
+      view.camA += wrap(target - view.camA) * (1 - Math.exp(-CAM_SPRING * dt));
     }
-    {
-      const tgt = view.chase ? view.chaseLiftTarget || 0 : 0, cur = view.chaseLift || 0;
-      view.chaseLift = cur + (tgt - cur) * (1 - Math.exp(-(tgt > cur ? 8 : 3) * STEP));
+    const tgt = view.chase ? view.chaseLiftTarget || 0 : 0, cur = view.chaseLift || 0;
+    view.chaseLift = cur + (tgt - cur) * (1 - Math.exp(-(tgt > cur ? 8 : 3) * dt));
+  };
+  if (mp?.role === 'guest') {
+    // a guest never steps the game: it sends its keys and shows what the host sends
+    acc = 0;
+    if (!splashOn && mp.go && mp.guest.interp.apply(game, performance.now() / 1000)) {
+      const inp = input.state();
+      mp.guest.sendInput(inp);
+      cameraStep(inp, dtReal);
+      followStep(dtReal);
+      if (game.H !== mp.lastH) { if (mp.lastH != null) playFork(game.H > mp.lastH); mp.lastH = game.H; }
     }
+  }
+  while (mp?.role !== 'guest' && !splashOn && !view.paused && acc >= STEP) {
+    const inp = input.state();
+    cameraStep(inp, STEP);
+    update(game, inp, STEP);
+    followStep(STEP);
     acc -= STEP;
     steps++;
   }
+  if (mp?.role === 'host' && !splashOn) mp.host.broadcast(game);
   const t1 = performance.now();
   checkTutorial();
   checkRecord();

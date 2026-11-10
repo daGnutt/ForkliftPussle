@@ -16,18 +16,23 @@ async function fetchScores(board, limit = 10) {
 }
 
 // Returns the rank (1 = best) or null on failure. Never throws.
-async function submitScore(board, { name, points, time, level }) {
+// `party` ({ players, partyCode, hostToken }) marks a co-op score from a verified party.
+async function submitScore(board, { name, points, time, level, party }) {
   if (isTesting()) return null; // only the official host posts scores
   try {
     // Plain-text body: no CORS preflight.
     const res = await fetch(`${API}/${GAME}/boards/${encodeURIComponent(board)}/scores`, {
       method: 'POST',
-      body: JSON.stringify({ name, points, time, level }),
+      body: JSON.stringify({ name, points, time, level, ...party }),
     });
     const json = await res.json();
     return res.ok ? json.rank : null;
   } catch { return null; }
 }
+
+// Co-op score of a party; the board id carries the player count so solo and co-op rankings stay apart.
+export const partyBoard = (seed, level, players) => `${seed || 0}:${level}:p${players}`;
+export const submitPartyScore = (board, entry) => submitScore(board, entry);
 
 // Uploads the local bests not yet on the global list and flags the accepted ones as synced.
 export async function syncScores(store, submit = submitScore) {

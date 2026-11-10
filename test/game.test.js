@@ -10,6 +10,9 @@ import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
+import { createHost } from '../js/net/host.js';
+import { createGuest } from '../js/net/guest.js';
+import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos } from '../js/game.js';
 
@@ -1220,4 +1223,106 @@ console.log('all tests passed');
   update(g3, {}, 1 / 120);
   assert.ok(dynamicMeshes(g3, 'ov', [0, 0]).opaque.count > solo.opaque.count, 'solid truck drawn opaque');
   console.log('multiplayer trucks ok');
+}
+
+// Party networking with an in-memory relay and loopback links.
+{
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  const streams = new Map(); // `${code}/${peer}` -> handlers
+  let seq = 0, ended = null;
+  const relay = {
+    async createParty() { return { code: 'ABCDE', hostToken: 'tok' }; },
+    async join(code, name) { const peer = `p${++seq}`; setTimeout(() => streams.get('ABCDE/host').join({ peer, name })); return { peer, iceServers: [] }; },
+    async signal(code, m) { setTimeout(() => streams.get(`${code.toUpperCase()}/${m.to}`)?.signal({ from: m.from, type: m.type, data: m.data })); },
+    async end(code, token) { ended = token; },
+    events(code, peer, token, handlers) { const k = `${code.toUpperCase()}/${peer}`; streams.set(k, handlers); return { close() { streams.delete(k); } }; },
+  };
+  // loopback links: the offer carries an id, the answering side pairs with the initiator that made it
+  const initiators = new Map();
+  let linkSeq = 0;
+  const linkFactory = ({ initiator, sendSignal, onMessage, onOpen, onClose }) => {
+    const me = { open: false, other: null, closed: false, onMessage, onOpen, onClose };
+    const wire = (msg) => { const o = me.other; if (o && !o.closed) setTimeout(() => o.onMessage(JSON.parse(typeof msg === 'string' ? msg : JSON.stringify(msg)))); };
+    Object.assign(me, {
+      sendReliable: wire, sendFast: wire,
+      close() { if (me.closed) return; me.closed = true; me.open = false; const o = me.other; if (o && !o.closed) { o.open = false; setTimeout(() => o.onClose?.()); } },
+      async signal({ type, data }) {
+        if (type === 'offer') {
+          const o = initiators.get(data.id);
+          me.other = o; o.other = me; me.open = o.open = true;
+          setTimeout(() => { me.onOpen?.(); o.onOpen?.(); });
+        }
+      },
+    });
+    if (initiator) { const id = ++linkSeq; initiators.set(id, me); setTimeout(() => sendSignal({ type: 'offer', data: { id } })); }
+    return me;
+  };
+
+  let host = newGame(7, 3, false);
+  const info = () => ({ level: host.level, seed: host.seed, hard: host.hard, seedText: '' });
+  let changes = 0, started = false;
+  const h = createHost({ relay, getGame: () => host, levelInfo: info, isStarted: () => started, name: 'Anna', onChange: () => changes++, linkFactory });
+  assert.equal(await h.start(), 'ABCDE');
+
+  let guestGame = null, welcomes = 0, closedWith = null;
+  const guest = createGuest({
+    relay, code: 'abcde', name: 'Bob', linkFactory,
+    onGame: (m) => {
+      welcomes++;
+      guestGame = newGame(m.level, m.seed, m.hard);
+      guestGame.self = m.slot;
+      applySnapshot(guestGame, m.snap);
+    },
+    onClosed: (why) => { closedWith = why; },
+  });
+  await guest.join();
+  for (let i = 0; i < 6; i++) await tick();
+  assert.equal(welcomes, 1, 'the guest got a welcome');
+  assert.equal(guest.slot, 1);
+  assert.equal(host.trucks.length, 2, 'the guest has a truck on the host');
+  assert.equal(host.trucks[1].name, 'Bob');
+  assert.equal(guestGame.trucks[1].color, 1, 'the guest is the second colour');
+  assert.deepEqual(h.players().map((p) => p.name), ['Anna', 'Bob']);
+
+  // inputs drive the guest's truck on the host, snapshots bring the result back
+  guest.sendInput({ up: true });
+  await tick(); await tick();
+  assert.equal(host.trucks[1].input.up, true);
+  const x0 = host.trucks[1].fl.x;
+  for (let i = 0; i < 120; i++) update(host, {}, 1 / 120);
+  assert.notEqual(host.trucks[1].fl.x, x0, 'the host moved the guest truck');
+  h.broadcast(host, 10);
+  for (let i = 0; i < 3; i++) await tick();
+  const ip = createInterpolator();
+  ip.push({ ...snapshot(host) }, 0);
+  ip.apply(guestGame, 1);
+  assert.ok(Math.abs(guestGame.fl.x - host.trucks[1].fl.x) < 1e-6, 'the guest mirrors its truck (g is the guest view)');
+  guest.sendFork('up');
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(host.trucks[1].H, 1, 'fork action applied to the guest truck');
+
+  // interpolation blends between two snapshots
+  const a = snapshot(host), b = JSON.parse(JSON.stringify(a));
+  b.trucks[1].fl.x += 2;
+  const ip2 = createInterpolator(0);
+  ip2.push(JSON.parse(JSON.stringify(a)), 0);
+  ip2.push(b, 1);
+  ip2.apply(guestGame, 0.5);
+  assert.ok(Math.abs(guestGame.fl.x - (a.trucks[1].fl.x + 1)) < 1e-6, 'halfway between snapshots');
+
+  // a new level keeps everyone in their slot
+  host = newGame(8, 3, false);
+  h.levelLoaded(host);
+  for (let i = 0; i < 4; i++) await tick();
+  assert.equal(host.trucks[1].name, 'Bob');
+  assert.equal(welcomes, 2, 'the guest was told about the new level');
+  assert.equal(guestGame.level, 8);
+
+  // a guest leaving frees the truck; the host closing ends the party
+  guest.close();
+  for (let i = 0; i < 4; i++) await tick();
+  assert.equal(host.trucks[1].gone, true, 'truck removed when the guest left');
+  h.close();
+  assert.equal(ended, 'tok', 'party ended at the relay');
+  console.log('party networking ok');
 }

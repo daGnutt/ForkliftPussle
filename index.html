@@ -28,13 +28,14 @@
       <h2>Menu</h2>
       <div class="page" data-page="main">
         <button type="button" id="menuResume" class="primary">Resume</button>
-        <button type="button" id="menuRestart" class="sec"><u>R</u>estart level</button>
+        <button type="button" id="menuRestart" class="sec" data-hostonly><u>R</u>estart level</button>
+        <button type="button" id="menuLeave" class="sec" hidden>Leave party</button>
         <label class="item"><input type="checkbox" id="muteOpt"> Mute <u>a</u>ll sounds</label>
         <hr>
         <button type="button" class="nav" data-go="game"><span>Game &amp; levels</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="sound"><span><u>S</u>ound settings</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="display"><span><u>V</u>isuals &amp; controls</span><i>&#9656;</i></button>
-        <button type="button" class="nav" data-go="state"><span>Save / load state</span><i>&#9656;</i></button>
+        <button type="button" class="nav" data-go="state" data-hostonly><span>Save / load state</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="info"><span>Info &amp; scoring</span><i>&#9656;</i></button>
       </div>
       <div class="page" data-page="sound" hidden>
@@ -63,8 +64,8 @@
         <h3>Game &amp; levels</h3>
         <label title="Applies when the level is restarted"><input type="checkbox" id="menuHardOpt"> Hard mode (on restart)</label>
         <button type="button" id="menuTutorial" class="sec"></button>
-        <form id="menuGoto" autocomplete="off"><label><u>G</u>o to level <input type="number" id="menuLevel" min="1" step="1"></label> <button type="submit" class="sec">Go</button></form>
-        <button type="button" id="menuLowest" class="sec" title="Lowest level with no saved score on this seed">Jump to <u>l</u>owest unscored level</button>
+        <form id="menuGoto" autocomplete="off" data-hostonly><label><u>G</u>o to level <input type="number" id="menuLevel" min="1" step="1"></label> <button type="submit" class="sec">Go</button></form>
+        <button type="button" id="menuLowest" class="sec" data-hostonly title="Lowest level with no saved score on this seed">Jump to <u>l</u>owest unscored level</button>
         <label class="row" title="Player whose scores to pull; empty = your own saved name"><span>Player name</span> <input type="text" id="pullName" maxlength="40" placeholder="your name" autocomplete="off"></label>
         <button type="button" id="menuPull" class="sec" title="Download a player's scores (by name) from the online list into this browser">Pull scores from server</button>
         <small id="pullMsg"></small>
@@ -97,6 +98,21 @@
     </form>
     <label class="opt"><input type="checkbox" id="tutorialOpt"> Show tutorial</label>
     <label class="opt" title="Forks must go in straight (±10°); skewed forks push the stack, and turning with the forks in a pallet turns it"><input type="checkbox" id="hardOpt"> Hard mode (realistic pallets)</label>
+    <div id="party">
+      <div class="row">
+        <input id="partyName" type="text" maxlength="24" placeholder="Your name" spellcheck="false" aria-label="Your name">
+        <button type="button" id="hostBtn" title="Host a co-op game for up to 4 players">Host game</button>
+        <input id="joinCode" type="text" maxlength="5" placeholder="Party code" spellcheck="false" autocapitalize="characters" aria-label="Party code">
+        <button type="button" id="joinBtn">Join game</button>
+      </div>
+      <div id="partyBox" hidden>
+        <div class="code">Party code <b id="partyCode"></b></div>
+        <ul id="partyList"></ul>
+        <small id="partyMsg"></small>
+        <button type="button" id="partyLeave">Leave party</button>
+      </div>
+      <small id="partyErr"></small>
+    </div>
     <p class="tip story">You've just arrived after a shift change. The last shift left a huge mess in the warehouse, and it's your job to fix it.</p>
     <p class="credits">Designed by Gnutt &middot; Coded by Copilot for GitHub</p>
     <p class="credits">MIDI music: Beethoven &amp; Mozart (<a href="https://www.mutopiaproject.org/" target="_blank" rel="noopener">Mutopia Project</a>), northivanastan &amp; Dizzy Crow (<a href="https://opengameart.org/" target="_blank" rel="noopener">OpenGameArt</a>), m-malandro (<a href="https://github.com/m-malandro/CC0-midis" target="_blank" rel="noopener">CC0-midis</a>) &middot; Public Domain / CC0</p>

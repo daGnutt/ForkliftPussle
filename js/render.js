@@ -682,6 +682,35 @@ function drawReadyFlash(ctx, width, height, t) {
   ctx.restore();
 }
 
+// Top right: the party code and one swatch + name per player (the local one in bold).
+function drawPartyBadge(ctx, g, party, width) {
+  ctx.save();
+  ctx.font = '13px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const items = g.trucks.map((t, i) => (t.gone ? null : { i, name: t.name || `Player ${i + 1}` })).filter(Boolean);
+  const label = `Party ${party.code}`;
+  const widths = items.map((p) => 16 + ctx.measureText(p.name).width + 10);
+  const w = ctx.measureText(label).width + 18 + widths.reduce((a, b) => a + b, 0);
+  let x = width - 12 - w;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.beginPath();
+  ctx.roundRect(x - 6, 8, w + 12, 26, 6);
+  ctx.fill();
+  ctx.fillStyle = '#eee';
+  ctx.fillText(label, x, 21);
+  x += ctx.measureText(label).width + 18;
+  items.forEach((p, k) => {
+    ctx.fillStyle = truckColor(p.i).body;
+    ctx.fillRect(x, 15, 11, 11);
+    ctx.fillStyle = p.i === g.self ? '#fff' : '#ccc';
+    ctx.font = `${p.i === g.self ? 'bold ' : ''}13px sans-serif`;
+    ctx.fillText(p.name, x + 16, 21);
+    x += widths[k];
+  });
+  ctx.restore();
+}
+
 export function draw(ctx, g, view) {
   const { width, height } = view;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -816,6 +845,8 @@ export function draw(ctx, g, view) {
     }
   }
   ctx.restore();
+
+  if (view.party) drawPartyBadge(ctx, g, view.party, width);
 
   // fork height gauge: 0 = floor; box layer i fills the cell at height i-1
   const gx = width - 70, gy = 70, cell = 26, top = 5;
