@@ -1515,6 +1515,11 @@ console.log('all tests passed');
   const slow = mk(0); slow.fl.speed = 0.2;
   run(slow, {}, 1);
   assert.ok(!slow.fl.spin, 'gentle contact does not spin');
+  run(g, {}, 6);
+  assert.ok(!g.fl.spin && !g.fl.sx && !g.fl.sy, 'spin and skid die out completely after a hit');
+  const aRest = g.fl.a;
+  run(g, {}, 2);
+  assert.equal(g.fl.a, aRest, 'a resting truck does not keep rotating');
   console.log('impact spin ok');
 }
 
