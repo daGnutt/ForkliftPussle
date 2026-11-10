@@ -36,6 +36,7 @@
         <button type="button" class="nav" data-go="sound"><span><u>S</u>ound settings</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="display"><span><u>V</u>isuals &amp; controls</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="state" data-hostonly><span>Save / load state</span><i>&#9656;</i></button>
+        <button type="button" class="nav" data-go="party"><span>Multiplayer</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="info"><span>Info &amp; scoring</span><i>&#9656;</i></button>
       </div>
       <div class="page" data-page="sound" hidden>
@@ -58,6 +59,21 @@
         <label id="autoFsLabel" title="Enter full screen when starting and when leaving this menu"><input type="checkbox" id="autoFsOpt"> Auto full-screen</label>
         <label id="touchLabel" class="row" hidden title="Layout of the on-screen controls"><span>Touch controls</span> <select id="touchSel"><option value="classic">Buttons (classic)</option><option value="rotated">Buttons (forks left, drive right)</option><option value="joystick">Joystick + fork buttons</option></select></label>
         <button type="button" id="menuFullscreen" class="sec">Toggle <u>f</u>ull screen</button>
+        <button type="button" class="back" data-go="main">&#9666; Back</button>
+      </div>
+      <div class="page" data-page="party" hidden>
+        <h3>Multiplayer</h3>
+        <div id="mpStart">
+          <label class="row"><span>Your name</span> <input type="text" id="mpName" maxlength="24" placeholder="Your name" autocomplete="off" spellcheck="false"></label>
+          <button type="button" id="mpHost" class="sec">Host a game</button>
+          <small>Up to 4 players. Friends join with the party code from the start screen.</small>
+        </div>
+        <div id="mpBox" hidden>
+          <div class="code">Party code <b id="mpCode"></b></div>
+          <ul id="mpList"></ul>
+          <button type="button" id="mpLeave" class="sec">Leave party</button>
+        </div>
+        <small id="mpErr"></small>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
       </div>
       <div class="page" data-page="game" hidden>

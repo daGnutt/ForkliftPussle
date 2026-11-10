@@ -426,17 +426,58 @@ function refreshParty(trucks) {
     return li;
   }).filter(Boolean));
 }
-async function hostParty() {
+// The menu's multiplayer page: start hosting, or show the roster (host: ping, kick and ban).
+const mpName = document.getElementById('mpName');
+const mpErr = document.getElementById('mpErr');
+mpName.addEventListener('keydown', (e) => e.stopPropagation());
+document.getElementById('mpHost').addEventListener('click', () => { startAudio(); hostParty(mpName.value).catch(() => {}); });
+document.getElementById('mpLeave').addEventListener('click', () => leaveParty());
+function renderMpPage() {
+  const box = document.getElementById('mpBox');
+  document.getElementById('mpStart').hidden = !!mp;
+  box.hidden = !mp;
+  if (!mp) return;
+  document.getElementById('mpCode').textContent = mp.code;
+  const isHost = mp.role === 'host';
+  const roster = isHost ? mp.host.players() : game.trucks.map((t, i) => (t.gone ? null : { slot: i, name: t.name })).filter(Boolean);
+  document.getElementById('mpList').replaceChildren(...roster.map((p) => {
+    const li = document.createElement('li');
+    li.style.setProperty('--c', truckColor(p.slot).body);
+    const nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.textContent = (p.name || `Player ${p.slot + 1}`) + (p.slot === game.self ? ' (you)' : '') + (p.slot === 0 ? ' – host' : '');
+    li.append(nm);
+    if (isHost) {
+      const ping = document.createElement('span');
+      ping.className = 'ping';
+      ping.textContent = p.slot === 0 ? '' : p.ping == null ? '… ms' : `${p.ping} ms`;
+      li.append(ping);
+      if (p.slot !== 0) for (const [label, ban] of [['Kick', false], ['Ban', true]]) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'sec'; b.textContent = label;
+        b.addEventListener('click', () => mp.host.kick(p.slot, ban));
+        li.append(b);
+      }
+    }
+    return li;
+  }));
+}
+setInterval(() => { if (view.menuOpen && menuEl.dataset.page === 'party') renderMpPage(); }, 1000);
+async function hostParty(nameText = partyName.value) {
   if (mp) return;
-  const name = playerName();
+  const name = (nameText.trim() || 'Player').slice(0, 24);
+  localStorage.setItem('forklift-player', name);
+  partyName.value = name;
   partyErr.textContent = '';
   busy(true);
-  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText }), isStarted: () => !splashOn, name, onChange: () => refreshParty(game.trucks), onClosed: partyClosed });
-  try { await host.start(); } catch (e) { busy(false); partyErr.textContent = e.message; return; }
+  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText }), isStarted: () => !splashOn, name, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed });
+  try { await host.start(); } catch (e) { busy(false); partyErr.textContent = mpErr.textContent = e.message; return; }
+  mpErr.textContent = '';
   mp = { role: 'host', code: host.code, name, host };
   game.trucks[0].name = name;
   showParty('Press Start when everyone has joined (others can still join later).');
   refreshParty(game.trucks);
+  renderMpPage();
 }
 async function joinParty() {
   if (mp) return;
@@ -533,6 +574,8 @@ function toggleMenu(open) {
     menuLevel.value = level;
     for (const el of menuEl.querySelectorAll('[data-hostonly]')) el.hidden = mp?.role === 'guest';
     menuLeave.hidden = !mp;
+    mpName.value = localStorage.getItem('forklift-player') || '';
+    renderMpPage();
     updateTutorialBtn();
     showPage('main');
   } else {

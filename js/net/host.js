@@ -10,7 +10,8 @@ const DEFAULT_ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
 export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, onChange, onClosed, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
   const members = new Map(); // peer id -> { name, slot, link }
   const snapper = createSnapshotter();
-  let code = null, token = null, stream = null, lastSent = -Infinity, closed = false;
+  const banned = new Set(); // lower-case names; relay peer ids change on every join, so names are all there is to go on
+  let code = null, token = null, stream = null, lastSent = -Infinity, lastPing = -Infinity, closed = false;
 
   const payload = (g) => ({ ...levelInfo(), snap: snapshot(g) });
   const live = (m) => m.slot >= 0 && m.link.open;
@@ -28,10 +29,14 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
     const g = getGame();
     if (msg.t === 'hello' && m.slot < 0) {
       m.name = String(msg.name || 'Player').slice(0, 24);
+      if (banned.has(m.name.toLowerCase())) { m.link.sendReliable({ t: 'bye', reason: 'banned' }); drop(peer); return; }
       const slot = addTruck(g, m.name);
       if (slot < 0) { m.link.sendReliable({ t: 'bye', reason: 'full' }); drop(peer); return; }
       m.slot = slot;
       m.link.sendReliable({ t: 'welcome', slot, started: isStarted(), ...payload(g) });
+      onChange?.();
+    } else if (msg.t === 'pong') {
+      m.ping = Math.max(0, Math.round((clock() - msg.n) * 1000));
       onChange?.();
     } else if (m.slot >= 0) {
       const t = g.trucks[m.slot];
@@ -68,11 +73,27 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
       }, () => { if (!closed) { closed = true; onClosed?.('Lost the connection to the party server'); } });
       return code;
     },
-    // Everyone in the party in slot order: [{ slot, name }] (the host is slot 0).
+    // Everyone in the party in slot order: [{ slot, name, ping }] (the host is slot 0; ping is the round trip in ms, null if unknown).
     players() {
       const g = getGame();
-      return g.trucks.map((t, i) => (t.gone ? null : { slot: i, name: t.name || (i === 0 ? name : `Player ${i + 1}`) })).filter(Boolean);
+      const ping = (i) => [...members.values()].find((m) => m.slot === i)?.ping ?? null;
+      return g.trucks.map((t, i) => (t.gone ? null : { slot: i, name: t.name || (i === 0 ? name : `Player ${i + 1}`), ping: i === 0 ? 0 : ping(i) })).filter(Boolean);
     },
+    // Removes a guest's truck and sends it away; `ban` also refuses its name for the rest of the party.
+    kick(slot, ban = false) {
+      for (const [peer, m] of members) {
+        if (m.slot !== slot || slot <= 0) continue;
+        if (ban) banned.add(m.name.toLowerCase());
+        members.delete(peer);
+        removeTruck(getGame(), slot);
+        m.link.sendReliable({ t: 'bye', reason: ban ? 'banned' : 'kicked' });
+        setTimeout(() => m.link.close(), 300); // let the goodbye out first
+        onChange?.();
+        return true;
+      }
+      return false;
+    },
+    get banned() { return [...banned]; },
     get guests() { return [...members.values()].filter(live).length; },
     // After the host loaded a new level: every guest gets a new truck in its old slot and the new level.
     levelLoaded(g) {
@@ -84,6 +105,10 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
     started(g) { for (const m of members.values()) if (live(m)) m.link.sendReliable({ t: 'level', ...payload(g) }); },
     // Called every frame; sends a snapshot to every guest at SNAPSHOT_HZ.
     broadcast(g, now = clock()) {
+      if (now - lastPing >= 2) {
+        lastPing = now;
+        for (const m of members.values()) if (live(m)) m.link.sendReliable({ t: 'ping', n: clock() });
+      }
       if (now - lastSent < 1 / SNAPSHOT_HZ) return;
       lastSent = now;
       const ready = [...members.values()].filter(live);

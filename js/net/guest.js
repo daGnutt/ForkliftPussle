@@ -6,6 +6,7 @@ const INPUT_REFRESH = 0.25; // seconds; inputs are also resent while unchanged, 
 
 // Events: onGame({ slot, started, level, seed, hard, seedText, snap }) for the welcome and every level change,
 // onClosed(reason) when the party ends or the connection drops.
+const BYE = { full: 'The party is full', kicked: 'The host removed you from the party', banned: 'You are banned from this party' };
 export function createGuest({ relay, code, name, onGame, onClosed, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
   const interp = createInterpolator();
   let link = null, stream = null, peer = null, slot = -1, closed = false, lastIn = '', lastInAt = -Infinity;
@@ -31,7 +32,8 @@ export function createGuest({ relay, code, name, onGame, onClosed, linkFactory =
             if (msg.t === 'welcome') slot = msg.slot;
             interp.reset();
             onGame({ slot, started: true, ...msg }); // a level message means the host is playing
-          } else if (msg.t === 'bye') end(msg.reason === 'full' ? 'The party is full' : 'The host closed the party');
+          } else if (msg.t === 'ping') link.sendReliable({ t: 'pong', n: msg.n });
+          else if (msg.t === 'bye') end(BYE[msg.reason] || 'The host closed the party');
         },
         onClose: () => end('Lost the connection to the host'),
       });
