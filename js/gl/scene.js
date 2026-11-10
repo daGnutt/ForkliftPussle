@@ -7,6 +7,7 @@ import { reverseLight } from '../revlight.js';
 import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked, otherTrucks, isGhost, dropLift } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
+import { addParticles } from './particles.js';
 import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
 
 // Builds the meshes for the WebGL renderer. `mode` is 'pov' (cabin: ceiling, signs) or 'ov' (overview / third person:
@@ -347,9 +348,11 @@ export function dynamicMeshes(g, mode, eye) {
   addMarks(tm, g, mode);
   addBlobShadows(tm, g);
   addRevLight(tm, g);
+  const sparkLights = addParticles(om, tm, g, eye);
   const disco = discoOn();
   if (disco && mode === 'pov') addDisco(om, g, eye);
   const lights = theme().dark ? darkLights(g, eye) : [];
+  lights.push(...sparkLights.slice(0, Math.max(0, LIGHT_MAX - lights.length)));
   if (disco) lights.push(...discoLights(g, eye).slice(0, LIGHT_MAX - lights.length));
   return { opaque: om, trans: tm, lights };
 }

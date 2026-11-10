@@ -1452,3 +1452,28 @@ console.log('all tests passed');
   assert.equal(g.fl.gear, 'D', 'idling in R for >1 s switches to D');
   console.log('idle reverse to D ok');
 }
+
+{
+  // wall hits record a contact point; holding the throttle against a wall spins the tyres (slip); particles show up in the meshes
+  setThemeMode('light');
+  const g = newGame(2);
+  g.stacks = [];
+  g.fl.x = g.w / 2; g.fl.y = 1.5; g.fl.a = -Math.PI / 2; g.fl.speed = 0;
+  const eye = [g.fl.x, g.fl.y + 3, 2];
+  dynamicMeshes(g, 'ov', eye);
+  const before = dynamicMeshes(g, 'ov', eye).trans.count;
+  let slip = 0, sparked = 0;
+  for (let i = 0; i < 360; i++) {
+    update(g, { up: true }, 1 / 120);
+    slip = Math.max(slip, g.slip);
+    if (i % 12 === 0) { const m = dynamicMeshes(g, 'ov', eye); sparked = Math.max(sparked, m.opaque.count + m.trans.count - before); }
+  }
+  assert.ok(g.contact && g.contact.ny > 0.9, 'contact normal points away from the wall');
+  assert.ok(slip > 0.4, 'driving into a wall spins the tyres');
+  assert.ok(sparked > 0, 'particles are drawn');
+  const free = newGame(2);
+  free.stacks = [];
+  run(free, { up: true }, 0.5);
+  assert.equal(free.slip, 0, 'free driving does not slip');
+  console.log('particles ok');
+}

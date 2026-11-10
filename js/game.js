@@ -34,7 +34,7 @@ const newPen = (col = 0, seed = 0) => ({ crash: 0, sq: 0, deco: boxDecalKind(col
 // the local truck (`g.self`): g.fl, g.H, g.carried... forward to `g.trucks[g.self]`, so single-player code and
 // tests just use `g`. `truckView(g, i)` gives the same view for another truck (a Proxy), which every per-truck
 // function (update steps, forkUp/forkDown, resolve) accepts in place of `g`.
-const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'H', 'hf', 'ef', 'revTime', 'rv', 'hitAt', 'horn'];
+const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hf', 'ef', 'revTime', 'rv', 'hitAt', 'horn'];
 const TRUCK_SET = new Set(TRUCK_KEYS);
 
 export function makeTruck(start, id = 0, name = '') {
@@ -43,6 +43,8 @@ export function makeTruck(start, id = 0, name = '') {
     fl: makeForklift(start.x, start.y, start.a),
     carried: null, carriedRel: 0, carriedRots: [], carriedPen: [], carriedOffs: [],
     bonks: 0, bonkPower: 0, bonkAt: -1, scrape: 0, wallPush: null,
+    contact: null, // last wall hit: { x, y, nx, ny } = point on the truck and the direction the wall pushed it (for sparks)
+    slip: 0, // 0..1, how much the tyres are spinning (driving into something that does not give, or being shoved); drives tyre smoke
     H: 0, hf: 0, ef: 0,
     horn: false, // the horn key is held
     revTime: 0, // seconds spent in gear R; the chase camera only looks back after LOOK_BACK_DELAY
@@ -401,6 +403,9 @@ function resolve(g) {
       for (const w of g.walls) {
         const m = sat(sh.poly, w.poly);
         if (m) {
+          let tip = sh.poly[0];
+          for (const p of sh.poly) if (p.x * m.x + p.y * m.y < tip.x * m.x + tip.y * m.y) tip = p;
+          g.contact = { x: tip.x, y: tip.y, nx: m.x, ny: m.y };
           moveF(m.x * m.depth, m.y * m.depth);
           const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
           wp.x += m.x * m.depth; wp.y += m.y * m.depth;
@@ -424,6 +429,7 @@ function resolve(g) {
           const d = m.depth * 0.5005;
           moveF(m.x * d, m.y * d);
           o.fl.x -= m.x * d; o.fl.y -= m.y * d;
+          o.slip = 1;
           shiftPoly(q, -m.x * d, -m.y * d);
           const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
           wp.x += m.x * d; wp.y += m.y * d;
@@ -532,6 +538,19 @@ function wallContact(g, speed, kept) {
   }
 }
 
+const SLIP_DECAY = 2.5; // per second
+const SLIP_MIN_PUSH = 0.15; // tiles/s a wall must shove a driven truck back for its tyres to spin
+const SLIP_MAX_SPEED = 1.2; // faster than this it is a scrape along the wall, not wheelspin
+
+// Tyre spin (0..1) this step: the driver is on the throttle or steering, yet a wall (or truck) keeps pushing the
+// truck back, so the truck crawls instead of moving as driven (stuck against a wall, tail swinging into one).
+function tireSlip(g, input, dt) {
+  const wp = g.wallPush;
+  if (!wp || !(input.up || input.down || input.left || input.right) || Math.abs(g.fl.speed) > SLIP_MAX_SPEED) return 0;
+  const push = Math.hypot(wp.x, wp.y) / dt;
+  return push < SLIP_MIN_PUSH ? 0 : Math.min(1, 0.4 + push / 1.5);
+}
+
 // Steps the game. `input` drives the local truck; the other trucks use their `input` field (set by the host from the network).
 export function update(g, input, dt) {
   const root = g.root;
@@ -567,6 +586,8 @@ function stepTruck(g, input, dt) {
   } else {
     g.scrape = 0;
   }
+
+  g.slip = Math.max(tireSlip(g, input, dt), (g.slip || 0) - SLIP_DECAY * dt);
 
   g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
   if (f.gear === 'D') g.revTime = 0;

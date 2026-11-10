@@ -157,4 +157,5 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Music / track** | MIDI songs, random by default | `TRACKS`, `audio.js` |
 | **Horn** | Key H (hold): continuous two-tone horn with a floating label in the truck colour growing HONK → HOOOOONK → *HOOOOONK* (0.5 s per O, stars after 3 s) over the honking truck (`honkers`/`drawHonk` in `pov/overlay.js`, drawn in all four views), one voice per truck with its own pitch; `truck.horn` is synced in snapshots and the guest's `in` message | `setHorns`, `hornFreq` |
 | **Engine whine / beep** | Electric motor sound and reversing beep | `setEngine` |
+| **Particles** | GL-only effects: sparks (wall bonk / scrape), tyre smoke (`slip`: wheelspin against a wall or when shoved), damage smoke + cardboard chips, dust when a stack is set down, confetti on a completed zone | `gl/particles.js`, `tireSlip`, truck `contact` / `slip` |
 | **Fork sound / blocked / break / bonk / scrape / success** | Sound effects | `playFork`, `playBlocked`, `playBreak`, `playBonk`, `setScrape`, `playSuccess` |
