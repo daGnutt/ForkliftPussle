@@ -243,7 +243,7 @@ recordName.addEventListener('keydown', (e) => e.stopPropagation());
 document.getElementById('recordForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const name = recordName.value.trim() || 'Anonymous';
-  localStorage.setItem('forklift-player', name);
+  savePlayerName(name);
   // addTop first: getTop falls back to the saved best, which would duplicate the new entry
   addTop(localStorage, pending.seed, pending.level, { ...pending.result, name });
   saveBest(localStorage, pending.seed, pending.level, { ...pending.result, name });
@@ -401,7 +401,7 @@ window.addEventListener('pagehide', () => { mp?.host?.close(); mp?.guest?.close(
 const busy = (on) => { hostBtn.disabled = joinBtn.disabled = on; };
 function playerName() {
   const name = partyName.value.trim() || 'Player';
-  localStorage.setItem('forklift-player', name);
+  savePlayerName(name);
   return name;
 }
 // The party ended or the connection dropped: back to a clean splash with a note.
@@ -466,8 +466,7 @@ setInterval(() => { if (view.menuOpen && menuEl.dataset.page === 'party') render
 async function hostParty(nameText = partyName.value) {
   if (mp) return;
   const name = (nameText.trim() || 'Player').slice(0, 24);
-  localStorage.setItem('forklift-player', name);
-  partyName.value = name;
+  savePlayerName(name);
   partyErr.textContent = '';
   busy(true);
   const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText }), isStarted: () => !splashOn, name, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed });
@@ -649,10 +648,24 @@ document.getElementById('menuLowest').addEventListener('click', () => {
 });
 const pullMsg = document.getElementById('pullMsg');
 const pullName = document.getElementById('pullName');
+// One player name shared by the record form, the party fields, the multiplayer menu page and the pull-scores field.
+const nameInputs = [recordName, partyName, mpName, pullName];
+function savePlayerName(name) {
+  name = name.slice(0, 24);
+  localStorage.setItem('forklift-player', name);
+  for (const el of nameInputs) if (el.value !== name) el.value = name;
+}
+for (const el of nameInputs) el.addEventListener('input', () => {
+  const name = el.value.slice(0, 24);
+  localStorage.setItem('forklift-player', name);
+  for (const o of nameInputs) if (o !== el) o.value = name;
+});
+for (const el of nameInputs) el.value = localStorage.getItem('forklift-player') || '';
 document.getElementById('menuPull').addEventListener('click', async () => {
   let name = pullName.value.trim() || (localStorage.getItem('forklift-player') || '').trim();
   if (!name) name = (prompt('Player name to pull scores for:') || '').trim();
   if (!name) return;
+  savePlayerName(name);
   pullMsg.textContent = 'Pulling…';
   const r = await pullScores(localStorage, name);
   if (!r) { pullMsg.textContent = 'Offline: could not reach the score server.'; return; }
