@@ -186,6 +186,17 @@ if (isTouch) canvas.addEventListener('pointerdown', (e) => {
 // view.orbit { yaw, tilt }) or turns on the spot (cabin, view.look { yaw, pitch }); driving springs it back.
 const ORBIT_HOME = 0.35, ORBIT_TILT_MAX = 1.3, LOOK_PITCH_MAX = 0.7, LOOK_SPEED = 2;
 const CAM_SPRING = 3;
+// Flat overview: a Q/W press springs the camera a quarter turn (o.goal = target yaw) instead of turning continuously.
+function quarterTurn(dir) {
+  const o = lookState(), q = Math.PI / 2;
+  o.goal = (Math.round((o.goal ?? o.yaw) / q) - dir) * q;
+}
+function turnStep(dt) {
+  const o = view.orbit;
+  if (!o || o.goal == null) return;
+  o.yaw += (o.goal - o.yaw) * (1 - Math.exp(-9 * dt));
+  if (Math.abs(o.goal - o.yaw) < 0.003) { o.yaw = wrap(o.goal); o.goal = null; }
+}
 const wrap = (a) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
 const orbitHome = () => (view.chase ? CHASE_TILT : ORBIT_HOME);
 function lookState() {
@@ -194,6 +205,7 @@ function lookState() {
 }
 function lookBy(dyaw, dpitch) {
   const o = lookState();
+  o.goal = null;
   o.yaw = wrap(o.yaw - dyaw);
   if (view.povBig) o.pitch = Math.min(LOOK_PITCH_MAX, Math.max(-LOOK_PITCH_MAX, o.pitch + dpitch));
   else o.tilt = Math.min(ORBIT_TILT_MAX, Math.max(0.05, o.tilt + dpitch));
@@ -203,12 +215,13 @@ function springBack(dt) {
   const o = view.orbit, l = view.look;
   if (o) {
     // the flat overview settles on the nearest quarter turn (the map stays rotated); the chase camera always returns behind the forklift
-    const target = view.chase ? 0 : Math.round(o.yaw / (Math.PI / 2)) * (Math.PI / 2);
+    const target = view.chase ? 0 : o.goal ?? Math.round(o.yaw / (Math.PI / 2)) * (Math.PI / 2);
     o.yaw += (target - o.yaw) * k;
     o.tilt -= (o.tilt - orbitHome()) * k;
     if (Math.abs(o.yaw - target) + Math.abs(o.tilt - orbitHome()) < 0.003) {
+      o.goal = null;
       if (target === 0) view.orbit = null;
-      else { o.yaw = target; o.tilt = orbitHome(); }
+      else { o.yaw = wrap(target); o.tilt = orbitHome(); }
     }
   }
   if (l) { l.yaw -= l.yaw * k; l.pitch -= l.pitch * k; if (Math.abs(l.yaw) + Math.abs(l.pitch) < 0.003) view.look = null; }
@@ -826,7 +839,15 @@ function frame(now) {
   // Camera follow-up for one step of `dt` seconds (the heading of the chase camera, look-around spring-back).
   const cameraStep = (inp, dt) => {
     if (inp.up || inp.down || inp.left || inp.right) view.snap = true;
-    if (!splashOn && glEnabled() && (inp.lookL || inp.lookR)) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * dt, 0);
+    if (!splashOn && glEnabled()) {
+      if (view.povBig || view.chase) { if (inp.lookL || inp.lookR) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * dt, 0); }
+      else {
+        if (inp.lookR && !view.lookHeld?.R) quarterTurn(1);
+        if (inp.lookL && !view.lookHeld?.L) quarterTurn(-1);
+        turnStep(dt);
+      }
+      view.lookHeld = { L: inp.lookL, R: inp.lookR };
+    }
     if (view.snap) springBack(dt);
   };
   const followStep = (dt) => {

@@ -11,7 +11,7 @@ On touch devices, on-screen buttons replace the keyboard (big steer left/right b
 | ← / → | Steer (rear wheels steer, so the tail swings out) |
 | A / Z | Forks up / down one level |
 | C | Switch the 3D overview between the top-down camera and a third-person camera (behind and above the forklift, which always points up the screen while the world rotates); also a menu option, or double-tap (double-click) the 3D overview |
-| W / Q | Look around in the 3D (WebGL) views: turn the cabin view left (W) / right (Q), or swing the overview around the forklift. Dragging the view with the mouse/touch does the same (also tilts); driving springs the camera back |
+| W / Q | Look around in the 3D (WebGL) views: turn the cabin view left (W) / right (Q), or spring the overview a quarter turn around the view centre (the third-person camera still orbits continuously). Dragging the view with the mouse/touch does the same (also tilts); driving springs the camera back (the overview to the nearest 90°) |
 | H (hold) | Horn: sounds for as long as the key is held. In a party every truck has its own pitch |
 | M / Tab | Swap the big view between the top-down overview and the cabin (first-person) view. The cabin view has two small top-down windows at the top centre: rear on the left, front on the right |
 | R | Restart level |
