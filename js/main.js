@@ -201,9 +201,18 @@ function lookBy(dyaw, dpitch) {
 function springBack(dt) {
   const k = 1 - Math.exp(-7 * dt);
   const o = view.orbit, l = view.look;
-  if (o) { o.yaw -= o.yaw * k; o.tilt -= (o.tilt - orbitHome()) * k; if (Math.abs(o.yaw) + Math.abs(o.tilt - orbitHome()) < 0.003) view.orbit = null; }
+  if (o) {
+    // the flat overview settles on the nearest quarter turn (the map stays rotated); the chase camera always returns behind the forklift
+    const target = view.chase ? 0 : Math.round(o.yaw / (Math.PI / 2)) * (Math.PI / 2);
+    o.yaw += (target - o.yaw) * k;
+    o.tilt -= (o.tilt - orbitHome()) * k;
+    if (Math.abs(o.yaw - target) + Math.abs(o.tilt - orbitHome()) < 0.003) {
+      if (target === 0) view.orbit = null;
+      else { o.yaw = target; o.tilt = orbitHome(); }
+    }
+  }
   if (l) { l.yaw -= l.yaw * k; l.pitch -= l.pitch * k; if (Math.abs(l.yaw) + Math.abs(l.pitch) < 0.003) view.look = null; }
-  if (!view.orbit && !view.look) view.snap = false;
+  if ((!view.orbit || view.orbit.yaw === Math.round(view.orbit.yaw / (Math.PI / 2)) * (Math.PI / 2) && !view.chase) && !view.look) view.snap = false;
 }
 let drag = null;
 canvas.addEventListener('pointerdown', () => { if (!splashOn) view.startHidden = true; }, true);
