@@ -390,12 +390,7 @@ const hardOpt = document.getElementById('hardOpt');
 hardOpt.checked = hard;
 showTutorial();
 
-function startGame(disco = false) {
-  if (disco) {
-    setMusicMuted(false);
-    setDiscoEnabled(true);
-    localStorage.setItem('forklift-disco', '1');
-  }
+function startGame(endless = false) {
   if (mp?.role === 'guest' && !mp.go) return; // waiting for the host
   const text = seedInput.value.trim();
   if (mp?.role !== 'guest' && text !== seedText) {
@@ -409,6 +404,7 @@ function startGame(disco = false) {
     localStorage.setItem('forklift-hard', hard ? '1' : '0');
     load(level);
   }
+  if (endless && !mp) loadEndless();
   refreshBest();
   if (tutorialOpt.checked) {
     localStorage.removeItem('forklift-tutorial-done');
@@ -440,7 +436,7 @@ seedInput.addEventListener('keydown', (e) => {
 document.getElementById('seedForm').addEventListener('submit', (e) => {
   e.preventDefault();
   startAudio();
-  startGame(e.submitter && e.submitter.id === 'discoStart');
+  startGame(e.submitter && e.submitter.id === 'endlessStart');
 });
 window.addEventListener('keydown', (e) => {
   if (!splashOn || e.target === seedInput || e.target === partyName || e.target === joinCode) return;

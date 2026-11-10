@@ -131,7 +131,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Status strip** | Compact HUD line (e.g. with the cabin view) | `render.js` |
 | **Start board** | Level + local/global best shown until the truck first moves, the canvas is touched/clicked, or 10 s have passed | `drawStartBoard` |
 | **Level complete overlay** | End-of-level breakdown with top lists | `render.js` |
-| **Splash** | Title screen: seed, Start, Disco start, options | `#splash` |
+| **Splash** | Title screen: seed, Start, Start endless, options | `#splash` |
 | **Menu / pause menu** | Esc/P menu with pages: main, sound, display, game, info, state | `#menu` |
 | **Zoom slider** | Desktop-only on-screen camera zoom slider in the bottom-right of the main view (same value as Camera zoom in the menu) | `#zoomBar` |
 | **Record prompt** | Name entry when a record is set | `#record` |
