@@ -240,6 +240,14 @@ const driveUntil = (g, x, brakeAt) => {
   assert.equal(g.stacks[1].pen[0].crash, 50, 'maximum damage');
 }
 
+// Damage to a loose stack lowers the score right away (negative before anything is on a drop point).
+{
+  const g = newGame(1);
+  assert.equal(score(g), 0);
+  g.stacks[0].pen[0].crash = 30;
+  assert.equal(score(g), -30, 'damage shows before the stack is dropped');
+}
+
 // Carried boxes keep their orientation relative to the forklift and keep it when dropped.
 {
   const g = newGame(1);

@@ -271,7 +271,8 @@ export function lostBreakdown(g) {
   return { crash: Math.round(crashLost), square: Math.round(squareLost) };
 }
 
-// Points earned: only boxes in a stack that completes a zone count.
+// Points earned: only boxes in a stack that completes a zone count, but crash damage anywhere (loose stacks, carried boxes) is already deducted,
+// so it is not deducted again when that stack is dropped on a drop point.
 export function score(g) {
   let pts = 0;
   const counted = new Set();
@@ -282,6 +283,8 @@ export function score(g) {
     refreshSquare(S);
     for (const p of S.pen) pts += BOX_POINTS - p.crash - p.sq;
   }
+  for (const S of g.stacks) if (!counted.has(S)) { ensure(S); for (const p of S.pen) pts -= p.crash; }
+  for (const t of g.root.trucks) for (const p of t.carriedPen) pts -= p.crash;
   return Math.round(pts);
 }
 
