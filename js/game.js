@@ -377,12 +377,12 @@ function forkShapes(g) {
   return shapes;
 }
 
-// A pallet is three runners along the fork axis (nearest square axis to the forklift heading) with a slot for each tine between them.
+// A pallet is three runners along the box's local x axis (perpendicular to its tape) with a slot for each tine between them,
+// so tines only fit when driving along that axis (either way); from the sides they hit the runners.
 const RUNNERS = [[0, 0.12], [-0.47, 0.03], [0.47, 0.03]]; // [lateral offset, half width]
 function palletRunners(g, s) {
   ensure(s);
-  const q = Math.PI / 2, base = s.rots[g.H], c = boxPos(s, g.H);
-  const ang = base + Math.round((g.fl.a - base) / q) * q;
+  const ang = s.rots[g.H], c = boxPos(s, g.H);
   const ux = Math.cos(ang), uy = Math.sin(ang);
   return RUNNERS.map(([off, hw]) => rectPoly(c.x - uy * off, c.y + ux * off, 0.5, hw, ang));
 }

@@ -561,6 +561,17 @@ console.log('all tests passed');
   assert.ok(g.carried, 'square-ish forks lift');
 }
 
+// Hard mode: the runners follow the box's local x axis, so tines can't enter from the sides (along the box tape).
+{
+  const g = newGame(1, 0, true);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+  const f = g.fl;
+  f.a = Math.PI / 2; f.speed = 0; f.x = 10; f.y = 2;
+  for (let i = 0; i < 480; i++) update(g, { up: f.speed < 0.3 }, 1 / 120);
+  assert.ok(f.y < 4.2, 'forks stop against the runners when coming in from the side');
+}
+
 // A skewed tine hitting the pallet off-centre turns it towards the forks' heading, in both directions.
 {
   const turned = (deg) => {

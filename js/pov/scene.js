@@ -48,6 +48,9 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, spli
   else if (cam.z < z0 && !skipBottom) flat(z0, 0.5, false);
 }
 
+const PAL_RUNNERS = [[0, 0.12], [-0.47, 0.03], [0.47, 0.03]]; // [lateral offset, half width], as in gl/models.js
+const PAL_SLATS = [-0.42, -0.21, 0, 0.21, 0.42];
+
 // Stack with a pallet under every box; level h sits at height h * (BOX_H + PAL).
 // Boxes from index `from` up are drawn `extra` levels higher (a stack still being lowered).
 function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, extra = 0, pens = []) {
@@ -55,10 +58,11 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
     const x = x0 + (offs[i]?.x || 0), y = y0 + (offs[i]?.y || 0);
     const z = (level + i + (i >= from ? extra : 0)) * (BOX_H + PAL), r = rots[i] ?? 0;
     const cr = Math.cos(r), sr = Math.sin(r);
-    addPrism(faces, cam, x, y, r, 0.2, 0.2, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
-    if (Math.hypot(x - cam.x, y - cam.y) < 12) for (const [u, v] of [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]]) {
-      addPrism(faces, cam, x + u * cr - v * sr, y + u * sr + v * cr, r, 0.05, 0.05, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
-    }
+    // as in the GL view: three runners along local x, five deck slats across them (perpendicular to the box tape)
+    if (Math.hypot(x - cam.x, y - cam.y) < 14) {
+      for (const [off, hw] of PAL_RUNNERS) addPrism(faces, cam, x - sr * off, y + cr * off, r, 0.5, hw, z, z + PAL - 0.025, PALLET_COLOR, false, 0, 0, true, i > 0);
+      for (const u of PAL_SLATS) addPrism(faces, cam, x + cr * u, y + sr * u, r, 0.075, 0.5, z + PAL - 0.03, z + PAL, PALLET_COLOR, false, 0, 0, false, true);
+    } else addPrism(faces, cam, x, y, r, 0.5, 0.5, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
     const first = faces.length;
     addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? pens[i]?.deco ?? boxDecalKind(col, i) : 0);
     const dent = pens[i]?.dent;
