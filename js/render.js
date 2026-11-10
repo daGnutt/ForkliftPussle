@@ -1,5 +1,5 @@
 import { COLORS } from './level.js';
-import { FL, toWorld } from './forklift.js';
+import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
@@ -11,7 +11,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked } from './game.js';
+import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked, otherTrucks, isGhost } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -174,6 +174,7 @@ function drawWheel(ctx, f, lx, ly, ang) {
 
 function drawForkliftBody(ctx, g) {
   const f = g.fl;
+  const pal = truckColor(g.truck.color);
   const W = FL.halfW;
   // ground shadow
   rotRect(ctx, f.x + 0.08, f.y + 0.1, f.a, () => {
@@ -185,8 +186,8 @@ function drawForkliftBody(ctx, g) {
   drawWheel(ctx, f, -FL.L, -W + 0.08, -f.steer);
   drawWheel(ctx, f, -FL.L, W - 0.08, -f.steer);
   // chassis, rear counterweight, hood, seat
-  block(ctx, f, FL.back, -W, FL.front, W, 0.15, 0.5, '#f9a825');
-  block(ctx, f, FL.back, -W, FL.back + 0.55, W, 0.5, 0.85, '#6d4c00');
+  block(ctx, f, FL.back, -W, FL.front, W, 0.15, 0.5, pal.body);
+  block(ctx, f, FL.back, -W, FL.back + 0.55, W, 0.5, 0.85, pal.counter);
   // mast uprights at the front
   for (const s of [-1, 1]) block(ctx, f, FL.front - 0.12, s * 0.38 - 0.06, FL.front + 0.02, s * 0.38 + 0.06, 0.5, 1.5, '#555');
   block(ctx, f, FL.front - 0.12, -0.38, FL.front + 0.02, 0.38, 1.3, 1.5, '#555');
@@ -194,7 +195,7 @@ function drawForkliftBody(ctx, g) {
   for (const px of [-1.1, -0.05]) for (const s of [-1, 1]) {
     block(ctx, f, px - 0.04, s * 0.42 - 0.04, px + 0.04, s * 0.42 + 0.04, 0.5, 1.15, '#37474f');
   }
-  block(ctx, f, -1.2, -0.5, 0.05, 0.5, 1.15, 1.25, '#a1730f');
+  block(ctx, f, -1.2, -0.5, 0.05, 0.5, 1.15, 1.25, pal.roof);
   block(ctx, f, -1.0, -0.33, -0.1, 0.33, 1.25, 1.27, '#fff3c4');
   ctx.save();
   ctx.translate(f.x + 1.25 * PX, f.y + 1.25 * PY);
@@ -473,11 +474,22 @@ function drawWorldObjects(ctx, g, vis) {
   const shown = g.stacks.filter((st) => seen(st.x - 1.2, st.y - 1.2, 2.4, 2.4));
   const low = shown.filter((st) => st.layers.length <= g.hf);
   const high = shown.filter((st) => st.layers.length > g.hf);
-  for (const st of low) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs, st.pen);
-  drawForkliftBody(ctx, g);
-  drawTines(ctx, g);
-  for (const st of high) drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs, st.pen);
-  drawCarried(ctx, g);
+  const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs, st.pen);
+  for (const st of low) dstack(st);
+  // other trucks first, so the local one is always on top; ghosts are translucent
+  const trucks = [...otherTrucks(g), g];
+  for (const t of trucks) {
+    ctx.globalAlpha = isGhost(g, t.truck.id) ? 0.4 : 1;
+    drawForkliftBody(ctx, t);
+    drawTines(ctx, t);
+    ctx.globalAlpha = 1;
+  }
+  for (const st of high) dstack(st);
+  for (const t of trucks) {
+    ctx.globalAlpha = isGhost(g, t.truck.id) ? 0.4 : 1;
+    drawCarried(ctx, t);
+    ctx.globalAlpha = 1;
+  }
 
   ctx.fillStyle = theme().wall;
   for (const w of g.pillars) {
@@ -808,7 +820,8 @@ export function draw(ctx, g, view) {
   // fork height gauge: 0 = floor; box layer i fills the cell at height i-1
   const gx = width - 70, gy = 70, cell = 26, top = 5;
   const yOf = (lvl) => gy + (top - lvl) * cell;
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  const tc = truckColor(g.truck.color);
+  ctx.fillStyle = tc.dark;
   ctx.strokeStyle = 'rgba(255,255,255,0.25)';
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -837,10 +850,10 @@ export function draw(ctx, g, view) {
   const under = stackInZone(g);
   if (under) under.layers.forEach((c, i) => cellBox(i, c, 0.85));
   if (g.carried) g.carried.forEach((c, i) => cellBox(g.H + i, c, 1));
-  ctx.strokeStyle = '#f9a825';
+  ctx.strokeStyle = tc.body;
   ctx.lineWidth = 3;
   ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);
-  ctx.fillStyle = '#f9a825';
+  ctx.fillStyle = tc.body;
   ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
 
   if (view.fullscreen && view.flashAt != null && ready) drawReadyFlash(ctx, width, height, (now - view.flashAt) / 1000);

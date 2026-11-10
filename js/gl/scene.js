@@ -4,7 +4,7 @@ import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
-import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked } from '../game.js';
+import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked, otherTrucks, isGhost, dropLift } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
 import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
@@ -323,9 +323,17 @@ export function dynamicMeshes(g, mode, eye) {
   const om = new Mesh(), tm = new Mesh();
   for (const st of g.stacks) {
     addStack(om, tm, st.x, st.y, st.rots || [], st.layers, 0, st.offs, st.dropFrom ?? 0,
-      st.dropFrom != null ? Math.max(0, g.hf - st.dropFrom) : 0, st.pen);
+      dropLift(g, st), st.pen);
   }
   addCarried(om, tm, g);
+  for (const t of otherTrucks(g)) {
+    const ghost = isGhost(g, t.truck.id), m = ghost ? tm : om;
+    if (ghost) tm.alpha = 0.4;
+    addCarried(m, tm, t);
+    addForklift(m, t, true);
+    addForks(m, t);
+    tm.alpha = 1;
+  }
   const bare = mode === 'pov' && bareForksEnabled();
   if (!bare) addForklift(om, g, mode === 'ov');
   addForks(om, g, bare);

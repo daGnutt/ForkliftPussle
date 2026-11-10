@@ -1,6 +1,6 @@
 import { COLORS } from '../level.js';
 import { theme } from '../theme.js';
-import { FL, toWorld } from '../forklift.js';
+import { FL, toWorld, truckColor } from '../forklift.js';
 import { topShapes, DENT_FILL } from '../dents.js';
 import { decalsEnabled, boxDecalKind, boxDecalShapes } from '../decals.js';
 import { carriedWorldOffs } from '../game.js';
@@ -58,7 +58,7 @@ export function bareForksEnabled() { return bareForks; }
 
 // Forklift: wheels, chassis, counterweight, mast, overhead guard. In the cabin view the roof is a see-through grid.
 export function addForklift(m, g, solidRoof) {
-  const f = g.fl, a = f.a, W = FL.halfW;
+  const f = g.fl, a = f.a, W = FL.halfW, pal = truckColor(g.truck.color);
   const box = (x0, y0, x1, y1, z0, z1, col, opts) => {
     const c = toWorld(f, (x0 + x1) / 2, (y0 + y1) / 2);
     m.cuboid(c.x, c.y, a, Math.abs(x1 - x0) / 2, Math.abs(y1 - y0) / 2, z0, z1, col, opts);
@@ -71,12 +71,12 @@ export function addForklift(m, g, solidRoof) {
   wheel(0, W + 0.02, 0);
   wheel(-FL.L, -W + 0.08, -f.steer);
   wheel(-FL.L, W - 0.08, -f.steer);
-  if (solidRoof) box(FL.back, -W, FL.front, W, 0.15, 0.5, '#f9a825');
+  if (solidRoof) box(FL.back, -W, FL.front, W, 0.15, 0.5, pal.body);
   else { // cabin view: the hood in front of the eye stays low so it doesn't fill the screen
-    box(FL.back, -W, -0.75, W, 0.15, 0.5, '#f9a825');
-    box(-0.75, -W, FL.front, W, 0.12, 0.2, '#f9a825');
+    box(FL.back, -W, -0.75, W, 0.15, 0.5, pal.body);
+    box(-0.75, -W, FL.front, W, 0.12, 0.2, pal.body);
   }
-  box(FL.back, -W, FL.back + 0.55, W, 0.5, 0.85, '#6d4c00');
+  box(FL.back, -W, FL.back + 0.55, W, 0.5, 0.85, pal.counter);
   box(-0.9, -0.3, -0.2, 0.3, 0.5, 0.6, '#2b2e33'); // seat
   box(-1.0, -0.3, -0.85, 0.3, 0.6, 1.05, '#2b2e33');
   const pw = solidRoof ? 0.04 : 0.018, mw = solidRoof ? 0.06 : 0.03;
@@ -94,15 +94,15 @@ export function addForklift(m, g, solidRoof) {
     }
   }
   if (solidRoof) {
-    box(-1.2, -0.5, 0.05, 0.5, 1.15, 1.25, '#a1730f');
+    box(-1.2, -0.5, 0.05, 0.5, 1.15, 1.25, pal.roof);
     box(-1.0, -0.33, -0.1, 0.33, 1.25, 1.27, '#fff3c4');
     const q = toWorld(f, 0.2, 0), r1 = toWorld(f, -0.1, -0.1), r2 = toWorld(f, -0.1, 0.1);
     m.tri([r1.x, r1.y, 1.275], [q.x, q.y, 1.275], [r2.x, r2.y, 1.275], [0, 0, 1], parseColor('#c62828'));
   } else {
-    box(-1.2, -0.5, 0.05, -0.46, 1.15, 1.2, '#a1730f');
-    box(-1.2, 0.46, 0.05, 0.5, 1.15, 1.2, '#a1730f');
-    box(0.01, -0.5, 0.05, 0.5, 1.15, 1.2, '#a1730f');
-    box(-1.2, -0.5, -1.16, 0.5, 1.15, 1.2, '#a1730f');
+    box(-1.2, -0.5, 0.05, -0.46, 1.15, 1.2, pal.roof);
+    box(-1.2, 0.46, 0.05, 0.5, 1.15, 1.2, pal.roof);
+    box(0.01, -0.5, 0.05, 0.5, 1.15, 1.2, pal.roof);
+    box(-1.2, -0.5, -1.16, 0.5, 1.15, 1.2, pal.roof);
   }
 }
 

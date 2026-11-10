@@ -1209,5 +1209,15 @@ console.log('all tests passed');
   const g2 = newGame(1);
   addTruck(g2, 'B');
   assert.equal(g2.trucks.length, 2);
+
+  // other trucks are drawn: ghosts go to the transparent mesh, solid trucks to the opaque one
+  const g3 = newGame(1);
+  const solo = dynamicMeshes(g3, 'ov', [0, 0]);
+  addTruck(g3, 'B');
+  const ghosted = dynamicMeshes(g3, 'ov', [0, 0]);
+  assert.ok(ghosted.trans.count > solo.trans.count && ghosted.opaque.count === solo.opaque.count, 'ghost drawn translucent');
+  Object.assign(g3.trucks[1].fl, { x: 20, y: 10 });
+  update(g3, {}, 1 / 120);
+  assert.ok(dynamicMeshes(g3, 'ov', [0, 0]).opaque.count > solo.opaque.count, 'solid truck drawn opaque');
   console.log('multiplayer trucks ok');
 }

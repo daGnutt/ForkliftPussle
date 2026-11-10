@@ -1,8 +1,8 @@
 import { COLORS } from '../level.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, overheadDecals, boxDecalKind } from '../decals.js';
-import { FL, toWorld } from '../forklift.js';
-import { carriedWorldOffs } from '../game.js';
+import { FL, toWorld, truckColor } from '../forklift.js';
+import { carriedWorldOffs, otherTrucks, isGhost, dropLift } from '../game.js';
 import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam } from './camera.js';
 
 // Scene geometry: everything is a prism (walls, pallets, boxes, tines, fixtures) split into
@@ -124,6 +124,23 @@ function addDoorways(faces, cam, g) {
   }
 }
 
+// Another truck seen from the cabin: chassis, counterweight, roof, and its carried stack and forks.
+function addTruck(faces, cam, t) {
+  const pal = truckColor(t.truck.color), W = FL.halfW, at = (u, v) => toWorld(t.fl, u, v), a = t.fl.a;
+  const part = (x0, x1, z0, z1, col) => {
+    const c = at((x0 + x1) / 2, 0);
+    addPrism(faces, cam, c.x, c.y, a, (x1 - x0) / 2, W, z0, z1, col);
+  };
+  part(FL.back, FL.front, 0.15, 0.5, pal.body);
+  part(FL.back, FL.back + 0.55, 0.5, 0.85, pal.counter);
+  part(-1.2, 0.05, 1.15, 1.25, pal.roof);
+  if (t.carried) {
+    const p = at(FL.carryX, 0);
+    addStack(faces, cam, p.x, p.y, t.carriedRots.map((r) => r + a), t.carried, t.hf, carriedWorldOffs(t), 0, 0, t.carriedPen);
+  }
+  addForks(faces, cam, t);
+}
+
 // Fork carriage: a plate on the mast, an upright shank and a blade with a tapered, thinner tip per tine.
 function addForks(faces, cam, g) {
   const tz = g.hf * (BOX_H + PAL), col = theme().tine;
@@ -190,12 +207,16 @@ export function buildFaces(g, cam) {
     } else addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, WALL_H, null, true);
   }
   for (const st of g.stacks) addStack(faces, cam, st.x, st.y, st.rots || [], st.layers, 0, st.offs, st.dropFrom ?? 0,
-      st.dropFrom != null ? Math.max(0, g.hf - st.dropFrom) : 0, st.pen);
+      dropLift(g, st), st.pen);
   if (g.carried) {
     const p = toWorld(g.fl, FL.carryX, 0);
     addStack(faces, cam, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, carriedWorldOffs(g), 0, 0, g.carriedPen);
   }
   addForks(faces, cam, g);
+  for (const t of otherTrucks(g)) {
+    if (isGhost(g, t.truck.id)) continue; // the software view cannot blend, so ghosts are left out
+    addTruck(faces, cam, t);
+  }
   for (const f of faces) f.d = Math.hypot(f.mx - cam.x, f.my - cam.y, f.mz - cam.z) + (f.boxFlat ? 0.6 : 0); // lids/undersides sit behind the pallet parts touching them
   faces.sort((a, b) => b.d - a.d);
   return dropHidden(faces, cam);

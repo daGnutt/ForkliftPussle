@@ -32,11 +32,11 @@ export const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) 
 export const shade = (c, k) => [Math.min(1, c[0] * k), Math.min(1, c[1] * k), Math.min(1, c[2] * k), c[3]];
 
 export class Mesh {
-  constructor() { this.a = []; }
+  constructor() { this.a = []; this.alpha = 1; } // `alpha` scales the opacity of everything added afterwards (ghost trucks)
 
   get count() { return this.a.length / STRIDE; }
 
-  vert(p, n, c) { this.a.push(p[0], p[1], p[2], n[0], n[1], n[2], c[0], c[1], c[2], c[3]); }
+  vert(p, n, c) { this.a.push(p[0], p[1], p[2], n[0], n[1], n[2], c[0], c[1], c[2], c[3] * this.alpha); }
 
   tri(p0, p1, p2, n, c) {
     this.vert(p0, n, c);
