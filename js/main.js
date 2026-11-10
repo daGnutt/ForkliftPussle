@@ -311,9 +311,15 @@ seedInput.value = seedText;
 // Each step is done when its action has happened (also if it happened earlier, so
 // early presses are credited), but every step stays visible for at least MIN_MS.
 const TUTORIAL = [
-  { done: 'drive', html: 'Use <b>↑/↓</b> to drive and <b>←/→</b> to steer (the rear wheels steer, so the tail swings out!). Release the throttle to engine-brake.' },
-  { done: 'fork', html: 'Press <b>A</b> to raise the forks and <b>Z</b> to lower them. Drive the forks in under a stack to lift it.' },
-  { done: 'zone', html: 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Press <b>R</b> to restart if you get stuck.' },
+  { done: 'drive', html: isTouch
+    ? 'Use the <b>Forward</b>/<b>Back</b> buttons to drive and <b>◀/▶</b> to steer (the rear wheels steer, so the tail swings out!). Release the button to engine-brake.'
+    : 'Use <b>↑/↓</b> to drive and <b>←/→</b> to steer (the rear wheels steer, so the tail swings out!). Release the throttle to engine-brake.' },
+  { done: 'fork', html: isTouch
+    ? 'Tap <b>Fork ▲</b> to raise the forks and <b>Fork ▼</b> to lower them. Drive the forks in under a stack to lift it.'
+    : 'Press <b>A</b> to raise the forks and <b>Z</b> to lower them. Drive the forks in under a stack to lift it.' },
+  { done: 'zone', html: isTouch
+    ? 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Restart if you get stuck.'
+    : 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Press <b>R</b> to restart if you get stuck.' },
   { done: 'cab', html: 'For a more immersive experience, press <b>Tab</b> or <b>M</b> to switch to the cab view (and again to return to the overview).' },
   { done: 'info', html: isTouch
     ? 'Hold two fingers on the canvas to <b>honk</b>. Open <b>Menu</b> → <b>Info</b> for scoring and more tips.'
