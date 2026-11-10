@@ -161,3 +161,11 @@ footer b { color: var(--accent); }
 #testingBanner.hide { display: none; }
 
 #menu [hidden] { display: none !important; }
+
+table.keys { border-collapse: collapse; font-size: 14px; margin: 6px 0; width: 100%; }
+table.keys th, table.keys td { text-align: left; padding: 3px 8px; border-bottom: 1px solid var(--border); }
+table.keys td:first-child { white-space: nowrap; } table.keys b { color: var(--accent); }
+#zoomBar { position: fixed; right: 12px; bottom: 12px; z-index: 5; display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 8px; background: var(--bar); color: var(--fg); font: 13px sans-serif; opacity: .75; }
+#zoomBar:hover { opacity: 1; } #zoomBar input { width: 110px; }
+#zoomBar.hide { display: none; }
+@media (pointer: coarse) { #zoomBar { display: none; } }

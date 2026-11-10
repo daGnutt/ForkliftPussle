@@ -130,6 +130,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Level complete overlay** | End-of-level breakdown with top lists | `render.js` |
 | **Splash** | Title screen: seed, Start, Disco start, options | `#splash` |
 | **Menu / pause menu** | Esc/P menu with pages: main, sound, display, game, info, state | `#menu` |
+| **Zoom slider** | Desktop-only on-screen camera zoom slider in the bottom-right of the main view (same value as Camera zoom in the menu) | `#zoomBar` |
 | **Record prompt** | Name entry when a record is set | `#record` |
 | **Tutorial banner** | 5-step hint strip | `#tutorial` |
 | **Testing banner** | Red "TEST" banner on non-official hosts | `#testingBanner` |

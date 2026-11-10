@@ -14,7 +14,7 @@ import { debugEnabled, createDebug } from './debug.js';
 import { setBareForks, bareForksEnabled } from './gl/models.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
 import { glEnabled, setGlEnabled, attachGlCanvas } from './gl/renderer.js';
-import { themeMode, setThemeMode } from './theme.js';
+import { themeMode, setThemeMode, theme } from './theme.js';
 import { discoEnabled, setDiscoEnabled } from './disco.js';
 import { CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner } from './testing.js';
@@ -329,7 +329,10 @@ const TUTORIAL = [
   { done: 'cab', html: 'For a more immersive experience, press <b>Tab</b> or <b>M</b> to switch to the cab view (and again to return to the overview).' },
   { done: 'info', html: isTouch
     ? 'Hold two fingers on the canvas to <b>honk</b>. Open <b>Menu</b> → <b>Info</b> for scoring and more tips.'
-    : 'Extras: <b>C</b> chase camera, <b>W</b>/<b>Q</b> rotate the camera (or drag it), hold <b>H</b> to honk, <b>F</b> full screen. Press <b>P</b> / <b>Esc</b> for the menu → <b>Info</b> for scoring and more tips.' },
+    : 'Extras: <b>C</b> chase camera, <b>W</b>/<b>Q</b> rotate the camera (or drag it), hold <b>H</b> to honk, <b>F</b> full screen. Press <b>P</b> / <b>Esc</b> for the menu → <b>Info</b> for scoring and more tips.',
+    extra: () => (theme().dark
+      ? ' Prefer a brighter scene? Switch <b>Colour mode</b> to <b>Light</b> under Visuals.'
+      : ' Try <b>Dark</b> colour mode under Visuals for headlights, ambient lights and disco lights.') },
 ];
 if (isTouch) TUTORIAL.splice(3, 1);
 const TUT_MIN_MS = 2500, TUT_INFO_MS = 20000;
@@ -341,7 +344,7 @@ let tutShownAt = performance.now();
 function showTutorial() {
   tutShownAt = performance.now();
   tutorialEl.classList.toggle('hide', tutStep < 0);
-  if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep].html}`;
+  if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep].html}${TUTORIAL[tutStep].extra?.() ?? ''}`;
 }
 function nextTutorial() {
   tutStep = tutStep + 1 >= TUTORIAL.length ? -1 : tutStep + 1;
@@ -652,6 +655,18 @@ discoOpt.addEventListener('change', () => {
   setDiscoEnabled(discoOpt.checked);
   localStorage.setItem('forklift-disco', discoOpt.checked ? '1' : '0');
 });
+const zoomSlider = document.getElementById('zoomSlider');
+const zoomBar = document.getElementById('zoomBar');
+function syncZoomBar() {
+  zoomBar.classList.toggle('hide', splashOn || !!view.menuOpen || view.povBig);
+  if (document.activeElement !== zoomSlider) zoomSlider.value = view.chaseZoom ?? chaseZoomOf(view.ovTiles || 14);
+}
+setInterval(syncZoomBar, 200);
+zoomSlider.addEventListener('input', () => {
+  view.chaseZoom = Number(zoomSlider.value);
+  localStorage.setItem('forklift-chase-zoom', String(view.chaseZoom));
+});
+zoomSlider.addEventListener('change', () => zoomSlider.blur()); // keep arrow keys for driving
 chaseZoomSel.addEventListener('input', () => {
   view.chaseZoom = Number(chaseZoomSel.value);
   localStorage.setItem('forklift-chase-zoom', String(view.chaseZoom));

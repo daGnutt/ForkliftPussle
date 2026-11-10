@@ -14,6 +14,7 @@
 </head>
 <body>
   <div id="stage"><canvas id="gameGl" aria-hidden="true"></canvas><canvas id="game"></canvas></div>
+  <label id="zoomBar" title="Camera zoom (overview): right = zoomed in, left = zoomed out"><span>Zoom</span> <input type="range" id="zoomSlider" min="0" max="100" step="1"></label>
   <div id="testingBanner" class="hide">TESTING</div>
   <div id="record" class="hide">
     <form id="recordForm" autocomplete="off">
@@ -89,9 +90,21 @@
       </div>
       <div class="page" data-page="info" hidden>
         <h3>Info &amp; scoring</h3>
-        <p class="tip"><b>Controls:</b> <b>↑/↓</b> drive, <b>←/→</b> steer (rear wheels steer, so the tail swings out), <b>A</b>/<b>Z</b> forks up/down, <b>R</b> restart level, <b>Enter</b> next level after winning.</p>
-        <p class="tip"><b>Cameras:</b> <b>Tab</b>/<b>M</b> swap overview and cab view, <b>C</b> third-person chase camera (or double-click the overview), <b>W</b>/<b>Q</b> rotate the camera (or drag it).</p>
-        <p class="tip"><b>Other:</b> hold <b>H</b> to honk (touch: two fingers on the canvas), <b>F</b> full screen, <b>P</b>/<b>Esc</b> menu. Restart the tutorial under Game.</p>
+        <table class="keys">
+          <tr><th>Key</th><th>Action</th></tr>
+          <tr><td><b>↑</b>/<b>↓</b></td><td>Drive forward / back</td></tr>
+          <tr><td><b>←</b>/<b>→</b></td><td>Steer (rear wheels steer, so the tail swings out)</td></tr>
+          <tr><td><b>A</b>/<b>Z</b></td><td>Forks up / down</td></tr>
+          <tr><td><b>R</b></td><td>Restart level</td></tr>
+          <tr><td><b>Enter</b></td><td>Next level after winning</td></tr>
+          <tr><td><b>Tab</b>/<b>M</b></td><td>Swap overview and cab view</td></tr>
+          <tr><td><b>C</b></td><td>Third-person chase camera (or double-click the overview)</td></tr>
+          <tr><td><b>W</b>/<b>Q</b></td><td>Rotate the camera (or drag it)</td></tr>
+          <tr><td><b>H</b></td><td>Hold to honk (touch: two fingers on the canvas)</td></tr>
+          <tr><td><b>F</b></td><td>Full screen</td></tr>
+          <tr><td><b>P</b>/<b>Esc</b></td><td>Menu</td></tr>
+        </table>
+        <p class="tip">Restart the tutorial under Game.</p>
         <p class="tip"><b>Scoring:</b> each box in a finished zone is worth 100 points, minus up to 50 for crashes and up to 50 for crooked placement (within 5° is free). You need 50% of the maximum to finish. Your final score loses 1 point per 10 seconds.</p>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
       </div>
