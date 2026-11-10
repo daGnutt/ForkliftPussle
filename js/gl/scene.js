@@ -284,7 +284,15 @@ function discoLights(g, eye) {
 // Dark mode: headlights, reverse and brake lights; the ceiling fixtures are only decals, the room's glow is ambient (`DARK_LIGHT`).
 const HEAD_I = 1.5, WARM = [1, 0.95, 0.8];
 function darkLights(g, eye) {
-  const f = g.fl, c = Math.cos(f.a), s = Math.sin(f.a), out = [];
+  const out = [];
+  const trucks = [g, ...otherTrucks(g).filter((t) => !isGhost(g, t.truck.id))];
+  for (const t of trucks) truckLights(t, out);
+  for (const l of out) l.d = Math.hypot(l.x - eye[0], l.y - eye[1]);
+  return out.sort((p, q) => p.d - q.d).slice(0, LIGHT_MAX);
+}
+
+function truckLights(g, out) {
+  const f = g.fl, c = Math.cos(f.a), s = Math.sin(f.a);
   const lamp = (lx, ly, z, r, col, dir, cone) => {
     const p = toWorld(f, lx, ly);
     out.push({ x: p.x, y: p.y, z, r, col, dir, cone });
@@ -295,7 +303,6 @@ function darkLights(g, eye) {
   for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 1.8, [0.5, 0.05, 0.03], back, 0.2); // idle tail glow
   if (f.gear === 'R') for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 4.5, [0.9, 0.9, 0.95], back, 0.45);
   if (f.brake) for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 2.2, [0.8, 0.1, 0.06], back, 0.3);
-  return out;
 }
 
 function addDisco(om, g, eye) {

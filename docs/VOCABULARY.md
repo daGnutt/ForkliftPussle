@@ -115,7 +115,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Parallax** | Fake height in the 2D overview | `PX`, `PY` |
 | **Blob shadow** | Simple shadow under objects in GL | `dynamicMeshes` |
 | **Disco lights** | Glitter balls and coloured light pools (real point lights in WebGL), dark mode only | `disco.js` |
-| **Headlights / brake & reverse lights** | Dark-mode GL point lights on the forklift (spots high on the A-pillars; red when braking, white when reversing); ceiling lights add the remaining ~25% | `gl/scene.js` |
+| **Headlights / brake & reverse lights** | Dark-mode GL point lights on every forklift, own and other players' (spots high on the A-pillars; red when braking, white when reversing); ceiling lights add the remaining ~25% | `gl/scene.js` |
 
 ## UI
 
