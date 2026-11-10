@@ -717,7 +717,7 @@ function drawPartyBadge(ctx, g, party, width) {
   ctx.restore();
 }
 
-// Small compass under the fork gauge (hidden while north is up): the needle points to north (world -y) as seen from the current camera.
+// Small compass under the fork gauge (hidden while north is up, except in the chase camera): the needle points to north (world -y) as seen from the current camera.
 const wrapAngle = (a) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
 function drawCompass(ctx, g, view, width) {
   let a; // world heading of the screen's "up"
@@ -725,7 +725,7 @@ function drawCompass(ctx, g, view, width) {
   else if (view.chase) a = (view.camA ?? g.fl.a) + (view.orbit ? view.orbit.yaw : 0);
   else a = view.orbit ? view.orbit.yaw - Math.PI / 2 : -Math.PI / 2;
   const theta = Math.atan2(-Math.cos(a), -Math.sin(a)), cx = width - 29, cy = 262, r = 18;
-  if (Math.abs(wrapAngle(theta)) < 0.02) return; // north is straight up: no need for a compass
+  if (!(view.chase && !view.povBig) && Math.abs(wrapAngle(theta)) < 0.02) return; // north is straight up: no need for a compass (the chase camera always shows it)
   ctx.save();
   ctx.translate(cx, cy);
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
