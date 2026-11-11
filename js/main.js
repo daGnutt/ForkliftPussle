@@ -882,7 +882,7 @@ window.addEventListener('keydown', (e) => {
 const stateText = document.getElementById('stateText');
 const stateMsg = document.getElementById('stateMsg');
 document.getElementById('stateExport').addEventListener('click', async () => {
-  const snap = serializeGame(game, seedText);
+  const snap = game.endless ? { ...serializeEndless(game), seedText } : serializeGame(game, seedText);
   stateText.value = debug ? JSON.stringify(snap) : await encodeState(snap);
   stateText.select();
   try {
@@ -895,7 +895,7 @@ document.getElementById('stateImport').addEventListener('click', async () => {
   let g, data;
   try {
     data = await decodeState(stateText.value);
-    g = deserializeGame(data);
+    g = data && data.endless ? deserializeEndless(data) : deserializeGame(data);
   } catch (err) {
     stateMsg.textContent = `Import failed: ${err.message}`;
     return;
@@ -904,10 +904,10 @@ document.getElementById('stateImport').addEventListener('click', async () => {
   seed = g.seed;
   seedText = typeof data.seedText === 'string' && parseSeed(data.seedText) === seed ? data.seedText : String(seed);
   hard = g.hard;
-  level = g.level;
+  if (!g.endless) level = g.level;
   localStorage.setItem('forklift-seed', seedText);
   localStorage.setItem('forklift-hard', hard ? '1' : '0');
-  localStorage.setItem('forklift-level', String(level));
+  if (!g.endless) localStorage.setItem('forklift-level', String(level));
   seedInput.value = seedText;
   hardOpt.checked = hard;
   game = g;
@@ -915,6 +915,8 @@ document.getElementById('stateImport').addEventListener('click', async () => {
   doneZones = doneSet();
   hitCount = g.hitCount;
   bonkCount = g.bonks;
+  otherBonks.clear();
+  otherH.clear();
   partyGameChanged();
   refreshBest();
   saveState();
