@@ -157,7 +157,12 @@ function rnd(e) {
 const interior = (b, m = 0) => ({ x0: b.x0 + WALL - m, x1: b.x0 + TRUCK_W - WALL + m, y0: BAY_Y + WALL - m + b.off, y1: BAY_Y + TRUCK_D - WALL + m + b.off });
 const inBox = (s, r) => s.x > r.x0 && s.x < r.x1 && s.y > r.y0 && s.y < r.y1;
 const footprint = (b, m) => { const r = { x0: b.x0 - m, x1: b.x0 + TRUCK_W + m, y0: BAY_Y - m, y1: ENDLESS_H }; return rectPoly((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, (r.x1 - r.x0) / 2, (r.y1 - r.y0) / 2); };
-const clearOfTrucks = (g, b, m) => { const f = footprint(b, m); return !g.trucks.some((t) => !t.gone && solidPolys(t).some((p) => sat(p, f))); };
+// Body, carried stack and tines (which pass through boxes and walls) of a forklift.
+const reachPolys = (t) => {
+  const c = toWorld(t.fl, (FL.tineX0 + FL.tineX1) / 2, 0);
+  return [...solidPolys(t), rectPoly(c.x, c.y, (FL.tineX1 - FL.tineX0) / 2, FL.tineOff + FL.tineHalf, t.fl.a)];
+};
+const clearOfTrucks = (g, b, m) => { const f = footprint(b, m); return !g.trucks.some((t) => !t.gone && reachPolys(t).some((p) => sat(p, f))); };
 
 function place(g, b) {
   const off = b.state === 'away' ? GONE : b.off;
@@ -178,7 +183,7 @@ function place(g, b) {
 function stepBay(g, b, dt) {
   const e = g.endless;
   if (b.state === 'open') {
-    if (b.zones.every((z) => zoneDone(g, z)) && clearOfTrucks(g, b, 0.4)) {
+    if (b.zones.every((z) => zoneDone(g, z)) && clearOfTrucks(g, b, 0.8)) {
       b.state = 'closing'; b.t = 0; b.gateClosed = true;
       const r = interior(b, 0.2);
       b.cargo = g.stacks.filter((s) => inBox(s, r));
@@ -186,7 +191,8 @@ function stepBay(g, b, dt) {
     }
   } else if (b.state === 'closing') {
     b.t += dt;
-    if (b.t >= GATE_DELAY) { b.state = 'leaving'; b.v = 0; }
+    if (!clearOfTrucks(g, b, 0.4)) { b.state = 'open'; b.gateClosed = false; for (const s of b.cargo) delete s.leaving; b.cargo = []; } // a forklift got too close: reopen
+    else if (b.t >= GATE_DELAY) { b.state = 'leaving'; b.v = 0; }
   } else if (b.state === 'leaving') {
     b.v = Math.min(5, b.v + 2.5 * dt);
     b.off += b.v * dt;

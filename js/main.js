@@ -21,7 +21,7 @@ import { CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
-import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setHorns, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -96,6 +96,20 @@ const otherH = new Map(); // truck id -> last seen fork level
 refreshBest();
 // Loudness 0..1 of a sound at (x, y), falling off with the distance from the local truck (same curve as the horns).
 const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8);
+// Delivery trucks honk once when an incoming truck arrives and twice when a full one drives off (heard by distance).
+const truckStates = new Map();
+function honkTrucks() {
+  const e = game.endless;
+  if (!e) { truckStates.clear(); return; }
+  for (const o of [...e.docks, ...e.bays]) {
+    const prev = truckStates.get(o);
+    truckStates.set(o, o.state);
+    if (prev === undefined || prev === o.state) continue;
+    const vol = hearVol(o.dock ? o.area.x + o.area.w / 2 : o.x0 + 1.8, o.area.y + o.area.h / 2);
+    if (o.dock && o.state === 'arriving') playTruckHonk(1, vol);
+    else if (!o.dock && o.state === 'leaving') playTruckHonk(2, vol);
+  }
+}
 let recordOpen = false, recorded = false;
 const recordEl = document.getElementById('record');
 const recordName = document.getElementById('recordName');
@@ -998,6 +1012,7 @@ function frame(now) {
     const own = i === game.self, d = Math.hypot(t.fl.x - game.fl.x, t.fl.y - game.fl.y);
     return { id: t.id, on: !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : hearVol(t.fl.x, t.fl.y) };
   }));
+  honkTrucks();
   const done = doneSet();
   const fresh = [...done].filter((z) => !doneZones.has(z));
   if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();
