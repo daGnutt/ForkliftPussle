@@ -107,7 +107,7 @@ function watchPops(s, g) {
   for (const p of g.pops || []) {
     if (p.n <= s.popN) continue;
     s.popN = p.n;
-    for (let i = 0; i < 26; i++) puff(s, p.x + rnd(-0.5, 0.5), p.y + rnd(-0.5, 0.5), rnd(0.1, 0.5), { size: 0.2, grow: 0.9, spread: 3, a0: 0.8, life: 1.6, col: [0.95, 0.95, 0.97] });
+    for (let i = 0; i < 26; i++) puff(s, p.x + rnd(-1, 1), p.y + rnd(-1, 1), rnd(0.1, 0.6), { size: 0.35, grow: 0.9, spread: 3, a0: 0.8, life: 1.6, col: [0.95, 0.95, 0.97] });
     for (let i = 0; i < 16; i++) { // dust ring
       const a = (i / 16) * Math.PI * 2;
       puff(s, p.x, p.y, 0.1, { size: 0.2, grow: 0.8, spread: 0, vx: Math.cos(a) * 2.2, vy: Math.sin(a) * 2.2, a0: 0.5, life: 1.2, col: [0.8, 0.76, 0.7] });

@@ -106,6 +106,7 @@ function watchPops() {
     if (prev && prev.gone !== !!t.gone) {
       const at = t.gone ? prev : t.fl;
       game.pops.push({ n: ++popN, x: at.x, y: at.y, t: game.clock });
+      (game.popVis ||= {})[i] = { t: game.clock, kind: t.gone ? 'out' : 'in' };
       playPop(hearVol(at.x, at.y));
     }
     popPrev.set(i, { gone: !!t.gone, x: t.fl.x, y: t.fl.y });

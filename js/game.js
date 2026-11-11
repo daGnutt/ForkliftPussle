@@ -80,6 +80,14 @@ export function truckView(g, i) {
 // The live truck objects.
 export const liveTrucks = (g) => g.root.trucks.filter((t) => !t.gone);
 // Views of the live trucks other than the one `g` is the view of.
+// View-only pop timing (set by main.js `watchPops`): for POP_DELAY seconds after a truck popped in it stays hidden and after
+// it popped out it is still drawn, so the smoke cloud covers the moment it appears or vanishes. Renderers use this.
+export const POP_DELAY = 0.45;
+export const otherTrucksShown = (g) => g.root.trucks.map((t, i) => {
+  if (t === g.truck) return null;
+  const pv = g.root.popVis?.[i], busy = pv && g.root.clock - pv.t < POP_DELAY;
+  return (busy ? pv.kind === 'out' : !t.gone) ? truckView(g.root, i) : null;
+}).filter(Boolean);
 export const otherTrucks = (g) => g.root.trucks.map((t, i) => (t.gone || t === g.truck ? null : truckView(g.root, i))).filter(Boolean);
 
 const bodyPoly = (t) => {
