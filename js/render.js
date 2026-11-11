@@ -554,13 +554,13 @@ function drawWorldObjects(ctx, g, vis) {
 // A delivery truck panel in its bay colour: dark wheels stick out of the sides, the cab is darker, the rear doors (gate) light grey.
 function drawTruckPart(ctx, w) {
   const { color, part } = w.truck;
-  if (part === 'back') { // the cab, outside the warehouse
-    const x = w.x + 0.3, y = w.y + w.h, cw = w.w - 0.6;
+  if (part === 'cab') {
+    const x = w.x, y = w.y, cw = w.w;
     ctx.fillStyle = '#15171a';
     ctx.fillRect(x - 0.1, y + 0.3, 0.2, 1.2);
     ctx.fillRect(x + cw - 0.1, y + 0.3, 0.2, 1.2);
     ctx.fillStyle = COLORS[color];
-    ctx.fillRect(x, y, cw, 2);
+    ctx.fillRect(x, y, cw, w.h);
     ctx.fillStyle = '#1d2a38';
     ctx.fillRect(x + 0.25, y + 1.2, cw - 0.5, 0.5);
     ctx.fillStyle = '#fff6c0';
@@ -568,7 +568,8 @@ function drawTruckPart(ctx, w) {
     ctx.fillRect(x + cw - 0.6, y + 1.85, 0.4, 0.12);
     ctx.strokeStyle = '#1f2226';
     ctx.lineWidth = 0.06;
-    ctx.strokeRect(x, y, cw, 2);
+    ctx.strokeRect(x, y, cw, w.h);
+    return;
   }
   if (part === 'left' || part === 'right') {
     ctx.fillStyle = '#15171a';
@@ -698,7 +699,7 @@ function drawStartBoard(ctx, g, view, width, height) {
   ctx.fillText(title, width / 2, y + 20);
   if (g.endless) {
     ctx.font = '16px sans-serif';
-    ['Boxes arrive on the belt (top).', 'Stack four of a colour on each of the four spots', 'of that colour\'s delivery truck. A full truck closes,', 'drives off and is replaced.', `${MAX_MISSED} boxes off the end of the belt: game over.`]
+    ['Boxes arrive on the belt (top).', 'Stack four of a colour on each of the six spots', 'of that colour\'s delivery truck. A full truck closes,', 'drives off and is replaced.', `${MAX_MISSED} boxes off the end of the belt: game over.`]
       .forEach((t, i) => ctx.fillText(t, width / 2, y + 60 + i * 24));
     return;
   }

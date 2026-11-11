@@ -49,28 +49,28 @@ export function wallCaps(g, [nx, ny, d, z]) {
   return m;
 }
 
-// The truck's cab, parked just outside the warehouse behind the back wall: body, windscreen, bumper, wheels and headlights.
+// The truck's cab, a solid block at the south edge behind the trailer: body, windscreen, bumper, wheels and headlights.
 function addCab(sm, w, col) {
-  const cw = w.w - 0.6, cx = w.x + w.w / 2, y0 = w.y + w.h, cd = 2, hl = cw / 2;
-  sm.cuboid(cx, y0 + cd / 2, 0, hl, cd / 2, 0.5, 2.6, col);
-  sm.cuboid(cx, y0 + cd / 2, 0, hl, cd / 2, 0.3, 0.5, '#26292e', { top: false });
-  sm.cuboid(cx, y0 + cd - 0.05, 0, hl - 0.25, 0.06, 1.5, 2.3, '#1d2a38', { top: false, bottom: false });
-  sm.cuboid(cx, y0 + cd + 0.08, 0, hl, 0.1, 0.3, 0.6, '#c9ccd1');
+  const cx = w.x + w.w / 2, cy = w.y + w.h / 2, hl = w.w / 2, hw = w.h / 2, yf = w.y + w.h;
+  sm.cuboid(cx, cy, 0, hl, hw, 0.5, 2.6, col);
+  sm.cuboid(cx, cy, 0, hl, hw, 0.3, 0.5, '#26292e', { top: false });
+  sm.cuboid(cx, yf - 0.02, 0, hl - 0.25, 0.04, 1.5, 2.3, '#1d2a38', { top: false, bottom: false });
+  sm.cuboid(cx, yf - 0.1, 0, hl, 0.1, 0.3, 0.6, '#c9ccd1');
   for (const s of [-1, 1]) {
-    sm.cuboid(cx + s * (hl - 0.35), y0 + cd + 0.02, 0, 0.2, 0.05, 0.9, 1.2, '#fff6c0', { emissive: true });
-    sm.wheel(cx + s * (hl + 0.05), y0 + cd / 2, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
+    sm.cuboid(cx + s * (hl - 0.35), yf - 0.02, 0, 0.2, 0.04, 0.9, 1.2, '#fff6c0', { emissive: true });
+    sm.wheel(cx + s * (hl + 0.05), cy, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
   }
 }
 
 // Delivery truck panels: sides/cab in the bay colour on a dark skirt with wheels, rear doors (the gate) in light grey.
 const TRUCK_SKIRT = 0.45;
 function addTruckPart(sm, w) {
+  if (w.truck.part === 'cab') { addCab(sm, w, parseColor(COLORS[w.truck.color])); return; }
   const { color, part } = w.truck, cx = w.x + w.w / 2, cy = w.y + w.h / 2, hl = w.w / 2, hw = w.h / 2;
   const body = part === 'gate' ? '#b9bec5' : part === 'back' ? shade(parseColor(COLORS[color]), 0.7) : parseColor(COLORS[color]);
   sm.cuboid(cx, cy, 0, hl, hw, 0, TRUCK_SKIRT, '#26292e', { top: false });
   sm.cuboid(cx, cy, 0, hl, hw, TRUCK_SKIRT, WALL_H, body, { bottom: false });
   if (part === 'gate') sm.cuboid(cx, cy, 0, hl - 0.15, hw + 0.01, 1, 1.15, '#7b8088', { top: false, bottom: false });
-  if (part === 'back') addCab(sm, w, parseColor(COLORS[color]));
   if (part === 'left' || part === 'right') {
     const out = part === 'left' ? -1 : 1;
     for (const y of [w.y + 0.9, w.y + w.h - 0.9]) sm.wheel(cx + out * (hl + 0.05), y, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
