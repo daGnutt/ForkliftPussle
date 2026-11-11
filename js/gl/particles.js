@@ -19,7 +19,7 @@ const states = new WeakMap();
 
 function stateFor(g) {
   let s = states.get(g.root);
-  if (!s) states.set(g.root, (s = { ps: [], flashes: [], clock: null, bonks: new Map(), carried: new Map(), hitCount: g.root.hitCount || 0, zones: null, acc: new Map() }));
+  if (!s) states.set(g.root, (s = { ps: [], flashes: [], clock: null, bonks: new Map(), carried: new Map(), hitCount: g.root.hitCount || 0, popN: Math.max(0, ...(g.root.pops || []).map((p) => p.n)), zones: null, acc: new Map() }));
   return s;
 }
 
@@ -100,6 +100,15 @@ function watchHits(s, g) {
   s.hitCount = n;
 }
 
+// A truck popped in or out (`pops`, queued by main.js): a big cloud of white smoke where it stood.
+function watchPops(s, g) {
+  for (const p of g.pops || []) {
+    if (p.n <= s.popN) continue;
+    s.popN = p.n;
+    for (let i = 0; i < 26; i++) puff(s, p.x + rnd(-0.5, 0.5), p.y + rnd(-0.5, 0.5), rnd(0.1, 0.5), { size: 0.2, grow: 0.9, spread: 3, a0: 0.8, life: 1.6, col: [0.95, 0.95, 0.97] });
+  }
+}
+
 function watchZones(s, g) {
   const done = g.zones.map((z) => zoneDone(g, z));
   if (s.zones && s.zones.length === done.length) {
@@ -121,6 +130,7 @@ function step(s, g, dt) {
   const trucks = [g, ...otherTrucks(g).filter((t) => !isGhost(g, t.truck.id))];
   for (const t of trucks) watchTruck(s, t, dt);
   watchHits(s, g);
+  watchPops(s, g.root);
   watchZones(s, root);
   for (const p of s.ps) {
     p.age += dt;
