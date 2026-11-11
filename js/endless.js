@@ -315,15 +315,15 @@ export function stepEndless(g, dt) {
   for (const b of e.bays) stepBay(g, b, dt);
 }
 
-// Lorries whose horn is sounding (an incoming truck arriving: once, a delivery truck leaving: twice), shaped like forklifts for the HONK label.
+// Lorries whose horn is sounding (an incoming truck arriving: one blast, a delivery truck leaving: two with a short pause, the label shown only during each blast), shaped like forklifts for the HONK label.
 export function lorryHonks(g) {
   const e = g.endless;
   if (!e) return [];
   const out = [];
   for (const o of [...e.docks, ...e.bays]) {
     const age = e.elapsed - o.honkT;
-    if (age < 0 || age > 0.4 + 0.35 * o.honkN) continue;
-    out.push({ id: 100 + (o.dock ? o.k : 10 + o.k), gone: false, horn: true, text: o.honkN > 1 ? 'HONK HONK' : 'HONK', paint: truckPaint(o.dock ? DOCK_COLOR : o.k), fl: { x: o.area.x + o.area.w / 2, y: o.area.y + o.area.h / 2 } });
+    if (age < 0 || age >= 0.34 * o.honkN || age % 0.34 > 0.26) continue; // matches the blasts of `playTruckHonk`
+    out.push({ id: 100 + (o.dock ? o.k : 10 + o.k), gone: false, horn: true, text: 'HONK', paint: truckPaint(o.dock ? DOCK_COLOR : o.k), fl: { x: o.area.x + o.area.w / 2, y: o.area.y + o.area.h / 2 } });
   }
   return out;
 }
