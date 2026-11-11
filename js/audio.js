@@ -453,6 +453,47 @@ export function setScrape(speed, vol = 1) {
   scrapeNode.g.gain.setTargetAtTime(speed > 0 ? (0.05 + v * 0.12) * vol : 0, t, 0.04);
 }
 
+// Tyre squeal while the wheels spin (same condition as the tyre smoke): a thin, wobbling screech. slip 0 = silent.
+let squealNode = null;
+export function setSqueal(slip, vol = 1) {
+  if (!ctx || ctx.state !== 'running') return;
+  if (!squealNode) {
+    if (slip <= 0) return;
+    if (!noiseBuf) noise(sfxBus, ctx.currentTime, 0.01, { gain: 0 });
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    src.loop = true;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 9;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    const og = ctx.createGain();
+    og.gain.value = 0.25;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 9;
+    const lg = ctx.createGain();
+    lg.gain.value = 60;
+    lfo.connect(lg);
+    lg.connect(o.frequency);
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    src.connect(f);
+    o.connect(og);
+    og.connect(f);
+    f.connect(g);
+    g.connect(sfxBus);
+    src.start();
+    o.start();
+    lfo.start();
+    squealNode = { f, o, g };
+  }
+  const t = ctx.currentTime;
+  squealNode.f.frequency.setTargetAtTime(1500 + slip * 700, t, 0.05);
+  squealNode.o.frequency.setTargetAtTime(700 + slip * 300, t, 0.05);
+  squealNode.g.gain.setTargetAtTime(slip > 0.05 ? (0.08 + slip * 0.14) * vol : 0, t, 0.05);
+}
+
 // Cheerful rising arpeggio when a zone is filled.
 export function playSuccess() {
   if (!ctx || ctx.state !== 'running') return;
