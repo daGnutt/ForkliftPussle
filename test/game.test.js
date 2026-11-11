@@ -1654,8 +1654,8 @@ console.log('all tests passed');
   const r = deserializeEndless(JSON.parse(JSON.stringify(serializeEndless(a))));
   assert.equal(r.stacks.length, a.stacks.length);
   assert.equal(r.endless.points, 12);
-  assert.deepEqual(r.endless.docks.map((o) => [o.state, o.off, o.cargo.length]), a.endless.docks.map((o) => [o.state, o.off, o.cargo.length]));
-  assert.ok(r.endless.docks.every((o, i) => o.cargo.every((c) => r.stacks.includes(c))), 'cargo points into the restored stacks');
+  assert.deepEqual(r.endless.docks.map((o) => [o.state, o.off, (o.cargo || []).length]), a.endless.docks.map((o) => [o.state, o.off, (o.cargo || []).length]));
+  assert.ok(r.endless.docks.every((o) => (o.cargo || []).every((c) => r.stacks.includes(c))), 'cargo points into the restored stacks');
   assert.equal(r.walls.length, a.walls.length);
   for (let i = 0; i < 30 * 60; i++) { update(a, NONE, 1 / 60); stepEndless(a, 1 / 60); update(r, NONE, 1 / 60); stepEndless(r, 1 / 60); }
   assert.deepEqual(r.stacks.map((q) => [q.x, q.y, q.layers]), a.stacks.map((q) => [q.x, q.y, q.layers]), 'the resumed game continues identically');
