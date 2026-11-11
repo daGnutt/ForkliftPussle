@@ -96,18 +96,16 @@ const otherH = new Map(); // truck id -> last seen fork level
 refreshBest();
 // Loudness 0..1 of a sound at (x, y), falling off with the distance from the local truck (same curve as the horns).
 const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8);
-// Delivery trucks honk once when an incoming truck arrives and twice when a full one drives off (heard by distance).
-const truckStates = new Map();
+// Delivery trucks honk (see `lorryHonks`): once before an incoming truck opens its gate, twice before a full one closes its gate (heard by distance).
+const truckHonks = new Map();
 function honkTrucks() {
   const e = game.endless;
-  if (!e) { truckStates.clear(); return; }
+  if (!e) { truckHonks.clear(); return; }
   for (const o of [...e.docks, ...e.bays]) {
-    const prev = truckStates.get(o);
-    truckStates.set(o, o.state);
-    if (prev === undefined || prev === o.state) continue;
-    const vol = hearVol(o.dock ? o.area.x + o.area.w / 2 : o.x0 + 1.8, o.area.y + o.area.h / 2);
-    if (o.dock && o.state === 'arriving') playTruckHonk(1, vol);
-    else if (!o.dock && o.state === 'leaving') playTruckHonk(2, vol);
+    const prev = truckHonks.get(o);
+    truckHonks.set(o, o.honkT);
+    if (prev === undefined || prev === o.honkT || o.honkT < 0) continue;
+    playTruckHonk(o.honkN, hearVol(o.area.x + o.area.w / 2, o.area.y + o.area.h / 2));
   }
 }
 let recordOpen = false, recorded = false;

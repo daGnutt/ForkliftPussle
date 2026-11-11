@@ -26,6 +26,7 @@ const FIRST_X = WX + 1.0, BAY_STEP = 4.8;
 const DOCK_Y0 = 0.8, DOCK_STEP = 4.8;
 const GONE = 200; // a truck that is away is parked this far off the map
 const OUT_DIST = 9;
+const HONK_T = 0.7; // s of horn before a gate opens or closes
 const GATE_DELAY = 1; // s between the gate closing and the truck driving off
 const AWAY_TIME = 2; // s before the replacement truck arrives
 const STACK_BOXES = 4;
@@ -114,13 +115,13 @@ export function newEndless(seed = 0, hard = false) {
     areas.push({ color: k, x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] });
     const bz = [];
     for (let i = 0; i < SLOTS; i++) { const z = { ...slotAt(x0, i, 0), color: k, count: STACK_BOXES, bay: k }; zones.push(z); bz.push(z); }
-    bays.push({ k, x0, off: 0, placed: 0, state: 'open', honkT: -1e9, honkN: 0, t: 0, v: 0, gateClosed: false, cargo: [], zones: bz, area: areas[k], parts: {} });
+    bays.push({ k, x0, off: 0, placed: 0, state: 'open', honkT: -1e9, honkN: 0, honked: false, t: 0, v: 0, gateClosed: false, cargo: [], zones: bz, area: areas[k], parts: {} });
   }
   const docks = [];
   for (let k = 0; k < DOCKS; k++) {
     const side = k % 2 ? 1 : -1, y0 = dockY(Math.floor(k / 2));
     const r = dockRects({ y0, side }, GONE);
-    docks.push({ k, y0, side, dock: true, off: GONE, placed: GONE, state: 'free', honkT: -1e9, honkN: 0, t: 0, v: 0, gateClosed: true, area: { x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] }, parts: {} });
+    docks.push({ k, y0, side, dock: true, off: GONE, placed: GONE, state: 'free', honkT: -1e9, honkN: 0, honked: false, t: 0, v: 0, gateClosed: true, area: { x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] }, parts: {} });
   }
   const layout = {
     w: ENDLESS_W, h: ENDLESS_H, walls: outerWalls(), charger: null, zones, areas, bays: [], doors: [], stacks: [],
@@ -184,7 +185,7 @@ function stepBay(g, b, dt) {
   const e = g.endless;
   if (b.state === 'open') {
     if (b.zones.every((z) => zoneDone(g, z)) && clearOfTrucks(g, b, 0.8)) {
-      b.state = 'closing'; b.t = 0; b.gateClosed = true;
+      b.state = 'closing'; b.t = 0; b.honkT = e.elapsed; b.honkN = 2; // honks twice, then the gate closes
       const r = interior(b, 0.2);
       b.cargo = g.stacks.filter((s) => inBox(s, r));
       for (const s of b.cargo) s.leaving = true;
@@ -192,7 +193,10 @@ function stepBay(g, b, dt) {
   } else if (b.state === 'closing') {
     b.t += dt;
     if (!clearOfTrucks(g, b, 0.4)) { b.state = 'open'; b.gateClosed = false; for (const s of b.cargo) delete s.leaving; b.cargo = []; } // a forklift got too close: reopen
-    else if (b.t >= GATE_DELAY) { b.state = 'leaving'; b.v = 0; b.honkT = e.elapsed; b.honkN = 2; }
+    else {
+      if (b.t >= HONK_T) b.gateClosed = true;
+      if (b.t >= HONK_T + GATE_DELAY) { b.state = 'leaving'; b.v = 0; }
+    }
   } else if (b.state === 'leaving') {
     b.v = Math.min(5, b.v + 2.5 * dt);
     b.off += b.v * dt;
@@ -262,7 +266,10 @@ function loadDock(g, d) {
 function stepDock(g, d, dt) {
   if (d.state === 'arriving') {
     d.off = Math.max(0, d.off - Math.max(0.8, d.off * 0.7) * dt);
-    if (d.off <= 0) { d.gateClosed = false; d.state = 'present'; for (const s of d.cargo) delete s.leaving; }
+    if (d.off <= 0) {
+      if (!d.honked) { d.honked = true; d.honkT = g.endless.elapsed; d.honkN = 1; }
+      if (g.endless.elapsed - d.honkT >= HONK_T) { d.honked = false; d.gateClosed = false; d.state = 'present'; for (const s of d.cargo) delete s.leaving; }
+    }
   } else if (d.state === 'present') {
     const r = dockInterior(d), f = dockRect(d, 0.5);
     const empty = !g.stacks.some((s) => s.x > r.x0 && s.x < r.x1 && s.y > r.y0 && s.y < r.y1);
@@ -305,7 +312,7 @@ export function stepEndless(g, dt) {
   if (e.arriveT <= 0) {
     const d = e.docks.find((o) => o.state === 'free');
     if (!d) { e.over = true; g.status = 'over'; return; }
-    d.off = OUT_DIST; d.state = 'arriving'; d.honkT = e.elapsed; d.honkN = 1; loadDock(g, d);
+    d.off = OUT_DIST; d.state = 'arriving'; loadDock(g, d);
     e.arrived++;
     if (e.arrived === 1) e.wBoxes = RATE_PRIOR * RATE_PRIOR_T * Math.max(1, liveTrucks(g).length); // the prior scales with the crew
     e.arriveT = interval(e, d.cargo.reduce((n, s) => n + s.layers.length, 0)) * (0.85 + 0.3 * rnd(e));
@@ -315,7 +322,7 @@ export function stepEndless(g, dt) {
   for (const b of e.bays) stepBay(g, b, dt);
 }
 
-// Lorries whose horn is sounding (an incoming truck arriving: one blast, a delivery truck leaving: two with a short pause, the label shown only during each blast), shaped like forklifts for the HONK label.
+// Lorries whose horn is sounding (an incoming truck arriving: one blast just before its gate opens, a delivery truck leaving: two with a short pause just before its gate closes, the label shown only during each blast), shaped like forklifts for the HONK label.
 export function lorryHonks(g) {
   const e = g.endless;
   if (!e) return [];
