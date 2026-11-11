@@ -5,7 +5,7 @@ import { createSnapshotter, snapshot, encode, SNAPSHOT_HZ } from './protocol.js'
 
 const DEFAULT_ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
 
-// `getGame()` returns the current game (it is replaced on every level load); `levelInfo()` its { level, seed, hard, seedText };
+// `getGame()` returns the current game (it is replaced on every level load); `levelInfo()` its { level, seed, hard, seedText, endless };
 // `isStarted()` tells whether the host has left the splash. `onChange()` fires when the player list changes.
 export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, onChange, onClosed, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
   const members = new Map(); // peer id -> { name, slot, link }

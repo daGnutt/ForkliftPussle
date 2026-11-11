@@ -125,17 +125,18 @@ function load(n) {
 }
 // Resumes the saved endless game of this seed and mode unless `fresh`.
 function loadEndless(fresh = false) {
-  if (mp) return;
+  if (mp?.role === 'guest') return;
   if (recordOpen) closeRecord();
   recorded = false;
   game = null;
-  if (!fresh) {
+  if (!fresh && !mp) {
     try {
       const data = JSON.parse(localStorage.getItem(ENDLESS_KEY));
       if (data && data.seed === seed && !!data.hard === hard) game = deserializeEndless(data);
     } catch { localStorage.removeItem(ENDLESS_KEY); }
   }
   game ||= newEndless(seed, hard);
+  partyGameChanged();
   refreshBest();
   saveState();
   doneZones = doneSet();
@@ -321,7 +322,7 @@ document.getElementById('recordForm').addEventListener('submit', (e) => {
 
 // Game over in endless mode: the run's points go to the local and global lists (level 0 of the seed).
 function recordEndless() {
-  localStorage.removeItem(ENDLESS_KEY);
+  if (!mp) localStorage.removeItem(ENDLESS_KEY);
   const result = { score: game.endless.points, time: game.time };
   if (!result.score) return;
   if (!beats(result, getBest(localStorage, seed, 0))) {
@@ -443,7 +444,7 @@ function startGame(endless = false) {
     localStorage.setItem('forklift-hard', hard ? '1' : '0');
     load(level);
   }
-  if (endless && !mp) loadEndless();
+  if (endless && mp?.role !== 'guest') loadEndless();
   else refreshBest();
   if (tutorialOpt.checked) {
     localStorage.removeItem('forklift-tutorial-done');
@@ -575,7 +576,7 @@ async function hostParty(nameText = partyName.value) {
   savePlayerName(name);
   partyErr.textContent = '';
   busy(true);
-  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText }), isStarted: () => !splashOn, name, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed });
+  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed });
   try { await host.start(); } catch (e) { busy(false); partyErr.textContent = mpErr.textContent = e.message; return; }
   mpErr.textContent = '';
   mp = { role: 'host', code: host.code, name, host };
@@ -603,7 +604,7 @@ function onGuestGame(m) {
   mp.connected = true;
   clearTimeout(mp.timer);
   level = m.level; seed = m.seed; seedText = m.seedText || ''; hard = m.hard;
-  game = newGame(level, seed, hard);
+  game = m.endless ? newEndless(seed, hard) : newGame(level, seed, hard);
   game.self = m.slot;
   applySnapshot(game, m.snap);
   mp.guest.predictor.reset(game);

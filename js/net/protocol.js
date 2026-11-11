@@ -2,9 +2,10 @@
 //
 //   guest -> host (reliable): { t: 'hello', name } | { t: 'in', up, down, left, right, horn } | { t: 'fork', dir: 'up' | 'down' } | { t: 'gping', n } (answered with { t: 'gpong', n }; the guest's round-trip measurement)
 //   host -> guest (reliable): { t: 'welcome', slot, started, ...level } | { t: 'level', ...level } | { t: 'bye' }
-//     where level = { level, seed, hard, seedText, snap } (snap is a full snapshot)
+//     where level = { level, seed, hard, seedText, endless, snap } (snap is a full snapshot)
 //   host -> guest (fast):     { t: 'snap', ...snapshot }
 import { makeTruck } from '../game.js';
+import { endlessSnapshot, restoreEndless } from '../endless.js';
 
 const TRUCK_FIELDS = ['id', 'color', 'name', 'gone', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'contact', 'slip', 'H', 'hf', 'ef', 'rv', 'hitAt', 'horn'];
 export const SNAPSHOT_HZ = 30;
@@ -25,6 +26,7 @@ export function snapshot(g, withStacks = true) {
     status: r.status, time: r.time, started: r.started, clock: r.clock,
   };
   if (withStacks) s.stacks = r.stacks;
+  if (r.endless) s.endless = endlessSnapshot(r); // the trucks' positions and gates; the cargo is indices into `stacks`
   return s;
 }
 
@@ -53,6 +55,7 @@ export function applySnapshot(g, s) {
   });
   g.trucks.length = s.trucks.length;
   if (s.stacks) g.stacks = s.stacks;
+  if (s.endless && g.endless && g.endlessSrc !== s.endless) { restoreEndless(g, s.endless); g.endlessSrc = s.endless; }
   Object.assign(g, { ghostPairs: s.ghostPairs, hits: s.hits, hitCount: s.hitCount, status: s.status, time: s.time, started: s.started, clock: s.clock });
 }
 

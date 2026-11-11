@@ -1567,6 +1567,24 @@ console.log('all tests passed');
   console.log('stack landing ok');
 }
 
+// Endless mode in a party: the snapshot carries the trucks and gates, and the guest's prediction shares the moving walls.
+{
+  const host = newEndless(5);
+  addTruck(host, 'Bob');
+  for (let i = 0; i < 12 * 60; i++) { update(host, NONE, 1 / 60); stepEndless(host, 1 / 60); }
+  assert.ok(host.endless.docks.some((d) => d.state !== 'free'), 'an incoming truck arrived');
+  const guest = newEndless(5);
+  guest.self = 1;
+  applySnapshot(guest, JSON.parse(JSON.stringify(snapshot(host))));
+  assert.deepEqual(guest.endless.docks.map((d) => [d.state, d.off]), host.endless.docks.map((d) => [d.state, d.off]));
+  assert.equal(guest.walls.length, host.walls.length, 'gates and trucks are mirrored as walls');
+  assert.equal(guest.endless.arrived, host.endless.arrived);
+  const pr = createPredictor();
+  pr.reset(guest);
+  pr.step(guest, { up: true }, 1 / 60, 0);
+  assert.ok(pr.ready);
+}
+
 // Endless mode: incoming trucks bring 2x3 stacks to the west wall, a full delivery truck closes its gate, drives off and is replaced;
 // the game ends when a new incoming truck is due and every west bay is still occupied.
 {

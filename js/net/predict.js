@@ -3,6 +3,7 @@
 // carries the host's version of the truck; it is compared with what the prediction was one round trip ago and the difference
 // is blended away (or snapped when it is large, e.g. after a collision with another truck).
 import { newGame, update, forkUp, forkDown } from '../game.js';
+import { newEndless } from '../endless.js';
 
 const STEP = 1 / 120;
 const HISTORY = 2; // seconds of predicted states kept for comparing with snapshots
@@ -41,12 +42,13 @@ export function createPredictor() {
     sim.started = g.started;
     sim.status = g.status;
     sim.hits = [];
+    if (g.endless) { sim.walls = g.walls; sim.pillars = g.pillars; } // the moving trucks and gates of the endless warehouse
   }
 
   return {
     get ready() { return !!pred; },
     reset(g) {
-      sim = newGame(g.level, g.seed, g.hard);
+      sim = g.endless ? newEndless(g.seed, g.hard) : newGame(g.level, g.seed, g.hard);
       sim.self = g.self;
       sim.stacks = structuredClone(g.stacks);
       sim.trucks = structuredClone(g.trucks);
