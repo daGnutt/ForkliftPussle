@@ -84,6 +84,7 @@ footer b { color: var(--accent); }
 #menu label { cursor: pointer; } #menu label input { vertical-align: middle; }
 #menu #menuGoto { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
 #menu #menuLevel { width: 4.5em; font: inherit; }
+#menu label.sub { margin-left: 22px; }
 #menu label.row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 #menu label[hidden] { display: none; }
 #menu select { max-width: 60%; }
