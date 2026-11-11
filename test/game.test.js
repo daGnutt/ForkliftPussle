@@ -1567,6 +1567,23 @@ console.log('all tests passed');
   console.log('stack landing ok');
 }
 
+// A truck spawning on top of a stack passes through it until it has driven off.
+{
+  const g = newGame(3, 0, false);
+  g.stacks.push({ x: g.fl.x, y: g.fl.y, layers: [0] });
+  g.trucks[0].gone = true;
+  const j = addTruck(g, 'B');
+  const st = g.stacks.find((q) => q.ghost);
+  assert.ok(st, 'a stack under a spawning truck is ghosted');
+  const x0 = st.x, y0 = st.y;
+  g.self = j;
+  for (let i = 0; i < 60; i++) update(g, { up: true }, 1 / 120);
+  assert.equal(st.x, x0, 'the ghost stack is not pushed');
+  assert.equal(st.y, y0);
+  for (let i = 0; i < 600; i++) update(g, { up: true }, 1 / 120);
+  assert.ok(!g.stacks.some((q) => q.ghost?.includes(j)), 'the stack turns solid once the truck has left it');
+}
+
 // Endless mode in a party: the snapshot carries the trucks and gates, and the guest's prediction shares the moving walls.
 {
   const host = newEndless(5);

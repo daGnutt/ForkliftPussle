@@ -150,7 +150,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Party / party code** | A hosted multiplayer game and its 5-character join code | `mp.code`, `#partyCode` |
 | **Host / guest** | Host runs the game; guests send input and render snapshots | `createHost`, `createGuest` |
 | **Truck colour** | Per-player palette (yellow, red, blue, green) | `TRUCK_COLORS`, `truckColor` |
-| **Ghost** | Translucent truck that overlaps another at spawn; not solid until separated | `isGhost`, `ghostBetween` |
+| **Ghost** | Translucent truck that overlaps another truck (or a stack, `s.ghost`) at spawn; not solid until separated | `isGhost`, `ghostBetween` |
 | **Handoff** | Taking or giving a carried stack via tines | `transferCarried` |
 | **Multiplayer page** | Menu page for hosting, roster, ping, kick/ban | `#mpList`, `renderMpPage` |
 | **Kick / ban** | Host removes a guest; a ban refuses that name for the party | `host.kick` |

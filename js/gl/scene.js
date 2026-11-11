@@ -375,8 +375,11 @@ function addDisco(om, g, eye) {
 export function dynamicMeshes(g, mode, eye) {
   const om = new Mesh(), tm = new Mesh();
   for (const st of g.stacks) {
-    addStack(om, tm, st.x, st.y, st.rots || [], st.layers, stackZ(g, st), st.offs, st.dropFrom ?? 0,
+    const ghost = st.ghost?.includes(g.truck.id);
+    if (ghost) tm.alpha = 0.4;
+    addStack(ghost ? tm : om, tm, st.x, st.y, st.rots || [], st.layers, stackZ(g, st), st.offs, st.dropFrom ?? 0,
       dropLift(g, st), st.pen);
+    tm.alpha = 1;
   }
   addCarried(om, tm, g);
   for (const t of otherTrucks(g)) {

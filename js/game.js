@@ -102,7 +102,23 @@ const trucksOverlap = (a, b) => {
 export const ghostBetween = (g, i, j) => g.root.ghostPairs.some(([a, b]) => (a === i && b === j) || (a === j && b === i));
 export const isGhost = (g, i) => g.root.ghostPairs.some((p) => p.includes(i));
 
+// Stacks under a truck that spawns carry `ghost` = [truck ids]: those trucks pass through them (drawn translucent) until clear.
+const stackUnder = (t, s) => sat(bodyPoly(t), rectPoly(s.x, s.y, 0.5, 0.5, s.a || 0));
+function markSpawnStacks(g, i) {
+  const t = g.trucks[i];
+  for (const s of g.stacks) {
+    if (s.ghost) s.ghost = s.ghost.filter((j) => j !== i);
+    if (stackUnder(t, s)) (s.ghost ||= []).push(i);
+    if (s.ghost && !s.ghost.length) delete s.ghost;
+  }
+}
+
 function updateGhosts(g) {
+  for (const s of g.stacks) {
+    if (!s.ghost) continue;
+    s.ghost = s.ghost.filter((j) => g.trucks[j] && !g.trucks[j].gone && stackUnder(g.trucks[j], s));
+    if (!s.ghost.length) delete s.ghost;
+  }
   g.ghostPairs = g.ghostPairs.filter(([a, b]) => {
     const ta = g.trucks[a], tb = g.trucks[b];
     return ta && tb && !ta.gone && !tb.gone && trucksOverlap(ta, tb);
@@ -122,6 +138,7 @@ export function addTruck(g, name = '', slot = -1) {
   g.trucks[i] = t;
   g.ghostPairs = g.ghostPairs.filter((p) => !p.includes(i));
   g.trucks.forEach((o, j) => { if (j !== i && !o.gone && trucksOverlap(t, o)) g.ghostPairs.push([j, i]); });
+  markSpawnStacks(g, i);
   return i;
 }
 
@@ -357,6 +374,7 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
     clock: 0,
   };
   bindTrucks(g);
+  markSpawnStacks(g, 0);
   return g;
 }
 
@@ -483,7 +501,7 @@ function resolve(g) {
     }
 
     for (const s of g.stacks) {
-      if (Math.abs(s.x - f.x) > 5 || Math.abs(s.y - f.y) > 5) continue;
+      if (Math.abs(s.x - f.x) > 5 || Math.abs(s.y - f.y) > 5 || s.ghost?.includes(g.truck.id)) continue;
       const wf = 1 / FORKLIFT_MASS;
       for (const sh of shapes) {
         if (!sh.stackFilter || !sh.stackFilter(s)) continue;

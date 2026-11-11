@@ -124,7 +124,7 @@ export function newEndless(seed = 0, hard = false) {
   }
   const layout = {
     w: ENDLESS_W, h: ENDLESS_H, walls: outerWalls(), charger: null, zones, areas, bays: [], doors: [], stacks: [],
-    start: { x: WX + WH_W / 2, y: WH_H / 2, a: -Math.PI / 2 },
+    start: { x: WX + WH_W / 2, y: 2.2, a: Math.PI / 2 },
   };
   const g = gameFromLayout(layout, 0, seed, hard);
   g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, arriveT: DOCK_ARRIVE_T, wBoxes: RATE_PRIOR * RATE_PRIOR_T, wBusy: RATE_PRIOR_T, waiting: 0, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, over: false, bays, docks };
