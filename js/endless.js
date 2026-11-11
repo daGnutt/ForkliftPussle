@@ -179,7 +179,7 @@ export function stepEndless(g, dt) {
 // bright while intact and dark while broken.
 export function beltArt(b, broken = false) {
   const out = [];
-  let z = 1; // the belt's top is one level up; the south face, grabbing-zone chevrons, pit and fence stand on the floor
+  let z = 1; // the belt's top is one level up; the south face, grabbing-zone stripes, pit and fence stand on the floor
   const rect = (x, y, w, h, fill) => out.push({ pts: [[x, y], [x + w, y], [x + w, y + h], [x, y + h]], fill, z });
   const cy = (b.y0 + b.y1) / 2, h = (b.y1 - b.y0) / 2;
   rect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, '#3b3f45');
