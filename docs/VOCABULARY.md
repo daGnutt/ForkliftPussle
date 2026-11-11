@@ -84,6 +84,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Dent / crumple** | Cosmetic damage shape on a box | `dents.js` |
 | **Final score** | Score minus time penalty, submitted to the high scores | `finalScore` |
 | **Local / global top list** | Local top 10 / online top 10 per seed+level | `highscores.js`, `globalscores.js` |
+| **Endless save** | Autosaved endless game in progress, resumed by Start endless after a browser restart; game over clears it | `forklift-endless-state`, `serializeEndless` |
 | **Skid marks / smoke** | Splash-animation effects | `splash.js` |
 
 ## Decals (cosmetic)

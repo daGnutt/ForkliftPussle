@@ -3,7 +3,7 @@ import { generateLevel, parseSeed, isReachable } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
-import { serializeGame, deserializeGame, encodeState, decodeState } from '../js/savestate.js';
+import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
 import { povCamera, overviewCamera, chaseCamera, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { projectPoint } from '../js/gl/mat.js';
@@ -1645,5 +1645,21 @@ console.log('all tests passed');
   }
   assert.ok(unloadRate(fast.endless) > unloadRate(slow.endless), 'removing boxes raises the measured rate');
   assert.ok(interval(fast.endless, 12) < interval(slow.endless, 12));
+
+  // a saved endless game resumes exactly, also through JSON
+  const a = newEndless(7);
+  a.fl.x = 20; a.fl.y = 7; a.fl.a = 0;
+  for (let i = 0; i < 40 * 60; i++) { update(a, NONE, 1 / 60); stepEndless(a, 1 / 60); }
+  a.endless.points = 12;
+  const r = deserializeEndless(JSON.parse(JSON.stringify(serializeEndless(a))));
+  assert.equal(r.stacks.length, a.stacks.length);
+  assert.equal(r.endless.points, 12);
+  assert.deepEqual(r.endless.docks.map((o) => [o.state, o.off, o.cargo.length]), a.endless.docks.map((o) => [o.state, o.off, o.cargo.length]));
+  assert.ok(r.endless.docks.every((o, i) => o.cargo.every((c) => r.stacks.includes(c))), 'cargo points into the restored stacks');
+  assert.equal(r.walls.length, a.walls.length);
+  for (let i = 0; i < 30 * 60; i++) { update(a, NONE, 1 / 60); stepEndless(a, 1 / 60); update(r, NONE, 1 / 60); stepEndless(r, 1 / 60); }
+  assert.deepEqual(r.stacks.map((q) => [q.x, q.y, q.layers]), a.stacks.map((q) => [q.x, q.y, q.layers]), 'the resumed game continues identically');
+  a.status = 'over';
+  assert.throws(() => deserializeEndless(serializeEndless(a)), 'a finished game is not resumable');
   console.log('endless ok');
 }

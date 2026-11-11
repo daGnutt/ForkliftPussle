@@ -8,7 +8,7 @@ import { createGuest } from './net/guest.js';
 import { applySnapshot } from './net/protocol.js';
 import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
-import { serializeGame, deserializeGame, encodeState, decodeState } from './savestate.js';
+import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
@@ -57,25 +57,33 @@ function loadSaved() {
 }
 loadSaved();
 // Local best now; global top fetched in the background (stale replies are ignored).
+// Endless scores live on level 0 of the seed's boards.
+const boardLevel = () => (game.endless ? 0 : level);
 function refreshGlobal() {
-  const board = `${seed || 0}:${level}`;
+  const board = `${seed || 0}:${boardLevel()}`;
   fetchTopList(board).then((list) => {
-    if (board !== `${seed || 0}:${level}`) return;
+    if (board !== `${seed || 0}:${boardLevel()}`) return;
     view.global = list === null ? 'offline' : list[0] || 'none';
     view.globalList = list;
   });
 }
 function refreshBest() {
-  view.best = getBest(localStorage, seed, level);
-  view.localList = getTop(localStorage, seed, level);
+  view.best = getBest(localStorage, seed, boardLevel());
+  view.localList = getTop(localStorage, seed, boardLevel());
   view.global = 'loading';
   view.globalList = undefined;
   refreshGlobal();
 }
 // Party state: null when playing alone, else { role: 'host' | 'guest', code, name, host | guest, go }. A guest mirrors the host's game and never steps it.
 let mp = null;
+const ENDLESS_KEY = 'forklift-endless-state';
 function saveState() {
-  if (mp || game.endless) return;
+  if (mp) return;
+  if (game.endless) {
+    if (game.status === 'over') localStorage.removeItem(ENDLESS_KEY);
+    else localStorage.setItem(ENDLESS_KEY, JSON.stringify(serializeEndless(game)));
+    return;
+  }
   localStorage.setItem('forklift-state', JSON.stringify(serializeGame(game, seedText)));
 }
 const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
@@ -115,11 +123,21 @@ function load(n) {
   refreshBest();
   saveState();
 }
-function loadEndless() {
+// Resumes the saved endless game of this seed and mode unless `fresh`.
+function loadEndless(fresh = false) {
   if (mp) return;
   if (recordOpen) closeRecord();
-  recorded = true;
-  game = newEndless(seed, hard);
+  recorded = false;
+  game = null;
+  if (!fresh) {
+    try {
+      const data = JSON.parse(localStorage.getItem(ENDLESS_KEY));
+      if (data && data.seed === seed && !!data.hard === hard) game = deserializeEndless(data);
+    } catch { localStorage.removeItem(ENDLESS_KEY); }
+  }
+  game ||= newEndless(seed, hard);
+  refreshBest();
+  saveState();
   doneZones = doneSet();
   hitCount = game.hitCount;
   bonkCount = game.bonks;
@@ -155,7 +173,7 @@ document.addEventListener('fullscreenchange', wakeCursor);
 
 function nextLevel() {
   if (game.status === 'won') load(level + 1);
-  else if (game.endless && game.status === 'over') loadEndless();
+  else if (game.endless && game.status === 'over') loadEndless(true);
 }
 
 function toggleChase() {
@@ -293,18 +311,39 @@ document.getElementById('recordForm').addEventListener('submit', (e) => {
   // addTop first: getTop falls back to the saved best, which would duplicate the new entry
   addTop(localStorage, pending.seed, pending.level, { ...pending.result, name });
   saveBest(localStorage, pending.seed, pending.level, { ...pending.result, name });
-  if (pending.level === level && pending.seed === seed) {
-    view.best = getBest(localStorage, seed, level);
-    view.localList = getTop(localStorage, seed, level);
+  if (pending.level === boardLevel() && pending.seed === seed) {
+    view.best = getBest(localStorage, seed, boardLevel());
+    view.localList = getTop(localStorage, seed, boardLevel());
   }
   closeRecord();
   syncScores(localStorage).then(() => refreshGlobal());
 });
 
+// Game over in endless mode: the run's points go to the local and global lists (level 0 of the seed).
+function recordEndless() {
+  localStorage.removeItem(ENDLESS_KEY);
+  const result = { score: game.endless.points, time: game.time };
+  if (!result.score) return;
+  if (!beats(result, getBest(localStorage, seed, 0))) {
+    if (addTop(localStorage, seed, 0, { ...result, name: localStorage.getItem('forklift-player') || 'Anonymous' })) view.localList = getTop(localStorage, seed, 0);
+    syncScores(localStorage).then(refreshGlobal);
+    return;
+  }
+  Object.assign(pending, { seed, level: 0, result });
+  document.getElementById('recordInfo').textContent = `Endless: ${game.endless.delivered} trucks, ${game.endless.boxes} boxes, ${result.score} points (${formatTime(result.time)})`;
+  recordName.value = localStorage.getItem('forklift-player') || '';
+  recordOpen = true;
+  recordEl.classList.remove('hide');
+  input.clear();
+  const touch = window.matchMedia('(pointer: coarse)').matches;
+  if (!(touch && recordName.value)) recordName.focus();
+}
+
 function checkRecord() {
-  if (game.status !== 'won' || recorded) return;
+  if ((game.status !== 'won' && !(game.endless && game.status === 'over')) || recorded) return;
   recorded = true;
   if (mp?.role === 'guest') return; // the host submits the shared score
+  if (game.endless) { recordEndless(); return; }
   if (mp && liveTrucks(game).length > 1) {
     const players = game.trucks.filter((t) => !t.gone).map((t) => t.name || 'Player');
     submitPartyScore(partyBoard(seed, level, players.length), { name: mp.name, points: finalScore(score(game), game.time), time: game.time, level, party: { players, partyCode: mp.code, hostToken: mp.host.token } });
@@ -405,7 +444,7 @@ function startGame(endless = false) {
     load(level);
   }
   if (endless && !mp) loadEndless();
-  refreshBest();
+  else refreshBest();
   if (tutorialOpt.checked) {
     localStorage.removeItem('forklift-tutorial-done');
     tutStep = 0;
@@ -774,11 +813,11 @@ document.getElementById('menuRestart').addEventListener('click', () => {
   hard = menuHardOpt.checked;
   localStorage.setItem('forklift-hard', hard ? '1' : '0');
   hardOpt.checked = hard;
-  if (game.endless) loadEndless(); else load(level);
+  if (game.endless) loadEndless(true); else load(level);
   toggleMenu(false);
 });
 document.getElementById('menuEndless').addEventListener('click', () => {
-  loadEndless();
+  if (!game.endless) loadEndless();
   toggleMenu(false);
 });
 // While the menu is open it swallows all keys (so the game keys do nothing); Tab/Space/Enter still work on its controls.

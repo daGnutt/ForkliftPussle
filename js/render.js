@@ -683,7 +683,7 @@ function drawTopLists(ctx, view, cx, y, width) {
 // Shown on a freshly loaded level until the truck first moves.
 function drawStartBoard(ctx, g, view, width, height) {
   const title = g.endless ? 'Endless mode' : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`;
-  const h = 40 + 18 * 11 + 22, y = Math.max(10, height * 0.12);
+  const h = 40 + 18 * 11 + 22 + (g.endless ? 150 : 0), y = Math.max(10, height * 0.12);
   const w = Math.min(width - 20, 560);
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect((width - w) / 2, y, w, h);
@@ -696,6 +696,7 @@ function drawStartBoard(ctx, g, view, width, height) {
     ctx.font = '16px sans-serif';
     ['Trucks bring stacks to the west and east walls.', 'Stack four of a colour on each of the six spots', 'of that colour\'s delivery truck (south). A full truck', 'drives off and is replaced.', `All ${DOCKS} incoming bays still full when the next one arrives: game over.`]
       .forEach((t, i) => ctx.fillText(t, width / 2, y + 60 + i * 24));
+    drawTopLists(ctx, view, width / 2, y + 190, w / 2);
     return;
   }
   drawTopLists(ctx, view, width / 2, y + 40, w / 2);
@@ -1022,7 +1023,7 @@ export function draw(ctx, g, view) {
   if (g.status === 'over') {
     const E = g.endless;
     ctx.fillStyle = 'rgba(0,0,0,0.65)';
-    ctx.fillRect(0, height / 2 - 90, width, 180);
+    ctx.fillRect(0, height / 2 - 90, width, 180 + 210);
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
@@ -1031,6 +1032,7 @@ export function draw(ctx, g, view) {
     ctx.font = '20px sans-serif';
     ctx.fillText(`${E.delivered} trucks delivered, ${E.boxes} boxes, ${E.points} points, ${formatTime(g.time)}`, width / 2, height / 2);
     ctx.fillText(view.touch ? 'Tap to play again' : 'Press Enter to play again', width / 2, height / 2 + 40);
+    drawTopLists(ctx, view, width / 2, height / 2 + 70, width / 2);
   }
   if (g.status === 'won') {
     const lost = lostBreakdown(g);

@@ -1,4 +1,5 @@
 import { newGame } from './game.js';
+import { newEndless, endlessSnapshot, restoreEndless } from './endless.js';
 import { MAX_H, MAX_LAYERS } from './forklift.js';
 
 const SAVE_VERSION = 1;
@@ -18,12 +19,7 @@ export function serializeGame(g, seedText = '') {
   return { version: SAVE_VERSION, level: g.level, seed: g.seed, seedText, hard: g.hard, state };
 }
 
-// Returns a new game from a snapshot, or throws if the data is not a valid snapshot.
-export function deserializeGame(data) {
-  if (!data || data.version !== SAVE_VERSION || !data.state) throw new Error('Unknown save format');
-  const { level, seed, hard, state: s } = data;
-  if (!Number.isInteger(level) || level < 1 || !num(seed)) throw new Error('Bad level or seed');
-  const g = newGame(level, seed, !!hard);
+function checkState(s) {
   const okFl = s.fl && ['x', 'y', 'a', 'speed', 'steer'].every((k) => num(s.fl[k]));
   const opt = (a, n, ok) => a === undefined || arr(a, n, ok); // stacks' rots/offs/pen are rebuilt by ensure() when absent
   const okStacks = Array.isArray(s.stacks) && s.stacks.every((st) => !!st && num(st.x) && num(st.y) && Array.isArray(st.layers) && st.layers.length > 0 && st.layers.length <= MAX_LAYERS && st.layers.every(Number.isInteger)
@@ -32,6 +28,15 @@ export function deserializeGame(data) {
     && arr(s.carriedRots, s.carried.length, okRot) && arr(s.carriedOffs, s.carried.length, okOff) && arr(s.carriedPen, s.carried.length, okPen));
   if (!okFl || !okStacks || !okCarried || !Number.isInteger(s.H) || s.H < 0 || s.H > MAX_H) throw new Error('Corrupt state');
   if (s.status !== 'play' && s.status !== 'won') throw new Error('Corrupt state');
+}
+
+// Returns a new game from a snapshot, or throws if the data is not a valid snapshot.
+export function deserializeGame(data) {
+  if (!data || data.version !== SAVE_VERSION || !data.state) throw new Error('Unknown save format');
+  const { level, seed, hard, state: s } = data;
+  if (!Number.isInteger(level) || level < 1 || !num(seed)) throw new Error('Bad level or seed');
+  const g = newGame(level, seed, !!hard);
+  checkState(s);
   const boxes = (stacks, carried) => stacks.reduce((n, st) => n + st.layers.length, 0) + (carried ? carried.length : 0);
   if (boxes(s.stacks, s.carried) !== boxes(g.stacks, null)) throw new Error('State does not match level');
   Object.assign(g, clone(s));
@@ -64,4 +69,29 @@ export async function decodeState(text) {
   const bin = atob(t.replace(/\s+/g, ''));
   const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
   return JSON.parse(new TextDecoder().decode(await pipe(bytes, new DecompressionStream('deflate-raw'))));
+}
+
+const ENDLESS_VERSION = 1;
+
+// Snapshot of an endless game in progress (the static layout is rebuilt by newEndless).
+export function serializeEndless(g) {
+  const state = {};
+  for (const k of DYNAMIC) state[k] = clone(g[k]);
+  return { version: ENDLESS_VERSION, seed: g.seed, hard: g.hard, state, endless: clone(endlessSnapshot(g)) };
+}
+
+// Returns the resumed endless game, or throws if the data is not a valid snapshot.
+export function deserializeEndless(data) {
+  if (!data || data.version !== ENDLESS_VERSION || !data.state || !data.endless || !num(data.seed)) throw new Error('Unknown save format');
+  const s = data.state;
+  checkState(s);
+  if (s.status !== 'play') throw new Error('Corrupt state');
+  const g = newEndless(data.seed, !!data.hard);
+  Object.assign(g, clone(s));
+  if (!num(g.hf)) g.hf = g.H;
+  if (!num(g.time)) g.time = 0;
+  if (!num(g.bonks)) g.bonks = 0;
+  g.started = false; // the start board (with the high scores) shows until the truck moves again
+  restoreEndless(g, clone(data.endless));
+  return g;
 }

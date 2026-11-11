@@ -332,3 +332,28 @@ export function truckFloorArt(r) {
   if (r.along) return [out[0], ...Array.from({ length: Math.round(r.h / 0.5) - 1 }, (_, i) => { const y = r.y + ((i + 1) * r.h) / Math.round(r.h / 0.5); return { pts: [[r.x, y - 0.015], [r.x + r.w, y - 0.015], [r.x + r.w, y + 0.015], [r.x, y + 0.015]], fill: '#5e4527' }; })];
   return out;
 }
+
+const scalars = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => typeof v !== 'object' && typeof v !== 'function'));
+
+// Plain data of the endless-mode state; the cargo of a truck is stored as indices into `g.stacks`.
+export function endlessSnapshot(g) {
+  const e = g.endless;
+  const truck = (o) => ({ ...scalars(o), cargo: (o.cargo || []).map((s) => g.stacks.indexOf(s)).filter((i) => i >= 0) });
+  return { ...scalars(e), bays: e.bays.map(truck), docks: e.docks.map(truck) };
+}
+
+// Inverse of `endlessSnapshot` on a fresh `newEndless` game whose stacks are already restored.
+export function restoreEndless(g, snap) {
+  const e = g.endless;
+  if (!snap.bays || snap.bays.length !== e.bays.length || !snap.docks || snap.docks.length !== e.docks.length) throw new Error('State does not match endless layout');
+  const apply = (o, { cargo, ...rest }) => {
+    for (const k in rest) if (typeof o[k] === typeof rest[k]) o[k] = rest[k];
+    o.cargo = cargo.map((i) => g.stacks[i]).filter(Boolean);
+  };
+  const { bays, docks, ...rest } = snap;
+  for (const k in rest) if (typeof e[k] === typeof rest[k]) e[k] = rest[k];
+  bays.forEach((s, i) => apply(e.bays[i], s));
+  docks.forEach((s, i) => apply(e.docks[i], s));
+  for (const b of e.bays) place(g, b);
+  for (const d of e.docks) placeDock(g, d);
+}
