@@ -34,9 +34,10 @@ const circlePts = (u, v, r, n = 18) => Array.from({ length: n }, (_, i) => [u + 
 export function wallCaps(g, [nx, ny, d, z]) {
   const m = new Mesh();
   if (z >= WALL_H) return m;
-  const col = parseColor('#6d737a');
+  const grey = parseColor('#6d737a');
   for (const w of g.walls) {
     if (w.charger) continue;
+    const col = w.truck ? parseColor(COLORS[w.truck.color]) : grey;
     const pts = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]], out = [];
     for (let i = 0; i < 4; i++) {
       const a = pts[i], b = pts[(i + 1) % 4], da = nx * a[0] + ny * a[1] - d, db = nx * b[0] + ny * b[1] - d;
@@ -48,6 +49,21 @@ export function wallCaps(g, [nx, ny, d, z]) {
   return m;
 }
 
+// Delivery truck panels: sides/cab in the bay colour on a dark skirt with wheels, rear doors (the gate) in light grey.
+const TRUCK_SKIRT = 0.45;
+function addTruckPart(sm, w) {
+  const { color, part } = w.truck, cx = w.x + w.w / 2, cy = w.y + w.h / 2, hl = w.w / 2, hw = w.h / 2;
+  const body = part === 'gate' ? '#b9bec5' : part === 'back' ? shade(parseColor(COLORS[color]), 0.7) : parseColor(COLORS[color]);
+  sm.cuboid(cx, cy, 0, hl, hw, 0, TRUCK_SKIRT, '#26292e', { top: false });
+  sm.cuboid(cx, cy, 0, hl, hw, TRUCK_SKIRT, WALL_H, body, { bottom: false });
+  if (part === 'gate') sm.cuboid(cx, cy, 0, hl - 0.15, hw + 0.01, 1, 1.15, '#7b8088', { top: false, bottom: false });
+  if (part === 'back') sm.cuboid(cx, cy, 0, hl - 0.2, hw + 0.01, 2.6, 3.4, '#1d2a38', { top: false, bottom: false }); // cab window
+  if (part === 'left' || part === 'right') {
+    const out = part === 'left' ? -1 : 1;
+    for (const y of [w.y + 0.9, w.y + w.h - 0.9]) sm.wheel(cx + out * (hl + 0.05), y, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
+  }
+}
+
 // One wall rectangle: sides in 1-tile segments with a checker tint, plus decals in cabin mode.
 function addWall(sm, tm, g, w, mode) {
   const top = WALL_H;
@@ -57,6 +73,7 @@ function addWall(sm, tm, g, w, mode) {
     addChargerSigns(tm, w);
     return;
   }
+  if (w.truck) { addTruckPart(sm, w); return; }
   const p = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]];
   for (let i = 0; i < 4; i++) {
     const [ax, ay] = p[i], [bx, by] = p[(i + 1) % 4];

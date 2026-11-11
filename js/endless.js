@@ -65,8 +65,8 @@ export function newEndless(seed = 0, hard = false) {
   for (const b of bays) {
     const r = bayRects(b.x0, 0);
     // each wall is one object shared by `walls` (collision) and `pillars` (drawing), so moving it updates both
-    for (const n of ['left', 'right', 'back']) { const w = {}; setRect(w, r[n]); b.parts[n] = w; g.walls.push(w); g.pillars.push(w); }
-    b.parts.gate = {}; // only part of the walls while the gate is closed
+    for (const n of ['left', 'right', 'back']) { const w = { truck: { color: b.k, part: n } }; setRect(w, r[n]); b.parts[n] = w; g.walls.push(w); g.pillars.push(w); }
+    b.parts.gate = { truck: { color: b.k, part: 'gate' } }; // only part of the walls while the gate is closed
     setRect(b.parts.gate, r.gate);
   }
   return g;

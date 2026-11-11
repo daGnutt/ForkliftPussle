@@ -523,6 +523,7 @@ function drawWorldObjects(ctx, g, vis) {
   ctx.fillStyle = theme().wall;
   for (const w of g.pillars) {
     if (!seen(w.x, w.y, w.w, w.h)) continue;
+    if (w.truck) { drawTruckPart(ctx, w); continue; }
     ctx.fillRect(w.x, w.y, w.w, w.h);
     ctx.strokeStyle = theme().wallEdge;
     ctx.lineWidth = 0.06;
@@ -532,6 +533,24 @@ function drawWorldObjects(ctx, g, vis) {
   ctx.strokeStyle = '#555';
   ctx.lineWidth = 0.3;
   ctx.strokeRect(-0.15, -0.15, g.w + 0.3, g.h + 0.3);
+}
+
+// A delivery truck panel in its bay colour: dark wheels stick out of the sides, the cab is darker, the rear doors (gate) light grey.
+function drawTruckPart(ctx, w) {
+  const { color, part } = w.truck;
+  if (part === 'left' || part === 'right') {
+    ctx.fillStyle = '#15171a';
+    const wx = part === 'left' ? w.x - 0.1 : w.x + w.w - 0.1;
+    for (const y of [w.y + 0.5, w.y + w.h - 1.3]) ctx.fillRect(wx, y, 0.2, 0.8);
+  }
+  ctx.fillStyle = part === 'gate' ? '#b9bec5' : COLORS[color];
+  ctx.fillRect(w.x, w.y, w.w, w.h);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  if (part === 'back') ctx.fillRect(w.x, w.y, w.w, w.h);
+  ctx.strokeStyle = '#1f2226';
+  ctx.lineWidth = 0.06;
+  ctx.strokeRect(w.x, w.y, w.w, w.h);
+  if (part === 'gate') { ctx.beginPath(); ctx.moveTo(w.x + w.w / 2, w.y); ctx.lineTo(w.x + w.w / 2, w.y + w.h); ctx.stroke(); }
 }
 
 // The truck charger: a red block with a high-voltage warning sign (a bolt in a yellow triangle).
