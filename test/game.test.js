@@ -1428,6 +1428,17 @@ console.log('all tests passed');
   assert.equal(welcomes, 2, 'the guest was told about the new level');
   assert.equal(guestGame.level, 8);
 
+  // a reloaded page rejoins under the same name before the old link is noticed dead: it takes over the old slot
+  const reloaded = createGuest({ relay, code: 'abcde', name: 'Bob', linkFactory, onGame: () => {}, onClosed: () => {} });
+  await reloaded.join();
+  for (let i = 0; i < 6; i++) await tick();
+  assert.equal(reloaded.slot, 1, 'the rejoining guest gets its old slot back');
+  assert.equal(h.players().filter((p) => p.name === 'Bob').length, 1, 'no duplicate Bob');
+  reloaded.close();
+  for (let i = 0; i < 4; i++) await tick();
+  assert.equal(host.trucks[1].gone, true);
+  closedWith = null;
+
   // a guest leaving frees the truck; the host closing ends the party
   guest.close();
   for (let i = 0; i < 4; i++) await tick();

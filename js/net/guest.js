@@ -35,7 +35,7 @@ export function createGuest({ relay, code, name, onGame, onClosed, linkFactory =
           else if (msg.t === 'gpong') rtt += (Math.max(0, clock() - msg.n) - rtt) * 0.3;
           else if (msg.t === 'welcome' || msg.t === 'level') {
             if (msg.t === 'welcome') slot = msg.slot;
-            interp.reset();
+            interp.reset(msg.snap?.stacks);
             if (msg.t === 'welcome') lastGping = -Infinity;
             onGame({ slot, started: true, ...msg }); // a level message means the host is playing
           } else if (msg.t === 'ping') link.sendReliable({ t: 'pong', n: msg.n });

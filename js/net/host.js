@@ -30,6 +30,8 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
     if (msg.t === 'hello' && m.slot < 0) {
       m.name = String(msg.name || 'Player').slice(0, 24);
       if (banned.has(m.name.toLowerCase())) { m.link.sendReliable({ t: 'bye', reason: 'banned' }); drop(peer); return; }
+      // a reloaded page rejoins before the host notices the old connection is dead: the stale one is replaced
+      for (const [p, o] of members) if (p !== peer && o.slot > 0 && o.name?.toLowerCase() === m.name.toLowerCase()) drop(p);
       const slot = addTruck(g, m.name);
       if (slot < 0) { m.link.sendReliable({ t: 'bye', reason: 'full' }); drop(peer); return; }
       m.slot = slot;
