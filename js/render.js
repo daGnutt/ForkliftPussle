@@ -1,5 +1,5 @@
 import { COLORS } from './level.js';
-import { truckPaint, truckGeom, truckFloorArt, yardRects, truckBays, DOCKS } from './endless.js';
+import { truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays, DOCKS } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
@@ -422,17 +422,17 @@ function paintFloor(ctx, g, vis) {
       pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
       ctx.fill();
     }
-    if (t.ramp) {
-      ctx.fillStyle = '#7b8088';
-      ctx.fillRect(t.ramp.x, t.ramp.y, t.ramp.w, t.ramp.h);
-      ctx.fillStyle = '#f4c414';
-      if (t.ramp.east) {
-        ctx.fillRect(t.ramp.x, t.ramp.y, t.ramp.w, 0.12);
-        ctx.fillRect(t.ramp.x, t.ramp.y + t.ramp.h - 0.12, t.ramp.w, 0.12);
-      } else {
-        ctx.fillRect(t.ramp.x, t.ramp.y, 0.12, t.ramp.h);
-        ctx.fillRect(t.ramp.x + t.ramp.w - 0.12, t.ramp.y, 0.12, t.ramp.h);
-      }
+  }
+  for (const r of rampDecals(g)) {
+    ctx.fillStyle = '#7b8088';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.fillStyle = '#f4c414';
+    if (r.east) {
+      ctx.fillRect(r.x, r.y, r.w, 0.12);
+      ctx.fillRect(r.x, r.y + r.h - 0.12, r.w, 0.12);
+    } else {
+      ctx.fillRect(r.x, r.y, 0.12, r.h);
+      ctx.fillRect(r.x + r.w - 0.12, r.y, 0.12, r.h);
     }
   }
   for (const a of g.areas) {

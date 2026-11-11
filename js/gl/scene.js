@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { truckPaint, truckGeom, truckFloorArt, yardRects, truckBays } from '../endless.js';
+import { truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays } from '../endless.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
@@ -77,21 +77,12 @@ function addTruckPart(sm, w) {
   }
 }
 
-// Small loading ramp in front of an open truck: a wedge rising from the floor to the truck's floor level.
-function addRamp(sm, r) {
-  const h = 0.12, c = parseColor('#7b8088'), x1 = r.x + r.w, y1 = r.y + r.h;
-  if (r.east) { // runs along x, rising towards the truck (west of it when side < 0, else east)
-    const dark = shade(c, 0.7), hl = r.side < 0 ? h : 0, hr = r.side < 0 ? 0 : h, n = [-0.12 * r.side, 0, 1];
-    sm.quad([x1, r.y, hr], [x1, y1, hr], [r.x, y1, hl], [r.x, r.y, hl], n, c);
-    sm.quad([r.x, r.y, 0], [x1, r.y, 0], [x1, r.y, hr], [r.x, r.y, hl], [0, -1, 0], dark);
-    sm.quad([x1, y1, 0], [r.x, y1, 0], [r.x, y1, hl], [x1, y1, hr], [0, 1, 0], dark);
-    for (const y of [r.y, y1 - 0.12]) sm.quad([x1, y, hr + 0.001], [x1, y + 0.12, hr + 0.001], [r.x, y + 0.12, hl + 0.001], [r.x, y, hl + 0.001], n, parseColor('#f4c414'));
-    return;
-  }
-  sm.quad([r.x, r.y, 0], [x1, r.y, 0], [x1, y1, h], [r.x, y1, h], [0, -0.12, 1], c);
-  sm.quad([r.x, y1, 0], [r.x, r.y, 0], [r.x, y1, h], [r.x, y1, h], [-1, 0, 0], shade(c, 0.7));
-  sm.quad([x1, r.y, 0], [x1, y1, 0], [x1, y1, h], [x1, y1, h], [1, 0, 0], shade(c, 0.7));
-  for (const x of [r.x, x1 - 0.12]) sm.quad([x, r.y, 0.001], [x + 0.12, r.y, 0.001], [x + 0.12, y1, h + 0.001], [x, y1, h + 0.001], [0, -0.12, 1], parseColor('#f4c414'));
+// Ramp: a flat decal (grey with yellow edge stripes) on the floor.
+function addRampDecal(tm, r) {
+  const x1 = r.x + r.w, y1 = r.y + r.h;
+  tm.poly([[r.x, r.y], [x1, r.y], [x1, y1], [r.x, y1]], 0.004, parseColor('#7b8088'));
+  const stripes = r.east ? [[r.x, r.y, x1, r.y + 0.12], [r.x, y1 - 0.12, x1, y1]] : [[r.x, r.y, r.x + 0.12, y1], [x1 - 0.12, r.y, x1, y1]];
+  for (const [ax, ay, bx, by] of stripes) tm.poly([[ax, ay], [bx, ay], [bx, by], [ax, by]], 0.0045, parseColor('#f4c414'));
 }
 
 // One wall rectangle: sides in 1-tile segments with a checker tint, plus decals in cabin mode.
@@ -205,8 +196,8 @@ function addFloor(sm, tm, g, mode) {
   for (const b of truckBays(g)) {
     const t = truckGeom(b);
     truckFloorArt(t.floor).forEach(({ pts, fill }, i) => tm.poly(pts, 0.003 + 0.0005 * (i % 2), parseColor(fill)));
-    if (t.ramp) addRamp(sm, t.ramp);
   }
+  for (const r of rampDecals(g)) addRampDecal(tm, r);
   for (const a of g.areas) {
     const c = parseColor(COLORS[a.color]);
     tm.poly([[a.x - 0.3, a.y - 0.3], [a.x + a.w + 0.3, a.y - 0.3], [a.x + a.w + 0.3, a.y + a.h + 0.3], [a.x - 0.3, a.y + a.h + 0.3]], 0, [c[0], c[1], c[2], 0.12]);

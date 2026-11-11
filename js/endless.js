@@ -141,6 +141,7 @@ export function newEndless(seed = 0, hard = false) {
     for (const [n, part] of [['sideN', 'side'], ['sideS', 'side'], ['back', 'back'], ['cab', 'wcab']]) { const w = { truck: { color: DOCK_COLOR, part } }; setRect(w, r[n]); d.parts[n] = w; }
     d.parts.gate = { truck: { color: DOCK_COLOR, part: 'gate' } }; // closed while no truck stands at the bay
     setRect(d.parts.gate, [dockGateX(d.side), d.y0, WALL, TRUCK_W]);
+    g.walls.push(d.parts.gate); g.pillars.push(d.parts.gate); // closed until a truck arrives
   }
   return g;
 }
@@ -308,14 +309,19 @@ export function stepEndless(g, dt) {
   for (const b of e.bays) stepBay(g, b, dt);
 }
 
-// Visual extras of a truck (all follow the bay as it drives): plank floor, loading ramp (only while the gate is open)
-// (the cab is a solid wall part, `parts.cab`).
+// Plank floor of a truck (follows the bay as it drives; the cab is a solid wall part, `parts.cab`).
 export function truckGeom(b) {
-  const gt = b.parts.gate, a = b.area;
-  return {
-    floor: { x: a.x, y: a.y, w: a.w, h: a.h, along: b.dock },
-    ramp: b.gateClosed ? null : b.dock ? { x: b.side < 0 ? gt.x + gt.w : gt.x - RAMP_D, y: gt.y + 0.4, w: RAMP_D, h: gt.h - 0.8, east: true, side: b.side } : { x: gt.x + 0.4, y: gt.y - RAMP_D, w: gt.w - 0.8, h: RAMP_D },
-  };
+  return { floor: { x: b.area.x, y: b.area.y, w: b.area.w, h: b.area.h, along: b.dock } };
+}
+
+// Permanent flat ramp decals on the warehouse side of every bay (delivery and incoming), whether a truck is there or not.
+// Rects with `east` run along x; `side` is the dock's wall side.
+export function rampDecals(g) {
+  const e = g.endless;
+  if (!e) return [];
+  const out = e.bays.map((b) => { const [gx, gy, gw] = bayRects(b.x0, 0).gate; return { x: gx + 0.4, y: gy - RAMP_D, w: gw - 0.8, h: RAMP_D + WALL }; });
+  for (const d of e.docks) { const gx = dockGateX(d.side); out.push({ x: d.side < 0 ? gx : gx - RAMP_D, y: d.y0 + 0.4, w: RAMP_D + WALL, h: TRUCK_W - 0.8, east: true, side: d.side }); }
+  return out;
 }
 
 // Flat floor art for the truck floor: wooden planks along the truck, as [{ pts, fill }].
