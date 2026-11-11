@@ -43,7 +43,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Parking spot** | Where the forklift starts and must finish; turns green when ready, shows heading arrow | `g.parking`, `isParked` |
 | **Endless mode** | Level-less mode (menu → Game, `?endless`): no win, ends when too many boxes are missed | `newEndless`, `g.endless`, `status:'over'` |
 | **Conveyor belt** | Belt along the north wall carrying single boxes east; boxes reaching the red pit at its end are *missed* | `g.belt`, `stepEndless`, `endless.missed` |
-| **Grabbing zone** | Yellow stripes along the belt's south side (replacing the old grey road) marking where to stand to grab boxes; the belt is one box high, so trucks can't drive onto it (tines still reach) | `beltArt`, `g.lowWalls` |
+| **Grabbing zone** | Yellow chevrons on the floor along the belt's south side marking where to stand to grab boxes; the belt top is at z-level 1, so trucks can't drive onto it and boxes on it are lifted with the tines at level 1 | `beltArt`, `g.lowWalls`, `stackZ` |
 | **Laser fence** | Beam along the truck road's south edge; a forklift (or its forks/load) crossing it pauses the belt so boxes can be picked up and stacks built next to it | `endless.broken`, `belt.beamY` |
 | **Delivery truck / bay** | One per colour: a trailer with four drop points (2×2 slots, 4 boxes each); when full and the forklift is out, the gate closes, it drives off with its load and a new one arrives | `endless.bays`, bay `state` |
 | **Level complete / win** | All zones done + score ≥ 50% + parked | `isFinished`, `status:'won'` |

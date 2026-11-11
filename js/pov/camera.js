@@ -74,8 +74,8 @@ export function fillPoly(ctx, pts, fill, stroke) {
   if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
 }
 
-export function floorPoly(ctx, cam, corners, fill, stroke) {
-  fillPoly(ctx, project(cam, corners.map(([x, y]) => toCam(cam, x, y, 0))), fill, stroke);
+export function floorPoly(ctx, cam, corners, fill, stroke, z = 0) {
+  fillPoly(ctx, project(cam, corners.map(([x, y]) => toCam(cam, x, y, z))), fill, stroke);
 }
 
 // Strokes world-space segments [ax, ay, bx, by] at height z as one path.

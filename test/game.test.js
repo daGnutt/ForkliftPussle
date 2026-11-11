@@ -16,7 +16,7 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { newEndless, stepEndless, MAX_MISSED } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
 
 const NONE = {};
 const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
@@ -1591,6 +1591,19 @@ console.log('all tests passed');
   assert.ok(g.fl.y >= g.lowWalls[0].y + g.lowWalls[0].h - 0.01, 'the truck cannot drive onto the belt');
   g.fl.y = 7; g.fl.a = 0; g.fl.speed = 0;
   step(0.2);
+  // boxes on the belt sit at level 1: tines at level 0 pass under, at level 1 they lift the box
+  g.endless.spawnT = 1e9; g.endless.broken = false;
+  g.stacks = [{ x: 5, y: 1.5, layers: [0] }];
+  assert.equal(stackZ(g, g.stacks[0]), 1);
+  g.fl.a = -Math.PI / 2; g.fl.speed = 0; g.fl.x = 5; g.fl.y = 1.5 + FL.carryX;
+  g.H = 0; g.hf = 0;
+  forkUp(g);
+  assert.ok(!g.carried && g.H === 1, 'tines at level 0 do not take a belt box');
+  forkUp(g);
+  assert.ok(g.carried && g.carried.length === 1 && g.H === 2, 'tines at level 1 lift the belt box');
+  forkDown(g);
+  assert.ok(!g.carried && g.H === 1 && g.stacks.length === 1 && stackZ(g, g.stacks[0]) === 1, 'a lowered box rests on the belt at level 1');
+  g.fl.a = 0; g.fl.x = 13; g.fl.y = 7; g.carried = null; g.H = 0; g.hf = 0; g.stacks = [];
   const bay = g.endless.bays[1];
   g.endless.spawnT = 1e9;
   g.stacks = [];

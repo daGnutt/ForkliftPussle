@@ -12,7 +12,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked, otherTrucks, isGhost } from './game.js';
+import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked, otherTrucks, isGhost, stackZ } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -414,10 +414,13 @@ function paintFloor(ctx, g, vis) {
   }
 
   if (g.belt) {
-    for (const { pts, fill } of beltArt(g.belt, g.endless?.broken)) {
+    // the belt's top is one level up: its footprint shows as the dark side faces left uncovered by the shifted top
+    const lw = g.lowWalls?.[0];
+    if (lw) { ctx.fillStyle = '#1c1e22'; ctx.fillRect(lw.x, lw.y, lw.w, lw.h); }
+    for (const { pts, fill, z } of beltArt(g.belt, g.endless?.broken)) {
       ctx.fillStyle = fill;
       ctx.beginPath();
-      pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      pts.forEach(([x, y], i) => { const px = x + z * PX, py = y + z * PY; if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
       ctx.fill();
     }
   }
@@ -498,9 +501,9 @@ function drawWorldObjects(ctx, g, vis) {
   // Stacks whose top is below the tines are drawn first; stacks the tines
   // slide under are drawn over them.
   const shown = g.stacks.filter((st) => seen(st.x - 1.2, st.y - 1.2, 2.4, 2.4));
-  const low = shown.filter((st) => st.layers.length <= g.hf);
-  const high = shown.filter((st) => st.layers.length > g.hf);
-  const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs, st.pen);
+  const low = shown.filter((st) => stackZ(g, st) + st.layers.length <= g.hf);
+  const high = shown.filter((st) => stackZ(g, st) + st.layers.length > g.hf);
+  const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, stackZ(g, st), st.rots, st.offs, st.pen);
   for (const st of low) dstack(st);
   // other trucks first, so the local one is always on top; ghosts are translucent
   const trucks = [...otherTrucks(g), g];

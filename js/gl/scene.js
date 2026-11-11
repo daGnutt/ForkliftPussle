@@ -5,11 +5,11 @@ import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
-import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked, otherTrucks, isGhost, dropLift } from '../game.js';
+import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked, otherTrucks, isGhost, dropLift, stackZ } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
 import { addParticles } from './particles.js';
-import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
+import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, BOX_H, PAL, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
 
 // Builds the meshes for the WebGL renderer. `mode` is 'pov' (cabin: ceiling, signs) or 'ov' (overview / third person:
 // no ceiling). Walls are always full height; in 'ov' the renderer clips the ones on the camera side of the forklift
@@ -154,7 +154,11 @@ function addFloor(sm, tm, g, mode) {
   for (let x = 0; x <= g.w; x++) tm.poly([[x - gw, 0], [x + gw, 0], [x + gw, g.h], [x - gw, g.h]], 0, grid);
   for (let y = 0; y <= g.h; y++) tm.poly([[0, y - gw], [g.w, y - gw], [g.w, y + gw], [0, y + gw]], 0, grid);
   if (decalsEnabled()) for (const d of floorDecals(g)) tm.poly(d.pts, 0, d.fill);
-  if (g.belt) beltArt(g.belt, g.endless?.broken).forEach(({ pts, fill }, i) => tm.poly(pts, 0.0005 * (i % 4), parseColor(fill)));
+  if (g.belt) {
+    const lv = BOX_H + PAL, lw = g.lowWalls?.[0]; // the belt's top is one level up
+    if (lw) sm.cuboid(lw.x + lw.w / 2, lw.y + lw.h / 2, 0, lw.w / 2, lw.h / 2, 0, lv, '#1c1e22', { top: false, bottom: false });
+    beltArt(g.belt, g.endless?.broken).forEach(({ pts, fill, z }, i) => tm.poly(pts, z * lv + 0.0005 * (i % 4), parseColor(fill)));
+  }
   for (const a of g.areas) {
     const c = parseColor(COLORS[a.color]);
     tm.poly([[a.x - 0.3, a.y - 0.3], [a.x + a.w + 0.3, a.y - 0.3], [a.x + a.w + 0.3, a.y + a.h + 0.3], [a.x - 0.3, a.y + a.h + 0.3]], 0, [c[0], c[1], c[2], 0.12]);
@@ -332,7 +336,7 @@ function addDisco(om, g, eye) {
 export function dynamicMeshes(g, mode, eye) {
   const om = new Mesh(), tm = new Mesh();
   for (const st of g.stacks) {
-    addStack(om, tm, st.x, st.y, st.rots || [], st.layers, 0, st.offs, st.dropFrom ?? 0,
+    addStack(om, tm, st.x, st.y, st.rots || [], st.layers, stackZ(g, st), st.offs, st.dropFrom ?? 0,
       dropLift(g, st), st.pen);
   }
   addCarried(om, tm, g);

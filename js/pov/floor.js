@@ -5,7 +5,7 @@ import { decalsEnabled, floorDecals } from '../decals.js';
 import { FL } from '../forklift.js';
 import { reverseLight } from '../revlight.js';
 import { zoneDone, isSolved, scoreEnough, isParked } from '../game.js';
-import { project, offscreen, fillPoly, floorPoly, strokeLines, toCam, WALL_H } from './camera.js';
+import { project, offscreen, fillPoly, floorPoly, strokeLines, toCam, WALL_H, BOX_H, PAL } from './camera.js';
 
 // Everything painted before the 3D faces: ceiling, floor grid, decals, zone/parking marks, reversing light.
 
@@ -61,7 +61,7 @@ function parkingCorners(g) {
 }
 
 export function drawFloorMarks(ctx, g, cam) {
-  if (g.belt) for (const { pts, fill } of beltArt(g.belt, g.endless?.broken)) floorPoly(ctx, cam, pts, fill, fill);
+  if (g.belt) for (const { pts, fill, z } of beltArt(g.belt, g.endless?.broken)) floorPoly(ctx, cam, pts, fill, fill, z * (BOX_H + PAL));
   for (const z of g.zones) {
     const done = zoneDone(g, z), r = 0.6;
     floorPoly(ctx, cam, [[z.x - r, z.y - r], [z.x + r, z.y - r], [z.x + r, z.y + r], [z.x - r, z.y + r]],

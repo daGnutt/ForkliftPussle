@@ -59,7 +59,7 @@ export function newEndless(seed = 0, hard = false) {
   g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, spawnT: 2, spawned: 0, missed: 0, broken: false, delivered: 0, boxes: 0, points: 0, over: false, bays };
   g.belt = { ...BELT, speed: BELT_SPEED, beamY: BELT.y1 + ROAD };
   g.layoutVersion = 0;
-  // the belt is one box high: trucks can't drive onto it, but tines still reach the boxes on it
+  // the belt top is at z-level 1: trucks can't drive onto it, but tines at level 1+ reach the boxes on it
   const lw = {}; setRect(lw, [BELT.x0, BELT.y0, BELT.x1 - BELT.x0, BELT.y1 - BELT.y0]);
   g.lowWalls = [lw];
   for (const b of bays) {
@@ -173,13 +173,14 @@ export function stepEndless(g, dt) {
   if (e.missed >= MAX_MISSED) { e.over = true; g.status = 'over'; }
 }
 
-// Floor art of the belt as [{pts, fill}] polygons, drawn in order: rollers between hazard-striped rails, chevrons along the
-// direction of travel, yellow stripes marking the grabbing zone along its south side, the red pit at the end, and the laser fence (posts plus a beam)
-// along the road's south edge. The beam is
+// Floor art of the belt as [{pts, fill, z}] polygons (z: the level the polygon lies at, 1 on top of the belt), drawn in order: rollers between hazard-striped rails, chevrons along the
+// direction of travel, yellow chevrons marking the grabbing zone along its south side, the red pit at the end, and the laser fence (posts plus a beam)
+// along the fenced lane's south edge. The beam is
 // bright while intact and dark while broken.
 export function beltArt(b, broken = false) {
   const out = [];
-  const rect = (x, y, w, h, fill) => out.push({ pts: [[x, y], [x + w, y], [x + w, y + h], [x, y + h]], fill });
+  let z = 1; // the belt's top is one level up; the south face, grabbing-zone chevrons, pit and fence stand on the floor
+  const rect = (x, y, w, h, fill) => out.push({ pts: [[x, y], [x + w, y], [x + w, y + h], [x, y + h]], fill, z });
   const cy = (b.y0 + b.y1) / 2, h = (b.y1 - b.y0) / 2;
   rect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, '#3b3f45');
   for (let x = b.x0 + 0.25; x < b.x1; x += 0.5) rect(x, b.y0 + 0.2, 0.07, b.y1 - b.y0 - 0.4, '#2a2d32');
@@ -189,10 +190,14 @@ export function beltArt(b, broken = false) {
     rect(x, b.y1 - 0.2, w, 0.2, fill);
   }
   for (let x = b.x0 + 1.2; x < b.x1 - 1; x += 1.6) {
-    out.push({ pts: [[x, cy - h * 0.5], [x + 0.45, cy], [x, cy + h * 0.5], [x - 0.22, cy + h * 0.5], [x + 0.23, cy], [x - 0.22, cy - h * 0.5]], fill: '#8d949b' });
+    out.push({ pts: [[x, cy - h * 0.5], [x + 0.45, cy], [x, cy + h * 0.5], [x - 0.22, cy + h * 0.5], [x + 0.23, cy], [x - 0.22, cy - h * 0.5]], fill: '#8d949b', z });
   }
-  rect(b.x0, b.y1, b.x1 - b.x0, 0.15, '#1c1e22'); // the belt's raised south face
-  for (let x = b.x0 + 0.1; x < b.x1 - 0.5; x += 0.8) rect(x, b.y1 + 0.55, 0.5, 0.12, '#f4c414'); // yellow stripes mark the grabbing zone
+  z = 0;
+  // yellow chevrons on the floor along the belt's south side mark the grabbing zone, pointing at the belt
+  for (let x = b.x0 + 0.8; x < b.x1 - 0.5; x += 0.9) {
+    const y = b.y1 + 0.55, w = 0.4, d = 0.22, t = 0.13;
+    out.push({ pts: [[x - w, y + d], [x, y], [x + w, y + d], [x + w, y + d + t], [x, y + t], [x - w, y + d + t]], fill: '#f4c414', z });
+  }
   rect(b.x1, b.y0, ENDLESS_W - b.x1, b.y1 - b.y0, '#c62828');
   for (let y = b.y0; y < b.y1 - 1e-6; y += 0.4) rect(b.x1, y, 0.2, 0.2, '#1a1a1a');
   rect(b.x0, b.beamY - 0.025, b.x1 - b.x0, 0.05, broken ? '#4a1a1a' : '#ff1744');
