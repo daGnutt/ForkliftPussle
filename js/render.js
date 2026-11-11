@@ -1,5 +1,5 @@
 import { COLORS } from './level.js';
-import { beltArt, MAX_MISSED } from './endless.js';
+import { beltArt, truckGeom, truckFloorArt, MAX_MISSED } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
@@ -424,6 +424,22 @@ function paintFloor(ctx, g, vis) {
       ctx.fill();
     }
   }
+  for (const b of g.endless?.bays || []) {
+    const t = truckGeom(b);
+    for (const { pts, fill } of truckFloorArt(t.floor)) {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.fill();
+    }
+    if (t.ramp) {
+      ctx.fillStyle = '#7b8088';
+      ctx.fillRect(t.ramp.x, t.ramp.y, t.ramp.w, t.ramp.h);
+      ctx.fillStyle = '#f4c414';
+      ctx.fillRect(t.ramp.x, t.ramp.y, 0.12, t.ramp.h);
+      ctx.fillRect(t.ramp.x + t.ramp.w - 0.12, t.ramp.y, 0.12, t.ramp.h);
+    }
+  }
   for (const a of g.areas) {
     if (!seen(a.x - 0.3, a.y - 0.3, a.w + 0.6, a.h + 0.6)) continue;
     ctx.fillStyle = COLORS[a.color];
@@ -538,6 +554,22 @@ function drawWorldObjects(ctx, g, vis) {
 // A delivery truck panel in its bay colour: dark wheels stick out of the sides, the cab is darker, the rear doors (gate) light grey.
 function drawTruckPart(ctx, w) {
   const { color, part } = w.truck;
+  if (part === 'back') { // the cab, outside the warehouse
+    const x = w.x + 0.3, y = w.y + w.h, cw = w.w - 0.6;
+    ctx.fillStyle = '#15171a';
+    ctx.fillRect(x - 0.1, y + 0.3, 0.2, 1.2);
+    ctx.fillRect(x + cw - 0.1, y + 0.3, 0.2, 1.2);
+    ctx.fillStyle = COLORS[color];
+    ctx.fillRect(x, y, cw, 2);
+    ctx.fillStyle = '#1d2a38';
+    ctx.fillRect(x + 0.25, y + 1.2, cw - 0.5, 0.5);
+    ctx.fillStyle = '#fff6c0';
+    ctx.fillRect(x + 0.2, y + 1.85, 0.4, 0.12);
+    ctx.fillRect(x + cw - 0.6, y + 1.85, 0.4, 0.12);
+    ctx.strokeStyle = '#1f2226';
+    ctx.lineWidth = 0.06;
+    ctx.strokeRect(x, y, cw, 2);
+  }
   if (part === 'left' || part === 'right') {
     ctx.fillStyle = '#15171a';
     const wx = part === 'left' ? w.x - 0.1 : w.x + w.w - 0.1;

@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { beltArt } from '../endless.js';
+import { beltArt, truckGeom, truckFloorArt } from '../endless.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
@@ -49,6 +49,19 @@ export function wallCaps(g, [nx, ny, d, z]) {
   return m;
 }
 
+// The truck's cab, parked just outside the warehouse behind the back wall: body, windscreen, bumper, wheels and headlights.
+function addCab(sm, w, col) {
+  const cw = w.w - 0.6, cx = w.x + w.w / 2, y0 = w.y + w.h, cd = 2, hl = cw / 2;
+  sm.cuboid(cx, y0 + cd / 2, 0, hl, cd / 2, 0.5, 2.6, col);
+  sm.cuboid(cx, y0 + cd / 2, 0, hl, cd / 2, 0.3, 0.5, '#26292e', { top: false });
+  sm.cuboid(cx, y0 + cd - 0.05, 0, hl - 0.25, 0.06, 1.5, 2.3, '#1d2a38', { top: false, bottom: false });
+  sm.cuboid(cx, y0 + cd + 0.08, 0, hl, 0.1, 0.3, 0.6, '#c9ccd1');
+  for (const s of [-1, 1]) {
+    sm.cuboid(cx + s * (hl - 0.35), y0 + cd + 0.02, 0, 0.2, 0.05, 0.9, 1.2, '#fff6c0', { emissive: true });
+    sm.wheel(cx + s * (hl + 0.05), y0 + cd / 2, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
+  }
+}
+
 // Delivery truck panels: sides/cab in the bay colour on a dark skirt with wheels, rear doors (the gate) in light grey.
 const TRUCK_SKIRT = 0.45;
 function addTruckPart(sm, w) {
@@ -57,11 +70,20 @@ function addTruckPart(sm, w) {
   sm.cuboid(cx, cy, 0, hl, hw, 0, TRUCK_SKIRT, '#26292e', { top: false });
   sm.cuboid(cx, cy, 0, hl, hw, TRUCK_SKIRT, WALL_H, body, { bottom: false });
   if (part === 'gate') sm.cuboid(cx, cy, 0, hl - 0.15, hw + 0.01, 1, 1.15, '#7b8088', { top: false, bottom: false });
-  if (part === 'back') sm.cuboid(cx, cy, 0, hl - 0.2, hw + 0.01, 2.6, 3.4, '#1d2a38', { top: false, bottom: false }); // cab window
+  if (part === 'back') addCab(sm, w, parseColor(COLORS[color]));
   if (part === 'left' || part === 'right') {
     const out = part === 'left' ? -1 : 1;
     for (const y of [w.y + 0.9, w.y + w.h - 0.9]) sm.wheel(cx + out * (hl + 0.05), y, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
   }
+}
+
+// Small loading ramp in front of an open truck: a wedge rising from the floor to the truck's floor level.
+function addRamp(sm, r) {
+  const h = 0.12, c = parseColor('#7b8088'), x1 = r.x + r.w, y1 = r.y + r.h;
+  sm.quad([r.x, r.y, 0], [x1, r.y, 0], [x1, y1, h], [r.x, y1, h], [0, -0.12, 1], c);
+  sm.quad([r.x, y1, 0], [r.x, r.y, 0], [r.x, y1, h], [r.x, y1, h], [-1, 0, 0], shade(c, 0.7));
+  sm.quad([x1, r.y, 0], [x1, y1, 0], [x1, y1, h], [x1, y1, h], [1, 0, 0], shade(c, 0.7));
+  for (const x of [r.x, x1 - 0.12]) sm.quad([x, r.y, 0.001], [x + 0.12, r.y, 0.001], [x + 0.12, y1, h + 0.001], [x, y1, h + 0.001], [0, -0.12, 1], parseColor('#f4c414'));
 }
 
 // One wall rectangle: sides in 1-tile segments with a checker tint, plus decals in cabin mode.
@@ -175,6 +197,11 @@ function addFloor(sm, tm, g, mode) {
     const lv = BOX_H + PAL, lw = g.lowWalls?.[0]; // the belt's top is one level up
     if (lw) sm.cuboid(lw.x + lw.w / 2, lw.y + lw.h / 2, 0, lw.w / 2, lw.h / 2, 0, lv, '#1c1e22', { top: false, bottom: false });
     beltArt(g.belt, g.endless?.broken).forEach(({ pts, fill, z }, i) => tm.poly(pts, z * lv + 0.0005 * (i % 4), parseColor(fill)));
+  }
+  for (const b of g.endless?.bays || []) {
+    const t = truckGeom(b);
+    truckFloorArt(t.floor).forEach(({ pts, fill }, i) => tm.poly(pts, 0.003 + 0.0005 * (i % 2), parseColor(fill)));
+    if (t.ramp) addRamp(sm, t.ramp);
   }
   for (const a of g.areas) {
     const c = parseColor(COLORS[a.color]);

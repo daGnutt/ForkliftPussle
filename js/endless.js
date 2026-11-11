@@ -14,7 +14,9 @@ const ROAD = 2.8; // depth of the truck road between the belt and the laser fenc
 const BELT_SPEED = 0.4; // tiles/s
 const SPAWN_X = 1.0;
 const SLOT = 2; // spacing of the delivery truck's four stack slots
-const TRUCK_W = 4.6, TRUCK_D = 4.6, WALL = 0.3;
+const TRUCK_W = 4.6, TRUCK_D = 5.4, WALL = 0.3;
+const APRON = 0.8; // empty strip inside the gate before the first stack slots
+const RAMP_D = 0.9, CAB_D = 2;
 const FIRST_X = 2.3, BAY_STEP = 5.6;
 const GONE = 200; // a truck that is away is parked this far off the map
 const OUT_DIST = 9;
@@ -35,7 +37,7 @@ function bayRects(x0, off) {
     area: [x0 + WALL, y + WALL, TRUCK_W - 2 * WALL, TRUCK_D - 2 * WALL],
   };
 }
-const slotAt = (x0, i, off) => ({ x: x0 + WALL + SLOT / 2 + (i % 2) * SLOT, y: ENDLESS_H - TRUCK_D + WALL + SLOT / 2 + Math.floor(i / 2) * SLOT + off });
+const slotAt = (x0, i, off) => ({ x: x0 + WALL + SLOT / 2 + (i % 2) * SLOT, y: ENDLESS_H - TRUCK_D + WALL + APRON + SLOT / 2 + Math.floor(i / 2) * SLOT + off });
 
 function setRect(w, [x, y, ww, hh]) {
   Object.assign(w, { x, y, w: ww, h: hh, poly: rectPoly(x + ww / 2, y + hh / 2, ww / 2, hh / 2) });
@@ -177,6 +179,25 @@ export function stepEndless(g, dt) {
 // direction of travel, alternating diagonal yellow and black stripes marking the grabbing zone along its south side, the red pit at the end, and the laser fence (posts plus a beam)
 // along the fenced lane's south edge. The beam is
 // bright while intact and dark while broken.
+// Visual extras of a delivery truck (all follow the bay as it drives): plank floor, loading ramp (only while the gate is open)
+// and the cab behind the back wall, outside the warehouse.
+export function truckGeom(b) {
+  const gt = b.parts.gate, bk = b.parts.back, a = b.area;
+  return {
+    floor: { x: a.x, y: a.y, w: a.w, h: a.h },
+    ramp: b.gateClosed ? null : { x: gt.x + 0.4, y: gt.y - RAMP_D, w: gt.w - 0.8, h: RAMP_D },
+    cab: { x: bk.x + 0.3, y: bk.y + bk.h, w: bk.w - 0.6, h: CAB_D },
+  };
+}
+
+// Flat floor art for the truck floor: wooden planks along the truck, as [{ pts, fill }].
+export function truckFloorArt(r) {
+  const out = [{ pts: [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]], fill: '#8a6a43' }];
+  const n = Math.round(r.w / 0.5);
+  for (let i = 1; i < n; i++) { const x = r.x + (i * r.w) / n; out.push({ pts: [[x - 0.015, r.y], [x + 0.015, r.y], [x + 0.015, r.y + r.h], [x - 0.015, r.y + r.h]], fill: '#5e4527' }); }
+  return out;
+}
+
 export function beltArt(b, broken = false) {
   const out = [];
   let z = 1; // the belt's top is one level up; the south face, grabbing-zone stripes, pit and fence stand on the floor
