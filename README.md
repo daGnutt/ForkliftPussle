@@ -42,7 +42,7 @@ Fork level is a whole number 0–5 (height above the floor in box heights), chan
 - The gauge on the right shows the fork level, the stack the forks are in, and what you carry. A stack shows its top colour, plus a coloured number for every box below it (number = layer from the bottom).
 
 ## Debug overlay
-Add `?debug` to the URL (see [URL parameters](#url-parameters)) for an FPS counter, frame/update/draw timings and their share of frame time (update/draw/debug/idle %, where debug is the overlay's own cost), boxes in the right place and other state, for troubleshooting performance.
+Add `?debug` to the URL (see [URL parameters](#url-parameters)) for an FPS counter, frame/update/draw timings and their share of frame time (update/draw/debug/idle %, where debug is the overlay's own cost), boxes in the right place and other state, for troubleshooting performance. In endless mode it also shows the adaptive difficulty (measured unloading rate, pace, time to the next truck).
 
 ## URL parameters
 Combine with `&`, e.g. `index.html?skip&debug&gl=0`.
