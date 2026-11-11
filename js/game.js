@@ -471,6 +471,7 @@ function shiftPoly(poly, dx, dy) {
 function resolve(g) {
   const f = g.fl;
   g.wallPush = null;
+  g.contact = null;
   g.impacts = [];
   for (let it = 0; it < 8; it++) {
     const shapes = forkShapes(g);
