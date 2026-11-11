@@ -1,5 +1,5 @@
 import { COLORS } from './level.js';
-import { beltArt, truckGeom, truckFloorArt, yardRect, MAX_MISSED } from './endless.js';
+import { truckGeom, truckFloorArt, yardRects, truckBays, DOCKS } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
@@ -413,19 +413,8 @@ function paintFloor(ctx, g, vis) {
     ctx.fill();
   }
 
-  if (g.belt) {
-    // the belt's top is one level up: its footprint shows as the dark side faces left uncovered by the shifted top
-    const lw = g.lowWalls?.[0];
-    if (lw) { ctx.fillStyle = '#1c1e22'; ctx.fillRect(lw.x, lw.y, lw.w, lw.h); }
-    for (const { pts, fill, z } of beltArt(g.belt, g.endless?.broken)) {
-      ctx.fillStyle = fill;
-      ctx.beginPath();
-      pts.forEach(([x, y], i) => { const px = x + z * PX, py = y + z * PY; if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
-      ctx.fill();
-    }
-  }
-  if (g.endless) { const y = yardRect(); ctx.fillStyle = '#2c2f33'; ctx.fillRect(y.x, y.y, y.w, y.h); }
-  for (const b of g.endless?.bays || []) {
+  if (g.endless) { ctx.fillStyle = '#2c2f33'; for (const y of yardRects()) ctx.fillRect(y.x, y.y, y.w, y.h); }
+  for (const b of truckBays(g)) {
     const t = truckGeom(b);
     for (const { pts, fill } of truckFloorArt(t.floor)) {
       ctx.fillStyle = fill;
@@ -700,7 +689,7 @@ function drawStartBoard(ctx, g, view, width, height) {
   ctx.fillText(title, width / 2, y + 20);
   if (g.endless) {
     ctx.font = '16px sans-serif';
-    ['Boxes arrive on the belt (top).', 'Stack four of a colour on each of the six spots', 'of that colour\'s delivery truck. A full truck closes,', 'drives off and is replaced.', `${MAX_MISSED} boxes off the end of the belt: game over.`]
+    ['Trucks arrive at the west wall with stacks.', 'Stack four of a colour on each of the six spots', 'of that colour\'s delivery truck (south). A full truck', 'drives off and is replaced.', `All ${DOCKS} west bays still full when the next one arrives: game over.`]
       .forEach((t, i) => ctx.fillText(t, width / 2, y + 60 + i * 24));
     return;
   }
@@ -899,8 +888,8 @@ export function draw(ctx, g, view) {
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
   const best = view.best;
   const E = g.endless;
-  const title = E ? `Endless   Trucks ${E.delivered}   Boxes ${E.boxes}   Missed ${E.missed}/${MAX_MISSED}   Score ${E.points}   ${formatTime(g.time)}` : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${formatTime(g.time)}`;
-  const bestText = E ? `Missed ${E.missed}/${MAX_MISSED}` : best ? `Best ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Best: none yet';
+  const title = E ? `Endless   Trucks ${E.delivered}   Boxes ${E.boxes}   Bays ${E.docks.filter((d) => d.state !== 'free').length}/${DOCKS}   Score ${E.points}   ${formatTime(g.time)}` : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${formatTime(g.time)}`;
+  const bestText = E ? `Bays ${E.docks.filter((d) => d.state !== 'free').length}/${DOCKS}` : best ? `Best ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Best: none yet';
   const globalText = E ? '' : globalLine(view.global);
   const hint = g.status === 'play' && isSolved(g)
     ? (scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish')

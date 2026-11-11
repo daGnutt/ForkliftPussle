@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { beltArt, truckGeom, truckFloorArt, yardRect } from '../endless.js';
+import { truckGeom, truckFloorArt, yardRects, truckBays } from '../endless.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
@@ -70,7 +70,7 @@ function addTruckPart(sm, w) {
   const body = part === 'gate' ? '#b9bec5' : part === 'back' ? shade(parseColor(COLORS[color]), 0.7) : parseColor(COLORS[color]);
   sm.cuboid(cx, cy, 0, hl, hw, 0, TRUCK_SKIRT, '#26292e', { top: false });
   sm.cuboid(cx, cy, 0, hl, hw, TRUCK_SKIRT, WALL_H, body, { bottom: false });
-  if (part === 'gate') sm.cuboid(cx, cy, 0, hl - 0.15, hw + 0.01, 1, 1.15, '#7b8088', { top: false, bottom: false });
+  if (part === 'gate' && hl > 0.2) sm.cuboid(cx, cy, 0, hl - 0.15, hw + 0.01, 1, 1.15, '#7b8088', { top: false, bottom: false });
   if (part === 'left' || part === 'right') {
     const out = part === 'left' ? -1 : 1;
     for (const y of [w.y + 0.9, w.y + w.h - 0.9]) sm.wheel(cx + out * (hl + 0.05), y, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
@@ -193,13 +193,8 @@ function addFloor(sm, tm, g, mode) {
   for (let x = 0; x <= g.w; x++) tm.poly([[x - gw, 0], [x + gw, 0], [x + gw, g.h], [x - gw, g.h]], 0, grid);
   for (let y = 0; y <= g.h; y++) tm.poly([[0, y - gw], [g.w, y - gw], [g.w, y + gw], [0, y + gw]], 0, grid);
   if (decalsEnabled()) for (const d of floorDecals(g)) tm.poly(d.pts, 0, d.fill);
-  if (g.belt) {
-    const lv = BOX_H + PAL, lw = g.lowWalls?.[0]; // the belt's top is one level up
-    if (lw) sm.cuboid(lw.x + lw.w / 2, lw.y + lw.h / 2, 0, lw.w / 2, lw.h / 2, 0, lv, '#1c1e22', { top: false, bottom: false });
-    beltArt(g.belt, g.endless?.broken).forEach(({ pts, fill, z }, i) => tm.poly(pts, z * lv + 0.0005 * (i % 4), parseColor(fill)));
-  }
-  if (g.endless) { const y = yardRect(); tm.poly([[y.x, y.y], [y.x + y.w, y.y], [y.x + y.w, y.y + y.h], [y.x, y.y + y.h]], 0.002, parseColor('#2c2f33')); }
-  for (const b of g.endless?.bays || []) {
+  for (const y of g.endless ? yardRects() : []) tm.poly([[y.x, y.y], [y.x + y.w, y.y], [y.x + y.w, y.y + y.h], [y.x, y.y + y.h]], 0.002, parseColor('#2c2f33'));
+  for (const b of truckBays(g)) {
     const t = truckGeom(b);
     truckFloorArt(t.floor).forEach(({ pts, fill }, i) => tm.poly(pts, 0.003 + 0.0005 * (i % 2), parseColor(fill)));
     if (t.ramp) addRamp(sm, t.ramp);

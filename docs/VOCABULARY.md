@@ -41,10 +41,8 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Drop-off area** | Tinted region holding all drop points of one colour | `g.areas` |
 | **Done zone** | Drop point holding exactly `count` boxes of its colour | `zoneDone` |
 | **Parking spot** | Where the forklift starts and must finish; turns green when ready, shows heading arrow | `g.parking`, `isParked` |
-| **Endless mode** | Level-less mode (menu → Game, `?endless`): no win, ends when too many boxes are missed | `newEndless`, `g.endless`, `status:'over'` |
-| **Conveyor belt** | Belt along the north wall carrying single boxes east; boxes reaching the red pit at its end are *missed* | `g.belt`, `stepEndless`, `endless.missed` |
-| **Grabbing zone** | Alternating diagonal yellow and black stripes on the floor between the belt and the laser fence marking where to stand to grab boxes; the belt top is at z-level 1, so trucks can't drive onto it and boxes on it are lifted with the tines at level 1 | `beltArt`, `g.lowWalls`, `stackZ` |
-| **Laser fence** | Beam along the truck road's south edge; a forklift (or its forks/load) crossing it pauses the belt so boxes can be picked up and stacks built next to it | `endless.broken`, `belt.beamY` |
+| **Endless mode** | Level-less mode (menu → Game, `?endless`): no win, ends when every incoming dock is still occupied as the next truck arrives | `newEndless`, `g.endless`, `status:'over'` |
+| **Incoming truck / dock** | Purple truck standing in one of three bays along the west wall, carrying 2×3 stacks of random height and colour (messier over time). It leaves once unloaded; if all docks are still occupied when the next truck is due the game is over | `g.endless.docks`, `DOCKS`, `DOCK_COLOR` |
 | **Delivery truck / bay** | One per colour: a trailer with six drop points (2 wide × 3 deep slots, 4 boxes each); when full and the forklift is out, the gate closes, it drives off with its load and a new one arrives; drawn in its bay colour with wheels, a darker cab and light-grey rear doors (the gate), a wooden plank floor, a small loading ramp in front of the open gate and a solid cab block at the south edge behind it; the trailers stand in the yard south of the warehouse, their gates in line with the south wall (`parts.cab`; `truckGeom` gives floor and ramp) | `endless.bays`, bay `state` |
 | **Level complete / win** | All zones done + score ≥ 50% + parked | `isFinished`, `status:'won'` |
 

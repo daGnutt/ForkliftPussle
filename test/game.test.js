@@ -15,7 +15,7 @@ import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
-import { newEndless, stepEndless, MAX_MISSED } from '../js/endless.js';
+import { newEndless, stepEndless } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
 
 const NONE = {};
@@ -1567,75 +1567,64 @@ console.log('all tests passed');
   console.log('stack landing ok');
 }
 
-// Endless mode: boxes ride the belt, a full truck closes its gate, drives off with its load and is replaced; missed boxes end the game.
+// Endless mode: incoming trucks bring 2x3 stacks to the west wall, a full delivery truck closes its gate, drives off and is replaced;
+// the game ends when a new incoming truck is due and every west bay is still occupied.
 {
   const g = newEndless(1);
   const step = (secs) => { for (let i = 0; i < secs * 60; i++) { update(g, NONE, 1 / 60); stepEndless(g, 1 / 60); } };
-  g.fl.x = 13; g.fl.y = 7; g.fl.a = 0; // well away from the trucks
-  step(3);
-  assert.ok(g.stacks.length >= 1 && g.stacks[0].x > 1.1, 'a box rides the belt');
-  g.stacks = [{ x: 5, y: 1.5, layers: [0] }];
-  const x0 = g.stacks[0].x;
-  step(1);
-  assert.ok(g.stacks[0].x > x0, 'belt moves while the fence is intact');
-  g.fl.x = 13; g.fl.y = 4; g.fl.a = -Math.PI / 2; // forks across the laser beam
-  const x1 = g.stacks[0].x;
-  step(1);
-  assert.ok(g.endless.broken && g.stacks[0].x === x1, 'a broken laser beam pauses the belt');
-  g.fl.y = 7; g.fl.a = 0;
-  step(0.2);
-  assert.ok(!g.endless.broken);
-  // the raised belt blocks the truck body
-  g.fl.x = 13; g.fl.y = 5; g.fl.a = -Math.PI / 2;
-  for (let i = 0; i < 240; i++) { update(g, { ...NONE, up: true }, 1 / 60); stepEndless(g, 1 / 60); }
-  assert.ok(g.fl.y >= g.lowWalls[0].y + g.lowWalls[0].h - 0.01, 'the truck cannot drive onto the belt');
-  g.fl.y = 7; g.fl.a = 0; g.fl.speed = 0;
-  step(0.2);
-  // boxes on the belt sit at level 1: tines at level 0 pass under, at level 1 they lift the box
-  g.endless.spawnT = 1e9; g.endless.broken = false;
-  g.stacks = [{ x: 5, y: 1.5, layers: [0] }];
-  assert.equal(stackZ(g, g.stacks[0]), 1);
-  g.fl.a = -Math.PI / 2; g.fl.speed = 0; g.fl.x = 5; g.fl.y = 1.5 + FL.carryX;
-  g.H = 0; g.hf = 0;
-  forkUp(g);
-  assert.ok(!g.carried && g.H === 1, 'tines at level 0 do not take a belt box');
-  forkUp(g);
-  assert.ok(g.carried && g.carried.length === 1 && g.H === 2, 'tines at level 1 lift the belt box');
-  forkDown(g);
-  assert.ok(!g.carried && g.H === 1 && g.stacks.length === 1 && stackZ(g, g.stacks[0]) === 1, 'a lowered box rests on the belt at level 1');
-  g.fl.a = 0; g.fl.x = 13; g.fl.y = 7; g.carried = null; g.H = 0; g.hf = 0; g.stacks = [];
-  const bay = g.endless.bays[1];
-  g.endless.spawnT = 1e9;
+  const E = g.endless;
+  g.fl.x = 20; g.fl.y = 7; g.fl.a = 0; // well away from the trucks
+  assert.ok(g.walls.includes(E.docks[0].parts.gate), 'an empty west bay is closed off');
+  step(1.2);
+  const d = E.docks[0];
+  assert.equal(d.state, 'arriving');
+  assert.equal(g.stacks.length, 6, 'an incoming truck carries 2x3 stacks');
+  step(10);
+  assert.equal(d.state, 'present');
+  assert.ok(!g.walls.includes(d.parts.gate), 'the gate opens when the truck has arrived');
+  assert.ok(g.stacks.every((s) => !s.leaving && s.x < 8 && s.x > 2 && s.layers.length >= 1 && s.layers.length <= 3), 'stacks stand in the trailer');
+  const slots = new Set(g.stacks.map((s) => `${Math.round(s.x)},${Math.round(s.y)}`));
+  assert.equal(slots.size, 6);
+  // an unloaded truck leaves
   g.stacks = [];
+  step(0.2);
+  assert.equal(d.state, 'leaving');
+  step(5);
+  assert.equal(d.state, 'free');
+  assert.equal(E.unloaded, 1);
+
+  // delivery truck: a full truck closes its gate and drives off with its load
+  E.arriveT = 1e9;
+  g.fl.a = 0; g.fl.x = 20; g.fl.y = 7; g.carried = null; g.H = 0; g.hf = 0;
+  const bay = E.bays[1];
   g.stacks = bay.zones.map((z) => ({ x: z.x, y: z.y, layers: [1, 1, 1, 1] }));
   step(0.2);
   assert.ok(g.walls.includes(bay.parts.gate), 'gate closes when the truck is full');
   step(1.2 + 1);
   assert.ok(bay.off > 0 && g.stacks.length === 6, 'truck drives off with its load');
   step(4);
-  assert.equal(g.endless.delivered, 1);
-  assert.equal(g.endless.boxes, 24);
-  assert.ok(g.endless.points > 1500, 'delivered boxes are scored');
+  assert.equal(E.delivered, 1);
+  assert.equal(E.boxes, 24);
+  assert.ok(E.points > 1500, 'delivered boxes are scored');
   assert.equal(g.stacks.length, 0, 'the load left with the truck');
   step(8);
   assert.ok(bay.state === 'open' && bay.off === 0 && !g.walls.includes(bay.parts.gate), 'a new truck waits with an open gate');
-  assert.ok(g.layoutVersion > 0);
 
   // a forklift inside keeps the gate open
   const h = newEndless(2);
-  h.endless.spawnT = 1e9;
+  h.endless.arriveT = 1e9;
   const b2 = h.endless.bays[0];
   h.stacks = b2.zones.map((z) => ({ x: z.x, y: z.y, layers: [0, 0, 0, 0] }));
   h.fl.x = b2.zones[2].x; h.fl.y = b2.zones[2].y + 0.2; h.fl.a = -Math.PI / 2;
   stepEndless(h, 1 / 60);
   assert.equal(b2.state, 'open', 'gate stays open while the forklift is inside');
 
-  // boxes that reach the end of the belt are missed
+  // all incoming bays still occupied when the next truck is due: game over
   const m = newEndless(3);
-  m.fl.x = 13; m.fl.y = 7; m.fl.a = 0;
-  m.stacks = Array.from({ length: MAX_MISSED }, (_, i) => ({ x: 25 + i * 0.01, y: 1.5, layers: [0] }));
-  m.endless.spawnT = 1e9;
-  for (let i = 0; i < 180; i++) stepEndless(m, 1 / 60);
+  m.fl.x = 20; m.fl.y = 7; m.fl.a = 0;
+  for (let i = 0; i < 60 * 600 && m.status !== 'over'; i++) { update(m, NONE, 1 / 60); stepEndless(m, 1 / 60); }
   assert.equal(m.status, 'over');
+  assert.ok(m.endless.docks.every((o) => o.state === 'present'));
+  assert.equal(m.endless.arrived, 3);
   console.log('endless ok');
 }
