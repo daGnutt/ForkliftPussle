@@ -3,6 +3,7 @@ import { addTruck, removeTruck, truckView, forkUp, forkDown } from '../game.js';
 import { createLink } from './peer.js';
 import { createSnapshotter, snapshot, encode, SNAPSHOT_HZ } from './protocol.js';
 
+const STALE = 3; // seconds without any message before a guest counts as gone when its name is taken again
 const DEFAULT_ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 // `getGame()` returns the current game (it is replaced on every level load); `levelInfo()` its { level, seed, hard, seedText, endless };
@@ -26,12 +27,14 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
   }
 
   function onGuestMessage(peer, m, msg) {
+    m.lastRx = clock();
     const g = getGame();
     if (msg.t === 'hello' && m.slot < 0) {
       m.name = String(msg.name || 'Player').slice(0, 24);
       if (banned.has(m.name.toLowerCase())) { m.link.sendReliable({ t: 'bye', reason: 'banned' }); drop(peer); return; }
       // a reloaded page rejoins before the host notices the old connection is dead: the stale one is replaced
-      for (const [p, o] of members) if (p !== peer && o.slot > 0 && o.name?.toLowerCase() === m.name.toLowerCase()) drop(p);
+      // (only silent ones: guests send inputs/pings at least every second, and two live players may share a name)
+      for (const [p, o] of members) if (p !== peer && o.slot > 0 && o.name?.toLowerCase() === m.name.toLowerCase() && clock() - o.lastRx > STALE) drop(p);
       const slot = addTruck(g, m.name);
       if (slot < 0) { m.link.sendReliable({ t: 'bye', reason: 'full' }); drop(peer); return; }
       m.slot = slot;
@@ -52,7 +55,7 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
 
   function onJoin({ peer, name: guestName }) {
     if (!peer || members.has(peer)) return;
-    const m = { name: guestName, slot: -1, link: null };
+    const m = { name: guestName, slot: -1, link: null, lastRx: clock() };
     members.set(peer, m);
     m.link = linkFactory({
       initiator: true,
