@@ -208,6 +208,9 @@ export function buildFaces(g, cam) {
       const n = faces.length;
       addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, CHARGER_H, '#c62828');
       for (let i = n; i < faces.length; i++) faces[i].charger = true;
+    } else if (w.truck) {
+      const c = w.truck.part === 'gate' ? '#b9bec5' : COLORS[w.truck.color];
+      addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, w.truck.part === 'cab' ? 2.6 : WALL_H, c);
     } else addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, WALL_H, null, true);
   }
   const lw = g.lowWalls?.[0];

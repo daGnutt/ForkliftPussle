@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { beltArt } from '../endless.js';
+import { beltArt, truckGeom, truckFloorArt, yardRect } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, floorDecals } from '../decals.js';
 import { FL } from '../forklift.js';
@@ -62,6 +62,12 @@ function parkingCorners(g) {
 
 export function drawFloorMarks(ctx, g, cam) {
   if (g.belt) for (const { pts, fill, z } of beltArt(g.belt, g.endless?.broken)) floorPoly(ctx, cam, pts, fill, fill, z * (BOX_H + PAL));
+  if (g.endless) { const y = yardRect(); floorPoly(ctx, cam, [[y.x, y.y], [y.x + y.w, y.y], [y.x + y.w, y.y + y.h], [y.x, y.y + y.h]], '#2c2f33', '#2c2f33'); }
+  for (const b of g.endless?.bays || []) {
+    const t = truckGeom(b);
+    for (const { pts, fill } of truckFloorArt(t.floor)) floorPoly(ctx, cam, pts, fill, fill);
+    if (t.ramp) { const r = t.ramp; floorPoly(ctx, cam, [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]], '#7b8088', '#7b8088'); }
+  }
   for (const z of g.zones) {
     const done = zoneDone(g, z), r = 0.6;
     floorPoly(ctx, cam, [[z.x - r, z.y - r], [z.x + r, z.y - r], [z.x + r, z.y + r], [z.x - r, z.y + r]],

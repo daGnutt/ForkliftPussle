@@ -1,5 +1,5 @@
 import { COLORS } from './level.js';
-import { beltArt, MAX_MISSED } from './endless.js';
+import { beltArt, truckGeom, truckFloorArt, yardRect, MAX_MISSED } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
@@ -424,6 +424,23 @@ function paintFloor(ctx, g, vis) {
       ctx.fill();
     }
   }
+  if (g.endless) { const y = yardRect(); ctx.fillStyle = '#2c2f33'; ctx.fillRect(y.x, y.y, y.w, y.h); }
+  for (const b of g.endless?.bays || []) {
+    const t = truckGeom(b);
+    for (const { pts, fill } of truckFloorArt(t.floor)) {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.fill();
+    }
+    if (t.ramp) {
+      ctx.fillStyle = '#7b8088';
+      ctx.fillRect(t.ramp.x, t.ramp.y, t.ramp.w, t.ramp.h);
+      ctx.fillStyle = '#f4c414';
+      ctx.fillRect(t.ramp.x, t.ramp.y, 0.12, t.ramp.h);
+      ctx.fillRect(t.ramp.x + t.ramp.w - 0.12, t.ramp.y, 0.12, t.ramp.h);
+    }
+  }
   for (const a of g.areas) {
     if (!seen(a.x - 0.3, a.y - 0.3, a.w + 0.6, a.h + 0.6)) continue;
     ctx.fillStyle = COLORS[a.color];
@@ -523,6 +540,7 @@ function drawWorldObjects(ctx, g, vis) {
   ctx.fillStyle = theme().wall;
   for (const w of g.pillars) {
     if (!seen(w.x, w.y, w.w, w.h)) continue;
+    if (w.truck) { drawTruckPart(ctx, w); continue; }
     ctx.fillRect(w.x, w.y, w.w, w.h);
     ctx.strokeStyle = theme().wallEdge;
     ctx.lineWidth = 0.06;
@@ -532,6 +550,41 @@ function drawWorldObjects(ctx, g, vis) {
   ctx.strokeStyle = '#555';
   ctx.lineWidth = 0.3;
   ctx.strokeRect(-0.15, -0.15, g.w + 0.3, g.h + 0.3);
+}
+
+// A delivery truck panel in its bay colour: dark wheels stick out of the sides, the cab is darker, the rear doors (gate) light grey.
+function drawTruckPart(ctx, w) {
+  const { color, part } = w.truck;
+  if (part === 'cab') {
+    const x = w.x, y = w.y, cw = w.w;
+    ctx.fillStyle = '#15171a';
+    ctx.fillRect(x - 0.1, y + 0.3, 0.2, 1.2);
+    ctx.fillRect(x + cw - 0.1, y + 0.3, 0.2, 1.2);
+    ctx.fillStyle = COLORS[color];
+    ctx.fillRect(x, y, cw, w.h);
+    ctx.fillStyle = '#1d2a38';
+    ctx.fillRect(x + 0.25, y + 1.2, cw - 0.5, 0.5);
+    ctx.fillStyle = '#fff6c0';
+    ctx.fillRect(x + 0.2, y + 1.85, 0.4, 0.12);
+    ctx.fillRect(x + cw - 0.6, y + 1.85, 0.4, 0.12);
+    ctx.strokeStyle = '#1f2226';
+    ctx.lineWidth = 0.06;
+    ctx.strokeRect(x, y, cw, w.h);
+    return;
+  }
+  if (part === 'left' || part === 'right') {
+    ctx.fillStyle = '#15171a';
+    const wx = part === 'left' ? w.x - 0.1 : w.x + w.w - 0.1;
+    for (const y of [w.y + 0.5, w.y + w.h - 1.3]) ctx.fillRect(wx, y, 0.2, 0.8);
+  }
+  ctx.fillStyle = part === 'gate' ? '#b9bec5' : COLORS[color];
+  ctx.fillRect(w.x, w.y, w.w, w.h);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  if (part === 'back') ctx.fillRect(w.x, w.y, w.w, w.h);
+  ctx.strokeStyle = '#1f2226';
+  ctx.lineWidth = 0.06;
+  ctx.strokeRect(w.x, w.y, w.w, w.h);
+  if (part === 'gate') { ctx.beginPath(); ctx.moveTo(w.x + w.w / 2, w.y); ctx.lineTo(w.x + w.w / 2, w.y + w.h); ctx.stroke(); }
 }
 
 // The truck charger: a red block with a high-voltage warning sign (a bolt in a yellow triangle).
@@ -647,7 +700,7 @@ function drawStartBoard(ctx, g, view, width, height) {
   ctx.fillText(title, width / 2, y + 20);
   if (g.endless) {
     ctx.font = '16px sans-serif';
-    ['Boxes arrive on the belt (top).', 'Stack four of a colour on each of the four spots', 'of that colour\'s delivery truck. A full truck closes,', 'drives off and is replaced.', `${MAX_MISSED} boxes off the end of the belt: game over.`]
+    ['Boxes arrive on the belt (top).', 'Stack four of a colour on each of the six spots', 'of that colour\'s delivery truck. A full truck closes,', 'drives off and is replaced.', `${MAX_MISSED} boxes off the end of the belt: game over.`]
       .forEach((t, i) => ctx.fillText(t, width / 2, y + 60 + i * 24));
     return;
   }
