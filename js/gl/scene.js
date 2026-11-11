@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { beltArt, truckGeom, truckFloorArt } from '../endless.js';
+import { beltArt, truckGeom, truckFloorArt, yardRect } from '../endless.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
@@ -198,6 +198,7 @@ function addFloor(sm, tm, g, mode) {
     if (lw) sm.cuboid(lw.x + lw.w / 2, lw.y + lw.h / 2, 0, lw.w / 2, lw.h / 2, 0, lv, '#1c1e22', { top: false, bottom: false });
     beltArt(g.belt, g.endless?.broken).forEach(({ pts, fill, z }, i) => tm.poly(pts, z * lv + 0.0005 * (i % 4), parseColor(fill)));
   }
+  if (g.endless) { const y = yardRect(); tm.poly([[y.x, y.y], [y.x + y.w, y.y], [y.x + y.w, y.y + y.h], [y.x, y.y + y.h]], 0.002, parseColor('#2c2f33')); }
   for (const b of g.endless?.bays || []) {
     const t = truckGeom(b);
     truckFloorArt(t.floor).forEach(({ pts, fill }, i) => tm.poly(pts, 0.003 + 0.0005 * (i % 2), parseColor(fill)));

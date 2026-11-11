@@ -6,7 +6,6 @@ import { gameFromLayout, wonkyStack, solidPolys, zoneDone, zonePoints } from './
 // colour (one bay per colour). A full truck (4 slots x 4 boxes) closes its gate once no forklift is inside, drives off with its
 // load and is replaced by a new one. Boxes that reach the end of the belt are missed; too many ends the game.
 export const ENDLESS_W = 26;
-export const ENDLESS_H = 16;
 export const ENDLESS_COLORS = 4;
 export const MAX_MISSED = 10;
 const BELT = { x0: 0.2, y0: 0.5, x1: ENDLESS_W - 1.2, y1: 2.5 };
@@ -14,10 +13,12 @@ const ROAD = 2.8; // depth of the truck road between the belt and the laser fenc
 const BELT_SPEED = 0.4; // tiles/s
 const SPAWN_X = 1.0;
 const SLOT = 1.5; // spacing of the delivery truck's stack slots (2 wide, 3 deep)
-const TRUCK_W = 3.6, TRUCK_D = 5.6, WALL = 0.3;
-const APRON = 0.5; // empty strip inside the gate before the first stack slots
-const RAMP_D = 0.9, CAB_D = 2; // the cab fills the last CAB_D rows of the map, behind the trailer
-const BAY_Y = ENDLESS_H - CAB_D - TRUCK_D; // the trailer's north edge
+const TRUCK_W = 3.6, TRUCK_D = 6, WALL = 0.3;
+const APRON = 0.9; // empty strip inside the gate before the first stack slots
+const RAMP_D = 0.9, CAB_D = 2;
+const WH_H = 14; // the warehouse floor ends here: the south wall runs along y = WH_H, with an opening for each truck
+export const ENDLESS_H = WH_H + TRUCK_D + CAB_D; // the trucks stand in the yard south of the wall, cab last
+const BAY_Y = WH_H; // the trailer's north edge, its gate in line with the south wall
 const SLOTS = 6;
 const FIRST_X = 4.0, BAY_STEP = 4.8;
 const GONE = 200; // a truck that is away is parked this far off the map
@@ -46,6 +47,22 @@ function setRect(w, [x, y, ww, hh]) {
   Object.assign(w, { x, y, w: ww, h: hh, poly: rectPoly(x + ww / 2, y + hh / 2, ww / 2, hh / 2) });
 }
 
+// The warehouse's south wall: solid between the truck openings.
+function southWall() {
+  const out = [];
+  let x = 0;
+  for (let k = 0; k < ENDLESS_COLORS; k++) {
+    const x0 = FIRST_X + k * BAY_STEP;
+    out.push({ x, y: WH_H, w: x0 - x, h: WALL });
+    x = x0 + TRUCK_W;
+  }
+  out.push({ x, y: WH_H, w: ENDLESS_W - x, h: WALL });
+  return out;
+}
+
+// Asphalt yard south of the warehouse where the trucks stand.
+export const yardRect = () => ({ x: 0, y: WH_H + WALL, w: ENDLESS_W, h: ENDLESS_H - WH_H - WALL });
+
 export function newEndless(seed = 0, hard = false) {
   const bays = [], zones = [], areas = [];
   for (let k = 0; k < ENDLESS_COLORS; k++) {
@@ -57,7 +74,7 @@ export function newEndless(seed = 0, hard = false) {
     bays.push({ k, x0, off: 0, placed: 0, state: 'open', t: 0, v: 0, gateClosed: false, cargo: [], zones: bz, area: areas[k], parts: {} });
   }
   const layout = {
-    w: ENDLESS_W, h: ENDLESS_H, walls: [], charger: null, zones, areas, bays: [], doors: [], stacks: [],
+    w: ENDLESS_W, h: ENDLESS_H, walls: southWall(), charger: null, zones, areas, bays: [], doors: [], stacks: [],
     start: { x: ENDLESS_W / 2, y: 7, a: -Math.PI / 2 },
   };
   const g = gameFromLayout(layout, 0, seed, hard);

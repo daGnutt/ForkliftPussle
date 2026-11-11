@@ -1,5 +1,5 @@
 import { COLORS } from './level.js';
-import { beltArt, truckGeom, truckFloorArt, MAX_MISSED } from './endless.js';
+import { beltArt, truckGeom, truckFloorArt, yardRect, MAX_MISSED } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
@@ -424,6 +424,7 @@ function paintFloor(ctx, g, vis) {
       ctx.fill();
     }
   }
+  if (g.endless) { const y = yardRect(); ctx.fillStyle = '#2c2f33'; ctx.fillRect(y.x, y.y, y.w, y.h); }
   for (const b of g.endless?.bays || []) {
     const t = truckGeom(b);
     for (const { pts, fill } of truckFloorArt(t.floor)) {
