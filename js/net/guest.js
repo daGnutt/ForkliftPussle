@@ -5,7 +5,7 @@ import { createPredictor } from './predict.js';
 
 const INPUT_REFRESH = 0.25; // seconds; inputs are also resent while unchanged, as a guard against a lost message
 
-// Events: onGame({ slot, started, level, seed, hard, seedText, snap }) for the welcome and every level change,
+// Events: onGame({ slot, started, level, seed, hard, seedText, endless, snap }) for the welcome and every level change,
 // onClosed(reason) when the party ends or the connection drops.
 const BYE = { full: 'The party is full', kicked: 'The host removed you from the party', banned: 'You are banned from this party' };
 export function createGuest({ relay, code, name, onGame, onClosed, linkFactory = createLink, clock = () => performance.now() / 1000 }) {

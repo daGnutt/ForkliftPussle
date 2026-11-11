@@ -3,7 +3,7 @@ import { generateLevel, parseSeed, isReachable } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
-import { serializeGame, deserializeGame, encodeState, decodeState } from '../js/savestate.js';
+import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
 import { povCamera, overviewCamera, chaseCamera, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { projectPoint } from '../js/gl/mat.js';
@@ -15,7 +15,8 @@ import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos } from '../js/game.js';
+import { newEndless, stepEndless, rampDecals, truckGeom, unloadRate, interval } from '../js/endless.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
 
 const NONE = {};
 const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
@@ -1564,4 +1565,170 @@ console.log('all tests passed');
   run(g, { up: true }, 1.5);
   assert.ok(g.stacks.some((s) => s.layers.includes(4) && s.layers.length > 1), 'fallen boxes came to rest on the stack behind');
   console.log('stack landing ok');
+}
+
+// Boxes toppled off a stack never land inside or beyond a wall.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.zones = [];
+  g.walls = [{ x: 11.3, y: 0, w: 0.3, h: 12, poly: rectPoly(11.45, 6, 0.15, 6, 0) }];
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1, 2, 3] }];
+  g.fl.x = 6; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 4;
+  run(g, { up: true }, 1.2);
+  assert.ok(g.stacks.length > 1, 'the upper boxes toppled');
+  for (const s of g.stacks) assert.ok(s.x < 11.3, 'fallen boxes stay on the near side of the wall');
+  console.log('fall spot ok');
+}
+
+// A truck spawning on top of a stack passes through it until it has driven off.
+{
+  const g = newGame(3, 0, false);
+  g.stacks.push({ x: g.fl.x, y: g.fl.y, layers: [0] });
+  g.trucks[0].gone = true;
+  const j = addTruck(g, 'B');
+  const st = g.stacks.find((q) => q.ghost);
+  assert.ok(st, 'a stack under a spawning truck is ghosted');
+  const x0 = st.x, y0 = st.y;
+  g.self = j;
+  for (let i = 0; i < 60; i++) update(g, { up: true }, 1 / 120);
+  assert.equal(st.x, x0, 'the ghost stack is not pushed');
+  assert.equal(st.y, y0);
+  for (let i = 0; i < 600; i++) update(g, { up: true }, 1 / 120);
+  assert.ok(!g.stacks.some((q) => q.ghost?.includes(j)), 'the stack turns solid once the truck has left it');
+}
+
+// Endless mode in a party: the snapshot carries the trucks and gates, and the guest's prediction shares the moving walls.
+{
+  const host = newEndless(5);
+  addTruck(host, 'Bob');
+  for (let i = 0; i < 12 * 60; i++) { update(host, NONE, 1 / 60); stepEndless(host, 1 / 60); }
+  assert.ok(host.endless.docks.some((d) => d.state !== 'free'), 'an incoming truck arrived');
+  const guest = newEndless(5);
+  guest.self = 1;
+  applySnapshot(guest, JSON.parse(JSON.stringify(snapshot(host))));
+  assert.deepEqual(guest.endless.docks.map((d) => [d.state, d.off]), host.endless.docks.map((d) => [d.state, d.off]));
+  assert.equal(guest.walls.length, host.walls.length, 'gates and trucks are mirrored as walls');
+  assert.equal(guest.endless.arrived, host.endless.arrived);
+  const pr = createPredictor();
+  pr.reset(guest);
+  pr.step(guest, { up: true }, 1 / 60, 0);
+  assert.ok(pr.ready);
+}
+
+// Endless mode: incoming trucks bring 2x3 stacks to the west wall, a full delivery truck closes its gate, drives off and is replaced;
+// the game ends when a new incoming truck is due and every west bay is still occupied.
+{
+  const g = newEndless(1);
+  const step = (secs) => { for (let i = 0; i < secs * 60; i++) { update(g, NONE, 1 / 60); stepEndless(g, 1 / 60); } };
+  const E = g.endless;
+  g.fl.x = 20; g.fl.y = 7; g.fl.a = 0; // well away from the trucks
+  assert.ok(g.walls.includes(E.docks[0].parts.gate), 'an empty west bay is closed off');
+  step(1.2);
+  const d = E.docks[0];
+  assert.equal(d.state, 'arriving');
+  assert.equal(g.stacks.length, 6, 'an incoming truck carries 2x3 stacks');
+  step(10);
+  assert.equal(d.state, 'present');
+  assert.ok(!g.walls.includes(d.parts.gate), 'the gate opens when the truck has arrived');
+  assert.equal(E.docks.length, 6);
+  assert.equal(E.bays.length, 5);
+  assert.ok(E.docks.every((o) => o.y0 <= d.y0), 'the first truck takes the southernmost bay');
+  assert.equal(E.docks.filter((o) => o.side > 0).length, 3, 'three incoming bays on each side');
+  assert.equal(rampDecals(g).length, 11, 'every bay has a permanent ramp decal, truck or not');
+  assert.equal(rampDecals(g).filter((r) => r.east).length, 6);
+  assert.ok(rampDecals(g).every((r) => [r.x, r.y, r.w, r.h].every(Number.isFinite)));
+  assert.ok(g.stacks.every((s) => !s.leaving && s.x < 8 && s.x > 2 && s.layers.length >= 1 && s.layers.length <= 3), 'stacks stand in the trailer');
+  const slots = new Set(g.stacks.map((s) => `${Math.round(s.x)},${Math.round(s.y)}`));
+  assert.equal(slots.size, 6);
+  // an unloaded truck leaves
+  g.stacks = [];
+  step(0.2);
+  assert.equal(d.state, 'leaving');
+  step(5);
+  assert.equal(d.state, 'free');
+  assert.equal(E.unloaded, 1);
+
+  // delivery truck: a full truck closes its gate and drives off with its load
+  E.arriveT = 1e9;
+  g.fl.a = 0; g.fl.x = 20; g.fl.y = 7; g.carried = null; g.H = 0; g.hf = 0;
+  const bay = E.bays[1];
+  g.stacks = bay.zones.map((z) => ({ x: z.x, y: z.y, layers: [1, 1, 1, 1] }));
+  step(0.2);
+  assert.equal(bay.state, 'closing');
+  assert.equal(bay.honkN, 2, 'the truck honks twice first');
+  assert.ok(!g.walls.includes(bay.parts.gate), 'the gate is still open while it honks');
+  step(0.7);
+  assert.ok(g.walls.includes(bay.parts.gate), 'gate closes when the truck is full');
+  step(1.2 + 1);
+  assert.ok(bay.off > 0 && g.stacks.length === 6, 'truck drives off with its load');
+  step(4);
+  assert.equal(E.delivered, 1);
+  assert.equal(E.boxes, 24);
+  assert.ok(E.points > 1500, 'delivered boxes are scored');
+  assert.equal(g.stacks.length, 0, 'the load left with the truck');
+  step(8);
+  assert.ok(bay.state === 'open' && bay.off === 0 && !g.walls.includes(bay.parts.gate), 'a new truck waits with an open gate');
+
+  // a forklift inside keeps the gate open
+  const h = newEndless(2);
+  h.endless.arriveT = 1e9;
+  const b2 = h.endless.bays[0];
+  h.stacks = b2.zones.map((z) => ({ x: z.x, y: z.y, layers: [0, 0, 0, 0] }));
+  h.fl.x = b2.zones[2].x; h.fl.y = b2.zones[2].y + 0.2; h.fl.a = -Math.PI / 2;
+  stepEndless(h, 1 / 60);
+  assert.equal(b2.state, 'open', 'gate stays open while the forklift is inside');
+
+  // tines poking into the full truck (body outside) keep the gate open; a forklift driving up while the gate closes reopens it
+  const k = newEndless(4);
+  k.endless.arriveT = 1e9;
+  const b3 = k.endless.bays[2];
+  k.stacks = b3.zones.map((z) => ({ x: z.x, y: z.y, layers: [2, 2, 2, 2] }));
+  k.fl.x = b3.x0 + 1.8; k.fl.y = 14 + 0.3 - 1.0; k.fl.a = Math.PI / 2; // tines reach ~0.5 into the trailer
+  update(k, NONE, 1 / 60); stepEndless(k, 1 / 60);
+  assert.equal(b3.state, 'open', 'gate stays open while the tines are in the truck');
+  k.fl.x = 20; k.fl.y = 7; // clear
+  update(k, NONE, 1 / 60); stepEndless(k, 1 / 60);
+  assert.equal(b3.state, 'closing');
+  k.fl.x = b3.x0 + 1.8; k.fl.y = 14 + 0.3 - 1.0;
+  update(k, NONE, 1 / 60); stepEndless(k, 1 / 60);
+  assert.equal(b3.state, 'open', 'closing is aborted when a forklift comes too close');
+  assert.ok(!k.walls.includes(b3.parts.gate));
+
+  // all incoming bays still occupied when the next truck is due: game over
+  const m = newEndless(3);
+  m.fl.x = 20; m.fl.y = 7; m.fl.a = 0;
+  for (let i = 0; i < 60 * 1200 && m.status !== 'over'; i++) stepEndless(m, 1 / 60); // no update(): collision resolving dominates the run time and nothing moves here
+  assert.equal(m.status, 'over');
+  assert.ok(m.endless.docks.every((o) => o.state === 'present'));
+  assert.equal(m.endless.arrived, 6);
+  assert.ok(m.stacks.filter((q) => q.x > m.w - 8.3).length === 18 && m.stacks.filter((q) => q.x < 8.3).length === 18, 'both sides hold their trucks\' stacks');
+  assert.ok(unloadRate(m.endless) < 0.15, 'an idle crew lowers the measured unloading rate');
+
+  // adaptive pace: a crew that unloads fast gets trucks sooner than one that does not
+  const fast = newEndless(4), slow = newEndless(4);
+  for (const q of [fast, slow]) { q.fl.x = 20; q.fl.y = 7; q.fl.a = 0; stepEndless(q, 1); }
+  for (let i = 0; i < 60 * 60; i++) {
+    for (const s of fast.stacks) if (i % 120 === 0 && s.x > 2 && s.x < 8) { fast.stacks.splice(fast.stacks.indexOf(s), 1); break; }
+    stepEndless(fast, 1 / 60); stepEndless(slow, 1 / 60);
+  }
+  assert.ok(unloadRate(fast.endless) > unloadRate(slow.endless), 'removing boxes raises the measured rate');
+  assert.ok(interval(fast.endless, 12) < interval(slow.endless, 12));
+
+  // a saved endless game resumes exactly, also through JSON
+  const a = newEndless(7);
+  a.fl.x = 20; a.fl.y = 7; a.fl.a = 0;
+  for (let i = 0; i < 40 * 60; i++) { update(a, NONE, 1 / 60); stepEndless(a, 1 / 60); }
+  a.endless.points = 12;
+  const r = deserializeEndless(JSON.parse(JSON.stringify(serializeEndless(a))));
+  assert.equal(r.stacks.length, a.stacks.length);
+  assert.equal(r.endless.points, 12);
+  assert.deepEqual(r.endless.docks.map((o) => [o.state, o.off, (o.cargo || []).length]), a.endless.docks.map((o) => [o.state, o.off, (o.cargo || []).length]));
+  assert.ok(r.endless.docks.every((o) => (o.cargo || []).every((c) => r.stacks.includes(c))), 'cargo points into the restored stacks');
+  assert.equal(r.walls.length, a.walls.length);
+  for (let i = 0; i < 30 * 60; i++) { update(a, NONE, 1 / 60); stepEndless(a, 1 / 60); update(r, NONE, 1 / 60); stepEndless(r, 1 / 60); }
+  assert.deepEqual(r.stacks.map((q) => [q.x, q.y, q.layers]), a.stacks.map((q) => [q.x, q.y, q.layers]), 'the resumed game continues identically');
+  a.status = 'over';
+  assert.throws(() => deserializeEndless(serializeEndless(a)), 'a finished game is not resumable');
+  console.log('endless ok');
 }

@@ -1,4 +1,5 @@
 import { zoneDone, score, maxScore } from './game.js';
+import { unloadRate, interval, DOCKS } from './endless.js';
 
 export const debugEnabled = (search) => new URLSearchParams(search).has('debug');
 
@@ -35,6 +36,8 @@ export function createDebug() {
       const total = g.stacks.reduce((s, st) => s + st.layers.length, 0) + (g.carried ? g.carried.length : 0);
       const zoneBoxes = g.zones.reduce((s, z) => s + z.count, 0);
       const mem = performance.memory ? `${(performance.memory.usedJSHeapSize / 1048576).toFixed(1)} MB` : 'n/a';
+      const E = g.endless;
+      const endless = E ? [`endless difficulty: unload rate ${unloadRate(E).toFixed(3)} boxes/s  pace ${interval(E, 12).toFixed(0)} s per 12 boxes  next truck in ${Math.max(0, E.arriveT).toFixed(0)} s  waiting ${E.waiting} boxes  bays ${E.docks.filter((d) => d.state !== 'free').length}/${DOCKS}  trucks ${E.arrived}`] : [];
       return [
         `FPS ${ft ? (1000 / ft).toFixed(0) : '–'}  frame ${ft.toFixed(1)} ms (worst ${worst.toFixed(0)} ms, ${longFrames} > 25 ms)`,
         `update ${avg(updates).toFixed(2)} ms  draw ${avg(draws).toFixed(2)} ms  debug ${avg(overheads).toFixed(2)} ms  steps/frame ${avg(steps).toFixed(1)}`,
@@ -45,6 +48,7 @@ export function createDebug() {
         `level ${g.level ?? '?'} seed ${g.seed}  ${g.hard ? 'hard' : 'normal'}  H ${g.H}  status ${g.status}  t ${g.time.toFixed(1)}s`,
         `fl x ${g.fl.x.toFixed(2)} y ${g.fl.y.toFixed(2)} a ${g.fl.a.toFixed(2)} v ${g.fl.speed.toFixed(2)}`,
         `score ${score(g)}/${maxScore(g)}  heap ${mem}${view.paused ? '  PAUSED' : ''}`,
+        ...endless,
       ];
     },
     draw(ctx, g, view) {

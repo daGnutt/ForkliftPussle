@@ -533,6 +533,13 @@ export function setHorns(list) {
   }
 }
 
+// A delivery truck's horn: `n` short two-tone blasts (lower than the forklifts' horns); vol 0..1.
+export function playTruckHonk(n = 1, vol = 1) {
+  if (!ctx || ctx.state !== 'running' || vol <= 0) return;
+  const t = ctx.currentTime;
+  for (let i = 0; i < n; i++) for (const f of [118, 148]) tone(sfxBus, f, t + i * 0.34, 0.26, { type: 'sawtooth', gain: 0.07 * vol, attack: 0.02, release: 0.06, cutoff: 1100 });
+}
+
 // Reversing warning: 880 Hz soft sine beep, 0.4 s on / 0.4 s off while backing up.
 function setBeeper(reversing, t, id, vol) {
   let beeper = beepers.get(id);

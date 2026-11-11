@@ -1,14 +1,15 @@
 import { COLORS } from '../level.js';
+import { truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays } from '../endless.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
-import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked, otherTrucks, isGhost, dropLift } from '../game.js';
+import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked, otherTrucks, isGhost, dropLift, stackZ } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
 import { addParticles } from './particles.js';
-import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
+import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, BOX_H, PAL, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
 
 // Builds the meshes for the WebGL renderer. `mode` is 'pov' (cabin: ceiling, signs) or 'ov' (overview / third person:
 // no ceiling). Walls are always full height; in 'ov' the renderer clips the ones on the camera side of the forklift
@@ -33,9 +34,10 @@ const circlePts = (u, v, r, n = 18) => Array.from({ length: n }, (_, i) => [u + 
 export function wallCaps(g, [nx, ny, d, z]) {
   const m = new Mesh();
   if (z >= WALL_H) return m;
-  const col = parseColor('#6d737a');
+  const grey = parseColor('#6d737a');
   for (const w of g.walls) {
     if (w.charger) continue;
+    const col = w.truck ? parseColor(truckPaint(w.truck.color)) : grey;
     const pts = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]], out = [];
     for (let i = 0; i < 4; i++) {
       const a = pts[i], b = pts[(i + 1) % 4], da = nx * a[0] + ny * a[1] - d, db = nx * b[0] + ny * b[1] - d;
@@ -47,6 +49,42 @@ export function wallCaps(g, [nx, ny, d, z]) {
   return m;
 }
 
+// The truck's cab, a solid block at the south edge behind the trailer: body, windscreen, bumper, wheels and headlights.
+function addCab(sm, w, col) {
+  const cx = w.x + w.w / 2, cy = w.y + w.h / 2, hl = w.w / 2, hw = w.h / 2, yf = w.y + w.h;
+  sm.cuboid(cx, cy, 0, hl, hw, 0.5, 2.6, col);
+  sm.cuboid(cx, cy, 0, hl, hw, 0.3, 0.5, '#26292e', { top: false });
+  sm.cuboid(cx, yf - 0.02, 0, hl - 0.25, 0.04, 1.5, 2.3, '#1d2a38', { top: false, bottom: false });
+  sm.cuboid(cx, yf - 0.1, 0, hl, 0.1, 0.3, 0.6, '#c9ccd1');
+  for (const s of [-1, 1]) {
+    sm.cuboid(cx + s * (hl - 0.35), yf - 0.02, 0, 0.2, 0.04, 0.9, 1.2, '#fff6c0', { emissive: true });
+    sm.wheel(cx + s * (hl + 0.05), cy, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
+  }
+}
+
+// Delivery truck panels: sides/cab in the bay colour on a dark skirt with wheels, rear doors (the gate) in light grey.
+const TRUCK_SKIRT = 0.45;
+function addTruckPart(sm, w) {
+  if (w.truck.part === 'cab') { addCab(sm, w, parseColor(truckPaint(w.truck.color))); return; }
+  const { color, part } = w.truck, cx = w.x + w.w / 2, cy = w.y + w.h / 2, hl = w.w / 2, hw = w.h / 2;
+  const body = part === 'gate' ? '#b9bec5' : part === 'back' ? shade(parseColor(truckPaint(color)), 0.7) : parseColor(truckPaint(color));
+  sm.cuboid(cx, cy, 0, hl, hw, 0, TRUCK_SKIRT, '#26292e', { top: false });
+  sm.cuboid(cx, cy, 0, hl, hw, TRUCK_SKIRT, WALL_H, body, { bottom: false });
+  if (part === 'gate' && hl > 0.2) sm.cuboid(cx, cy, 0, hl - 0.15, hw + 0.01, 1, 1.15, '#7b8088', { top: false, bottom: false });
+  if (part === 'left' || part === 'right') {
+    const out = part === 'left' ? -1 : 1;
+    for (const y of [w.y + 0.9, w.y + w.h - 0.9]) sm.wheel(cx + out * (hl + 0.05), y, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
+  }
+}
+
+// Ramp: a flat decal (grey with yellow edge stripes) on the floor.
+function addRampDecal(tm, r) {
+  const x1 = r.x + r.w, y1 = r.y + r.h;
+  tm.poly([[r.x, r.y], [x1, r.y], [x1, y1], [r.x, y1]], 0.004, parseColor('#7b8088'));
+  const stripes = r.east ? [[r.x, r.y, x1, r.y + 0.12], [r.x, y1 - 0.12, x1, y1]] : [[r.x, r.y, r.x + 0.12, y1], [x1 - 0.12, r.y, x1, y1]];
+  for (const [ax, ay, bx, by] of stripes) tm.poly([[ax, ay], [bx, ay], [bx, by], [ax, by]], 0.0045, parseColor('#f4c414'));
+}
+
 // One wall rectangle: sides in 1-tile segments with a checker tint, plus decals in cabin mode.
 function addWall(sm, tm, g, w, mode) {
   const top = WALL_H;
@@ -56,6 +94,7 @@ function addWall(sm, tm, g, w, mode) {
     addChargerSigns(tm, w);
     return;
   }
+  if (w.truck) { addTruckPart(sm, w); return; }
   const p = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]];
   for (let i = 0; i < 4; i++) {
     const [ax, ay] = p[i], [bx, by] = p[(i + 1) % 4];
@@ -153,6 +192,12 @@ function addFloor(sm, tm, g, mode) {
   for (let x = 0; x <= g.w; x++) tm.poly([[x - gw, 0], [x + gw, 0], [x + gw, g.h], [x - gw, g.h]], 0, grid);
   for (let y = 0; y <= g.h; y++) tm.poly([[0, y - gw], [g.w, y - gw], [g.w, y + gw], [0, y + gw]], 0, grid);
   if (decalsEnabled()) for (const d of floorDecals(g)) tm.poly(d.pts, 0, d.fill);
+  for (const y of g.endless ? yardRects() : []) tm.poly([[y.x, y.y], [y.x + y.w, y.y], [y.x + y.w, y.y + y.h], [y.x, y.y + y.h]], 0.002, parseColor('#2c2f33'));
+  for (const b of truckBays(g)) {
+    const t = truckGeom(b);
+    truckFloorArt(t.floor).forEach(({ pts, fill }, i) => tm.poly(pts, 0.003 + 0.0005 * (i % 2), parseColor(fill)));
+  }
+  for (const r of rampDecals(g)) addRampDecal(tm, r);
   for (const a of g.areas) {
     const c = parseColor(COLORS[a.color]);
     tm.poly([[a.x - 0.3, a.y - 0.3], [a.x + a.w + 0.3, a.y - 0.3], [a.x + a.w + 0.3, a.y + a.h + 0.3], [a.x - 0.3, a.y + a.h + 0.3]], 0, [c[0], c[1], c[2], 0.12]);
@@ -163,7 +208,7 @@ const cache = new WeakMap();
 
 // { opaque, trans } meshes that only change with the level, theme and decal switch.
 export function staticMeshes(g, mode) {
-  const key = [theme(), decalsEnabled(), mode];
+  const key = [theme(), decalsEnabled(), mode, g.layoutVersion || 0];
   let e = cache.get(g);
   if (!e) cache.set(g, (e = {}));
   const hit = e[mode];
@@ -330,8 +375,11 @@ function addDisco(om, g, eye) {
 export function dynamicMeshes(g, mode, eye) {
   const om = new Mesh(), tm = new Mesh();
   for (const st of g.stacks) {
-    addStack(om, tm, st.x, st.y, st.rots || [], st.layers, 0, st.offs, st.dropFrom ?? 0,
+    const ghost = st.ghost?.includes(g.truck.id);
+    if (ghost) tm.alpha = 0.4;
+    addStack(ghost ? tm : om, tm, st.x, st.y, st.rots || [], st.layers, stackZ(g, st), st.offs, st.dropFrom ?? 0,
       dropLift(g, st), st.pen);
+    tm.alpha = 1;
   }
   addCarried(om, tm, g);
   for (const t of otherTrucks(g)) {

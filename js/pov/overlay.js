@@ -1,3 +1,4 @@
+import { lorryHonks } from '../endless.js';
 import { COLORS } from '../level.js';
 import { hitLife, zoneDone } from '../game.js';
 import { truckColor } from '../forklift.js';
@@ -76,7 +77,7 @@ export const honkers = (g) => {
   for (const t of g.trucks) {
     if (!t.gone && t.horn) { if (!honkStart.has(t.id)) honkStart.set(t.id, g.clock); } else honkStart.delete(t.id);
   }
-  return g.trucks.filter((t) => !t.gone && t.horn);
+  return [...g.trucks.filter((t) => !t.gone && t.horn), ...lorryHonks(g)];
 };
 export function honkText(elapsed) {
   const o = Math.min(5, 1 + Math.floor(elapsed / 0.5));
@@ -85,7 +86,7 @@ export function honkText(elapsed) {
 }
 export function drawHonk(ctx, t, clock, sx, sy, size) {
   const bob = Math.sin(clock * 16 + t.id * 2) * size * 0.1;
-  label(ctx, honkText(Math.max(0, clock - (honkStart.get(t.id) ?? clock))), sx, sy + bob, size, truckColor(t.color).body);
+  label(ctx, t.text ?? honkText(Math.max(0, clock - (honkStart.get(t.id) ?? clock))), sx, sy + bob, size, t.paint ?? truckColor(t.color).body);
 }
 
 // Damage popups floating up from the damaged box.

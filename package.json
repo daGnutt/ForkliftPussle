@@ -2,5 +2,5 @@
   "name": "forklift-puzzle",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node test/game.test.js" }
+  "scripts": { "test": "node --import ./test/trace.js test/game.test.js" }
 }

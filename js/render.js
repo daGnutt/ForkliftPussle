@@ -1,4 +1,5 @@
 import { COLORS } from './level.js';
+import { truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays, DOCKS } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
@@ -11,7 +12,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked, otherTrucks, isGhost } from './game.js';
+import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked, otherTrucks, isGhost, stackZ } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -368,7 +369,7 @@ const MAX_FLOOR_PX = 16e6;
 let floorCache = null;
 function drawFloor(ctx, g, vis, pxPerTile) {
   if (vis || !pxPerTile || g.w * g.h * pxPerTile * pxPerTile > MAX_FLOOR_PX) return paintFloor(ctx, g, vis);
-  const key = [theme(), decalsEnabled(), Math.round(pxPerTile * 100)];
+  const key = [theme(), decalsEnabled(), Math.round(pxPerTile * 100), g.layoutVersion || 0];
   const c = floorCache;
   if (!c || c.g !== g || c.key.some((k, i) => k !== key[i])) {
     const cv = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(1, 1) : document.createElement('canvas');
@@ -412,6 +413,28 @@ function paintFloor(ctx, g, vis) {
     ctx.fill();
   }
 
+  if (g.endless) { ctx.fillStyle = '#2c2f33'; for (const y of yardRects()) ctx.fillRect(y.x, y.y, y.w, y.h); }
+  for (const b of truckBays(g)) {
+    const t = truckGeom(b);
+    for (const { pts, fill } of truckFloorArt(t.floor)) {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.fill();
+    }
+  }
+  for (const r of rampDecals(g)) {
+    ctx.fillStyle = '#7b8088';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.fillStyle = '#f4c414';
+    if (r.east) {
+      ctx.fillRect(r.x, r.y, r.w, 0.12);
+      ctx.fillRect(r.x, r.y + r.h - 0.12, r.w, 0.12);
+    } else {
+      ctx.fillRect(r.x, r.y, 0.12, r.h);
+      ctx.fillRect(r.x + r.w - 0.12, r.y, 0.12, r.h);
+    }
+  }
   for (const a of g.areas) {
     if (!seen(a.x - 0.3, a.y - 0.3, a.w + 0.6, a.h + 0.6)) continue;
     ctx.fillStyle = COLORS[a.color];
@@ -489,9 +512,9 @@ function drawWorldObjects(ctx, g, vis) {
   // Stacks whose top is below the tines are drawn first; stacks the tines
   // slide under are drawn over them.
   const shown = g.stacks.filter((st) => seen(st.x - 1.2, st.y - 1.2, 2.4, 2.4));
-  const low = shown.filter((st) => st.layers.length <= g.hf);
-  const high = shown.filter((st) => st.layers.length > g.hf);
-  const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, 0, st.rots, st.offs, st.pen);
+  const low = shown.filter((st) => stackZ(g, st) + st.layers.length <= g.hf);
+  const high = shown.filter((st) => stackZ(g, st) + st.layers.length > g.hf);
+  const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, stackZ(g, st), st.rots, st.offs, st.pen);
   for (const st of low) dstack(st);
   // other trucks first, so the local one is always on top; ghosts are translucent
   const trucks = [...otherTrucks(g), g];
@@ -511,6 +534,7 @@ function drawWorldObjects(ctx, g, vis) {
   ctx.fillStyle = theme().wall;
   for (const w of g.pillars) {
     if (!seen(w.x, w.y, w.w, w.h)) continue;
+    if (w.truck) { drawTruckPart(ctx, w); continue; }
     ctx.fillRect(w.x, w.y, w.w, w.h);
     ctx.strokeStyle = theme().wallEdge;
     ctx.lineWidth = 0.06;
@@ -520,6 +544,41 @@ function drawWorldObjects(ctx, g, vis) {
   ctx.strokeStyle = '#555';
   ctx.lineWidth = 0.3;
   ctx.strokeRect(-0.15, -0.15, g.w + 0.3, g.h + 0.3);
+}
+
+// A delivery truck panel in its bay colour: dark wheels stick out of the sides, the cab is darker, the rear doors (gate) light grey.
+function drawTruckPart(ctx, w) {
+  const { color, part } = w.truck;
+  if (part === 'cab') {
+    const x = w.x, y = w.y, cw = w.w;
+    ctx.fillStyle = '#15171a';
+    ctx.fillRect(x - 0.1, y + 0.3, 0.2, 1.2);
+    ctx.fillRect(x + cw - 0.1, y + 0.3, 0.2, 1.2);
+    ctx.fillStyle = truckPaint(color);
+    ctx.fillRect(x, y, cw, w.h);
+    ctx.fillStyle = '#1d2a38';
+    ctx.fillRect(x + 0.25, y + 1.2, cw - 0.5, 0.5);
+    ctx.fillStyle = '#fff6c0';
+    ctx.fillRect(x + 0.2, y + 1.85, 0.4, 0.12);
+    ctx.fillRect(x + cw - 0.6, y + 1.85, 0.4, 0.12);
+    ctx.strokeStyle = '#1f2226';
+    ctx.lineWidth = 0.06;
+    ctx.strokeRect(x, y, cw, w.h);
+    return;
+  }
+  if (part === 'left' || part === 'right') {
+    ctx.fillStyle = '#15171a';
+    const wx = part === 'left' ? w.x - 0.1 : w.x + w.w - 0.1;
+    for (const y of [w.y + 0.5, w.y + w.h - 1.3]) ctx.fillRect(wx, y, 0.2, 0.8);
+  }
+  ctx.fillStyle = part === 'gate' ? '#b9bec5' : truckPaint(color);
+  ctx.fillRect(w.x, w.y, w.w, w.h);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  if (part === 'back') ctx.fillRect(w.x, w.y, w.w, w.h);
+  ctx.strokeStyle = '#1f2226';
+  ctx.lineWidth = 0.06;
+  ctx.strokeRect(w.x, w.y, w.w, w.h);
+  if (part === 'gate') { ctx.beginPath(); ctx.moveTo(w.x + w.w / 2, w.y); ctx.lineTo(w.x + w.w / 2, w.y + w.h); ctx.stroke(); }
 }
 
 // The truck charger: a red block with a high-voltage warning sign (a bolt in a yellow triangle).
@@ -623,8 +682,8 @@ function drawTopLists(ctx, view, cx, y, width) {
 
 // Shown on a freshly loaded level until the truck first moves.
 function drawStartBoard(ctx, g, view, width, height) {
-  const title = `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`;
-  const h = 40 + 18 * 11 + 22, y = Math.max(10, height * 0.12);
+  const title = g.endless ? 'Endless mode' : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`;
+  const h = 40 + 18 * 11 + 22 + (g.endless ? 150 : 0), y = Math.max(10, height * 0.12);
   const w = Math.min(width - 20, 560);
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect((width - w) / 2, y, w, h);
@@ -633,6 +692,13 @@ function drawStartBoard(ctx, g, view, width, height) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(title, width / 2, y + 20);
+  if (g.endless) {
+    ctx.font = '16px sans-serif';
+    ['Trucks bring stacks to the west and east walls.', 'Stack four of a colour on each of the six spots', 'of that colour\'s delivery truck (south). A full truck', 'drives off and is replaced.', `All ${DOCKS} incoming bays still full when the next one arrives: game over.`]
+      .forEach((t, i) => ctx.fillText(t, width / 2, y + 60 + i * 24));
+    drawTopLists(ctx, view, width / 2, y + 190, w / 2);
+    return;
+  }
   drawTopLists(ctx, view, width / 2, y + 40, w / 2);
 }
 
@@ -652,8 +718,9 @@ function drawStatusStrip(ctx, g, view, mm, title, bestText, globalText, hint, wi
   ctx.fillRect(PAD - 4, bottom - rows * lh - 9, lx - PAD + 4, rows * lh + 14);
   ctx.fillRect(rx - 4, bottom - rows * lh - 9, width - PAD - rx + 8, rows * lh + 14);
   const lw = lx - PAD, rw = width - PAD - rx;
-  line(`Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`, lx, 2, '#eee', 'right', lw, true);
-  line(`Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}`, lx, 1, '#eee', 'right', lw);
+  const E = g.endless;
+  line(E ? 'Endless' : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`, lx, 2, '#eee', 'right', lw, true);
+  line(E ? `Trucks ${E.delivered}   Score ${E.points}` : `Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}`, lx, 1, '#eee', 'right', lw);
   line(formatTime(g.time), lx, 0, '#eee', 'right', lw);
   line(globalText, rx, 3, '#c5e1a5', 'left', rw);
   line(bestText, rx, 2, '#b3e5fc', 'left', rw);
@@ -826,9 +893,10 @@ export function draw(ctx, g, view) {
   // screen-space HUD
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
   const best = view.best;
-  const title = `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${formatTime(g.time)}`;
-  const bestText = best ? `Best ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Best: none yet';
-  const globalText = globalLine(view.global);
+  const E = g.endless;
+  const title = E ? `Endless   Trucks ${E.delivered}   Boxes ${E.boxes}   Bays ${E.docks.filter((d) => d.state !== 'free').length}/${DOCKS}   Score ${E.points}   ${formatTime(g.time)}` : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${formatTime(g.time)}`;
+  const bestText = E ? `Bays ${E.docks.filter((d) => d.state !== 'free').length}/${DOCKS}` : best ? `Best ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Best: none yet';
+  const globalText = E ? '' : globalLine(view.global);
   const hint = g.status === 'play' && isSolved(g)
     ? (scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish')
     : '';
@@ -951,6 +1019,20 @@ export function draw(ctx, g, view) {
   if (view.paused) {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(0, 0, width, height);
+  }
+  if (g.status === 'over') {
+    const E = g.endless;
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(0, height / 2 - 90, width, 180 + 210);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText('Game over!', width / 2, height / 2 - 40);
+    ctx.font = '20px sans-serif';
+    ctx.fillText(`${E.delivered} trucks delivered, ${E.boxes} boxes, ${E.points} points, ${formatTime(g.time)}`, width / 2, height / 2);
+    ctx.fillText(view.touch ? 'Tap to play again' : 'Press Enter to play again', width / 2, height / 2 + 40);
+    drawTopLists(ctx, view, width / 2, height / 2 + 70, width / 2);
   }
   if (g.status === 'won') {
     const lost = lostBreakdown(g);

@@ -1,4 +1,5 @@
 import { newGame, update, forkUp, forkDown, zoneDone, zoneWonky, score, liveTrucks } from './game.js';
+import { newEndless, stepEndless } from './endless.js';
 import { createInput } from './input.js';
 import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
 import { createRelay } from './net/relay.js';
@@ -7,7 +8,7 @@ import { createGuest } from './net/guest.js';
 import { applySnapshot } from './net/protocol.js';
 import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
-import { serializeGame, deserializeGame, encodeState, decodeState } from './savestate.js';
+import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
 import { debugEnabled, createDebug } from './debug.js';
@@ -20,7 +21,7 @@ import { CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
-import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setHorns, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -56,25 +57,33 @@ function loadSaved() {
 }
 loadSaved();
 // Local best now; global top fetched in the background (stale replies are ignored).
+// Endless scores live on level 0 of the seed's boards.
+const boardLevel = () => (game.endless ? 0 : level);
 function refreshGlobal() {
-  const board = `${seed || 0}:${level}`;
+  const board = `${seed || 0}:${boardLevel()}`;
   fetchTopList(board).then((list) => {
-    if (board !== `${seed || 0}:${level}`) return;
+    if (board !== `${seed || 0}:${boardLevel()}`) return;
     view.global = list === null ? 'offline' : list[0] || 'none';
     view.globalList = list;
   });
 }
 function refreshBest() {
-  view.best = getBest(localStorage, seed, level);
-  view.localList = getTop(localStorage, seed, level);
+  view.best = getBest(localStorage, seed, boardLevel());
+  view.localList = getTop(localStorage, seed, boardLevel());
   view.global = 'loading';
   view.globalList = undefined;
   refreshGlobal();
 }
 // Party state: null when playing alone, else { role: 'host' | 'guest', code, name, host | guest, go }. A guest mirrors the host's game and never steps it.
 let mp = null;
+const ENDLESS_KEY = 'forklift-endless-state';
 function saveState() {
   if (mp) return;
+  if (game.endless) {
+    if (game.status === 'over') localStorage.removeItem(ENDLESS_KEY);
+    else localStorage.setItem(ENDLESS_KEY, JSON.stringify(serializeEndless(game)));
+    return;
+  }
   localStorage.setItem('forklift-state', JSON.stringify(serializeGame(game, seedText)));
 }
 const countDone = () => game.zones.filter((z) => zoneDone(game, z)).length;
@@ -87,6 +96,18 @@ const otherH = new Map(); // truck id -> last seen fork level
 refreshBest();
 // Loudness 0..1 of a sound at (x, y), falling off with the distance from the local truck (same curve as the horns).
 const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8);
+// Delivery trucks honk (see `lorryHonks`): once before an incoming truck opens its gate, twice before a full one closes its gate (heard by distance).
+const truckHonks = new Map();
+function honkTrucks() {
+  const e = game.endless;
+  if (!e) { truckHonks.clear(); return; }
+  for (const o of [...e.docks, ...e.bays]) {
+    const prev = truckHonks.get(o);
+    truckHonks.set(o, o.honkT);
+    if (prev === undefined || prev === o.honkT || o.honkT < 0) continue;
+    playTruckHonk(o.honkN, hearVol(o.area.x + o.area.w / 2, o.area.y + o.area.h / 2));
+  }
+}
 let recordOpen = false, recorded = false;
 const recordEl = document.getElementById('record');
 const recordName = document.getElementById('recordName');
@@ -113,6 +134,28 @@ function load(n) {
   partyGameChanged();
   refreshBest();
   saveState();
+}
+// Resumes the saved endless game of this seed and mode unless `fresh`.
+function loadEndless(fresh = false) {
+  if (mp?.role === 'guest') return;
+  if (recordOpen) closeRecord();
+  recorded = false;
+  game = null;
+  if (!fresh && !mp) {
+    try {
+      const data = JSON.parse(localStorage.getItem(ENDLESS_KEY));
+      if (data && data.seed === seed && !!data.hard === hard) game = deserializeEndless(data);
+    } catch { localStorage.removeItem(ENDLESS_KEY); }
+  }
+  game ||= newEndless(seed, hard);
+  partyGameChanged();
+  refreshBest();
+  saveState();
+  doneZones = doneSet();
+  hitCount = game.hitCount;
+  bonkCount = game.bonks;
+  otherBonks.clear();
+  otherH.clear();
 }
 // After the host's game was replaced: the guests get their trucks back in the new game.
 function partyGameChanged() {
@@ -141,7 +184,10 @@ function wakeCursor() {
 canvas.addEventListener('mousemove', wakeCursor);
 document.addEventListener('fullscreenchange', wakeCursor);
 
-function nextLevel() { if (game.status === 'won') load(level + 1); }
+function nextLevel() {
+  if (game.status === 'won') load(level + 1);
+  else if (game.endless && game.status === 'over') loadEndless(true);
+}
 
 function toggleChase() {
   if (!glEnabled()) return;
@@ -278,18 +324,39 @@ document.getElementById('recordForm').addEventListener('submit', (e) => {
   // addTop first: getTop falls back to the saved best, which would duplicate the new entry
   addTop(localStorage, pending.seed, pending.level, { ...pending.result, name });
   saveBest(localStorage, pending.seed, pending.level, { ...pending.result, name });
-  if (pending.level === level && pending.seed === seed) {
-    view.best = getBest(localStorage, seed, level);
-    view.localList = getTop(localStorage, seed, level);
+  if (pending.level === boardLevel() && pending.seed === seed) {
+    view.best = getBest(localStorage, seed, boardLevel());
+    view.localList = getTop(localStorage, seed, boardLevel());
   }
   closeRecord();
   syncScores(localStorage).then(() => refreshGlobal());
 });
 
+// Game over in endless mode: the run's points go to the local and global lists (level 0 of the seed).
+function recordEndless() {
+  if (!mp) localStorage.removeItem(ENDLESS_KEY);
+  const result = { score: game.endless.points, time: game.time };
+  if (!result.score) return;
+  if (!beats(result, getBest(localStorage, seed, 0))) {
+    if (addTop(localStorage, seed, 0, { ...result, name: localStorage.getItem('forklift-player') || 'Anonymous' })) view.localList = getTop(localStorage, seed, 0);
+    syncScores(localStorage).then(refreshGlobal);
+    return;
+  }
+  Object.assign(pending, { seed, level: 0, result });
+  document.getElementById('recordInfo').textContent = `Endless: ${game.endless.delivered} trucks, ${game.endless.boxes} boxes, ${result.score} points (${formatTime(result.time)})`;
+  recordName.value = localStorage.getItem('forklift-player') || '';
+  recordOpen = true;
+  recordEl.classList.remove('hide');
+  input.clear();
+  const touch = window.matchMedia('(pointer: coarse)').matches;
+  if (!(touch && recordName.value)) recordName.focus();
+}
+
 function checkRecord() {
-  if (game.status !== 'won' || recorded) return;
+  if ((game.status !== 'won' && !(game.endless && game.status === 'over')) || recorded) return;
   recorded = true;
   if (mp?.role === 'guest') return; // the host submits the shared score
+  if (game.endless) { recordEndless(); return; }
   if (mp && liveTrucks(game).length > 1) {
     const players = game.trucks.filter((t) => !t.gone).map((t) => t.name || 'Player');
     submitPartyScore(partyBoard(seed, level, players.length), { name: mp.name, points: finalScore(score(game), game.time), time: game.time, level, party: { players, partyCode: mp.code, hostToken: mp.host.token } });
@@ -375,12 +442,7 @@ const hardOpt = document.getElementById('hardOpt');
 hardOpt.checked = hard;
 showTutorial();
 
-function startGame(disco = false) {
-  if (disco) {
-    setMusicMuted(false);
-    setDiscoEnabled(true);
-    localStorage.setItem('forklift-disco', '1');
-  }
+function startGame(endless = false) {
   if (mp?.role === 'guest' && !mp.go) return; // waiting for the host
   const text = seedInput.value.trim();
   if (mp?.role !== 'guest' && text !== seedText) {
@@ -394,7 +456,8 @@ function startGame(disco = false) {
     localStorage.setItem('forklift-hard', hard ? '1' : '0');
     load(level);
   }
-  refreshBest();
+  if (endless && mp?.role !== 'guest') loadEndless();
+  else refreshBest();
   if (tutorialOpt.checked) {
     localStorage.removeItem('forklift-tutorial-done');
     tutStep = 0;
@@ -425,7 +488,7 @@ seedInput.addEventListener('keydown', (e) => {
 document.getElementById('seedForm').addEventListener('submit', (e) => {
   e.preventDefault();
   startAudio();
-  startGame(e.submitter && e.submitter.id === 'discoStart');
+  startGame(e.submitter && e.submitter.id === 'endlessStart');
 });
 window.addEventListener('keydown', (e) => {
   if (!splashOn || e.target === seedInput || e.target === partyName || e.target === joinCode) return;
@@ -525,7 +588,7 @@ async function hostParty(nameText = partyName.value) {
   savePlayerName(name);
   partyErr.textContent = '';
   busy(true);
-  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText }), isStarted: () => !splashOn, name, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed });
+  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed });
   try { await host.start(); } catch (e) { busy(false); partyErr.textContent = mpErr.textContent = e.message; return; }
   mpErr.textContent = '';
   mp = { role: 'host', code: host.code, name, host };
@@ -553,7 +616,7 @@ function onGuestGame(m) {
   mp.connected = true;
   clearTimeout(mp.timer);
   level = m.level; seed = m.seed; seedText = m.seedText || ''; hard = m.hard;
-  game = newGame(level, seed, hard);
+  game = m.endless ? newEndless(seed, hard) : newGame(level, seed, hard);
   game.self = m.slot;
   applySnapshot(game, m.snap);
   mp.guest.predictor.reset(game);
@@ -763,7 +826,11 @@ document.getElementById('menuRestart').addEventListener('click', () => {
   hard = menuHardOpt.checked;
   localStorage.setItem('forklift-hard', hard ? '1' : '0');
   hardOpt.checked = hard;
-  load(level);
+  if (game.endless) loadEndless(true); else load(level);
+  toggleMenu(false);
+});
+document.getElementById('menuEndless').addEventListener('click', () => {
+  if (!game.endless) loadEndless();
   toggleMenu(false);
 });
 // While the menu is open it swallows all keys (so the game keys do nothing); Tab/Space/Enter still work on its controls.
@@ -866,6 +933,7 @@ initTestingBanner();
 if (!isTesting()) menuEl.querySelector('[data-go="state"]')?.remove();
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
+if (new URLSearchParams(location.search).has('endless')) loadEndless();
 // ?skip in the URL bypasses the splash (on touch it opens the main menu; keeps saved settings; no audio until a key/click starts it)
 if (new URLSearchParams(location.search).has('skip')) {
   startGame();
@@ -926,6 +994,7 @@ function frame(now) {
     const inp = input.state();
     cameraStep(inp, STEP);
     update(game, inp, STEP);
+    stepEndless(game, STEP);
     followStep(STEP);
     acc -= STEP;
     steps++;
@@ -941,6 +1010,7 @@ function frame(now) {
     const own = i === game.self, d = Math.hypot(t.fl.x - game.fl.x, t.fl.y - game.fl.y);
     return { id: t.id, on: !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : hearVol(t.fl.x, t.fl.y) };
   }));
+  honkTrucks();
   const done = doneSet();
   const fresh = [...done].filter((z) => !doneZones.has(z));
   if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();
