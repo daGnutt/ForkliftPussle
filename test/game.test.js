@@ -1567,6 +1567,20 @@ console.log('all tests passed');
   console.log('stack landing ok');
 }
 
+// Boxes toppled off a stack never land inside or beyond a wall.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.zones = [];
+  g.walls = [{ x: 11.3, y: 0, w: 0.3, h: 12, poly: rectPoly(11.45, 6, 0.15, 6, 0) }];
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1, 2, 3] }];
+  g.fl.x = 6; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 4;
+  run(g, { up: true }, 1.2);
+  assert.ok(g.stacks.length > 1, 'the upper boxes toppled');
+  for (const s of g.stacks) assert.ok(s.x < 11.3, 'fallen boxes stay on the near side of the wall');
+  console.log('fall spot ok');
+}
+
 // A truck spawning on top of a stack passes through it until it has driven off.
 {
   const g = newGame(3, 0, false);

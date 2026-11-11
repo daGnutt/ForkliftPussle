@@ -198,6 +198,19 @@ function shiftBoxes(S, i, dx, dy) {
   for (let j = i; j < S.layers.length; j++) { S.offs[j].x += dx; S.offs[j].y += dy; }
 }
 
+// Where fallen boxes land: 1.45 from the stack along (dx, dy), but never in or beyond a wall (e.g. the sides of a delivery trailer, which
+// would leave them unreachable outside the map): walks outwards and stops at the first wall, then tries other directions if too close.
+function fallSpot(g, S, dx, dy) {
+  const free = (x, y) => { const p = rectPoly(x, y, 0.5, 0.5, 0); return !g.walls.some((w) => sat(p, w.poly)); };
+  const reach = (ux, uy) => { let d = 0; while (d < 1.45 - 1e-9 && free(S.x + ux * Math.min(1.45, d + 0.05), S.y + uy * Math.min(1.45, d + 0.05))) d += 0.05; return d; };
+  let best = { d: reach(dx, dy), ux: dx, uy: dy };
+  for (let k = 1; best.d < 1.0 && k <= 7; k++) {
+    const a = Math.atan2(dy, dx) + (k * Math.PI) / 4, ux = Math.cos(a), uy = Math.sin(a), d = reach(ux, uy);
+    if (d > best.d + 1e-9) best = { d, ux, uy };
+  }
+  return { x: S.x + best.ux * best.d, y: S.y + best.uy * best.d };
+}
+
 // A box with less than MIN_SUPPORT of its area on the box below falls off, together with everything above it,
 // to the floor beside the stack, taking maximum damage.
 function settle(g, S) {
@@ -213,7 +226,7 @@ function settle(g, S) {
     hurt(g, pen, CRASH_POINTS, S.x + dx * 1.45, S.y + dy * 1.45, pen.length);
     const offs = S.offs.splice(i);
     const rots = S.rots.splice(i);
-    const nx = S.x + dx * 1.45, ny = S.y + dy * 1.45;
+    const { x: nx, y: ny } = fallSpot(g, S, dx, dy);
     const layers = S.layers.splice(i);
     const rel = offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y }));
     // Landing within stackable reach of another stack's top box, the fallen boxes come to rest on it.
