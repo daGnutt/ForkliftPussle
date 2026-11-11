@@ -114,13 +114,13 @@ export function newEndless(seed = 0, hard = false) {
     areas.push({ color: k, x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] });
     const bz = [];
     for (let i = 0; i < SLOTS; i++) { const z = { ...slotAt(x0, i, 0), color: k, count: STACK_BOXES, bay: k }; zones.push(z); bz.push(z); }
-    bays.push({ k, x0, off: 0, placed: 0, state: 'open', t: 0, v: 0, gateClosed: false, cargo: [], zones: bz, area: areas[k], parts: {} });
+    bays.push({ k, x0, off: 0, placed: 0, state: 'open', honkT: -1e9, honkN: 0, t: 0, v: 0, gateClosed: false, cargo: [], zones: bz, area: areas[k], parts: {} });
   }
   const docks = [];
   for (let k = 0; k < DOCKS; k++) {
     const side = k % 2 ? 1 : -1, y0 = dockY(Math.floor(k / 2));
     const r = dockRects({ y0, side }, GONE);
-    docks.push({ k, y0, side, dock: true, off: GONE, placed: GONE, state: 'free', t: 0, v: 0, gateClosed: true, area: { x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] }, parts: {} });
+    docks.push({ k, y0, side, dock: true, off: GONE, placed: GONE, state: 'free', honkT: -1e9, honkN: 0, t: 0, v: 0, gateClosed: true, area: { x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] }, parts: {} });
   }
   const layout = {
     w: ENDLESS_W, h: ENDLESS_H, walls: outerWalls(), charger: null, zones, areas, bays: [], doors: [], stacks: [],
@@ -192,7 +192,7 @@ function stepBay(g, b, dt) {
   } else if (b.state === 'closing') {
     b.t += dt;
     if (!clearOfTrucks(g, b, 0.4)) { b.state = 'open'; b.gateClosed = false; for (const s of b.cargo) delete s.leaving; b.cargo = []; } // a forklift got too close: reopen
-    else if (b.t >= GATE_DELAY) { b.state = 'leaving'; b.v = 0; }
+    else if (b.t >= GATE_DELAY) { b.state = 'leaving'; b.v = 0; b.honkT = e.elapsed; b.honkN = 2; }
   } else if (b.state === 'leaving') {
     b.v = Math.min(5, b.v + 2.5 * dt);
     b.off += b.v * dt;
@@ -305,7 +305,7 @@ export function stepEndless(g, dt) {
   if (e.arriveT <= 0) {
     const d = e.docks.find((o) => o.state === 'free');
     if (!d) { e.over = true; g.status = 'over'; return; }
-    d.off = OUT_DIST; d.state = 'arriving'; loadDock(g, d);
+    d.off = OUT_DIST; d.state = 'arriving'; d.honkT = e.elapsed; d.honkN = 1; loadDock(g, d);
     e.arrived++;
     if (e.arrived === 1) e.wBoxes = RATE_PRIOR * RATE_PRIOR_T * Math.max(1, liveTrucks(g).length); // the prior scales with the crew
     e.arriveT = interval(e, d.cargo.reduce((n, s) => n + s.layers.length, 0)) * (0.85 + 0.3 * rnd(e));
@@ -313,6 +313,19 @@ export function stepEndless(g, dt) {
   for (const d of e.docks) stepDock(g, d, dt);
   measureRate(g, e, dt);
   for (const b of e.bays) stepBay(g, b, dt);
+}
+
+// Lorries whose horn is sounding (an incoming truck arriving: once, a delivery truck leaving: twice), shaped like forklifts for the HONK label.
+export function lorryHonks(g) {
+  const e = g.endless;
+  if (!e) return [];
+  const out = [];
+  for (const o of [...e.docks, ...e.bays]) {
+    const age = e.elapsed - o.honkT;
+    if (age < 0 || age > 0.4 + 0.35 * o.honkN) continue;
+    out.push({ id: 100 + (o.dock ? o.k : 10 + o.k), gone: false, horn: true, text: o.honkN > 1 ? 'HONK HONK' : 'HONK', paint: truckPaint(o.dock ? DOCK_COLOR : o.k), fl: { x: o.area.x + o.area.w / 2, y: o.area.y + o.area.h / 2 } });
+  }
+  return out;
 }
 
 // Plank floor of a truck (follows the bay as it drives; the cab is a solid wall part, `parts.cab`).
