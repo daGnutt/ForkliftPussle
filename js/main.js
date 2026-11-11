@@ -469,6 +469,7 @@ function startGame(endless = false) {
   showTutorial();
   setFullscreen(true);
   splashOn = false;
+  applyPause();
   splash.classList.add('hide');
   seedInput.blur();
   last = performance.now();
@@ -927,7 +928,7 @@ function applyPause() {
   const p = !!view.menuOpen && !mp; // the others keep driving, so a party never pauses
   if (!p && view.paused) last = performance.now();
   view.paused = p;
-  setSilenced(!!view.menuOpen);
+  setSilenced(!!view.menuOpen || splashOn); // the splash diorama stays quiet
 }
 // Losing focus opens the same pause menu as Esc/P; the player must click Resume (or press Esc/P) to continue, just like any other pause.
 const pauseOnBlur = () => { if (!splashOn && !recordOpen && !mp && lostFocus()) toggleMenu(true); };
