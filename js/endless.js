@@ -104,7 +104,7 @@ function outerWalls() {
 // Asphalt where the trucks stand: the yard west of the warehouse and the one south of it.
 export const yardRects = () => [{ x: 0, y: 0, w: XR, h: ENDLESS_H }, { x: XE + WALL, y: 0, w: ENDLESS_W - XE - WALL, h: ENDLESS_H }, { x: XR, y: WH_H + WALL, w: XE + WALL - XR, h: ENDLESS_H - WH_H - WALL }];
 // Every truck bay: the six delivery trucks' and the incoming ones'.
-export const truckBays = (g) => (g.endless ? [...g.endless.bays, ...g.endless.docks] : []);
+export const truckBays = (g) => (g.endless ? [...g.endless.bays, ...g.endless.docks.filter((d) => d.state !== 'free')] : []);
 
 export function newEndless(seed = 0, hard = false) {
   const bays = [], zones = [], areas = [];
@@ -138,10 +138,9 @@ export function newEndless(seed = 0, hard = false) {
   }
   for (const d of docks) {
     const r = dockRects(d, GONE);
-    for (const [n, part] of [['sideN', 'side'], ['sideS', 'side'], ['back', 'back'], ['cab', 'wcab']]) { const w = { truck: { color: DOCK_COLOR, part } }; setRect(w, r[n]); d.parts[n] = w; g.walls.push(w); g.pillars.push(w); }
+    for (const [n, part] of [['sideN', 'side'], ['sideS', 'side'], ['back', 'back'], ['cab', 'wcab']]) { const w = { truck: { color: DOCK_COLOR, part } }; setRect(w, r[n]); d.parts[n] = w; }
     d.parts.gate = { truck: { color: DOCK_COLOR, part: 'gate' } }; // closed while no truck stands at the bay
     setRect(d.parts.gate, [dockGateX(d.side), d.y0, WALL, TRUCK_W]);
-    g.walls.push(d.parts.gate); g.pillars.push(d.parts.gate);
   }
   return g;
 }
@@ -225,10 +224,15 @@ function placeDock(g, d) {
   for (const n of ['sideN', 'sideS', 'back', 'cab']) setRect(d.parts[n], r[n]);
   Object.assign(d.area, { x: r.area[0], y: r.area[1] });
   for (const s of d.cargo || []) s.x += d.side * dx;
-  const has = g.walls.includes(d.parts.gate);
-  if (d.gateClosed && !has) { g.walls.push(d.parts.gate); g.pillars.push(d.parts.gate); }
-  if (!d.gateClosed && has) { g.walls.splice(g.walls.indexOf(d.parts.gate), 1); g.pillars.splice(g.pillars.indexOf(d.parts.gate), 1); }
-  if (dx !== 0 || has !== d.gateClosed) g.layoutVersion++;
+  // a free dock's truck is parked far off the map; keep it out of the walls so nothing draws or collides there
+  let changed = dx !== 0;
+  const want = { sideN: d.state !== 'free', sideS: d.state !== 'free', back: d.state !== 'free', cab: d.state !== 'free', gate: d.gateClosed };
+  for (const n in want) {
+    const w = d.parts[n], has = g.walls.includes(w);
+    if (want[n] && !has) { g.walls.push(w); g.pillars.push(w); changed = true; }
+    if (!want[n] && has) { g.walls.splice(g.walls.indexOf(w), 1); g.pillars.splice(g.pillars.indexOf(w), 1); changed = true; }
+  }
+  if (changed) g.layoutVersion++;
   d.placed = d.off;
 }
 
