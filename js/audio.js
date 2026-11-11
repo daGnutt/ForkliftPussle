@@ -416,6 +416,18 @@ export function playBreak(vol = 1) {
   }
 }
 
+// Cartoon "pop" of a forklift appearing or vanishing: a short rising-then-falling blip with a puff of air.
+export function playPop(vol = 1) {
+  if (!ctx || ctx.state !== 'running' || vol <= 0) return;
+  const t = ctx.currentTime;
+  const o = tone(sfxBus, 1, t, 0.12, { type: 'sine', gain: 0.3 * vol, attack: 0.002, release: 0.08, cutoff: 2500 });
+  o.frequency.cancelScheduledValues(t);
+  o.frequency.setValueAtTime(220, t);
+  o.frequency.exponentialRampToValueAtTime(900, t + 0.03);
+  o.frequency.exponentialRampToValueAtTime(120, t + 0.12);
+  noise(sfxBus, t, 0.1, { gain: 0.12 * vol, cutoff: 3000, type: 'highpass' });
+}
+
 // Dull thud of hitting a wall head-on; power 0..1.
 export function playBonk(power = 0.5, vol = 1) {
   if (!ctx || ctx.state !== 'running' || vol <= 0) return;

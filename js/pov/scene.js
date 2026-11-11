@@ -3,7 +3,7 @@ import { truckPaint } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, overheadDecals, boxDecalKind } from '../decals.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
-import { carriedWorldOffs, otherTrucks, isGhost, dropLift, stackZ } from '../game.js';
+import { carriedWorldOffs, otherTrucksShown, isGhost, dropLift, stackZ } from '../game.js';
 import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam } from './camera.js';
 
 // Scene geometry: everything is a prism (walls, pallets, boxes, tines, fixtures) split into
@@ -223,7 +223,7 @@ export function buildFaces(g, cam) {
     addStack(faces, cam, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, carriedWorldOffs(g), 0, 0, g.carriedPen);
   }
   addForks(faces, cam, g);
-  for (const t of otherTrucks(g)) {
+  for (const t of otherTrucksShown(g)) {
     if (isGhost(g, t.truck.id)) continue; // the software view cannot blend, so ghosts are left out
     addTruck(faces, cam, t);
   }

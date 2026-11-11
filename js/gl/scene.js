@@ -5,7 +5,7 @@ import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
-import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked, otherTrucks, isGhost, dropLift, stackZ } from '../game.js';
+import { zoneDone, zoneLabelPos, isSolved, scoreEnough, isParked, otherTrucksShown, isGhost, dropLift, stackZ } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
 import { addParticles } from './particles.js';
@@ -331,7 +331,7 @@ function discoLights(g, eye) {
 const HEAD_I = 1.5, WARM = [1, 0.95, 0.8];
 function darkLights(g, eye) {
   const out = [];
-  const trucks = [g, ...otherTrucks(g).filter((t) => !isGhost(g, t.truck.id))];
+  const trucks = [g, ...otherTrucksShown(g).filter((t) => !isGhost(g, t.truck.id))];
   for (const t of trucks) truckLights(t, out);
   for (const l of out) l.d = Math.hypot(l.x - eye[0], l.y - eye[1]);
   return out.sort((p, q) => p.d - q.d).slice(0, LIGHT_MAX);
@@ -382,7 +382,7 @@ export function dynamicMeshes(g, mode, eye) {
     tm.alpha = 1;
   }
   addCarried(om, tm, g);
-  for (const t of otherTrucks(g)) {
+  for (const t of otherTrucksShown(g)) {
     const ghost = isGhost(g, t.truck.id), m = ghost ? tm : om;
     if (ghost) tm.alpha = 0.4;
     addCarried(m, tm, t);

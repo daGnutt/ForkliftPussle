@@ -66,7 +66,7 @@ const lerpAngle = (a, b, k) => a + (((b - a + Math.PI) % (2 * Math.PI) + 2 * Mat
 export function createInterpolator(delay = 0.1) {
   let buf = [], stacks = null;
   return {
-    reset() { buf = []; stacks = null; },
+    reset(initialStacks = null) { buf = []; stacks = initialStacks; }, // the welcome/level snapshot's stacks stand in until the next full refresh
     get ready() { return buf.length > 0; },
     push(snap, now) {
       if (snap.stacks) stacks = snap.stacks; else snap.stacks = stacks;

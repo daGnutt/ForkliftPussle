@@ -21,7 +21,7 @@ import { CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
-import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -95,6 +95,23 @@ let otherBonks = new Map(); // truck id -> last seen bonk count (other trucks' b
 const otherH = new Map(); // truck id -> last seen fork level
 refreshBest();
 // Loudness 0..1 of a sound at (x, y), falling off with the distance from the local truck (same curve as the horns).
+// Other players' trucks pop in and out of existence: queue a pop (sound here, smoke in gl/particles.js) on every change.
+let popGame = null, popPrev = new Map(), popN = 0;
+function watchPops() {
+  if (popGame !== game) { popGame = game; popPrev = new Map(); }
+  game.pops = (game.pops || []).filter((p) => game.clock - p.t < 2);
+  game.trucks.forEach((t, i) => {
+    if (i === game.self) return;
+    const prev = popPrev.get(i);
+    if (prev && prev.gone !== !!t.gone) {
+      const at = t.gone ? prev : t.fl;
+      game.pops.push({ n: ++popN, x: at.x, y: at.y, t: game.clock });
+      (game.popVis ||= {})[i] = { t: game.clock, kind: t.gone ? 'out' : 'in' };
+      playPop(hearVol(at.x, at.y));
+    }
+    popPrev.set(i, { gone: !!t.gone, x: t.fl.x, y: t.fl.y });
+  });
+}
 const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8);
 // Delivery trucks honk (see `lorryHonks`): once before an incoming truck opens its gate, twice before a full one closes its gate (heard by distance).
 const truckHonks = new Map();
@@ -1023,6 +1040,7 @@ function frame(now) {
     return { id: t.id, on: !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : hearVol(t.fl.x, t.fl.y) };
   }));
   honkTrucks();
+  watchPops();
   const done = doneSet();
   const fresh = [...done].filter((z) => !doneZones.has(z));
   if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();

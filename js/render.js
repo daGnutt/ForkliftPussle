@@ -12,7 +12,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked, otherTrucks, isGhost, stackZ } from './game.js';
+import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked, otherTrucksShown, isGhost, stackZ } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -335,7 +335,7 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 1;
   const fr = Math.max(4, s * 1.1); // heading arrow in the truck's colour: the tip points where the forklift faces
-  for (const t of [...otherTrucks(g), g]) {
+  for (const t of [...otherTrucksShown(g), g]) {
     ctx.fillStyle = truckColor(t.truck.color).body;
     ctx.save();
     ctx.translate(t.fl.x * s, t.fl.y * s);
@@ -517,7 +517,7 @@ function drawWorldObjects(ctx, g, vis) {
   const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, stackZ(g, st), st.rots, st.offs, st.pen);
   for (const st of low) dstack(st);
   // other trucks first, so the local one is always on top; ghosts are translucent
-  const trucks = [...otherTrucks(g), g];
+  const trucks = [...otherTrucksShown(g), g];
   for (const t of trucks) {
     ctx.globalAlpha = isGhost(g, t.truck.id) ? 0.4 : 1;
     drawForkliftBody(ctx, t);
