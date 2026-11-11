@@ -1,7 +1,7 @@
 import { rectPoly, sat } from './geom.js';
 import { FL, toWorld } from './forklift.js';
 import { COLORS } from './level.js';
-import { gameFromLayout, wonkyStack, solidPolys, zoneDone, zonePoints } from './game.js';
+import { gameFromLayout, liveTrucks, wonkyStack, solidPolys, zoneDone, zonePoints } from './game.js';
 
 // Endless mode: incoming trucks park in bays along the west wall, each carrying 2x3 stacks of random height and colour. The player
 // carries them to the delivery truck of their colour south of the warehouse (one bay per colour). A full delivery truck (6 stacks
@@ -30,8 +30,17 @@ const AWAY_TIME = 2; // s before the replacement truck arrives
 const STACK_BOXES = 4;
 const DOCK_ARRIVE_T = 1; // s until the first incoming truck
 
-// Average gap between incoming trucks; each gap is randomised (x0.8..x1.2).
-export const interval = (elapsed) => Math.max(30, 70 - elapsed / 6);
+// Adaptive pace: the unloading rate (boxes/s while there is work) is measured as an exponentially decayed average over about
+// RATE_TAU s of busy time, starting from a prior per player. The next truck is due after the time that rate needs to unload it,
+// plus a small margin, so the pace follows the crew: slacking or accidents lower the rate (and give a little more time), but the
+// queue grows meanwhile and the bays fill.
+const RATE_PRIOR = 0.15; // boxes/s per player before anything was measured
+const RATE_PRIOR_T = 60; // s of busy time the prior is worth
+const RATE_TAU = 150;
+const PACE_MARGIN = 1.15;
+export const MIN_GAP = 20, MAX_GAP = 150;
+export const unloadRate = (e) => e.wBoxes / e.wBusy;
+export const interval = (e, boxes) => Math.min(MAX_GAP, Math.max(MIN_GAP, (boxes / unloadRate(e)) * PACE_MARGIN));
 
 function bayRects(x0, off) {
   const y = BAY_Y + off;
@@ -109,7 +118,7 @@ export function newEndless(seed = 0, hard = false) {
     start: { x: WX + WH_W / 2, y: WH_H / 2, a: -Math.PI / 2 },
   };
   const g = gameFromLayout(layout, 0, seed, hard);
-  g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, arriveT: DOCK_ARRIVE_T, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, over: false, bays, docks };
+  g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, arriveT: DOCK_ARRIVE_T, wBoxes: RATE_PRIOR * RATE_PRIOR_T, wBusy: RATE_PRIOR_T, waiting: 0, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, over: false, bays, docks };
   g.layoutVersion = 0;
   for (const b of bays) {
     const r = bayRects(b.x0, 0);
@@ -246,6 +255,27 @@ function stepDock(g, d, dt) {
   placeDock(g, d);
 }
 
+// Boxes standing in the trailers of the incoming trucks that have arrived.
+function dockBoxes(g, docks) {
+  let n = 0;
+  for (const d of docks) {
+    if (d.state !== 'present') continue;
+    const r = dockInterior(d);
+    for (const s of g.stacks) if (s.x > r.x0 && s.x < r.x1 && s.y > r.y0 && s.y < r.y1) n += s.layers.length;
+  }
+  return n;
+}
+
+// Boxes taken out of the trailers count as work done during the busy time (some trailer still holds boxes).
+function measureRate(g, e, dt) {
+  const now = dockBoxes(g, e.docks), prev = e.waiting;
+  e.waiting = now;
+  if (!now && !prev) return;
+  const k = Math.exp(-dt / RATE_TAU);
+  e.wBoxes = e.wBoxes * k + Math.max(0, prev - now);
+  e.wBusy = e.wBusy * k + dt;
+}
+
 // Advances the endless mode one step; call after `update`.
 export function stepEndless(g, dt) {
   const e = g.endless;
@@ -257,9 +287,11 @@ export function stepEndless(g, dt) {
     if (!d) { e.over = true; g.status = 'over'; return; }
     d.off = OUT_DIST; d.state = 'arriving'; loadDock(g, d);
     e.arrived++;
-    e.arriveT = interval(e.elapsed) * (0.8 + 0.4 * rnd(e));
+    if (e.arrived === 1) e.wBoxes = RATE_PRIOR * RATE_PRIOR_T * Math.max(1, liveTrucks(g).length); // the prior scales with the crew
+    e.arriveT = interval(e, d.cargo.reduce((n, s) => n + s.layers.length, 0)) * (0.85 + 0.3 * rnd(e));
   }
   for (const d of e.docks) stepDock(g, d, dt);
+  measureRate(g, e, dt);
   for (const b of e.bays) stepBay(g, b, dt);
 }
 

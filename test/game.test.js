@@ -15,7 +15,7 @@ import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
-import { newEndless, stepEndless, truckGeom } from '../js/endless.js';
+import { newEndless, stepEndless, truckGeom, unloadRate, interval } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
 
 const NONE = {};
@@ -1626,9 +1626,20 @@ console.log('all tests passed');
   // all incoming bays still occupied when the next truck is due: game over
   const m = newEndless(3);
   m.fl.x = 20; m.fl.y = 7; m.fl.a = 0;
-  for (let i = 0; i < 60 * 600 && m.status !== 'over'; i++) { update(m, NONE, 1 / 60); stepEndless(m, 1 / 60); }
+  for (let i = 0; i < 60 * 1200 && m.status !== 'over'; i++) { update(m, NONE, 1 / 60); stepEndless(m, 1 / 60); }
   assert.equal(m.status, 'over');
   assert.ok(m.endless.docks.every((o) => o.state === 'present'));
   assert.equal(m.endless.arrived, 5);
+  assert.ok(unloadRate(m.endless) < 0.15, 'an idle crew lowers the measured unloading rate');
+
+  // adaptive pace: a crew that unloads fast gets trucks sooner than one that does not
+  const fast = newEndless(4), slow = newEndless(4);
+  for (const q of [fast, slow]) { q.fl.x = 20; q.fl.y = 7; q.fl.a = 0; stepEndless(q, 1); }
+  for (let i = 0; i < 60 * 60; i++) {
+    for (const s of fast.stacks) if (i % 120 === 0 && s.x > 2 && s.x < 8) { fast.stacks.splice(fast.stacks.indexOf(s), 1); break; }
+    stepEndless(fast, 1 / 60); stepEndless(slow, 1 / 60);
+  }
+  assert.ok(unloadRate(fast.endless) > unloadRate(slow.endless), 'removing boxes raises the measured rate');
+  assert.ok(interval(fast.endless, 12) < interval(slow.endless, 12));
   console.log('endless ok');
 }
