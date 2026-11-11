@@ -8,21 +8,22 @@ import { gameFromLayout, liveTrucks, wonkyStack, solidPolys, zoneDone, zonePoint
 // of 4 boxes) closes its gate once no forklift is inside, drives off with its load and is replaced. An incoming truck that is
 // unloaded closes its gate and drives off; when a new one is due and every bay is still occupied, the game is over.
 export const ENDLESS_COLORS = 5;
-export const DOCKS = 5;
+export const ROWS = 3; // incoming-truck bays per side
+export const DOCKS = 2 * ROWS; // west and east, alternating from the south
 export const DOCK_COLOR = ENDLESS_COLORS; // beyond the box colours: the incoming trucks are grey
 export const truckPaint = (c) => COLORS[c] ?? '#78909c';
 const SLOT = 1.5; // spacing of the delivery truck's stack slots (2 wide, 3 deep)
 const TRUCK_W = 3.6, TRUCK_D = 6, WALL = 0.3;
 const APRON = 0.9; // empty strip inside the gate before the first stack slots
 const RAMP_D = 0.9, CAB_D = 2;
-const WH_W = 28, WH_H = 24; // the warehouse floor; its south wall runs along y = WH_H, with an opening for each truck
+const WH_W = 26, WH_H = 14; // the warehouse floor; its south wall runs along y = WH_H, with an opening for each truck
 const WX = TRUCK_D + CAB_D + WALL; // the warehouse floor starts here: the west wall (the incoming trucks' gates) is just before it
-export const ENDLESS_W = WX + WH_W;
+export const ENDLESS_W = 2 * WX + WH_W;
 export const ENDLESS_H = WH_H + TRUCK_D + CAB_D; // the trucks stand in the yard south of the wall, cab last
 const BAY_Y = WH_H; // the trailer's north edge, its gate in line with the south wall
 const SLOTS = 6;
-const FIRST_X = WX + 2.0, BAY_STEP = 4.8;
-const DOCK_Y0 = 0.6, DOCK_STEP = 4.8;
+const FIRST_X = WX + 1.0, BAY_STEP = 4.8;
+const DOCK_Y0 = 0.8, DOCK_STEP = 4.8;
 const GONE = 200; // a truck that is away is parked this far off the map
 const OUT_DIST = 9;
 const GATE_DELAY = 1; // s between the gate closing and the truck driving off
@@ -56,19 +57,24 @@ function bayRects(x0, off) {
 const slotAt = (x0, i, off) => ({ x: x0 + WALL + SLOT / 2 + (i % 2) * SLOT, y: BAY_Y + WALL + APRON + SLOT / 2 + Math.floor(i / 2) * SLOT + off });
 
 // An incoming truck stands west of the warehouse with its rear (the gate, in the west wall) facing east; `off` slides it west.
-const XR = WX - WALL; // the trailer's east edge
-const dockY = (k) => DOCK_Y0 + (DOCKS - 1 - k) * DOCK_STEP; // dock 0 is the southernmost
-function dockRects(y0, off) {
-  const x = XR - TRUCK_D - off;
+const XR = WX - WALL; // the west wall's left edge: the west trailers' east edge
+const XE = WX + WH_W; // the east wall's left edge
+// An incoming truck stands outside the west (side -1) or east (side 1) wall with its rear (the gate, in the wall) facing the warehouse.
+// `inner` is the trailer's edge at the gate, `off` slides the truck away from the wall.
+const dockInner = (side) => (side < 0 ? XR : XE + WALL);
+const dockGateX = (side) => (side < 0 ? XR : XE);
+const dockY = (row) => DOCK_Y0 + (ROWS - 1 - row) * DOCK_STEP; // row 0 is the southernmost
+function dockRects(d, off) {
+  const { y0, side } = d, x = side < 0 ? dockInner(side) - TRUCK_D - off : dockInner(side) + off; // the trailer's west edge
   return {
     sideN: [x, y0, TRUCK_D, WALL],
     sideS: [x, y0 + TRUCK_W - WALL, TRUCK_D, WALL],
-    back: [x, y0 + WALL, WALL, TRUCK_W - 2 * WALL],
-    cab: [x - CAB_D, y0 + WALL, CAB_D, TRUCK_W - 2 * WALL],
-    area: [x + WALL, y0 + WALL, TRUCK_D - WALL, TRUCK_W - 2 * WALL],
+    back: [side < 0 ? x : x + TRUCK_D - WALL, y0 + WALL, WALL, TRUCK_W - 2 * WALL],
+    cab: [side < 0 ? x - CAB_D : x + TRUCK_D, y0 + WALL, CAB_D, TRUCK_W - 2 * WALL],
+    area: [side < 0 ? x + WALL : x, y0 + WALL, TRUCK_D - WALL, TRUCK_W - 2 * WALL],
   };
 }
-const dockSlot = (y0, i, off) => ({ x: XR - APRON - SLOT / 2 - Math.floor(i / 2) * SLOT - off, y: y0 + WALL + SLOT / 2 + (i % 2) * SLOT });
+const dockSlot = (d, i, off) => ({ x: dockInner(d.side) + d.side * (APRON + SLOT / 2 + Math.floor(i / 2) * SLOT + off), y: d.y0 + WALL + SLOT / 2 + (i % 2) * SLOT });
 
 function setRect(w, [x, y, ww, hh]) {
   Object.assign(w, { x, y, w: ww, h: hh, poly: rectPoly(x + ww / 2, y + hh / 2, ww / 2, hh / 2) });
@@ -83,18 +89,20 @@ function outerWalls() {
     out.push({ x, y: WH_H, w: x0 - x, h: WALL });
     x = x0 + TRUCK_W;
   }
-  out.push({ x, y: WH_H, w: ENDLESS_W - x, h: WALL });
-  let y = 0;
-  for (let k = DOCKS - 1; k >= 0; k--) {
-    out.push({ x: XR, y, w: WALL, h: dockY(k) - y });
-    y = dockY(k) + TRUCK_W;
+  out.push({ x, y: WH_H, w: XE + WALL - x, h: WALL });
+  for (const wx of [XR, XE]) {
+    let y = 0;
+    for (let row = ROWS - 1; row >= 0; row--) {
+      out.push({ x: wx, y, w: WALL, h: dockY(row) - y });
+      y = dockY(row) + TRUCK_W;
+    }
+    out.push({ x: wx, y, w: WALL, h: WH_H - y });
   }
-  out.push({ x: XR, y, w: WALL, h: WH_H - y });
   return out.filter((r) => r.w > 1e-6 && r.h > 1e-6);
 }
 
 // Asphalt where the trucks stand: the yard west of the warehouse and the one south of it.
-export const yardRects = () => [{ x: 0, y: 0, w: XR, h: ENDLESS_H }, { x: XR, y: WH_H + WALL, w: ENDLESS_W - XR, h: ENDLESS_H - WH_H - WALL }];
+export const yardRects = () => [{ x: 0, y: 0, w: XR, h: ENDLESS_H }, { x: XE + WALL, y: 0, w: ENDLESS_W - XE - WALL, h: ENDLESS_H }, { x: XR, y: WH_H + WALL, w: XE + WALL - XR, h: ENDLESS_H - WH_H - WALL }];
 // Every truck bay: the six delivery trucks' and the incoming ones'.
 export const truckBays = (g) => (g.endless ? [...g.endless.bays, ...g.endless.docks] : []);
 
@@ -110,8 +118,9 @@ export function newEndless(seed = 0, hard = false) {
   }
   const docks = [];
   for (let k = 0; k < DOCKS; k++) {
-    const y0 = dockY(k), r = dockRects(y0, GONE);
-    docks.push({ k, y0, dock: true, off: GONE, placed: GONE, state: 'free', t: 0, v: 0, gateClosed: true, area: { x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] }, parts: {} });
+    const side = k % 2 ? 1 : -1, y0 = dockY(Math.floor(k / 2));
+    const r = dockRects({ y0, side }, GONE);
+    docks.push({ k, y0, side, dock: true, off: GONE, placed: GONE, state: 'free', t: 0, v: 0, gateClosed: true, area: { x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] }, parts: {} });
   }
   const layout = {
     w: ENDLESS_W, h: ENDLESS_H, walls: outerWalls(), charger: null, zones, areas, bays: [], doors: [], stacks: [],
@@ -128,10 +137,10 @@ export function newEndless(seed = 0, hard = false) {
     setRect(b.parts.gate, r.gate);
   }
   for (const d of docks) {
-    const r = dockRects(d.y0, GONE);
+    const r = dockRects(d, GONE);
     for (const [n, part] of [['sideN', 'side'], ['sideS', 'side'], ['back', 'back'], ['cab', 'wcab']]) { const w = { truck: { color: DOCK_COLOR, part } }; setRect(w, r[n]); d.parts[n] = w; g.walls.push(w); g.pillars.push(w); }
     d.parts.gate = { truck: { color: DOCK_COLOR, part: 'gate' } }; // closed while no truck stands at the bay
-    setRect(d.parts.gate, [XR, d.y0, WALL, TRUCK_W]);
+    setRect(d.parts.gate, [dockGateX(d.side), d.y0, WALL, TRUCK_W]);
     g.walls.push(d.parts.gate); g.pillars.push(d.parts.gate);
   }
   return g;
@@ -207,15 +216,15 @@ function stepBay(g, b, dt) {
   place(g, b);
 }
 
-const dockInterior = (d) => ({ x0: XR - TRUCK_D + WALL, x1: XR + WALL, y0: d.y0 + WALL, y1: d.y0 + TRUCK_W - WALL });
-const dockRect = (d, m) => { const r = { x0: XR - TRUCK_D - m, x1: XR + WALL + m, y0: d.y0 - m, y1: d.y0 + TRUCK_W + m }; return rectPoly((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, (r.x1 - r.x0) / 2, (r.y1 - r.y0) / 2); };
+const dockInterior = (d) => ({ x0: d.side < 0 ? XR - TRUCK_D + WALL : XE, x1: d.side < 0 ? XR + WALL : XE + WALL + TRUCK_D - WALL, y0: d.y0 + WALL, y1: d.y0 + TRUCK_W - WALL });
+const dockRect = (d, m) => { const r = { x0: (d.side < 0 ? XR - TRUCK_D : XE) - m, x1: (d.side < 0 ? XR + WALL : XE + WALL + TRUCK_D) + m, y0: d.y0 - m, y1: d.y0 + TRUCK_W + m }; return rectPoly((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, (r.x1 - r.x0) / 2, (r.y1 - r.y0) / 2); };
 
 function placeDock(g, d) {
   const dx = d.off - d.placed;
-  const r = dockRects(d.y0, d.off);
+  const r = dockRects(d, d.off);
   for (const n of ['sideN', 'sideS', 'back', 'cab']) setRect(d.parts[n], r[n]);
   Object.assign(d.area, { x: r.area[0], y: r.area[1] });
-  for (const s of d.cargo || []) s.x -= dx;
+  for (const s of d.cargo || []) s.x += d.side * dx;
   const has = g.walls.includes(d.parts.gate);
   if (d.gateClosed && !has) { g.walls.push(d.parts.gate); g.pillars.push(d.parts.gate); }
   if (!d.gateClosed && has) { g.walls.splice(g.walls.indexOf(d.parts.gate), 1); g.pillars.splice(g.pillars.indexOf(d.parts.gate), 1); }
@@ -232,7 +241,7 @@ function loadDock(g, d) {
     const n = 1 + Math.floor(rnd(e) * 3);
     const mixed = rnd(e) < mess, col = Math.floor(rnd(e) * ENDLESS_COLORS);
     const layers = Array.from({ length: n }, () => (mixed ? Math.floor(rnd(e) * ENDLESS_COLORS) : col));
-    const s = wonkyStack({ ...dockSlot(d.y0, i, d.placed), layers });
+    const s = wonkyStack({ ...dockSlot(d, i, d.placed), layers });
     s.leaving = true; // rides in on the truck, through the border
     d.cargo.push(s);
     g.stacks.push(s);
@@ -301,7 +310,7 @@ export function truckGeom(b) {
   const gt = b.parts.gate, a = b.area;
   return {
     floor: { x: a.x, y: a.y, w: a.w, h: a.h, along: b.dock },
-    ramp: b.gateClosed ? null : b.dock ? { x: gt.x + gt.w, y: gt.y + 0.4, w: RAMP_D, h: gt.h - 0.8, east: true } : { x: gt.x + 0.4, y: gt.y - RAMP_D, w: gt.w - 0.8, h: RAMP_D },
+    ramp: b.gateClosed ? null : b.dock ? { x: b.side < 0 ? gt.x + gt.w : gt.x - RAMP_D, y: gt.y + 0.4, w: RAMP_D, h: gt.h - 0.8, east: true, side: b.side } : { x: gt.x + 0.4, y: gt.y - RAMP_D, w: gt.w - 0.8, h: RAMP_D },
   };
 }
 

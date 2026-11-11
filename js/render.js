@@ -694,7 +694,7 @@ function drawStartBoard(ctx, g, view, width, height) {
   ctx.fillText(title, width / 2, y + 20);
   if (g.endless) {
     ctx.font = '16px sans-serif';
-    ['Trucks arrive at the west wall with stacks.', 'Stack four of a colour on each of the six spots', 'of that colour\'s delivery truck (south). A full truck', 'drives off and is replaced.', `All ${DOCKS} west bays still full when the next one arrives: game over.`]
+    ['Trucks bring stacks to the west and east walls.', 'Stack four of a colour on each of the six spots', 'of that colour\'s delivery truck (south). A full truck', 'drives off and is replaced.', `All ${DOCKS} incoming bays still full when the next one arrives: game over.`]
       .forEach((t, i) => ctx.fillText(t, width / 2, y + 60 + i * 24));
     return;
   }

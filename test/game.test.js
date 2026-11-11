@@ -1582,9 +1582,10 @@ console.log('all tests passed');
   step(10);
   assert.equal(d.state, 'present');
   assert.ok(!g.walls.includes(d.parts.gate), 'the gate opens when the truck has arrived');
-  assert.equal(E.docks.length, 5);
+  assert.equal(E.docks.length, 6);
   assert.equal(E.bays.length, 5);
   assert.ok(E.docks.every((o) => o.y0 <= d.y0), 'the first truck takes the southernmost bay');
+  assert.equal(E.docks.filter((o) => o.side > 0).length, 3, 'three incoming bays on each side');
   assert.ok(truckGeom(d).ramp?.east, 'an open incoming truck has a ramp towards the warehouse');
   assert.ok(g.stacks.every((s) => !s.leaving && s.x < 8 && s.x > 2 && s.layers.length >= 1 && s.layers.length <= 3), 'stacks stand in the trailer');
   const slots = new Set(g.stacks.map((s) => `${Math.round(s.x)},${Math.round(s.y)}`));
@@ -1629,7 +1630,8 @@ console.log('all tests passed');
   for (let i = 0; i < 60 * 1200 && m.status !== 'over'; i++) { update(m, NONE, 1 / 60); stepEndless(m, 1 / 60); }
   assert.equal(m.status, 'over');
   assert.ok(m.endless.docks.every((o) => o.state === 'present'));
-  assert.equal(m.endless.arrived, 5);
+  assert.equal(m.endless.arrived, 6);
+  assert.ok(m.stacks.filter((q) => q.x > m.w - 8.3).length === 18 && m.stacks.filter((q) => q.x < 8.3).length === 18, 'both sides hold their trucks\' stacks');
   assert.ok(unloadRate(m.endless) < 0.15, 'an idle crew lowers the measured unloading rate');
 
   // adaptive pace: a crew that unloads fast gets trucks sooner than one that does not

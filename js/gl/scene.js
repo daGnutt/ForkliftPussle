@@ -80,12 +80,12 @@ function addTruckPart(sm, w) {
 // Small loading ramp in front of an open truck: a wedge rising from the floor to the truck's floor level.
 function addRamp(sm, r) {
   const h = 0.12, c = parseColor('#7b8088'), x1 = r.x + r.w, y1 = r.y + r.h;
-  if (r.east) { // faces east, rising towards the truck in the west
-    const dark = shade(c, 0.7);
-    sm.quad([x1, r.y, 0], [x1, y1, 0], [r.x, y1, h], [r.x, r.y, h], [0.12, 0, 1], c);
-    sm.quad([r.x, r.y, 0], [x1, r.y, 0], [r.x, r.y, h], [r.x, r.y, h], [0, -1, 0], dark);
-    sm.quad([x1, y1, 0], [r.x, y1, 0], [r.x, y1, h], [r.x, y1, h], [0, 1, 0], dark);
-    for (const y of [r.y, y1 - 0.12]) sm.quad([x1, y, 0.001], [x1, y + 0.12, 0.001], [r.x, y + 0.12, h + 0.001], [r.x, y, h + 0.001], [0.12, 0, 1], parseColor('#f4c414'));
+  if (r.east) { // runs along x, rising towards the truck (west of it when side < 0, else east)
+    const dark = shade(c, 0.7), hl = r.side < 0 ? h : 0, hr = r.side < 0 ? 0 : h, n = [-0.12 * r.side, 0, 1];
+    sm.quad([x1, r.y, hr], [x1, y1, hr], [r.x, y1, hl], [r.x, r.y, hl], n, c);
+    sm.quad([r.x, r.y, 0], [x1, r.y, 0], [x1, r.y, hr], [r.x, r.y, hl], [0, -1, 0], dark);
+    sm.quad([x1, y1, 0], [r.x, y1, 0], [r.x, y1, hl], [x1, y1, hr], [0, 1, 0], dark);
+    for (const y of [r.y, y1 - 0.12]) sm.quad([x1, y, hr + 0.001], [x1, y + 0.12, hr + 0.001], [r.x, y + 0.12, hl + 0.001], [r.x, y, hl + 0.001], n, parseColor('#f4c414'));
     return;
   }
   sm.quad([r.x, r.y, 0], [x1, r.y, 0], [x1, y1, h], [r.x, y1, h], [0, -0.12, 1], c);
