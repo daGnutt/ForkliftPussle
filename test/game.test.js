@@ -1504,7 +1504,7 @@ console.log('all tests passed');
   assert.ok(g.contact && g.contact.ny > 0.9, 'contact normal points away from the wall');
   assert.ok(slip > 0.4, 'driving into a wall spins the tyres');
   assert.ok(sparked > 0, 'particles are drawn');
-  g.fl.x = g.w / 2; g.fl.y = g.h / 2; g.fl.speed = 0;
+  const ng = newGame(2); g.fl.x = ng.fl.x; g.fl.y = ng.fl.y; g.fl.a = ng.fl.a; g.fl.speed = 0;
   update(g, {}, 1 / 120);
   assert.equal(g.contact, null, 'contact is cleared once the wall is no longer touched (no stale spark point)');
   const free = newGame(2);
