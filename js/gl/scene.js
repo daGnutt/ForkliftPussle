@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { truckGeom, truckFloorArt, yardRects, truckBays } from '../endless.js';
+import { truckPaint, truckGeom, truckFloorArt, yardRects, truckBays } from '../endless.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
@@ -37,7 +37,7 @@ export function wallCaps(g, [nx, ny, d, z]) {
   const grey = parseColor('#6d737a');
   for (const w of g.walls) {
     if (w.charger) continue;
-    const col = w.truck ? parseColor(COLORS[w.truck.color]) : grey;
+    const col = w.truck ? parseColor(truckPaint(w.truck.color)) : grey;
     const pts = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]], out = [];
     for (let i = 0; i < 4; i++) {
       const a = pts[i], b = pts[(i + 1) % 4], da = nx * a[0] + ny * a[1] - d, db = nx * b[0] + ny * b[1] - d;
@@ -65,9 +65,9 @@ function addCab(sm, w, col) {
 // Delivery truck panels: sides/cab in the bay colour on a dark skirt with wheels, rear doors (the gate) in light grey.
 const TRUCK_SKIRT = 0.45;
 function addTruckPart(sm, w) {
-  if (w.truck.part === 'cab') { addCab(sm, w, parseColor(COLORS[w.truck.color])); return; }
+  if (w.truck.part === 'cab') { addCab(sm, w, parseColor(truckPaint(w.truck.color))); return; }
   const { color, part } = w.truck, cx = w.x + w.w / 2, cy = w.y + w.h / 2, hl = w.w / 2, hw = w.h / 2;
-  const body = part === 'gate' ? '#b9bec5' : part === 'back' ? shade(parseColor(COLORS[color]), 0.7) : parseColor(COLORS[color]);
+  const body = part === 'gate' ? '#b9bec5' : part === 'back' ? shade(parseColor(truckPaint(color)), 0.7) : parseColor(truckPaint(color));
   sm.cuboid(cx, cy, 0, hl, hw, 0, TRUCK_SKIRT, '#26292e', { top: false });
   sm.cuboid(cx, cy, 0, hl, hw, TRUCK_SKIRT, WALL_H, body, { bottom: false });
   if (part === 'gate' && hl > 0.2) sm.cuboid(cx, cy, 0, hl - 0.15, hw + 0.01, 1, 1.15, '#7b8088', { top: false, bottom: false });
@@ -80,6 +80,14 @@ function addTruckPart(sm, w) {
 // Small loading ramp in front of an open truck: a wedge rising from the floor to the truck's floor level.
 function addRamp(sm, r) {
   const h = 0.12, c = parseColor('#7b8088'), x1 = r.x + r.w, y1 = r.y + r.h;
+  if (r.east) { // faces east, rising towards the truck in the west
+    const dark = shade(c, 0.7);
+    sm.quad([x1, r.y, 0], [x1, y1, 0], [r.x, y1, h], [r.x, r.y, h], [0.12, 0, 1], c);
+    sm.quad([r.x, r.y, 0], [x1, r.y, 0], [r.x, r.y, h], [r.x, r.y, h], [0, -1, 0], dark);
+    sm.quad([x1, y1, 0], [r.x, y1, 0], [r.x, y1, h], [r.x, y1, h], [0, 1, 0], dark);
+    for (const y of [r.y, y1 - 0.12]) sm.quad([x1, y, 0.001], [x1, y + 0.12, 0.001], [r.x, y + 0.12, h + 0.001], [r.x, y, h + 0.001], [0.12, 0, 1], parseColor('#f4c414'));
+    return;
+  }
   sm.quad([r.x, r.y, 0], [x1, r.y, 0], [x1, y1, h], [r.x, y1, h], [0, -0.12, 1], c);
   sm.quad([r.x, y1, 0], [r.x, r.y, 0], [r.x, y1, h], [r.x, y1, h], [-1, 0, 0], shade(c, 0.7));
   sm.quad([x1, r.y, 0], [x1, y1, 0], [x1, y1, h], [x1, y1, h], [1, 0, 0], shade(c, 0.7));

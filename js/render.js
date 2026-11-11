@@ -1,5 +1,5 @@
 import { COLORS } from './level.js';
-import { truckGeom, truckFloorArt, yardRects, truckBays, DOCKS } from './endless.js';
+import { truckPaint, truckGeom, truckFloorArt, yardRects, truckBays, DOCKS } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
@@ -426,8 +426,13 @@ function paintFloor(ctx, g, vis) {
       ctx.fillStyle = '#7b8088';
       ctx.fillRect(t.ramp.x, t.ramp.y, t.ramp.w, t.ramp.h);
       ctx.fillStyle = '#f4c414';
-      ctx.fillRect(t.ramp.x, t.ramp.y, 0.12, t.ramp.h);
-      ctx.fillRect(t.ramp.x + t.ramp.w - 0.12, t.ramp.y, 0.12, t.ramp.h);
+      if (t.ramp.east) {
+        ctx.fillRect(t.ramp.x, t.ramp.y, t.ramp.w, 0.12);
+        ctx.fillRect(t.ramp.x, t.ramp.y + t.ramp.h - 0.12, t.ramp.w, 0.12);
+      } else {
+        ctx.fillRect(t.ramp.x, t.ramp.y, 0.12, t.ramp.h);
+        ctx.fillRect(t.ramp.x + t.ramp.w - 0.12, t.ramp.y, 0.12, t.ramp.h);
+      }
     }
   }
   for (const a of g.areas) {
@@ -549,7 +554,7 @@ function drawTruckPart(ctx, w) {
     ctx.fillStyle = '#15171a';
     ctx.fillRect(x - 0.1, y + 0.3, 0.2, 1.2);
     ctx.fillRect(x + cw - 0.1, y + 0.3, 0.2, 1.2);
-    ctx.fillStyle = COLORS[color];
+    ctx.fillStyle = truckPaint(color);
     ctx.fillRect(x, y, cw, w.h);
     ctx.fillStyle = '#1d2a38';
     ctx.fillRect(x + 0.25, y + 1.2, cw - 0.5, 0.5);
@@ -566,7 +571,7 @@ function drawTruckPart(ctx, w) {
     const wx = part === 'left' ? w.x - 0.1 : w.x + w.w - 0.1;
     for (const y of [w.y + 0.5, w.y + w.h - 1.3]) ctx.fillRect(wx, y, 0.2, 0.8);
   }
-  ctx.fillStyle = part === 'gate' ? '#b9bec5' : COLORS[color];
+  ctx.fillStyle = part === 'gate' ? '#b9bec5' : truckPaint(color);
   ctx.fillRect(w.x, w.y, w.w, w.h);
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   if (part === 'back') ctx.fillRect(w.x, w.y, w.w, w.h);

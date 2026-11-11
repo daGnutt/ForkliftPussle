@@ -1,4 +1,5 @@
 import { COLORS } from '../level.js';
+import { truckPaint } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, overheadDecals, boxDecalKind } from '../decals.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
@@ -209,7 +210,7 @@ export function buildFaces(g, cam) {
       addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, CHARGER_H, '#c62828');
       for (let i = n; i < faces.length; i++) faces[i].charger = true;
     } else if (w.truck) {
-      const c = w.truck.part === 'gate' ? '#b9bec5' : COLORS[w.truck.color];
+      const c = w.truck.part === 'gate' ? '#b9bec5' : truckPaint(w.truck.color);
       addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, w.truck.part === 'cab' || w.truck.part === 'wcab' ? 2.6 : WALL_H, c);
     } else addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, WALL_H, null, true);
   }

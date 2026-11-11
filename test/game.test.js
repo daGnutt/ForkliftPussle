@@ -15,7 +15,7 @@ import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
-import { newEndless, stepEndless } from '../js/endless.js';
+import { newEndless, stepEndless, truckGeom } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
 
 const NONE = {};
@@ -1582,6 +1582,10 @@ console.log('all tests passed');
   step(10);
   assert.equal(d.state, 'present');
   assert.ok(!g.walls.includes(d.parts.gate), 'the gate opens when the truck has arrived');
+  assert.equal(E.docks.length, 5);
+  assert.equal(E.bays.length, 5);
+  assert.ok(E.docks.every((o) => o.y0 <= d.y0), 'the first truck takes the southernmost bay');
+  assert.ok(truckGeom(d).ramp?.east, 'an open incoming truck has a ramp towards the warehouse');
   assert.ok(g.stacks.every((s) => !s.leaving && s.x < 8 && s.x > 2 && s.layers.length >= 1 && s.layers.length <= 3), 'stacks stand in the trailer');
   const slots = new Set(g.stacks.map((s) => `${Math.round(s.x)},${Math.round(s.y)}`));
   assert.equal(slots.size, 6);
@@ -1625,6 +1629,6 @@ console.log('all tests passed');
   for (let i = 0; i < 60 * 600 && m.status !== 'over'; i++) { update(m, NONE, 1 / 60); stepEndless(m, 1 / 60); }
   assert.equal(m.status, 'over');
   assert.ok(m.endless.docks.every((o) => o.state === 'present'));
-  assert.equal(m.endless.arrived, 3);
+  assert.equal(m.endless.arrived, 5);
   console.log('endless ok');
 }

@@ -1,26 +1,28 @@
 import { rectPoly, sat } from './geom.js';
 import { FL, toWorld } from './forklift.js';
+import { COLORS } from './level.js';
 import { gameFromLayout, wonkyStack, solidPolys, zoneDone, zonePoints } from './game.js';
 
 // Endless mode: incoming trucks park in bays along the west wall, each carrying 2x3 stacks of random height and colour. The player
 // carries them to the delivery truck of their colour south of the warehouse (one bay per colour). A full delivery truck (6 stacks
 // of 4 boxes) closes its gate once no forklift is inside, drives off with its load and is replaced. An incoming truck that is
 // unloaded closes its gate and drives off; when a new one is due and every bay is still occupied, the game is over.
-export const ENDLESS_COLORS = 4;
-export const DOCKS = 3;
-export const DOCK_COLOR = 4; // palette index of the incoming trucks
+export const ENDLESS_COLORS = 5;
+export const DOCKS = 5;
+export const DOCK_COLOR = ENDLESS_COLORS; // beyond the box colours: the incoming trucks are grey
+export const truckPaint = (c) => COLORS[c] ?? '#78909c';
 const SLOT = 1.5; // spacing of the delivery truck's stack slots (2 wide, 3 deep)
 const TRUCK_W = 3.6, TRUCK_D = 6, WALL = 0.3;
 const APRON = 0.9; // empty strip inside the gate before the first stack slots
 const RAMP_D = 0.9, CAB_D = 2;
-const WH_W = 26, WH_H = 14; // the warehouse floor; its south wall runs along y = WH_H, with an opening for each truck
+const WH_W = 28, WH_H = 24; // the warehouse floor; its south wall runs along y = WH_H, with an opening for each truck
 const WX = TRUCK_D + CAB_D + WALL; // the warehouse floor starts here: the west wall (the incoming trucks' gates) is just before it
 export const ENDLESS_W = WX + WH_W;
 export const ENDLESS_H = WH_H + TRUCK_D + CAB_D; // the trucks stand in the yard south of the wall, cab last
 const BAY_Y = WH_H; // the trailer's north edge, its gate in line with the south wall
 const SLOTS = 6;
-const FIRST_X = WX + 4.0, BAY_STEP = 4.8;
-const DOCK_Y0 = 0.8, DOCK_STEP = 4.8;
+const FIRST_X = WX + 2.0, BAY_STEP = 4.8;
+const DOCK_Y0 = 0.6, DOCK_STEP = 4.8;
 const GONE = 200; // a truck that is away is parked this far off the map
 const OUT_DIST = 9;
 const GATE_DELAY = 1; // s between the gate closing and the truck driving off
@@ -46,7 +48,7 @@ const slotAt = (x0, i, off) => ({ x: x0 + WALL + SLOT / 2 + (i % 2) * SLOT, y: B
 
 // An incoming truck stands west of the warehouse with its rear (the gate, in the west wall) facing east; `off` slides it west.
 const XR = WX - WALL; // the trailer's east edge
-const dockY = (k) => DOCK_Y0 + k * DOCK_STEP;
+const dockY = (k) => DOCK_Y0 + (DOCKS - 1 - k) * DOCK_STEP; // dock 0 is the southernmost
 function dockRects(y0, off) {
   const x = XR - TRUCK_D - off;
   return {
@@ -74,7 +76,7 @@ function outerWalls() {
   }
   out.push({ x, y: WH_H, w: ENDLESS_W - x, h: WALL });
   let y = 0;
-  for (let k = 0; k < DOCKS; k++) {
+  for (let k = DOCKS - 1; k >= 0; k--) {
     out.push({ x: XR, y, w: WALL, h: dockY(k) - y });
     y = dockY(k) + TRUCK_W;
   }
@@ -104,7 +106,7 @@ export function newEndless(seed = 0, hard = false) {
   }
   const layout = {
     w: ENDLESS_W, h: ENDLESS_H, walls: outerWalls(), charger: null, zones, areas, bays: [], doors: [], stacks: [],
-    start: { x: WX + WH_W / 2, y: 7, a: -Math.PI / 2 },
+    start: { x: WX + WH_W / 2, y: WH_H / 2, a: -Math.PI / 2 },
   };
   const g = gameFromLayout(layout, 0, seed, hard);
   g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, arriveT: DOCK_ARRIVE_T, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, over: false, bays, docks };
@@ -267,7 +269,7 @@ export function truckGeom(b) {
   const gt = b.parts.gate, a = b.area;
   return {
     floor: { x: a.x, y: a.y, w: a.w, h: a.h, along: b.dock },
-    ramp: b.dock || b.gateClosed ? null : { x: gt.x + 0.4, y: gt.y - RAMP_D, w: gt.w - 0.8, h: RAMP_D },
+    ramp: b.gateClosed ? null : b.dock ? { x: gt.x + gt.w, y: gt.y + 0.4, w: RAMP_D, h: gt.h - 0.8, east: true } : { x: gt.x + 0.4, y: gt.y - RAMP_D, w: gt.w - 0.8, h: RAMP_D },
   };
 }
 
