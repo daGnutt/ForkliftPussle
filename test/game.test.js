@@ -1585,6 +1585,12 @@ console.log('all tests passed');
   g.fl.y = 7; g.fl.a = 0;
   step(0.2);
   assert.ok(!g.endless.broken);
+  // the raised belt blocks the truck body
+  g.fl.x = 13; g.fl.y = 5; g.fl.a = -Math.PI / 2;
+  for (let i = 0; i < 240; i++) { update(g, { ...NONE, up: true }, 1 / 60); stepEndless(g, 1 / 60); }
+  assert.ok(g.fl.y >= g.lowWalls[0].y + g.lowWalls[0].h - 0.01, 'the truck cannot drive onto the belt');
+  g.fl.y = 7; g.fl.a = 0; g.fl.speed = 0;
+  step(0.2);
   const bay = g.endless.bays[1];
   g.endless.spawnT = 1e9;
   g.stacks = [];

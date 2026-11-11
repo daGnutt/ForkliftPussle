@@ -435,7 +435,9 @@ function resolve(g) {
     };
 
     for (const sh of shapes) {
-      for (const w of g.walls) {
+      // low walls (the raised conveyor belt) stop the body and a carried stack below height 1, never the tines
+      const blockers = g.lowWalls?.length && !sh.tine && !(sh.carried && g.H >= 1) ? g.walls.concat(g.lowWalls) : g.walls;
+      for (const w of blockers) {
         const m = sat(sh.poly, w.poly);
         if (m) {
           let tip = sh.poly[0];

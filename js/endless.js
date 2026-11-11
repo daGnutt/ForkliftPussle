@@ -59,6 +59,9 @@ export function newEndless(seed = 0, hard = false) {
   g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, spawnT: 2, spawned: 0, missed: 0, broken: false, delivered: 0, boxes: 0, points: 0, over: false, bays };
   g.belt = { ...BELT, speed: BELT_SPEED, beamY: BELT.y1 + ROAD };
   g.layoutVersion = 0;
+  // the belt is one box high: trucks can't drive onto it, but tines still reach the boxes on it
+  const lw = {}; setRect(lw, [BELT.x0, BELT.y0, BELT.x1 - BELT.x0, BELT.y1 - BELT.y0]);
+  g.lowWalls = [lw];
   for (const b of bays) {
     const r = bayRects(b.x0, 0);
     // each wall is one object shared by `walls` (collision) and `pillars` (drawing), so moving it updates both
@@ -171,7 +174,7 @@ export function stepEndless(g, dt) {
 }
 
 // Floor art of the belt as [{pts, fill}] polygons, drawn in order: rollers between hazard-striped rails, chevrons along the
-// direction of travel, the truck road along its south side, the red pit at the end, and the laser fence (posts plus a beam)
+// direction of travel, yellow stripes marking the grabbing zone along its south side, the red pit at the end, and the laser fence (posts plus a beam)
 // along the road's south edge. The beam is
 // bright while intact and dark while broken.
 export function beltArt(b, broken = false) {
@@ -188,8 +191,8 @@ export function beltArt(b, broken = false) {
   for (let x = b.x0 + 1.2; x < b.x1 - 1; x += 1.6) {
     out.push({ pts: [[x, cy - h * 0.5], [x + 0.45, cy], [x, cy + h * 0.5], [x - 0.22, cy + h * 0.5], [x + 0.23, cy], [x - 0.22, cy - h * 0.5]], fill: '#8d949b' });
   }
-  rect(b.x0, b.y1, b.x1 - b.x0, b.beamY - b.y1, '#7b8087');
-  for (let x = b.x0 + 0.3; x < b.x1 - 0.5; x += 1.2) rect(x, (b.y1 + b.beamY) / 2 - 0.04, 0.6, 0.08, '#eceff1');
+  rect(b.x0, b.y1, b.x1 - b.x0, 0.15, '#1c1e22'); // the belt's raised south face
+  for (let x = b.x0 + 0.1; x < b.x1 - 0.5; x += 0.8) rect(x, b.y1 + 0.55, 0.5, 0.12, '#f4c414'); // yellow stripes mark the grabbing zone
   rect(b.x1, b.y0, ENDLESS_W - b.x1, b.y1 - b.y0, '#c62828');
   for (let y = b.y0; y < b.y1 - 1e-6; y += 0.4) rect(b.x1, y, 0.2, 0.2, '#1a1a1a');
   rect(b.x0, b.beamY - 0.025, b.x1 - b.x0, 0.05, broken ? '#4a1a1a' : '#ff1744');
