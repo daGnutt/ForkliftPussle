@@ -21,7 +21,7 @@ import { CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
-import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, setSilenced, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playFork, playBlocked, playBreak, playBonk, setScrape, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -632,7 +632,9 @@ function onGuestGame(m) {
 }
 
 const menuEl = document.getElementById('menu');
+const sfxOpt = document.getElementById('sfxOpt');
 const engineOpt = document.getElementById('engineOpt');
+const beepOpt = document.getElementById('beepOpt');
 const musicOpt = document.getElementById('musicOpt');
 const trackSel = document.getElementById('trackSel');
 for (const t of MUSIC_TRACKS) trackSel.add(new Option(t.name, t.id));
@@ -680,7 +682,10 @@ function toggleMenu(open) {
   menuEl.classList.toggle('hide', !open);
   if (open) {
     muteOpt.checked = isAllMuted();
+    sfxOpt.checked = isSfxOn();
     engineOpt.checked = isEngineOn();
+    beepOpt.checked = isBeepOn();
+    engineOpt.disabled = beepOpt.disabled = !sfxOpt.checked;
     musicOpt.checked = !isMusicMuted();
     decalOpt.checked = decalsEnabled();
     glOpt.checked = glEnabled();
@@ -704,7 +709,9 @@ function toggleMenu(open) {
   applyPause();
 }
 muteOpt.addEventListener('change', () => setAllMuted(muteOpt.checked));
+sfxOpt.addEventListener('change', () => { setSfxOn(sfxOpt.checked); engineOpt.disabled = beepOpt.disabled = !sfxOpt.checked; });
 engineOpt.addEventListener('change', () => setEngineOn(engineOpt.checked));
+beepOpt.addEventListener('change', () => setBeepOn(beepOpt.checked));
 decalOpt.addEventListener('change', () => {
   setDecalsEnabled(decalOpt.checked);
   localStorage.setItem('forklift-decals-off', decalOpt.checked ? '0' : '1');
@@ -848,7 +855,9 @@ window.addEventListener('keydown', (e) => {
   const toggle = (el) => { el.checked = !el.checked; el.dispatchEvent(new Event('change')); };
   const actions = {
     KeyA: () => toggle(muteOpt),
-    KeyE: () => toggle(engineOpt),
+    KeyO: () => toggle(sfxOpt),
+    KeyE: () => { if (!engineOpt.disabled) toggle(engineOpt); },
+    KeyN: () => { if (!beepOpt.disabled) toggle(beepOpt); },
     KeyM: () => toggle(musicOpt),
     KeyS: () => showPage('sound'),
     KeyV: () => showPage('display'),

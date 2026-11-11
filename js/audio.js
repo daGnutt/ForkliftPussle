@@ -33,7 +33,7 @@ function init() {
   musicBus = ctx.createGain();
   musicBus.gain.value = muted ? 0 : MUSIC_VOL;
   sfxBus = ctx.createGain();
-  sfxBus.gain.value = SFX_VOL;
+  sfxBus.gain.value = sfxOn ? SFX_VOL : 0;
   sfxBus.connect(master);
 
   // Music bus: cut low-mid mud, add a little presence, glue with a gentle compressor.
@@ -325,9 +325,29 @@ export function startAudio() {
 
 // Silence everything (focus lost / manual pause) by suspending the audio clock.
 // Mutes the sound effects (pause menu / focus lost); the music keeps playing.
+let silenced = false;
+const SFX_KEY = 'forklift-sfx-off', BEEP_KEY = 'forklift-beep-off';
+let sfxOn = localStorage.getItem(SFX_KEY) !== '1';
+let beepOn = localStorage.getItem(BEEP_KEY) !== '1';
+const updateSfxBus = () => { if (ctx) sfxBus.gain.setTargetAtTime(silenced || !sfxOn ? 0 : SFX_VOL, ctx.currentTime, 0.02); };
 export function setSilenced(s) {
-  if (!ctx) return;
-  sfxBus.gain.setTargetAtTime(s ? 0 : SFX_VOL, ctx.currentTime, 0.02);
+  silenced = s;
+  updateSfxBus();
+}
+
+// Sound effects on/off (all of them, including the engine whine and the reversing beep, which have their own toggles below).
+export function isSfxOn() { return sfxOn; }
+export function setSfxOn(on) {
+  sfxOn = on;
+  localStorage.setItem(SFX_KEY, on ? '0' : '1');
+  updateSfxBus();
+}
+
+export function isBeepOn() { return beepOn; }
+export function setBeepOn(on) {
+  beepOn = on;
+  localStorage.setItem(BEEP_KEY, on ? '0' : '1');
+  if (!on && ctx) for (const b of beepers.values()) b.g.gain.setTargetAtTime(0, ctx.currentTime, 0.01);
 }
 
 export function isAllMuted() { return allMuted; }
@@ -347,7 +367,6 @@ export function setEngineOn(on) {
   localStorage.setItem(ENGINE_KEY, on ? '0' : '1');
   if (!on && ctx) {
     for (const e of engines.values()) e.g.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
-    for (const b of beepers.values()) b.g.gain.setTargetAtTime(0, ctx.currentTime, 0.01);
   }
 }
 
@@ -490,14 +509,14 @@ export function setEngine(speed, throttle, reversing = false, id = 0, vol = 1) {
     engine = startEngine();
     engines.set(id, engine);
   }
-  if (!engineOn) { setBeeper(false, t, id, vol); return; }
+  setBeeper(reversing && beepOn, t, id, vol);
+  if (!engineOn) return;
   const v = Math.min(1, Math.abs(speed) / 4);
   const pitch = (55 + v * 80 + (throttle ? 6 : 0)) * (1 + 0.04 * id);
   engine.o.frequency.setTargetAtTime(pitch, t, 0.15);
   engine.o2.frequency.setTargetAtTime(pitch * 0.5, t, 0.15);
   engine.f.frequency.setTargetAtTime(250 + v * 350, t, 0.15);
   engine.g.gain.setTargetAtTime((v < 0.02 && !throttle ? 0.008 : 0.02 + v * 0.05) * vol, t, 0.15);
-  setBeeper(reversing, t, id, vol);
 }
 
 // Horns: one voice per truck (two detuned saws), held for as long as the truck's horn key is down.
