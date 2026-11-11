@@ -1629,7 +1629,7 @@ console.log('all tests passed');
   // all incoming bays still occupied when the next truck is due: game over
   const m = newEndless(3);
   m.fl.x = 20; m.fl.y = 7; m.fl.a = 0;
-  for (let i = 0; i < 60 * 1200 && m.status !== 'over'; i++) { update(m, NONE, 1 / 60); stepEndless(m, 1 / 60); }
+  for (let i = 0; i < 60 * 1200 && m.status !== 'over'; i++) stepEndless(m, 1 / 60); // no update(): collision resolving dominates the run time and nothing moves here
   assert.equal(m.status, 'over');
   assert.ok(m.endless.docks.every((o) => o.state === 'present'));
   assert.equal(m.endless.arrived, 6);

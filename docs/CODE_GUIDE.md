@@ -96,7 +96,7 @@ The splash has two submit buttons: `#startBtn` (Start, keeps saved settings; Ent
 - `manifest.webmanifest` (fullscreen/standalone, orientation `any` so it rotates, icons in `icons/` rendered from `favicon.svg`) and `sw.js` (precaches core files in `CORE`, network-first (`cache: 'no-cache'`, bypassing the HTTP cache) with cache fallback (offline or after a 3 s timeout) for everything else; the page re-checks for a new worker on `visibilitychange`/`pageshow` and reloads once on `controllerchange`, so MIDI is cached on first play). `index.html` registers the worker only on the official host (`!isTesting()`); elsewhere it unregisters workers and deletes caches. Add new JS modules to `CORE` in `sw.js` and bump `CACHE` when shipping changes.
 
 ## Tests
-- `test/game.test.js` is a sequence of independent blocks (plain `node:assert`). Helpers: `run` (simulate seconds of input), `driveUntil`, `flatWorld` (clears zones and pillars). Any game-logic change needs a scenario here.
+- `test/game.test.js` is a sequence of independent blocks (plain `node:assert`). Helpers: `run` (simulate seconds of input), `driveUntil`, `flatWorld` (clears zones and pillars). Any game-logic change needs a scenario here. `npm test` preloads `test/trace.js` (+ `trace-hooks.js`), which prints `▶ [line N] title` before each top-level `// Title` comment group (and `· ` for blank-line-separated `  // sub-step` comments) and `done in X ms` after it, flagging `SLOW` at `SLOW_MS` (default 1000); `TRACE=0` silences it. Start a new test section with a `// Title` comment to get it traced.
 
 ## Workflow conventions
 - `docs/VOCABULARY.md` lists the shared names for game objects, views and UI; use those terms and keep it updated when adding/renaming things.
