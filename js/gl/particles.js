@@ -100,12 +100,28 @@ function watchHits(s, g) {
   s.hitCount = n;
 }
 
-// A truck popped in or out (`pops`, queued by main.js): a big cloud of white smoke where it stood.
+// A truck popped in or out (`pops`, queued by main.js): a big smoke cloud with a bright flash, sparks, a ring of dust,
+// confetti and rising stars where it stood.
 function watchPops(s, g) {
+  const CONF = [[1, 0.3, 0.3], [1, 0.85, 0.2], [0.3, 0.6, 1], [0.4, 0.9, 0.4], [1, 0.5, 0.9]];
   for (const p of g.pops || []) {
     if (p.n <= s.popN) continue;
     s.popN = p.n;
-    for (let i = 0; i < 26; i++) puff(s, p.x + rnd(-0.5, 0.5), p.y + rnd(-0.5, 0.5), rnd(0.1, 0.5), { size: 0.2, grow: 0.9, spread: 3, a0: 0.8, life: 1.6, col: [0.95, 0.95, 0.97] });
+    for (let i = 0; i < 60; i++) puff(s, p.x + rnd(-0.8, 0.8), p.y + rnd(-0.8, 0.8), rnd(0.1, 1), { size: 0.35, grow: 1.4, spread: 5, a0: 0.85, life: 2.2, col: [0.95, 0.95, 0.97] });
+    for (let i = 0; i < 16; i++) { // dust ring
+      const a = (i / 16) * Math.PI * 2;
+      puff(s, p.x, p.y, 0.1, { size: 0.2, grow: 0.8, spread: 0, vx: Math.cos(a) * 2.2, vy: Math.sin(a) * 2.2, a0: 0.5, life: 1.2, col: [0.8, 0.76, 0.7] });
+    }
+    sparks(s, p.x, p.y, 0.5, 0, 0, 40, 5);
+    for (let i = 0; i < 40; i++) {
+      const a = rnd(0, Math.PI * 2), v = rnd(0.5, 2.6), c = CONF[i % CONF.length];
+      emit(s, { kind: 'chip', x: p.x, y: p.y, z: 0.5, vx: Math.cos(a) * v, vy: Math.sin(a) * v, vz: rnd(3, 6.5), life: rnd(1.2, 2.2), size: rnd(0.04, 0.07), grav: 6, drag: 0.5, col: [c[0], c[1], c[2], 1], lit: true });
+    }
+    for (let i = 0; i < 8; i++) { // rising yellow stars
+      const a = rnd(0, Math.PI * 2);
+      emit(s, { kind: 'chip', x: p.x, y: p.y, z: 0.6, vx: Math.cos(a) * 0.6, vy: Math.sin(a) * 0.6, vz: rnd(1.5, 3), life: rnd(0.9, 1.5), size: 0.09, grav: -1, drag: 0.6, col: [1, 0.95, 0.4, 1], lit: true });
+    }
+    s.flashes.push({ x: p.x, y: p.y, z: 0.8, age: 0, life: 0.3, k: 2 });
   }
 }
 
