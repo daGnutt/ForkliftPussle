@@ -74,6 +74,12 @@ export function chaseRig(g, tiles, tilt, eye2, yaw = 0, heading = g.fl.a) {
   return { pos: [p.x + ox, p.y + oy], eye: [p.x + rx, p.y + ry, z], target: [p.x, p.y], heading: eye2 ? hd : heading, dist, maxD };
 }
 
+// Swings the camera floor position `pos` by `ang` radians around the middle of the tines (the user orbiting the chase camera); keeps its distance.
+export function chaseOrbit(g, pos, ang) {
+  const p = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, 0), c = Math.cos(ang), s = Math.sin(ang), ox = pos[0] - p.x, oy = pos[1] - p.y;
+  return [p.x + ox * c - oy * s, p.y + ox * s + oy * c];
+}
+
 const DRIFT_RATE = 0.7, DRIFT_SPEED = 2; // 1/s at DRIFT_SPEED tiles/s or more (scales down with speed)
 
 // While the truck moves, the camera floor position `pos` slowly drifts towards the spot at distance `maxD` behind it (driving forwards) or in

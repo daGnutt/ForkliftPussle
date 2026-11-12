@@ -17,7 +17,7 @@ import { decalsEnabled, setDecalsEnabled } from './decals.js';
 import { glEnabled, setGlEnabled, attachGlCanvas } from './gl/renderer.js';
 import { themeMode, setThemeMode, theme } from './theme.js';
 import { discoEnabled, setDiscoEnabled } from './disco.js';
-import { chaseDrift, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
+import { chaseDrift, chaseOrbit, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
@@ -217,6 +217,7 @@ function toggleChase() {
     view.chase = true;
   } else view.chase = !view.chase;
   view.orbit = null;
+  view.chaseGoal = null;
   localStorage.setItem('forklift-chase-cam', view.chase ? '1' : '0');
 }
 
@@ -259,13 +260,27 @@ if (isTouch) canvas.addEventListener('pointerdown', (e) => {
 
 // Look around in the 3D views: drag the canvas or hold Q/W. The big view's camera swings around the forklift (overview,
 // view.orbit { yaw, tilt }) or turns on the spot (cabin, view.look { yaw, pitch }); driving springs it back.
+const CHASE_TURN = Math.PI / 4; // a Q/W press swings the chase camera this far around the forklift
 const ORBIT_HOME = 0.35, ORBIT_TILT_MAX = 1.3, LOOK_PITCH_MAX = 0.7, LOOK_SPEED = 2;
 // Flat overview: a Q/W press springs the camera a quarter turn (o.goal = target yaw) instead of turning continuously.
 function quarterTurn(dir) {
+  if (view.chase) { view.chaseGoal = (view.chaseGoal || 0) - dir * CHASE_TURN; lookState(); return; }
   const o = lookState(), q = Math.PI / 2;
   o.goal = (Math.round((o.goal ?? o.yaw) / q) - dir) * q;
 }
+// Chase camera: the user swings its floor position (view.camP) around the truck; it stays there and the normal rules (distance limits, drift) apply.
+function swingChase(ang) {
+  if (view.camP && ang) view.camP = chaseOrbit(game, view.camP, ang);
+}
 function turnStep(dt) {
+  if (view.chase) {
+    const goal = view.chaseGoal;
+    if (!goal) return;
+    const d = Math.abs(goal) < 0.003 ? goal : goal * (1 - Math.exp(-9 * dt));
+    swingChase(d);
+    view.chaseGoal = goal - d || null;
+    return;
+  }
   const o = view.orbit;
   if (!o || o.goal == null) return;
   o.yaw += (o.goal - o.yaw) * (1 - Math.exp(-9 * dt));
@@ -280,16 +295,16 @@ function lookState() {
 function lookBy(dyaw, dpitch) {
   const o = lookState();
   o.goal = null;
-  o.yaw = wrap(o.yaw - dyaw);
+  if (view.chase) { view.chaseGoal = null; swingChase(-dyaw); } else o.yaw = wrap(o.yaw - dyaw);
   if (view.povBig) o.pitch = Math.min(LOOK_PITCH_MAX, Math.max(-LOOK_PITCH_MAX, o.pitch + dpitch));
   else o.tilt = Math.min(ORBIT_TILT_MAX, Math.max(0.05, o.tilt + dpitch));
 }
 function springBack(dt) {
   const k = 1 - Math.exp(-7 * dt);
   const o = view.orbit, l = view.look;
-  if (o) {
-    // the flat overview settles on the nearest quarter turn (the map stays rotated); the chase camera always returns behind the forklift
-    const target = view.chase ? 0 : o.goal ?? Math.round(o.yaw / (Math.PI / 2)) * (Math.PI / 2);
+  if (o && !view.chase) {
+    // the flat overview settles on the nearest quarter turn (the map stays rotated); the chase camera is left where the user put it
+    const target = o.goal ?? Math.round(o.yaw / (Math.PI / 2)) * (Math.PI / 2);
     o.yaw += (target - o.yaw) * k;
     o.tilt -= (o.tilt - orbitHome()) * k;
     if (Math.abs(o.yaw - target) + Math.abs(o.tilt - orbitHome()) < 0.003) {
@@ -299,7 +314,7 @@ function springBack(dt) {
     }
   }
   if (l) { l.yaw -= l.yaw * k; l.pitch -= l.pitch * k; if (Math.abs(l.yaw) + Math.abs(l.pitch) < 0.003) view.look = null; }
-  if ((!view.orbit || view.orbit.yaw === Math.round(view.orbit.yaw / (Math.PI / 2)) * (Math.PI / 2) && !view.chase) && !view.look) view.snap = false;
+  if ((!view.orbit || view.chase || view.orbit.yaw === Math.round(view.orbit.yaw / (Math.PI / 2)) * (Math.PI / 2)) && !view.look) view.snap = false;
 }
 let drag = null;
 canvas.addEventListener('pointerdown', () => { if (!splashOn) view.startHidden = true; }, true);
@@ -950,7 +965,7 @@ function frame(now) {
   const cameraStep = (inp, dt) => {
     if (inp.up || inp.down || inp.left || inp.right) view.snap = true;
     if (!splashOn && glEnabled()) {
-      if (view.povBig || view.chase) { if (inp.lookL || inp.lookR) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * dt, 0); }
+      if (view.povBig) { if (inp.lookL || inp.lookR) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * dt, 0); }
       else {
         if (inp.lookR && !view.lookHeld?.R) quarterTurn(1);
         if (inp.lookL && !view.lookHeld?.L) quarterTurn(-1);

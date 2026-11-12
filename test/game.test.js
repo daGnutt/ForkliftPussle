@@ -4,6 +4,7 @@ import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
+import { chaseOrbit } from '../js/gl/camera.js';
 import { povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { projectPoint } from '../js/gl/mat.js';
@@ -1148,6 +1149,16 @@ console.log('all tests passed');
   const t = clearChaseTilt(g, 11, a, 0, CHASE_TILT);
   assert.ok(t < CHASE_TILT, 'camera should lift over the wall');
   console.log('chase wall clearing ok');
+}
+
+// chase camera orbit keeps its distance to the tines' middle
+{
+  const g = newGame(1), r = chaseRig(g, 11, CHASE_TILT, null, 0, g.fl.a), p = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, 0);
+  const q = chaseOrbit(g, r.pos, Math.PI / 4);
+  assert.ok(Math.abs(Math.hypot(q[0] - p.x, q[1] - p.y) - r.maxD) < 1e-9, 'orbit keeps the distance');
+  const back = chaseOrbit(g, q, -Math.PI / 4);
+  assert.ok(Math.hypot(back[0] - r.pos[0], back[1] - r.pos[1]) < 1e-9, 'orbit is reversible');
+  console.log('chase orbit ok');
 }
 
 // Splash demo: the scripted forklift keeps shuffling the stacks without hitting walls or other stacks, and never loses a box
