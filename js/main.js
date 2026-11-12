@@ -126,7 +126,7 @@ function honkTrucks() {
     playTruckHonk(o.honkN, hearVol(o.area.x + o.area.w / 2, o.area.y + o.area.h / 2));
   }
 }
-let recordOpen = false, recorded = false;
+let recordOpen = false, recorded = false, manualEnd = false; // manualEnd: the endless run was ended from the menu, so always offer the name prompt
 const recordEl = document.getElementById('record');
 const recordName = document.getElementById('recordName');
 
@@ -141,6 +141,7 @@ function load(n) {
   if (mp?.role === 'guest') return; // only the host changes levels
   if (recordOpen) closeRecord();
   recorded = false;
+  manualEnd = false;
   level = Math.max(1, n);
   localStorage.setItem('forklift-level', String(level));
   game = newGame(level, seed, hard);
@@ -158,6 +159,7 @@ function loadEndless(fresh = false) {
   if (mp?.role === 'guest') return;
   if (recordOpen) closeRecord();
   recorded = false;
+  manualEnd = false;
   game = null;
   if (!fresh && !mp) {
     try {
@@ -351,11 +353,11 @@ document.getElementById('recordForm').addEventListener('submit', (e) => {
 });
 
 // Game over in endless mode: the run's points go to the local and global lists (level 0 of the seed).
-function recordEndless() {
+function recordEndless(force = false) {
   if (!mp) localStorage.removeItem(ENDLESS_KEY);
   const result = { score: game.endless.points, time: game.time };
   if (!result.score) return;
-  if (!beats(result, getBest(localStorage, seed, 0))) {
+  if (!force && !beats(result, getBest(localStorage, seed, 0))) {
     if (addTop(localStorage, seed, 0, { ...result, name: localStorage.getItem('forklift-player') || 'Anonymous' })) view.localList = getTop(localStorage, seed, 0);
     syncScores(localStorage).then(refreshGlobal);
     return;
@@ -374,7 +376,7 @@ function checkRecord() {
   if ((game.status !== 'won' && !(game.endless && game.status === 'over')) || recorded) return;
   recorded = true;
   if (mp?.role === 'guest') return; // the host submits the shared score
-  if (game.endless) { recordEndless(); return; }
+  if (game.endless) { recordEndless(manualEnd); manualEnd = false; return; }
   if (mp && liveTrucks(game).length > 1) {
     const players = game.trucks.filter((t) => !t.gone).map((t) => t.name || 'Player');
     submitPartyScore(partyBoard(seed, level, players.length), { name: mp.name, points: finalScore(score(game), game.time), time: game.time, level, party: { players, partyCode: mp.code, hostToken: mp.host.token } });
@@ -842,6 +844,7 @@ document.getElementById('menuEndless').addEventListener('click', () => {
   toggleMenu(false);
 });
 menuEndRun.addEventListener('click', () => {
+  manualEnd = true;
   endEndless(game);
   toggleMenu(false);
 });
