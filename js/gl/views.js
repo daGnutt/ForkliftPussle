@@ -1,7 +1,7 @@
 import { COLORS } from '../level.js';
 import { hitLife, zoneDone } from '../game.js';
 import { label, labelRows, hitRows, honkers, drawHonk, pinHonk } from '../pov/overlay.js';
-import { povCamera, overviewCamera, chaseCamera, groundFootprint } from './camera.js';
+import { povCamera, overviewCamera, chaseCamera, groundFootprint, blendCameras } from './camera.js';
 import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';
 import { clipPoint } from './mat.js';
@@ -70,6 +70,22 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
   return true;
 }
 
+// Swoop between the flat overview and the chase camera: when the mode changes, the camera glides from the last drawn pose to the new one.
+const SWOOP_S = 0.8;
+let swoop = null, lastDrawn = null;
+function swoopCamera(cam, mode) {
+  const now = performance.now() / 1000;
+  if (lastDrawn && lastDrawn.mode !== mode && now - lastDrawn.t < 0.25) swoop = { from: lastDrawn.cam, t0: now };
+  let out = cam;
+  if (swoop) {
+    const k = Math.min(1, (now - swoop.t0) / SWOOP_S);
+    if (k >= 1) swoop = null;
+    else out = blendCameras(swoop.from, cam, k * k * (3 - 2 * k));
+  }
+  lastDrawn = { mode, cam: out, t: now };
+  return out;
+}
+
 // Overview into the css-px rect (rx, ry, rw, rh): centre (cx, cy) in tiles, s px per tile at the centre.
 // `orbit` ({ yaw, tilt } radians, set by dragging) rotates/tilts the camera around the same centre (cx, cy); `chase` (tiles visible vertically) uses the
 // third-person camera at floor position `eye2` (null: behind `heading`), looking at the tines' middle (cx, cy, s ignored); `orbit` then swings it around the truck.
@@ -85,6 +101,8 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = n
     const co = Math.cos(orbit.yaw), si = Math.sin(orbit.yaw);
     cam = overviewCamera(cx, cy, rh / s, rw, rh, [si, -co], orbit.tilt);
   } else cam = overviewCamera(cx, cy, rh / s, rw, rh);
+  cam = swoopCamera(cam, chase ? 'chase' : 'ov');
+  if (chase) foot = groundFootprint(cam);
   const proj = drawGl(ctx, g, 'ov', cam, rx, ry, dpr);
   if (!proj) return false;
   ctx.save();

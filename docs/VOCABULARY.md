@@ -135,7 +135,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Splash** | Title screen: Start, Start endless, options | `#splash` |
 | **Menu / pause menu** | Esc/P menu with pages: main, sound, display, game, info, state | `#menu` |
 | **Report link** | Main-menu entry "Report a bug / request a feature" opening the GitHub issues page in a new tab | `#menu a.nav` |
-| **Zoom slider** | Desktop-only on-screen camera zoom slider in the bottom-right of the main view (same value as Camera zoom in the menu) | `#zoomBar` |
+| **Zoom slider** | Desktop-only on-screen camera zoom slider in the bottom-right of the main view (sets the chase camera's zoom, same value as Camera zoom in the menu, while in the chase camera, and the overview's own zoom otherwise) | `#zoomBar` |
 | **Record prompt** | Name entry when a record is set | `#record` |
 | **Tutorial banner** | 5-step hint strip | `#tutorial` |
 | **Testing banner** | Red "TEST" banner on non-official hosts | `#testingBanner` |

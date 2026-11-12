@@ -27,7 +27,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 attachGlCanvas(document.getElementById('gameGl'), ctx);
 const isTouch = matchMedia('(pointer: coarse)').matches;
-const view = { width: 0, height: 0, dpr: 1, povBig: !isTouch && localStorage.getItem('forklift-cab-view') === '1', chase: localStorage.getItem('forklift-chase-cam') === '1', chaseZoom: localStorage.getItem('forklift-chase-zoom') === null ? null : Number(localStorage.getItem('forklift-chase-zoom')), touch: isTouch };
+const view = { width: 0, height: 0, dpr: 1, povBig: !isTouch && localStorage.getItem('forklift-cab-view') === '1', chase: localStorage.getItem('forklift-chase-cam') === '1', chaseZoom: localStorage.getItem('forklift-chase-zoom') === null ? null : Number(localStorage.getItem('forklift-chase-zoom')), zoom: localStorage.getItem('forklift-ov-zoom') === null ? null : Number(localStorage.getItem('forklift-ov-zoom')), touch: isTouch };
 
 function resize() {
   view.width = canvas.clientWidth;
@@ -750,12 +750,17 @@ const zoomSlider = document.getElementById('zoomSlider');
 const zoomBar = document.getElementById('zoomBar');
 function syncZoomBar() {
   zoomBar.classList.toggle('hide', splashOn || !!view.menuOpen || view.povBig);
-  if (document.activeElement !== zoomSlider) zoomSlider.value = view.chaseZoom ?? chaseZoomOf(Math.max(CHASE_TILES, (view.ovTiles || 14) * CHASE_DEFAULT));
+  if (document.activeElement !== zoomSlider) zoomSlider.value = (view.chase ? view.chaseZoom : view.zoom) ?? chaseZoomOf(view.chase ? Math.max(CHASE_TILES, (view.ovTiles || 14) * CHASE_DEFAULT) : view.ovTiles || 14);
 }
 setInterval(syncZoomBar, 200);
 zoomSlider.addEventListener('input', () => {
-  view.chaseZoom = Number(zoomSlider.value);
-  localStorage.setItem('forklift-chase-zoom', String(view.chaseZoom));
+  if (view.chase) {
+    view.chaseZoom = Number(zoomSlider.value);
+    localStorage.setItem('forklift-chase-zoom', String(view.chaseZoom));
+  } else {
+    view.zoom = Number(zoomSlider.value);
+    localStorage.setItem('forklift-ov-zoom', String(view.zoom));
+  }
 });
 zoomSlider.addEventListener('change', () => zoomSlider.blur()); // keep arrow keys for driving
 chaseZoomSel.addEventListener('input', () => {

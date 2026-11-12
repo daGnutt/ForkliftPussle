@@ -241,7 +241,7 @@ const GAUGE_W = 90;
 const PAD_H = 144; // landscape touch pad height incl. margin
 function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, panRight = 0, panBottom = 0) {
   const fit = Math.min(maxScale, rw / g.w, rh / g.h);
-  const userS = follow && view.chaseZoom != null ? rh / chaseTilesFor(view.chaseZoom) : 0; // slider zoom (software view)
+  const userS = follow && !view.chase && view.zoom != null ? rh / chaseTilesFor(view.zoom) : 0; // slider zoom (software view)
   const zoomed = follow && (userS > 0 || fit < MIN_FOLLOW_SCALE);
   const s = userS || (zoomed ? MIN_FOLLOW_SCALE : fit);
   let ox = rx + (rw - g.w * s) / 2, oy = ry + (rh - g.h * s) / 2;
@@ -282,8 +282,8 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
     if (zoomed) ctx.restore();
     return { x: 0, y: 0, w: g.w, h: g.h, poly: foot }; // chase: the minimap outlines the tilted floor footprint
   }
-  if (follow && view.chaseZoom != null) { // user zoom: centred on the forklift at the slider's zoom
-    const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0), s2 = rh / chaseTilesFor(view.chaseZoom);
+  if (follow && view.zoom != null) { // user zoom: centred on the forklift at the slider's zoom
+    const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0), s2 = rh / chaseTilesFor(view.zoom);
     if (drawOverview3d(ctx, g, rx, ry, rw, rh, c.x, c.y, s2, view.dpr, view.orbit)) {
       if (zoomed) ctx.restore();
       return { x: c.x - rw / s2 / 2, y: c.y - rh / s2 / 2, w: rw / s2, h: rh / s2 };

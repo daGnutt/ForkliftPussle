@@ -40,7 +40,21 @@ export function overviewCamera(cx, cy, tilesH, w, h, up = [0, -1], tilt = OV_TIL
   const f2h = 1 / Math.tan(OV_VFOV / 2);
   const proj = perspective((f2h * h) / w, f2h, 0, dist * 0.15, dist * 3);
   const view = viewBasis(eye, [-uy, ux, 0], [ux * ct, uy * ct, st], [ux * st, uy * st, -ct]);
-  return { vp: mul(proj, view), eye, w, h };
+  return { vp: mul(proj, view), eye, w, h, pose: { r: [-uy, ux, 0], u: [ux * ct, uy * ct, st], f: [ux * st, uy * st, -ct], near: dist * 0.15, far: dist * 3, f2h } };
+}
+
+// Camera between `a` and `b` (k 0..1): eye and orientation interpolated, for swooping from one view to the other.
+export function blendCameras(a, b, k) {
+  const lerp = (p, q) => p.map((v, i) => v + (q[i] - v) * k), norm = (v) => { const l = Math.hypot(...v) || 1; return v.map((x) => x / l); };
+  const A = a.pose, B = b.pose, eye = lerp(a.eye, b.eye);
+  const f = norm(lerp(A.f, B.f));
+  let u = lerp(A.u, B.u);
+  const d = u[0] * f[0] + u[1] * f[1] + u[2] * f[2];
+  u = norm(u.map((x, i) => x - d * f[i]));
+  const r = [u[1] * f[2] - u[2] * f[1], u[2] * f[0] - u[0] * f[2], u[0] * f[1] - u[1] * f[0]];
+  const near = A.near + (B.near - A.near) * k, far = A.far + (B.far - A.far) * k, f2h = A.f2h;
+  const proj = perspective((f2h * b.h) / b.w, f2h, 0, near, far);
+  return { ...b, vp: mul(proj, viewBasis(eye, r, u, f)), eye, pose: { r, u, f, near, far, f2h } };
 }
 
 export const CHASE_TILES = 7, CHASE_DEFAULT = 0.5, CHASE_TILT = 0.95, CHASE_OUT = 0.8; // CHASE_DEFAULT: the default chase view shows this fraction of the overview's tiles
@@ -102,7 +116,7 @@ export function chaseCamera(g, w, h, tiles = CHASE_TILES, heading = g.fl.a, orbi
   const f2h = 1 / Math.tan(OV_VFOV / 2);
   const proj = perspective((f2h * h) / w, f2h, 0, r.dist * 0.15, r.dist * 3);
   const view = viewBasis(r.eye, [-uy, ux, 0], [ux * ct, uy * ct, st], [ux * st, uy * st, -ct]);
-  return { vp: mul(proj, view), eye: r.eye, w, h, chase: true, pos: r.pos, heading: r.heading };
+  return { vp: mul(proj, view), eye: r.eye, w, h, chase: true, pos: r.pos, heading: r.heading, pose: { r: [-uy, ux, 0], u: [ux * ct, uy * ct, st], f: [ux * st, uy * st, -ct], near: r.dist * 0.15, far: r.dist * 3, f2h } };
 }
 
 const FOOT_MAX = 40; // tiles from the eye; floor points further away (or above the horizon) are pulled in
