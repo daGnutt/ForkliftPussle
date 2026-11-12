@@ -239,8 +239,15 @@ function drawCarried(ctx, g) {
 const MIN_FOLLOW_SCALE = 30;
 const GAUGE_W = 90;
 const PAD_H = 144; // landscape touch pad height incl. margin
+// Size of the screen-aligned box around the map once the flat overview is rotated by the user's orbit yaw (the chase camera orbits the truck instead).
+function rotatedExtent(g, view) {
+  const yaw = view.orbit && !view.chase ? view.orbit.yaw : 0, co = Math.abs(Math.cos(yaw)), si = Math.abs(Math.sin(yaw));
+  return { w: co * g.w + si * g.h, h: si * g.w + co * g.h, co, si };
+}
+
 function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, panRight = 0, panBottom = 0) {
-  const fit = Math.min(maxScale, rw / g.w, rh / g.h);
+  const ext = rotatedExtent(g, view);
+  const fit = Math.min(maxScale, rw / ext.w, rh / ext.h);
   const userS = follow && !view.chase && view.zoom != null ? rh / chaseTilesFor(view.zoom) : 0; // slider zoom (software view)
   const zoomed = follow && (userS > 0 || fit < MIN_FOLLOW_SCALE);
   const s = userS || (zoomed ? MIN_FOLLOW_SCALE : fit);
@@ -249,10 +256,13 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
   if (zoomed) {
     const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0);
     // On touch landscape the camera may pan `panRight` px past the right/bottom map edge (shown black) so the fork gauge and pads don't hide map.
-    const axis = (pos, size, len, r0, m = 0) => (len * s <= size ? r0 + (size - len * s) / 2 : r0 + size / 2 - Math.min(Math.max(pos, size / 2 / s), len - size / 2 / s + m / s) * s);
-    ox = axis(c.x, rw, g.w, rx, panRight);
-    oy = axis(c.y, rh, g.h, ry, panBottom);
-    cam = { x: (rx - ox) / s, y: (ry - oy) / s, w: rw / s, h: rh / s };
+    // `half`: half the visible world extent along that axis (the bounding box of the rotated view)
+    const hx = (ext.co * rw + ext.si * rh) / 2 / s, hy = (ext.si * rw + ext.co * rh) / 2 / s;
+    const axis = (pos, half, size, len, r0, m = 0) => (len <= 2 * half ? r0 + (size - len * s) / 2 : r0 + size / 2 - Math.min(Math.max(pos, half), len - half + m / s) * s);
+    ox = axis(c.x, hx, rw, g.w, rx, panRight);
+    oy = axis(c.y, hy, rh, g.h, ry, panBottom);
+    const mx = (rx + rw / 2 - ox) / s, my = (ry + rh / 2 - oy) / s;
+    cam = { x: mx - hx, y: my - hy, w: 2 * hx, h: 2 * hy };
     ctx.save();
     ctx.beginPath();
     ctx.rect(rx, ry, rw, rh);
@@ -931,7 +941,7 @@ export function draw(ctx, g, view) {
     // so it never covers the playing field.
     // Touch landscape: keep the field clear of the fork gauge at the right edge even when the whole map fits.
     const touchLand = view.touch && !portrait;
-    const zoomedIn = Math.min(48, rw / g.w, rh / g.h) < MIN_FOLLOW_SCALE;
+    const ext = rotatedExtent(g, view), zoomedIn = Math.min(48, rw / ext.w, rh / ext.h) < MIN_FOLLOW_SCALE;
     if (touchLand && !zoomedIn) { rw = width - rx - GAUGE_W; rh = Math.min(rh, height - ry - PAD_H); }
     let mmX = 13, mmY = 100 + 6;
     if (strip) {
