@@ -543,6 +543,7 @@ function drawWorldObjects(ctx, g, vis) {
   for (const w of g.pillars) {
     if (!seen(w.x, w.y, w.w, w.h)) continue;
     if (w.truck) { drawTruckPart(ctx, w); continue; }
+    if (w.roller) { drawRollerDoor(ctx, w); continue; }
     ctx.fillRect(w.x, w.y, w.w, w.h);
     ctx.strokeStyle = theme().wallEdge;
     ctx.lineWidth = 0.06;
@@ -599,6 +600,20 @@ function drawTruckPart(ctx, w) {
   ctx.lineWidth = 0.06;
   ctx.strokeRect(w.x, w.y, w.w, w.h);
   if (part === 'gate') { ctx.beginPath(); ctx.moveTo(w.x + w.w / 2, w.y); ctx.lineTo(w.x + w.w / 2, w.y + w.h); ctx.stroke(); }
+}
+
+// The factory's roller door: light steel with horizontal slats.
+function drawRollerDoor(ctx, w) {
+  ctx.fillStyle = '#9aa1a9';
+  ctx.fillRect(w.x, w.y, w.w, w.h);
+  ctx.strokeStyle = '#6b7178';
+  ctx.lineWidth = 0.04;
+  ctx.beginPath();
+  for (let y = w.y + w.h / 3; y < w.y + w.h - 0.01; y += w.h / 3) { ctx.moveTo(w.x, y); ctx.lineTo(w.x + w.w, y); }
+  ctx.stroke();
+  ctx.strokeStyle = theme().wallEdge;
+  ctx.lineWidth = 0.06;
+  ctx.strokeRect(w.x, w.y, w.w, w.h);
 }
 
 // The truck charger: a red block with a high-voltage warning sign (a bolt in a yellow triangle).

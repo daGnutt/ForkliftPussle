@@ -153,7 +153,7 @@ export function newEndless(seed = 0, hard = false) {
     for (const n of ['left', 'right', 'back', 'cab']) { const w = { truck: { color: b.k, part: n } }; setRect(w, r[n]); b.parts[n] = w; g.walls.push(w); g.pillars.push(w); }
     b.parts.gate = { truck: { color: b.k, part: 'gate' } }; // only part of the walls while the gate is closed
     setRect(b.parts.gate, r.gate);
-    b.door = { truck: { color: b.k, part: 'gate' } }; // the bay door in the south wall: shut while the truck is out, so nobody drives out of the factory
+    b.door = { roller: true }; // the factory's roller door in the south wall: shut while the truck is out, so nobody drives out of the factory
     setRect(b.door, r.gate);
   }
   for (const d of docks) {

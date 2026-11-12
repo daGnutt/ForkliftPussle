@@ -130,7 +130,7 @@ function addWall(sm, tm, g, w, mode) {
     for (let k = 0; k < n; k++) {
       const q0 = [ax + (ex * k) / n, ay + (ey * k) / n], q1 = [ax + (ex * (k + 1)) / n, ay + (ey * (k + 1)) / n];
       const tile = Math.floor((q0[0] + q0[1] + q1[0] + q1[1]) / 2);
-      const col = parseColor(tile & 1 ? '#5d646e' : '#555b64');
+      const col = parseColor(w.roller ? (tile & 1 ? '#9aa1a9' : '#8f969e') : tile & 1 ? '#5d646e' : '#555b64');
       sm.quad([q0[0], q0[1], 0], [q1[0], q1[1], 0], [q1[0], q1[1], top], [q0[0], q0[1], top], [nx, ny, 0], col);
       if (mode === 'pov') sm.quad([q0[0], q0[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H], [q0[0], q0[1], WALL_H], [nx, ny, 0], shade(col, 0.7));
       if (!decalsEnabled() || Math.hypot(q1[0] - q0[0], q1[1] - q0[1]) < 0.9) continue;
