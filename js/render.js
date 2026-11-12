@@ -602,16 +602,18 @@ function drawTruckPart(ctx, w) {
   if (part === 'gate') { ctx.beginPath(); ctx.moveTo(w.x + w.w / 2, w.y); ctx.lineTo(w.x + w.w / 2, w.y + w.h); ctx.stroke(); }
 }
 
-// The factory's roller door: light steel with slats along its long side.
+// The factory's roller door: light steel with slat ticks and a yellow edge.
 function drawRollerDoor(ctx, w) {
-  ctx.fillStyle = '#9aa1a9';
+  ctx.fillStyle = '#c9cfd6';
   ctx.fillRect(w.x, w.y, w.w, w.h);
-  ctx.strokeStyle = '#6b7178';
+  ctx.strokeStyle = '#7b8088';
   ctx.lineWidth = 0.04;
   ctx.beginPath();
-  if (w.w >= w.h) for (let y = w.y + w.h / 3; y < w.y + w.h - 0.01; y += w.h / 3) { ctx.moveTo(w.x, y); ctx.lineTo(w.x + w.w, y); }
-  else for (let x = w.x + w.w / 3; x < w.x + w.w - 0.01; x += w.w / 3) { ctx.moveTo(x, w.y); ctx.lineTo(x, w.y + w.h); }
+  if (w.w >= w.h) for (let x = w.x + 0.3; x < w.x + w.w - 0.01; x += 0.3) { ctx.moveTo(x, w.y); ctx.lineTo(x, w.y + w.h); }
+  else for (let y = w.y + 0.3; y < w.y + w.h - 0.01; y += 0.3) { ctx.moveTo(w.x, y); ctx.lineTo(w.x + w.w, y); }
   ctx.stroke();
+  ctx.fillStyle = '#f4c414';
+  if (w.w >= w.h) ctx.fillRect(w.x, w.y, w.w, 0.06); else ctx.fillRect(w.x, w.y, 0.06, w.h);
   ctx.strokeStyle = theme().wallEdge;
   ctx.lineWidth = 0.06;
   ctx.strokeRect(w.x, w.y, w.w, w.h);

@@ -212,7 +212,7 @@ export function buildFaces(g, cam) {
     } else if (w.truck) {
       const c = w.truck.part === 'gate' ? '#b9bec5' : truckPaint(w.truck.color);
       addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, w.truck.part === 'cab' || w.truck.part === 'wcab' ? 2.6 : TRUCK_H, c);
-    } else addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, WALL_H, w.roller ? '#9aa1a9' : null, !w.roller);
+    } else addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, WALL_H, w.roller ? '#c9cfd6' : null, !w.roller);
   }
   for (const r of truckRoofs(g)) addPrism(faces, cam, (r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, 0, (r.x1 - r.x0) / 2, (r.y1 - r.y0) / 2, TRUCK_H - 0.03, TRUCK_H, truckPaint(r.color), false, 1);
   const lw = g.lowWalls?.[0];

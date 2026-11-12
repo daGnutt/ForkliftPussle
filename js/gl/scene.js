@@ -107,6 +107,15 @@ function addRampDecal(tm, r) {
   if (r.num) for (const q of numberRects(r)) tm.poly([[q.x, q.y], [q.x + q.w, q.y], [q.x + q.w, q.y + q.h], [q.x, q.y + q.h]], 0.0048, parseColor('#f4f4f4'));
 }
 
+// The factory's roller door: horizontal steel slats up to the wall height, a yellow bottom bar and a dark top box.
+function addRollerDoor(sm, w) {
+  const cx = w.x + w.w / 2, cy = w.y + w.h / 2, hl = w.w / 2, hw = w.h / 2, bar = 0.3, box = 0.35, n = 12;
+  sm.cuboid(cx, cy, 0, hl, hw, 0, bar, '#f4c414', { bottom: false });
+  const s = (WALL_H - bar - box) / n;
+  for (let i = 0; i < n; i++) sm.cuboid(cx, cy, 0, hl, hw, bar + i * s, bar + (i + 1) * s, i & 1 ? '#aeb5bd' : '#c9cfd6', { top: false, bottom: false });
+  sm.cuboid(cx, cy, 0, hl + 0.02, hw + 0.04, WALL_H - box, WALL_H, '#3b4048');
+}
+
 // One wall rectangle: sides in 1-tile segments with a checker tint, plus decals in cabin mode.
 function addWall(sm, tm, g, w, mode) {
   if (w.hidden) return;
@@ -119,6 +128,7 @@ function addWall(sm, tm, g, w, mode) {
     return;
   }
   if (w.truck) { addTruckPart(sm, w); return; }
+  if (w.roller) { addRollerDoor(sm, w); return; }
   const p = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]];
   for (let i = 0; i < 4; i++) {
     const [ax, ay] = p[i], [bx, by] = p[(i + 1) % 4];
@@ -130,7 +140,7 @@ function addWall(sm, tm, g, w, mode) {
     for (let k = 0; k < n; k++) {
       const q0 = [ax + (ex * k) / n, ay + (ey * k) / n], q1 = [ax + (ex * (k + 1)) / n, ay + (ey * (k + 1)) / n];
       const tile = Math.floor((q0[0] + q0[1] + q1[0] + q1[1]) / 2);
-      const col = parseColor(w.roller ? (tile & 1 ? '#9aa1a9' : '#8f969e') : tile & 1 ? '#5d646e' : '#555b64');
+      const col = parseColor(tile & 1 ? '#5d646e' : '#555b64');
       sm.quad([q0[0], q0[1], 0], [q1[0], q1[1], 0], [q1[0], q1[1], top], [q0[0], q0[1], top], [nx, ny, 0], col);
       if (mode === 'pov') sm.quad([q0[0], q0[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H - 0.14], [q1[0], q1[1], WALL_H], [q0[0], q0[1], WALL_H], [nx, ny, 0], shade(col, 0.7));
       if (!decalsEnabled() || Math.hypot(q1[0] - q0[0], q1[1] - q0[1]) < 0.9) continue;
@@ -251,7 +261,7 @@ export function staticMeshes(g, mode) {
   addFloor(sm, tm, g, mode);
   // overview: a trailer with its gate closed (arriving or leaving) is one solid block, so its walls skip the clipping plane (not a dock's gate: that is the warehouse's own loading bay door)
   const solid = new Set(mode === 'ov' ? truckBays(g).filter((b) => b.gateClosed).flatMap((b) => Object.values(b.parts).filter((w) => !(b.dock && w === b.parts.gate))) : []);
-  for (const w of g.walls) { if (isCab(w) || solid.has(w)) addTruckPart(cm, w); else addWall(sm, tm, g, w, mode); }
+  for (const w of g.walls) { if (w.roller && mode === 'ov') addRollerDoor(cm, w); else if (isCab(w) || solid.has(w)) addTruckPart(cm, w); else addWall(sm, tm, g, w, mode); } // closed roller doors stay full height in the overview
   if (mode === 'pov') addCeiling(sm, g);
   addTruckRoofs(cm, g, mode);
   addDoorways(sm, g, mode);
