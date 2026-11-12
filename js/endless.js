@@ -153,6 +153,8 @@ export function newEndless(seed = 0, hard = false) {
     for (const n of ['left', 'right', 'back', 'cab']) { const w = { truck: { color: b.k, part: n } }; setRect(w, r[n]); b.parts[n] = w; g.walls.push(w); g.pillars.push(w); }
     b.parts.gate = { truck: { color: b.k, part: 'gate' } }; // only part of the walls while the gate is closed
     setRect(b.parts.gate, r.gate);
+    b.door = { truck: { color: b.k, part: 'gate' } }; // the bay door in the south wall: shut while the truck is out, so nobody drives out of the factory
+    setRect(b.door, r.gate);
   }
   for (const d of docks) {
     const r = dockRects(d, GONE);
@@ -195,6 +197,9 @@ function place(g, b) {
   const has = g.walls.includes(b.parts.gate);
   if (b.gateClosed && !has) { g.walls.push(b.parts.gate); g.pillars.push(b.parts.gate); }
   if (!b.gateClosed && has) { g.walls.splice(g.walls.indexOf(b.parts.gate), 1); g.pillars.splice(g.pillars.indexOf(b.parts.gate), 1); }
+  const shut = b.state === 'leaving' || b.state === 'away' || b.state === 'arriving', doorOn = g.walls.includes(b.door);
+  if (shut && !doorOn) { g.walls.push(b.door); g.pillars.push(b.door); g.layoutVersion++; }
+  if (!shut && doorOn) { g.walls.splice(g.walls.indexOf(b.door), 1); g.pillars.splice(g.pillars.indexOf(b.door), 1); g.layoutVersion++; }
   if (d !== 0 || has !== b.gateClosed) g.layoutVersion++;
   b.placed = off;
 }
