@@ -260,6 +260,7 @@ if (isTouch) canvas.addEventListener('pointerdown', (e) => {
 
 // Look around in the 3D views: drag the canvas or hold Q/W. The big view's camera swings around the forklift (overview,
 // view.orbit { yaw, tilt }) or turns on the spot (cabin, view.look { yaw, pitch }); driving springs it back.
+const CHASE_TILT_EASE = 0.8; // 1/s: how fast the moving chase camera returns to its default height
 const CHASE_TURN = Math.PI / 4; // a Q/W press swings the chase camera this far around the forklift
 const ORBIT_HOME = 0.35, ORBIT_TILT_MAX = 1.3, LOOK_PITCH_MAX = 0.7, LOOK_SPEED = 2;
 // Flat overview: a Q/W press springs the camera a quarter turn (o.goal = target yaw) instead of turning continuously.
@@ -974,6 +975,12 @@ function frame(now) {
       view.lookHeld = { L: inp.lookL, R: inp.lookR };
     }
     if (view.snap) springBack(dt);
+    // the chase camera slowly eases back to its default height while it moves (driving, swinging or pitching)
+    if (view.chase && view.orbit && (inp.up || inp.down || inp.left || inp.right || inp.lookL || inp.lookR || view.chaseGoal || drag?.moved)) {
+      const o = view.orbit;
+      o.tilt -= (o.tilt - CHASE_TILT) * (1 - Math.exp(-CHASE_TILT_EASE * dt));
+      if (Math.abs(o.tilt - CHASE_TILT) < 0.003) o.tilt = CHASE_TILT;
+    }
   };
   const followStep = (dt) => {
     // the chase camera position is kept by render.js (chaseRig); a new game starts it behind the forklift
