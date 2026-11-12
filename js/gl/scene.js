@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays } from '../endless.js';
+import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays } from '../endless.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
@@ -87,7 +87,7 @@ function addTruckPart(sm, w) {
   const { color, part } = w.truck, cx = w.x + w.w / 2, cy = w.y + w.h / 2, hl = w.w / 2, hw = w.h / 2;
   const body = part === 'gate' ? '#b9bec5' : part === 'back' ? shade(parseColor(truckPaint(color)), 0.7) : parseColor(truckPaint(color));
   sm.cuboid(cx, cy, 0, hl, hw, 0, TRUCK_SKIRT, '#26292e', { top: false });
-  sm.cuboid(cx, cy, 0, hl, hw, TRUCK_SKIRT, WALL_H, body, { bottom: false });
+  sm.cuboid(cx, cy, 0, hl, hw, TRUCK_SKIRT, TRUCK_H, body, { bottom: false });
   if (part === 'gate' && hl > 0.2) sm.cuboid(cx, cy, 0, hl - 0.15, hw + 0.01, 1, 1.15, '#7b8088', { top: false, bottom: false });
   if (part === 'left' || part === 'right') {
     const out = part === 'left' ? -1 : 1;
@@ -179,6 +179,16 @@ function addCeiling(sm, g) {
   }
 }
 
+// Truck roofs over each trailer's cargo area, from the parts' current positions: always in the cabin view, in the overview
+// only while the gate is closed (trucks arriving and leaving).
+function addTruckRoofs(sm, g, mode) {
+  for (const r of truckRoofs(g)) {
+    if (mode === 'ov' && !r.closed) continue;
+    const c = parseColor(truckPaint(r.color));
+    sm.quad([r.x0, r.y0, TRUCK_H], [r.x0, r.y1, TRUCK_H], [r.x1, r.y1, TRUCK_H], [r.x1, r.y0, TRUCK_H], [0, 0, mode === 'pov' ? -1 : 1], c);
+  }
+}
+
 // Doorway trim: hazard-striped jamb posts with amber beacons, plus (cabin view only) a header beam and lamp; purely visual.
 // The overview gets shorter posts so they stay under the clipped walls.
 function addDoorways(sm, g, mode) {
@@ -238,8 +248,11 @@ export function staticMeshes(g, mode) {
   if (hit && hit.key.every((k, i) => k === key[i])) return hit;
   const sm = new Mesh(), tm = new Mesh(), cm = new Mesh();
   addFloor(sm, tm, g, mode);
-  for (const w of g.walls) { if (isCab(w)) addTruckPart(cm, w); else addWall(sm, tm, g, w, mode); }
+  // overview: a trailer with its gate closed (arriving or leaving) is one solid block, so its walls skip the clipping plane (not a dock's gate: that is the warehouse's own loading bay door)
+  const solid = new Set(mode === 'ov' ? truckBays(g).filter((b) => b.gateClosed).flatMap((b) => Object.values(b.parts).filter((w) => !(b.dock && w === b.parts.gate))) : []);
+  for (const w of g.walls) { if (isCab(w) || solid.has(w)) addTruckPart(cm, w); else addWall(sm, tm, g, w, mode); }
   if (mode === 'pov') addCeiling(sm, g);
+  addTruckRoofs(cm, g, mode);
   addDoorways(sm, g, mode);
   return (e[mode] = { key, opaque: sm, trans: tm, cabs: cm });
 }

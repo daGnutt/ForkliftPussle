@@ -73,6 +73,7 @@ function dockRects(d, off) {
     sideS: [x, y0 + TRUCK_W - WALL, TRUCK_D, WALL],
     back: [side < 0 ? x : x + TRUCK_D - WALL, y0 + WALL, WALL, TRUCK_W - 2 * WALL],
     cab: [side < 0 ? x - CAB_D : x + TRUCK_D, y0 + WALL, CAB_D, TRUCK_W - 2 * WALL],
+    rear: [side < 0 ? x + TRUCK_D - 0.05 : x, y0 + WALL, 0.05, TRUCK_W - 2 * WALL], // the trailer's own rear doors, shut while it is in transit
     area: [side < 0 ? x + WALL : x, y0 + WALL, TRUCK_D - WALL, TRUCK_W - 2 * WALL],
   };
 }
@@ -105,6 +106,19 @@ function outerWalls() {
 
 // Asphalt where the trucks stand: the yard west of the warehouse and the one south of it.
 export const yardRects = () => [{ x: 0, y: 0, w: XR, h: ENDLESS_H }, { x: XE + WALL, y: 0, w: ENDLESS_W - XE - WALL, h: ENDLESS_H }, { x: XR, y: WH_H + WALL, w: XE + WALL - XR, h: ENDLESS_H - WH_H - WALL }];
+export const TRUCK_H = 3.7; // trailer height, a bit under the 4 high factory ceiling
+
+// Roofs of the trailers currently standing: [{ x0, y0, x1, y1, color, closed }] from the parts' positions; `closed` = gate shut.
+export function truckRoofs(g) {
+  const out = [];
+  for (const b of truckBays(g)) {
+    if (b.state === 'away') continue;
+    const p = b.parts, a = p.left && p.right ? [p.left.x, p.left.y - p.gate.h, p.right.x + p.right.w, p.back.y + p.back.h] : p.sideN && [p.sideN.x, p.sideN.y, p.sideN.x + p.sideN.w, p.sideS.y + p.sideS.h];
+    if (a) out.push({ x0: a[0], y0: a[1], x1: a[2], y1: a[3], color: p.gate.truck.color, closed: b.gateClosed });
+  }
+  return out;
+}
+
 // Every truck bay: the six delivery trucks' and the incoming ones'.
 export const truckBays = (g) => (g.endless ? [...g.endless.bays, ...g.endless.docks.filter((d) => d.state !== 'free')] : []);
 
@@ -143,6 +157,7 @@ export function newEndless(seed = 0, hard = false) {
   for (const d of docks) {
     const r = dockRects(d, GONE);
     for (const [n, part] of [['sideN', 'side'], ['sideS', 'side'], ['back', 'back'], ['cab', 'wcab']]) { const w = { truck: { color: DOCK_COLOR, part, side: d.side, lat: n === 'sideN' ? -1 : 1 } }; setRect(w, r[n]); d.parts[n] = w; }
+    d.parts.rear = { truck: { color: DOCK_COLOR, part: 'door' } }; setRect(d.parts.rear, r.rear);
     d.parts.gate = { truck: { color: DOCK_COLOR, part: 'gate' } }; // closed while no truck stands at the bay
     setRect(d.parts.gate, [dockGateX(d.side), d.y0, WALL, TRUCK_W]);
     g.walls.push(d.parts.gate); g.pillars.push(d.parts.gate); // closed until a truck arrives
@@ -235,12 +250,12 @@ const dockRect = (d, m) => { const r = { x0: (d.side < 0 ? XR - TRUCK_D : XE) - 
 function placeDock(g, d) {
   const dx = d.off - d.placed;
   const r = dockRects(d, d.off);
-  for (const n of ['sideN', 'sideS', 'back', 'cab']) setRect(d.parts[n], r[n]);
+  for (const n of ['sideN', 'sideS', 'back', 'cab', 'rear']) setRect(d.parts[n], r[n]);
   Object.assign(d.area, { x: r.area[0], y: r.area[1] });
   for (const s of d.cargo || []) s.x += d.side * dx;
   // a free dock's truck is parked far off the map; keep it out of the walls so nothing draws or collides there
   let changed = dx !== 0;
-  const want = { sideN: d.state !== 'free', sideS: d.state !== 'free', back: d.state !== 'free', cab: d.state !== 'free', gate: d.gateClosed };
+  const want = { sideN: d.state !== 'free', sideS: d.state !== 'free', back: d.state !== 'free', cab: d.state !== 'free', rear: d.state !== 'free' && d.gateClosed, gate: d.gateClosed };
   for (const n in want) {
     const w = d.parts[n], has = g.walls.includes(w);
     if (want[n] && !has) { g.walls.push(w); g.pillars.push(w); changed = true; }
