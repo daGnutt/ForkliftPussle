@@ -241,8 +241,9 @@ const GAUGE_W = 90;
 const PAD_H = 144; // landscape touch pad height incl. margin
 function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, panRight = 0, panBottom = 0) {
   const fit = Math.min(maxScale, rw / g.w, rh / g.h);
-  const zoomed = follow && fit < MIN_FOLLOW_SCALE;
-  const s = zoomed ? MIN_FOLLOW_SCALE : fit;
+  const userS = follow && view.chaseZoom != null ? rh / chaseTilesFor(view.chaseZoom) : 0; // slider zoom (software view)
+  const zoomed = follow && (userS > 0 || fit < MIN_FOLLOW_SCALE);
+  const s = userS || (zoomed ? MIN_FOLLOW_SCALE : fit);
   let ox = rx + (rw - g.w * s) / 2, oy = ry + (rh - g.h * s) / 2;
   let cam = null;
   if (zoomed) {
@@ -262,7 +263,7 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
       ctx.fillRect(rx, ry, rw, rh);
     }
   }
-  view.ovTiles = rh / s;
+  view.ovTiles = rh / (zoomed && !userS ? MIN_FOLLOW_SCALE : fit);
   const chaseTiles = view.chaseZoom == null ? view.ovTiles : chaseTilesFor(view.chaseZoom);
   if (follow && view.chase) {
     // wall in the way: orbit upwards (smaller tilt) until half the forklift is visible; main.js eases view.chaseLift toward the target
