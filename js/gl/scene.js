@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays } from '../endless.js';
+import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays } from '../endless.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
@@ -104,6 +104,7 @@ function addRampDecal(tm, r) {
   tm.poly([[r.x, r.y], [x1, r.y], [x1, y1], [r.x, y1]], 0.004, parseColor('#7b8088'));
   const stripes = r.east ? [[r.x, r.y, x1, r.y + 0.12], [r.x, y1 - 0.12, x1, y1]] : [[r.x, r.y, r.x + 0.12, y1], [x1 - 0.12, r.y, x1, y1]];
   for (const [ax, ay, bx, by] of stripes) tm.poly([[ax, ay], [bx, ay], [bx, by], [ax, by]], 0.0045, parseColor('#f4c414'));
+  if (r.num) for (const q of numberRects(r)) tm.poly([[q.x, q.y], [q.x + q.w, q.y], [q.x + q.w, q.y + q.h], [q.x, q.y + q.h]], 0.0048, parseColor('#f4f4f4'));
 }
 
 // One wall rectangle: sides in 1-tile segments with a checker tint, plus decals in cabin mode.

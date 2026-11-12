@@ -16,8 +16,8 @@ export const BOGIE = [1.2, 2.1]; // trailer wheel pair: distances from the gate 
 const SLOT = 1.5; // spacing of the delivery truck's stack slots (2 wide, 3 deep)
 const TRUCK_W = 3.6, TRUCK_D = 6, WALL = 0.3;
 const APRON = 0.9; // empty strip inside the gate before the first stack slots
-const RAMP_D = 0.9, CAB_D = 2;
-const WH_W = 26, WH_H = 14; // the warehouse floor; its south wall runs along y = WH_H, with an opening for each truck
+const RAMP_D = 0.9, DOCK_RAMP_D = 1.8, CAB_D = 2;
+const WH_W = 26, WH_H = 15; // the warehouse floor; its south wall runs along y = WH_H, with an opening for each truck
 const WX = TRUCK_D + CAB_D + WALL; // the warehouse floor starts here: the west wall (the incoming trucks' gates) is just before it
 export const ENDLESS_W = 2 * WX + WH_W;
 export const ENDLESS_H = WH_H + TRUCK_D + CAB_D; // the trucks stand in the yard south of the wall, cab last
@@ -136,7 +136,7 @@ export function newEndless(seed = 0, hard = false) {
   for (let k = 0; k < DOCKS; k++) {
     const side = k % 2 ? 1 : -1, y0 = dockY(Math.floor(k / 2));
     const r = dockRects({ y0, side }, GONE);
-    docks.push({ k, y0, side, dock: true, off: GONE, placed: GONE, state: 'free', honkT: -1e9, honkN: 0, honked: false, t: 0, v: 0, gateClosed: true, area: { x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] }, parts: {} });
+    docks.push({ k, y0, side, dock: true, off: GONE, placed: GONE, state: 'free', honkT: -1e9, honkN: 0, honked: false, since: -1, t: 0, v: 0, gateClosed: true, area: { x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] }, parts: {} });
   }
   const layout = {
     w: ENDLESS_W, h: ENDLESS_H, walls: outerWalls(), charger: null, zones, areas, bays: [], doors: [], stacks: [],
@@ -286,7 +286,7 @@ function stepDock(g, d, dt) {
     d.off = Math.max(0, d.off - Math.max(0.8, d.off * 0.7) * dt);
     if (d.off <= 0) {
       if (!d.honked) { d.honked = true; d.honkT = g.endless.elapsed; d.honkN = 1; }
-      if (g.endless.elapsed - d.honkT >= HONK_T) { d.honked = false; d.gateClosed = false; d.state = 'present'; for (const s of d.cargo) delete s.leaving; }
+      if (g.endless.elapsed - d.honkT >= HONK_T) { d.honked = false; d.gateClosed = false; d.state = 'present'; d.since = g.endless.elapsed; for (const s of d.cargo) delete s.leaving; }
     }
   } else if (d.state === 'present') {
     const r = dockInterior(d), f = dockRect(d, 0.5);
@@ -388,8 +388,31 @@ export function rampDecals(g) {
   const e = g.endless;
   if (!e) return [];
   const out = e.bays.map((b) => { const [gx, gy, gw] = bayRects(b.x0, 0).gate; return { x: gx + 0.4, y: gy - RAMP_D, w: gw - 0.8, h: RAMP_D + WALL }; });
-  for (const d of e.docks) { const gx = dockGateX(d.side); out.push({ x: d.side < 0 ? gx : gx - RAMP_D, y: d.y0 + 0.4, w: RAMP_D + WALL, h: TRUCK_W - 0.8, east: true, side: d.side }); }
+  for (const d of e.docks) { const gx = dockGateX(d.side); out.push({ x: d.side < 0 ? gx : gx - DOCK_RAMP_D, y: d.y0 + 0.4, w: DOCK_RAMP_D + WALL, h: TRUCK_W - 0.8, east: true, side: d.side, num: dockNumber(d) }); }
   return out;
+}
+
+const DIGITS = ['010110010010111', '111001111100111', '111001111001111', '101101111001001', '111100111001111', '111100111101111']; // 1-6
+
+// Square pixels of the bay number (1-6) painted on a ramp decal `r`, with the bottom of the digit towards the warehouse centre.
+export function numberRects(r, p = 0.3) {
+  const bits = DIGITS[r.num - 1], cx = r.x + r.w / 2, cy = r.y + r.h / 2, out = [];
+  for (let i = 0; i < 15; i++) {
+    if (bits[i] !== '1') continue;
+    const u = (i % 3 - 1) * p, v = (Math.floor(i / 3) - 2) * p; // u right, v down in the digit's own frame
+    const x = cx + (r.side < 0 ? v : -v), y = cy + (r.side < 0 ? -u : u);
+    out.push({ x: x - p / 2, y: y - p / 2, w: p, h: p });
+  }
+  return out;
+}
+
+// Bay number shown to players: 1-3 on the west side, 4-6 on the east side, lowest at the southernmost bay.
+export const dockNumber = (d) => (d.side < 0 ? 1 : 1 + DOCKS / 2) + Math.floor(d.k / 2);
+
+// Seconds the truck at each incoming bay has been waiting to be unloaded (null while no truck stands there).
+export function dockWaits(g) {
+  const e = g.endless;
+  return e.docks.map((d) => (d.state === 'present' && d.since >= 0 ? e.elapsed - d.since : null));
 }
 
 // Flat floor art for the truck floor: wooden planks along the truck, as [{ pts, fill }].

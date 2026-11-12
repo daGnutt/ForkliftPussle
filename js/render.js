@@ -1,5 +1,5 @@
 import { COLORS } from './level.js';
-import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
+import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, dockWaits, dockNumber, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
@@ -435,6 +435,7 @@ function paintFloor(ctx, g, vis) {
       ctx.fillRect(r.x, r.y, 0.12, r.h);
       ctx.fillRect(r.x + r.w - 0.12, r.y, 0.12, r.h);
     }
+    if (r.num) { ctx.fillStyle = '#f4f4f4'; for (const q of numberRects(r)) ctx.fillRect(q.x, q.y, q.w, q.h); }
   }
   for (const a of g.areas) {
     if (!seen(a.x - 0.3, a.y - 0.3, a.w + 0.6, a.h + 0.6)) continue;
@@ -810,6 +811,25 @@ function drawPartyBadge(ctx, g, party, width) {
 
 // Small compass under the fork gauge (hidden while north is up, except in the chase camera): the needle points to north (world -y) as seen from the current camera.
 const wrapAngle = (a) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
+// Small endless-mode panel: how long the truck at each incoming bay has been waiting to be unloaded.
+function drawDockWaits(ctx, g, width) {
+  const x = width - 138, y = 290, rh = 16, bw = 130;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(x, y, bw, DOCKS * rh + 8);
+  ctx.font = '12px sans-serif';
+  ctx.textBaseline = 'middle';
+  const waits = dockWaits(g);
+  g.endless.docks.map((d) => [dockNumber(d), waits[d.k]]).sort((a, b) => a[0] - b[0]).forEach(([n, w], i) => {
+    const cy = y + 4 + i * rh + rh / 2;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#aaa';
+    ctx.fillText(`Bay ${n}`, x + 6, cy);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = w === null ? '#666' : w > 120 ? '#ef9a9a' : w > 60 ? '#ffe082' : '#eee';
+    ctx.fillText(w === null ? '–' : w >= 36000 ? 'FOREVER' : formatTime(w), x + bw - 6, cy); // 10 h or more
+  });
+}
+
 function drawCompass(ctx, g, view, width) {
   let a; // world heading of the screen's "up"
   if (view.povBig) a = g.fl.a + (view.look ? view.look.yaw : 0) + headTurn(g.fl);
@@ -1026,6 +1046,7 @@ export function draw(ctx, g, view) {
   ctx.fillStyle = tc.body;
   ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
   drawCompass(ctx, g, view, width);
+  if (g.endless) drawDockWaits(ctx, g, width);
 
   if (view.fullscreen && view.flashAt != null && ready) drawReadyFlash(ctx, width, height, (now - view.flashAt) / 1000);
   if (g.status === 'play' && !g.started && !view.startHidden && !view.paused && !view.menuOpen) drawStartBoard(ctx, g, view, width, height);

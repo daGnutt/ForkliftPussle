@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { truckGeom, truckFloorArt, rampDecals, yardRects, truckBays } from '../endless.js';
+import { truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, floorDecals } from '../decals.js';
 import { FL } from '../forklift.js';
@@ -68,6 +68,7 @@ export function drawFloorMarks(ctx, g, cam) {
   }
   for (const r of rampDecals(g)) {
     floorPoly(ctx, cam, [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]], '#7b8088', '#7b8088');
+    if (r.num) for (const q of numberRects(r)) floorPoly(ctx, cam, [[q.x, q.y], [q.x + q.w, q.y], [q.x + q.w, q.y + q.h], [q.x, q.y + q.h]], '#f4f4f4', '#f4f4f4');
   }
   for (const z of g.zones) {
     const done = zoneDone(g, z), r = 0.6;
