@@ -114,7 +114,7 @@ export function truckRoofs(g) {
   for (const b of truckBays(g)) {
     if (b.state === 'away') continue;
     const p = b.parts, a = p.left && p.right ? [p.left.x, p.left.y - p.gate.h, p.right.x + p.right.w, p.back.y + p.back.h] : p.sideN && [p.sideN.x, p.sideN.y, p.sideN.x + p.sideN.w, p.sideS.y + p.sideS.h];
-    if (a) out.push({ x0: a[0], y0: a[1], x1: a[2], y1: a[3], color: p.gate.truck.color, closed: b.gateClosed });
+    if (a) out.push({ x0: a[0], y0: a[1], x1: a[2], y1: a[3], color: p.back.truck.color, closed: b.gateClosed });
   }
   return out;
 }
