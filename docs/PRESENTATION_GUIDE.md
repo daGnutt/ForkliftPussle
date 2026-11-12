@@ -10,7 +10,7 @@
 
 ## Regenerating / updating
 1. Read the history: `git log --reverse --date=short --pretty='%ad %h %s'`. Group commits by day and theme; for an update, only add what is new since the last slide (check the last date/commit mentioned).
-2. Add or edit slides: 4–6 short bullets each, user-visible features first. Add a new slide per day or major theme; update the "at a glance" slide and the title-slide stats.
+2. Add or edit slides: 3–5 short bullets each, user-visible features first. Keep the audience in mind: describe what players see and do, not implementation details (no function/file names, protocols or internal refactors). Add a new slide per day or major theme; update the "at a glance" slide and the title-slide stats.
 3. Refresh screenshots only when the look changed noticeably (new view, major visual overhaul). Name them `NN-short-name.png`, caption with the commit hash. Replace the "latest" shots (`06-overview-latest`, `07-cabin-latest`, `17-splash-latest`) from HEAD, taken in **dark mode with disco lights off** (disco only for the disco slide, `14-cabin-disco`). Other current shots: `12-chase-camera`, `13-menu-visuals`, `15/16-touch-joystick-*` (Playwright `isMobile`/`hasTouch`, 844×390 and 390×844; drive with keyboard events to dismiss the level-start overlay).
 4. Check the result renders (see below) and commit on its own branch.
 

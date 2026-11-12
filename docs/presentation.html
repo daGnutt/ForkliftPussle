@@ -43,7 +43,8 @@
 
 <section class="slide">
   <h1>Pallet Polka</h1>
-  <div class="sub">The development timeline of a top-down, keyboard-only forklift puzzle</div>
+  <div class="sub" style="color:#ffc933;font-weight:bold">Stack the boxes. Park the forklift. Mind the tail swing.</div>
+  <div class="sub" style="margin-top:2vh">The development timeline of a forklift puzzle game</div>
   <div class="sub" style="margin-top:3vh">21 October – 12 November 2026 · 617 commits · vanilla JS + Canvas 2D · no build, no dependencies</div>
   <div class="sub" style="margin-top:6vh;font-size:1.4vw">← / → or Space to navigate</div>
 </section>
@@ -52,10 +53,9 @@
   <h2>The idea &amp; the stack</h2>
   <ul>
     <li>Stack coloured boxes in matching drop zones, then park the forklift</li>
-    <li>Rear-wheel-steering bicycle model: the tail swings out</li>
-    <li>Deterministic seeded level generator (<code>mulberry32</code>)</li>
-    <li>DOM-free game logic, so the tests run in plain Node</li>
-    <li>Static files on GitHub Pages (and an installable PWA); Firefox is the primary target, WebGL2 for the 3D views</li>
+    <li>A real forklift to drive: it steers with the rear wheels, so the tail swings out</li>
+    <li>Endless supply of generated levels</li>
+    <li>Plain web page: no installs, no libraries, plays on desktop and phone</li>
   </ul>
   <div class="stats">
     <div class="stat"><b>~6.3k</b><span>lines of JS</span></div>
@@ -71,10 +71,9 @@
   <div class="row">
   <ul>
     <li>First playable browser game: forklift, boxes, zones, levels</li>
-    <li>Fork heights went from half-steps to whole levels 0–5</li>
-    <li>Tines never collide; the body and carried stack do</li>
-    <li>Lowering a carried stack releases it at resting height</li>
-    <li>Boxes rotate with the forklift and remember their rotation</li>
+    <li>Lift and lower the forks to pick up and stack boxes up to five high</li>
+    <li>Lower a carried stack onto another and it is set down</li>
+    <li>Boxes turn and tumble as you push them</li>
   </ul>
   <figure><img src="shots/01-first-prototype.png" alt=""><figcaption>First prototype (commit 6974f64)</figcaption></figure>
   </div>
@@ -85,11 +84,11 @@
   <h2>Rules, scoring &amp; branding</h2>
   <div class="row">
   <ul>
-    <li>Per-box scoring: crash and squareness deductions (5° allowance)</li>
-    <li>Parking spot; finishing needs parking (no minimum score)</li>
-    <li>Procedural audio: engine whine, music, fork sounds, success chime</li>
-    <li>Rebrand to “Forklift Frenzy”: splash screen, favicon, 3D boxes</li>
-    <li>Custom level seeds and a random-seed button</li>
+    <li>Scoring: crashes and crooked boxes cost points</li>
+    <li>Park the forklift to finish the level</li>
+    <li>Sound: engine, music, fork sounds and a success chime</li>
+    <li>First name, splash screen and 3D-looking boxes</li>
+    <li>Pick any level seed, or roll a random one</li>
   </ul>
   <figure><img src="shots/02-graphical-overhaul.png" alt=""><figcaption>After the graphical overhaul (ca4b8d9)</figcaption></figure>
   </div>
@@ -100,11 +99,10 @@
   <h2>Cabin view, tutorial &amp; high scores</h2>
   <div class="row">
   <ul>
-    <li>Polygon-projected first-person view with forks, pallets, zones and parking</li>
-    <li>Camera follows fork height; front and rear top-down look windows</li>
-    <li>Nudging a box slowly squares it to the forklift</li>
-    <li>Local high scores per level and seed, with a time penalty</li>
-    <li>Step-by-step, action-dismissed tutorial; pause on lost focus</li>
+    <li>First-person cabin view from the driver's seat</li>
+    <li>The view rises and falls with the forks</li>
+    <li>High scores per level, with a time penalty</li>
+    <li>Step-by-step tutorial for new players</li>
   </ul>
   <figure><img src="shots/03-first-cabin-view.png" alt=""><figcaption>First cabin view (e16cdf4)</figcaption></figure>
   </div>
@@ -115,11 +113,11 @@
   <h2>Physics depth &amp; new levels</h2>
   <div class="row">
   <ul>
-    <li>Hard mode: pallets glide, split or get pushed; tines hit pallet runners</li>
-    <li>Boxes need 50% support or fall beside the stack; crooked towers</li>
-    <li>Rooms-and-corridors level generator replaces random pillars</li>
-    <li>Escape menu with full screen, mute, go-to-level and shortcuts</li>
-    <li>Floating damage popups and a break sound</li>
+    <li>Hard mode: pallets slide, split and get pushed around</li>
+    <li>Badly placed boxes fall off the stack</li>
+    <li>Levels are now rooms and corridors</li>
+    <li>Pause menu with full screen, mute and level select</li>
+    <li>Damage popups and a break sound</li>
   </ul>
   <figure><img src="shots/04-rooms-corridors.png" alt=""><figcaption>Rooms-and-corridors levels (c328e96)</figcaption></figure>
   </div>
@@ -130,11 +128,10 @@
   <h2>Handling &amp; factory atmosphere</h2>
   <div class="row">
   <ul>
-    <li>Height-based speed limit for raised forks; larger, speed-tapered steering lock</li>
-    <li>Overview becomes the default view and is remembered</li>
-    <li>Floor and wall decals: tire marks, yellow markings, windows, doors, signs</li>
-    <li>Ceiling, factory lights and fans; walls raised to clear a 5-box stack</li>
-    <li>Box decals and a <code>?debug</code> overlay</li>
+    <li>Driving with raised forks is slower; steering feels better</li>
+    <li>The top-down overview becomes the default view</li>
+    <li>Floors and walls get markings, windows, doors and signs</li>
+    <li>Ceiling, factory lights and fans</li>
   </ul>
   <figure><img src="shots/05-decals.png" alt=""><figcaption>Floor and wall decals (aed730f)</figcaption></figure>
   </div>
@@ -144,11 +141,10 @@
   <div class="date">Day 5 · 25 Oct</div>
   <h2>Sound, saves &amp; touch</h2>
   <ul>
-    <li>Reversing beep and a blue reversing light that walls cut off</li>
-    <li>Selectable MIDI music (public domain / CC0) with a drum synth; wall bonk and scrape sounds</li>
-    <li>Progress saved in <code>localStorage</code>; export/import of level state</li>
-    <li>Wall-mounted charger to park against; carried stacks can't be lifted into the ceiling</li>
-    <li>On-screen touch controls and an installable PWA</li>
+    <li>Reversing beep and light</li>
+    <li>Selectable music and wall bonk and scrape sounds</li>
+    <li>Progress is saved between sessions</li>
+    <li>On-screen touch controls and an installable app</li>
     <li>First version of this presentation</li>
   </ul>
 </section>
@@ -157,10 +153,10 @@
   <div class="date">Days 6–7 · 26 – 27 Oct</div>
   <h2>On the phone</h2>
   <ul style="font-size:1.6vw;margin:0 0 2vh">
-    <li>Rotatable landscape layout: field on top, steering bottom left, drive/forks bottom right, minimap and status between</li>
-    <li>Zoomed follow-camera overview; the map pans past its edges so pads never hide it</li>
-    <li>Brake removed (engine braking does the slowing); touch start enters full screen</li>
-    <li>Touch state derived from live touches (fixes flaky PWA steering); service worker bypasses the HTTP cache</li>
+    <li>Landscape layout: steering on the left, drive and forks on the right</li>
+    <li>Zoomed overview that follows the truck, so the controls never hide the action</li>
+    <li>Simpler driving: no brake pedal, the engine slows you down</li>
+    <li>More reliable touch steering</li>
   </ul>
   <div style="display:flex;gap:3vw;align-items:center;justify-content:center">
     <figure style="margin:0;flex:2.2;max-width:60vw"><img src="shots/08-touch-landscape.png" alt=""><figcaption style="text-align:center">Landscape: steering left, drive and forks right, minimap and status between</figcaption></figure>
@@ -173,11 +169,10 @@
   <h2>A splash with style</h2>
   <div class="row">
   <ul>
-    <li>Splash: a forklift drifting a figure eight with smoke, boxes and permanent skidmarks</li>
-    <li>Higher wall/floor contrast; the in-game forklift restyled to match the splash</li>
-    <li>Bigger levels now that the map pans</li>
-    <li>Fullscreen is an opt-in menu setting; pause-menu touches no longer reach the pad</li>
-    <li>Service worker auto-reloads on a new version</li>
+    <li>Animated splash: a forklift drifting a figure eight, leaving skidmarks</li>
+    <li>Clearer walls and floors; the in-game forklift matches the splash</li>
+    <li>Bigger levels</li>
+    <li>Full screen is now optional</li>
   </ul>
   <figure><img src="shots/10-splash-figure-eight.png" alt=""><figcaption>The splash screen</figcaption></figure>
   </div>
@@ -187,10 +182,9 @@
   <div class="date">Day 8 · 28 Oct</div>
   <h2>New soundtrack &amp; calmer menus</h2>
   <ul>
-    <li>Music library replaced: country, classical, industrial metal, techno and more, all CC0 / public domain</li>
-    <li>Music keeps playing in the pause menu and when focus is lost</li>
-    <li>Tutorial restart moved from the <code>H</code> key to a pause-menu button</li>
-    <li>Pause-menu shortcuts for tutorial, resume, auto-fullscreen and hard mode dropped</li>
+    <li>New music library: country, classical, industrial metal, techno and more, all free to use</li>
+    <li>Music keeps playing in the pause menu</li>
+    <li>Tutorial restart moved into the pause menu</li>
   </ul>
 </section>
 
@@ -199,13 +193,13 @@
   <h2>The cabin view, rebuilt</h2>
   <div class="row">
   <ul>
-    <li>Cabin renderer rewritten as modular <code>js/pov/</code>, first with identical output</li>
-    <li>New forks and camera: the eye follows fork height and the view tilts with the forks</li>
-    <li>More factory fluff: AC units, toilet doors, deer sign, roller doors and slogan posters</li>
-    <li>Doorways with hazard thresholds, jamb posts and a header beam</li>
-    <li>Faster: occlusion and off-screen culling, batched floor decals</li>
+    <li>Cabin view rebuilt from scratch</li>
+    <li>New forks; the view tilts with them</li>
+    <li>More factory details: AC units, roller doors and slogan posters</li>
+    <li>Doorways with hazard markings</li>
+    <li>Runs faster</li>
   </ul>
-  <figure><img src="shots/07-cabin-latest.png" alt=""><figcaption>Cabin view with poster, AC unit, roller door and look windows (HEAD)</figcaption></figure>
+  <figure><img src="shots/22-cabin-rebuilt.png" alt=""><figcaption>The rebuilt cabin view with look windows and doorway markings (ef86392)</figcaption></figure>
   </div>
 </section>
 
@@ -213,11 +207,10 @@
   <div class="date">Days 9–10 · 29 – 31 Oct</div>
   <h2>Look windows &amp; a calmer floor</h2>
   <ul>
-    <li>Mirrors replaced by two small top-down look windows: just ahead of the forks and just behind the tail</li>
-    <li>Start stacks cluster in bays with a big yellow outline; fewer random floor decals, yellow kept out of doorways</li>
-    <li>Cabin zone labels are clipped by walls and boxes in front of them; longer decal draw distance</li>
-    <li>The static top-down floor is cached in an offscreen canvas</li>
-    <li>Touch easter egg: tap the minimap to swap overview and cab view</li>
+    <li>Mirrors replaced by two small look windows: one ahead of the forks, one behind the tail</li>
+    <li>Start stacks gather in marked bays; fewer random floor markings</li>
+    <li>Zone labels are hidden behind walls and boxes</li>
+    <li>Touch tip: tap the minimap to swap views</li>
   </ul>
 </section>
 
@@ -225,11 +218,9 @@
   <div class="date">Day 12 · 1 Nov</div>
   <h2>Online scores &amp; a testing site</h2>
   <ul>
-    <li>Local high scores are uploaded to an online server; the HUD and a start board show local and global best</li>
-    <li>GitHub Pages workflow deploys <code>main</code> to the site and <code>testing</code> to <code>/testing/</code></li>
-    <li>Everything except the production host gets a red TESTING banner and favicon; scores are only posted from production</li>
-    <li>Touch polish: centred two-row button labels, overview forced in portrait, pad ignored behind overlays</li>
-    <li>Backing box behind the fork level gauge</li>
+    <li>High scores are shared online; see your best and the world's best</li>
+    <li>A separate testing version of the game for trying out new features</li>
+    <li>Touch polish: clearer buttons and a better portrait layout</li>
   </ul>
 </section>
 
@@ -238,10 +229,9 @@
   <h2>Wonky stacks &amp; sturdier levels</h2>
   <div class="row">
   <ul>
-    <li>Fresh stacks start slightly crooked; crooked zone stacks get a popup and a sad wah-wah (an off-key success chime)</li>
-    <li>Level generator rejects levels with unreachable stacks or zones and retries the same level</li>
-    <li>Saves validate the full snapshot and persist the game clock</li>
-    <li>Dead-code audit; shared drawing for extruded box and forklift sides</li>
+    <li>Stacks start slightly crooked; delivering one crooked earns a sad wah-wah</li>
+    <li>Levels no longer have unreachable boxes or zones</li>
+    <li>Saves are more reliable</li>
     <li>43 humorous slogan posters for the walls (a few on the next slide)</li>
   </ul>
   <figure><img src="shots/11-cabin-wonky-stack.png" alt=""><figcaption>A wonky stack in the cabin view (HEAD)</figcaption></figure>
@@ -259,20 +249,20 @@
   <div class="date">Day 15 · 4 Nov</div>
   <h2>Disco in the dark</h2>
   <div class="row"><ul>
-    <li>Dark mode gets glitter balls and coloured light pools sweeping the floor, in the cabin view and (as lights only) the overview</li>
-    <li>Balls are scattered randomly per level; the forklift carries its own light</li>
-    <li>Menu options: disco lights on/off, and colour mode Follow OS / Light / Dark</li>
+    <li>Dark mode gets glitter balls and coloured lights sweeping the floor</li>
+    <li>The forklift carries its own light</li>
+    <li>Menu options: disco lights on/off, and light or dark mode</li>
   </ul>
-  <figure><img src="shots/14-cabin-disco.png" alt=""><figcaption>Disco lights in the 3D cabin view (HEAD, dark mode)</figcaption></figure></div>
+  <figure><img src="shots/14-cabin-disco.png" alt=""><figcaption>Disco lights in the cabin view (01e1bd5, dark mode)</figcaption></figure></div>
 </section>
 
 <section class="slide">
   <div class="date">Day 15 · 4 Nov</div>
   <h2>Renamed: Pallet Polka</h2>
   <ul>
-    <li>The game became <b>Pallet Polka</b>: new title on the splash and wall posters, polka MIDI as default music</li>
-    <li>Cover image (SVG source + PNG), a short description text and a new production address, palletpolka.gnutt.se</li>
-    <li>Level start and end screens show the local and global top 10</li>
+    <li>The game became <b>Pallet Polka</b>: new title, posters and polka music</li>
+    <li>Cover image, description and a new web address, palletpolka.gnutt.se</li>
+    <li>Level start and end screens show the top 10</li>
   </ul>
 </section>
 
@@ -280,11 +270,10 @@
   <div class="date">Day 18 · 7 Nov</div>
   <h2>True 3D with WebGL2</h2>
   <div class="row"><ul style="font-size:1.5vw">
-    <li>The overview, cabin view and look windows are now real 3D scenes (depth buffer, lighting, fog), no libraries; the 2D renderers remain as a fallback (<code>?gl=0</code>)</li>
-    <li>Dark mode headlights, brake/reverse lights, an idle tail glow, ceiling lights and disco spots as real point lights</li>
-    <li>Richer forklift model: carriage plates, lift chains, mast head and cylinder rod</li>
-    <li>Wall decals and zone labels painted into the 3D overview</li>
-    <li>Damaged boxes crumple: dented lids, corners and sides, scaled by damage</li>
+    <li>The overview, cabin view and look windows are now real 3D scenes</li>
+    <li>Dark mode headlights, brake and reverse lights, ceiling lights and disco spots</li>
+    <li>A more detailed forklift model</li>
+    <li>Damaged boxes crumple and dent</li>
   </ul>
   <figure><img src="shots/06-overview-latest.png" alt=""><figcaption>The 3D overview in dark mode (HEAD)</figcaption></figure></div>
 </section>
@@ -293,10 +282,9 @@
   <div class="date">Day 18 · 7 Nov</div>
   <h2>A new menu, splash &amp; touch schemes</h2>
   <div class="row"><ul>
-    <li>Pause menu redesigned: one option per row, submenus for sound, visuals, levels and state, primary actions on top</li>
-    <li>Short landscape phones get a two-column menu</li>
-    <li>Splash: Disco start button with a dancing man, a story blurb, random music; music and disco are off by default</li>
-    <li>Touch control schemes: classic buttons, rotated buttons, or a virtual joystick with fork buttons</li>
+    <li>Pause menu redesigned with submenus for sound, visuals and levels</li>
+    <li>Splash gets a Disco start button with a dancing man and a short story</li>
+    <li>Touch controls: classic buttons, rotated buttons, or a virtual joystick</li>
   </ul>
   <figure><img src="shots/13-menu-visuals.png" alt=""><figcaption>The Visuals &amp; controls submenu (HEAD, dark mode)</figcaption></figure></div>
 </section>
@@ -315,11 +303,10 @@
   <div class="date">Day 19 · 8 Nov</div>
   <h2>Chase camera &amp; look around</h2>
   <div class="row"><ul style="font-size:1.6vw">
-    <li>Third-person chase camera for the overview (<b>C</b>, menu option or double tap): it moves only as far as needed to stay within its maximum distance, pitches and yaws to keep the truck centred, drifts behind (or in front when reversing) and eases back to its default height while moving; <b>Q</b>/<b>W</b> orbit it in 45° steps and it stays where you leave it</li>
-    <li>Drag to orbit the overview; <b>W</b>/<b>Q</b> or drag to look around in the cabin; camera zoom slider with reset</li>
-    <li>The overview cuts walls at a low height; the minimap shows the chase camera's floor footprint</li>
-    <li>D/R gear state drives reverse lights and beeper; a mirrored reversing-camera inset in the cabin</li>
-    <li>"Bare forks" option for an unobstructed cabin view</li>
+    <li>Third-person chase camera that follows the truck (<b>C</b>, menu option or double tap)</li>
+    <li>Look around by dragging or with <b>Q</b>/<b>W</b>; zoom slider</li>
+    <li>Walls are cut low in the overview so nothing hides the action</li>
+    <li>A reversing camera in the cabin</li>
   </ul>
   <figure><img src="shots/12-chase-camera.png" alt=""><figcaption>Chase camera with minimap footprint (HEAD, dark mode)</figcaption></figure></div>
 </section>
@@ -328,66 +315,76 @@
   <div class="date">Day 19 · 8 Nov</div>
   <h2>Doorway flair &amp; tidier walls</h2>
   <ul>
-    <li>Doorways get hazard chevrons on the wall ends, amber beacons on the jamb posts and a glowing header lamp</li>
-    <li>Roller doors and window signs on outer walls only; no decals inside doorways; toilet doors stay off interior walls</li>
-    <li>GL overview walls use the cabin-view look; dark-mode ceiling spots with capped strength</li>
-    <li>Look windows separated in the touch landscape cabin view; <code>?skip</code> URL parameter bypasses the splash</li>
+    <li>Doorways get hazard stripes, amber beacons and a glowing lamp</li>
+    <li>Doors and signs only where they make sense on the walls</li>
+    <li>Overview walls match the cabin view</li>
   </ul>
 </section>
 
 <section class="slide">
-  <div class="date">Days 20–21 · 9 – 10 Nov</div>
+  <div class="date">Day 21 · 10 Nov</div>
+  <h2>Playtesting at work</h2>
+  <ul>
+    <li>Took the game to my workplace for a round of playtesting</li>
+    <li>Colleagues played the game under supervision</li>
+    <li>Watching real players showed what is clear and what is confusing</li>
+    <li>Their feedback feeds straight into the next improvements</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="date">Day 21 · 10 Nov</div>
   <h2>Multiplayer: up to four trucks</h2>
   <div class="row">
   <ul>
-    <li>Host a game from the splash or the in-game menu; friends join with a party code (WebRTC, host is authoritative)</li>
-    <li>Shared level and score; each truck has its own colour, gauge and lights</li>
-    <li>Trucks collide; hand over or split carried stacks with your tines</li>
-    <li>Guests predict their own truck, so high ping does not hurt driving</li>
-    <li>Menu roster with ping, kick and ban; sounds from other trucks fade with distance</li>
+    <li>Host a game and friends join with a party code</li>
+    <li>Shared level and score; each truck has its own colour</li>
+    <li>Trucks collide; hand over or split stacks with your forks</li>
+    <li>Driving stays smooth even with a slow connection</li>
+    <li>Player list with kick and ban; other trucks sound quieter with distance</li>
   </ul>
   <figure><img src="shots/20-multiplayer-splash.png" alt=""><figcaption>Host / join on the splash screen</figcaption></figure>
   </div>
 </section>
 
 <section class="slide">
-  <div class="date">Days 20–21 · 9 – 10 Nov</div>
+  <div class="date">Day 21 · 10 Nov</div>
   <h2>Honk!</h2>
   <div class="row">
   <ul>
-    <li>Hold <b>H</b> (two fingers on touch) for a continuous two-tone horn; every truck has its own pitch and others fade with distance</li>
-    <li>A floating label in the truck's colour grows while the horn is held: HONK → HOOOOONK → <i>*HOOOOONK*</i> after 3 s</li>
-    <li>Off-screen honks are pinned to the view edge, so you know which way to look</li>
+    <li>Hold <b>H</b> (two fingers on touch) to honk; every truck has its own pitch</li>
+    <li>A label grows the longer you honk: HONK → HOOOOONK → <i>*HOOOOONK*</i></li>
+    <li>Off-screen honks show at the edge of the view, so you know where to look</li>
   </ul>
   <figure><img src="shots/21-multiplayer-honk.png" alt=""><figcaption>Three trucks honking for different lengths of time: HONK, HOOOONK and *HOOOOONK* (dark mode)</figcaption></figure>
   </div>
 </section>
 
 <section class="slide">
-  <div class="date">Days 20–21 · 10 – 11 Nov</div>
+  <div class="date">Days 21–22 · 10 – 11 Nov</div>
   <h2>Sparks, smoke &amp; impact physics</h2>
   <div class="row">
   <ul>
-    <li>GL particle effects: sparks on wall scrapes, tyre and damage smoke, dust and confetti</li>
-    <li>Tyre squeal while the wheels spin</li>
-    <li>Off-centre hits spin and skid the truck; stacks pivot, and fast impacts topple upper boxes onto nearby stacks</li>
-    <li>Multiplayer trucks pop in and out with smoke, stars and a pop sound</li>
-    <li>North compass and a minimap with truck arrows</li>
+    <li>Sparks, smoke, dust and confetti</li>
+    <li>Tyre squeal when the wheels spin</li>
+    <li>Off-centre hits spin the truck; fast impacts topple boxes onto nearby stacks</li>
+    <li>Other players pop in and out with smoke and stars</li>
+    <li>Compass and a minimap showing all trucks</li>
   </ul>
   <figure><img src="shots/19-sparks.png" alt=""><figcaption>Sparks flying after a wall scrape</figcaption></figure>
   </div>
 </section>
 
 <section class="slide">
-  <div class="date">Days 20–23 · 10 – 12 Nov</div>
+  <div class="date">Days 21–23 · 10 – 12 Nov</div>
   <h2>Endless mode: lorries &amp; loading bays</h2>
   <div class="row">
   <ul>
-    <li>New <b>Start endless</b> mode: lorries arrive at the incoming bays, you unload them and load the delivery trucks</li>
-    <li>Delivery lorries check the tines are clear, honk, then open and close their gates</li>
-    <li>Numbered bays with waiting times; the pace adapts to the measured unloading rate (and crew size)</li>
-    <li>Running score, autosave, local and global endless high scores; works in multiplayer</li>
-    <li>Lorries redesigned with roofs and closed doors; starry void (dark) or sky with clouds (light)</li>
+    <li>New <b>Start endless</b> mode: unload arriving lorries and load the delivery trucks</li>
+    <li>Delivery lorries honk and open their gates when the way is clear</li>
+    <li>Numbered bays with waiting times; the pace adapts to how fast you work</li>
+    <li>Running score, autosave and high scores; works in multiplayer</li>
+    <li>New lorry look, with a starry night sky or daytime clouds</li>
   </ul>
   <figure><img src="shots/18-endless.png" alt=""><figcaption>Endless mode: delivery lorries, numbered bays, minimap</figcaption></figure>
   </div>
@@ -425,7 +422,7 @@
     <li><b>26 – 28 Oct</b> – landscape layout, animated splash, new soundtrack, cabin view rebuilt</li>
     <li><b>29 Oct – 2 Nov</b> – look windows, online scores, wonky stacks, 43 slogan posters</li>
     <li><b>4 – 8 Nov</b> – Pallet Polka, disco, WebGL2 3D views, new menu, touch joystick, chase camera, doorway flair</li>
-    <li><b>9 – 12 Nov</b> – multiplayer, sparks and smoke, impact physics, endless mode with lorries</li>
+    <li><b>10 – 12 Nov</b> – multiplayer, sparks and smoke, impact physics, endless mode with lorries</li>
   </ul>
   <div class="bar"><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div></div><div></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div></div>
   <div class="sub" style="margin-top:1vh;font-size:1.3vw">21 Oct – 12 Nov, 23 days (no commits on 22 Oct, 30 Oct, 5 and 6 Nov) · biggest day was day 1, then steady polish</div>
@@ -434,7 +431,7 @@
 <section class="slide" style="flex-direction:row;align-items:center;justify-content:space-between">
   <div>
   <h1>Thank you</h1>
-  <div class="sub">Built with vanilla JS, Canvas 2D and a lot of boxes.</div>
+  <div class="sub">Designed and prompted by Gnutt, built by Copilot for GitHub, mostly using Claude Sonnet 5.5.</div>
   </div>
   <a href="https://palletpolka.gnutt.se" style="display:block;text-align:center;text-decoration:none" onclick="event.stopPropagation()">
     <svg viewBox="0 0 33 33" shape-rendering="crispEdges" style="height:34vh;border-radius:8px"><rect width="33" height="33" fill="#fff"/><path d="M2 2h1v1h-1zM3 2h1v1h-1zM4 2h1v1h-1zM5 2h1v1h-1zM6 2h1v1h-1zM7 2h1v1h-1zM8 2h1v1h-1zM11 2h1v1h-1zM13 2h1v1h-1zM14 2h1v1h-1zM15 2h1v1h-1zM18 2h1v1h-1zM21 2h1v1h-1zM24 2h1v1h-1zM25 2h1v1h-1zM26 2h1v1h-1zM27 2h1v1h-1zM28 2h1v1h-1zM29 2h1v1h-1zM30 2h1v1h-1zM2 3h1v1h-1zM8 3h1v1h-1zM10 3h1v1h-1zM12 3h1v1h-1zM13 3h1v1h-1zM14 3h1v1h-1zM16 3h1v1h-1zM17 3h1v1h-1zM18 3h1v1h-1zM19 3h1v1h-1zM20 3h1v1h-1zM21 3h1v1h-1zM24 3h1v1h-1zM30 3h1v1h-1zM2 4h1v1h-1zM4 4h1v1h-1zM5 4h1v1h-1zM6 4h1v1h-1zM8 4h1v1h-1zM12 4h1v1h-1zM14 4h1v1h-1zM15 4h1v1h-1zM16 4h1v1h-1zM18 4h1v1h-1zM21 4h1v1h-1zM24 4h1v1h-1zM26 4h1v1h-1zM27 4h1v1h-1zM28 4h1v1h-1zM30 4h1v1h-1zM2 5h1v1h-1zM4 5h1v1h-1zM5 5h1v1h-1zM6 5h1v1h-1zM8 5h1v1h-1zM11 5h1v1h-1zM13 5h1v1h-1zM14 5h1v1h-1zM15 5h1v1h-1zM16 5h1v1h-1zM17 5h1v1h-1zM20 5h1v1h-1zM24 5h1v1h-1zM26 5h1v1h-1zM27 5h1v1h-1zM28 5h1v1h-1zM30 5h1v1h-1zM2 6h1v1h-1zM4 6h1v1h-1zM5 6h1v1h-1zM6 6h1v1h-1zM8 6h1v1h-1zM10 6h1v1h-1zM11 6h1v1h-1zM12 6h1v1h-1zM16 6h1v1h-1zM21 6h1v1h-1zM24 6h1v1h-1zM26 6h1v1h-1zM27 6h1v1h-1zM28 6h1v1h-1zM30 6h1v1h-1zM2 7h1v1h-1zM8 7h1v1h-1zM12 7h1v1h-1zM13 7h1v1h-1zM14 7h1v1h-1zM15 7h1v1h-1zM19 7h1v1h-1zM20 7h1v1h-1zM21 7h1v1h-1zM22 7h1v1h-1zM24 7h1v1h-1zM30 7h1v1h-1zM2 8h1v1h-1zM3 8h1v1h-1zM4 8h1v1h-1zM5 8h1v1h-1zM6 8h1v1h-1zM7 8h1v1h-1zM8 8h1v1h-1zM10 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM16 8h1v1h-1zM18 8h1v1h-1zM20 8h1v1h-1zM22 8h1v1h-1zM24 8h1v1h-1zM25 8h1v1h-1zM26 8h1v1h-1zM27 8h1v1h-1zM28 8h1v1h-1zM29 8h1v1h-1zM30 8h1v1h-1zM11 9h1v1h-1zM15 9h1v1h-1zM16 9h1v1h-1zM18 9h1v1h-1zM19 9h1v1h-1zM22 9h1v1h-1zM2 10h1v1h-1zM4 10h1v1h-1zM6 10h1v1h-1zM8 10h1v1h-1zM11 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM17 10h1v1h-1zM19 10h1v1h-1zM22 10h1v1h-1zM26 10h1v1h-1zM29 10h1v1h-1zM2 11h1v1h-1zM7 11h1v1h-1zM9 11h1v1h-1zM11 11h1v1h-1zM12 11h1v1h-1zM13 11h1v1h-1zM14 11h1v1h-1zM16 11h1v1h-1zM17 11h1v1h-1zM19 11h1v1h-1zM20 11h1v1h-1zM22 11h1v1h-1zM23 11h1v1h-1zM24 11h1v1h-1zM27 11h1v1h-1zM30 11h1v1h-1zM2 12h1v1h-1zM6 12h1v1h-1zM8 12h1v1h-1zM9 12h1v1h-1zM10 12h1v1h-1zM12 12h1v1h-1zM14 12h1v1h-1zM15 12h1v1h-1zM22 12h1v1h-1zM23 12h1v1h-1zM24 12h1v1h-1zM26 12h1v1h-1zM28 12h1v1h-1zM29 12h1v1h-1zM30 12h1v1h-1zM3 13h1v1h-1zM4 13h1v1h-1zM5 13h1v1h-1zM6 13h1v1h-1zM10 13h1v1h-1zM11 13h1v1h-1zM12 13h1v1h-1zM14 13h1v1h-1zM17 13h1v1h-1zM19 13h1v1h-1zM22 13h1v1h-1zM26 13h1v1h-1zM29 13h1v1h-1zM2 14h1v1h-1zM3 14h1v1h-1zM5 14h1v1h-1zM8 14h1v1h-1zM9 14h1v1h-1zM11 14h1v1h-1zM13 14h1v1h-1zM18 14h1v1h-1zM19 14h1v1h-1zM20 14h1v1h-1zM21 14h1v1h-1zM22 14h1v1h-1zM23 14h1v1h-1zM24 14h1v1h-1zM27 14h1v1h-1zM29 14h1v1h-1zM30 14h1v1h-1zM3 15h1v1h-1zM5 15h1v1h-1zM6 15h1v1h-1zM7 15h1v1h-1zM10 15h1v1h-1zM12 15h1v1h-1zM14 15h1v1h-1zM15 15h1v1h-1zM17 15h1v1h-1zM18 15h1v1h-1zM24 15h1v1h-1zM27 15h1v1h-1zM30 15h1v1h-1zM2 16h1v1h-1zM4 16h1v1h-1zM8 16h1v1h-1zM10 16h1v1h-1zM11 16h1v1h-1zM12 16h1v1h-1zM16 16h1v1h-1zM17 16h1v1h-1zM18 16h1v1h-1zM19 16h1v1h-1zM23 16h1v1h-1zM24 16h1v1h-1zM26 16h1v1h-1zM27 16h1v1h-1zM29 16h1v1h-1zM30 16h1v1h-1zM2 17h1v1h-1zM4 17h1v1h-1zM5 17h1v1h-1zM7 17h1v1h-1zM10 17h1v1h-1zM11 17h1v1h-1zM13 17h1v1h-1zM15 17h1v1h-1zM16 17h1v1h-1zM18 17h1v1h-1zM19 17h1v1h-1zM21 17h1v1h-1zM23 17h1v1h-1zM26 17h1v1h-1zM27 17h1v1h-1zM29 17h1v1h-1zM2 18h1v1h-1zM3 18h1v1h-1zM5 18h1v1h-1zM6 18h1v1h-1zM8 18h1v1h-1zM9 18h1v1h-1zM16 18h1v1h-1zM17 18h1v1h-1zM19 18h1v1h-1zM22 18h1v1h-1zM23 18h1v1h-1zM24 18h1v1h-1zM27 18h1v1h-1zM29 18h1v1h-1zM30 18h1v1h-1zM5 19h1v1h-1zM6 19h1v1h-1zM11 19h1v1h-1zM12 19h1v1h-1zM13 19h1v1h-1zM16 19h1v1h-1zM17 19h1v1h-1zM19 19h1v1h-1zM20 19h1v1h-1zM22 19h1v1h-1zM24 19h1v1h-1zM27 19h1v1h-1zM28 19h1v1h-1zM30 19h1v1h-1zM2 20h1v1h-1zM4 20h1v1h-1zM5 20h1v1h-1zM6 20h1v1h-1zM8 20h1v1h-1zM10 20h1v1h-1zM13 20h1v1h-1zM14 20h1v1h-1zM15 20h1v1h-1zM19 20h1v1h-1zM20 20h1v1h-1zM24 20h1v1h-1zM25 20h1v1h-1zM26 20h1v1h-1zM29 20h1v1h-1zM30 20h1v1h-1zM3 21h1v1h-1zM5 21h1v1h-1zM6 21h1v1h-1zM7 21h1v1h-1zM11 21h1v1h-1zM12 21h1v1h-1zM14 21h1v1h-1zM17 21h1v1h-1zM19 21h1v1h-1zM20 21h1v1h-1zM23 21h1v1h-1zM25 21h1v1h-1zM27 21h1v1h-1zM29 21h1v1h-1zM2 22h1v1h-1zM5 22h1v1h-1zM6 22h1v1h-1zM7 22h1v1h-1zM8 22h1v1h-1zM9 22h1v1h-1zM11 22h1v1h-1zM12 22h1v1h-1zM13 22h1v1h-1zM14 22h1v1h-1zM18 22h1v1h-1zM19 22h1v1h-1zM21 22h1v1h-1zM22 22h1v1h-1zM23 22h1v1h-1zM24 22h1v1h-1zM25 22h1v1h-1zM26 22h1v1h-1zM10 23h1v1h-1zM12 23h1v1h-1zM13 23h1v1h-1zM15 23h1v1h-1zM17 23h1v1h-1zM18 23h1v1h-1zM19 23h1v1h-1zM21 23h1v1h-1zM22 23h1v1h-1zM26 23h1v1h-1zM28 23h1v1h-1zM29 23h1v1h-1zM30 23h1v1h-1zM2 24h1v1h-1zM3 24h1v1h-1zM4 24h1v1h-1zM5 24h1v1h-1zM6 24h1v1h-1zM7 24h1v1h-1zM8 24h1v1h-1zM11 24h1v1h-1zM12 24h1v1h-1zM13 24h1v1h-1zM16 24h1v1h-1zM17 24h1v1h-1zM18 24h1v1h-1zM21 24h1v1h-1zM22 24h1v1h-1zM24 24h1v1h-1zM26 24h1v1h-1zM27 24h1v1h-1zM29 24h1v1h-1zM30 24h1v1h-1zM2 25h1v1h-1zM8 25h1v1h-1zM11 25h1v1h-1zM12 25h1v1h-1zM15 25h1v1h-1zM16 25h1v1h-1zM18 25h1v1h-1zM19 25h1v1h-1zM20 25h1v1h-1zM22 25h1v1h-1zM26 25h1v1h-1zM27 25h1v1h-1zM29 25h1v1h-1zM2 26h1v1h-1zM4 26h1v1h-1zM5 26h1v1h-1zM6 26h1v1h-1zM8 26h1v1h-1zM10 26h1v1h-1zM13 26h1v1h-1zM14 26h1v1h-1zM16 26h1v1h-1zM17 26h1v1h-1zM20 26h1v1h-1zM22 26h1v1h-1zM23 26h1v1h-1zM24 26h1v1h-1zM25 26h1v1h-1zM26 26h1v1h-1zM29 26h1v1h-1zM2 27h1v1h-1zM4 27h1v1h-1zM5 27h1v1h-1zM6 27h1v1h-1zM8 27h1v1h-1zM11 27h1v1h-1zM13 27h1v1h-1zM14 27h1v1h-1zM16 27h1v1h-1zM17 27h1v1h-1zM21 27h1v1h-1zM25 27h1v1h-1zM26 27h1v1h-1zM28 27h1v1h-1zM2 28h1v1h-1zM4 28h1v1h-1zM5 28h1v1h-1zM6 28h1v1h-1zM8 28h1v1h-1zM10 28h1v1h-1zM11 28h1v1h-1zM16 28h1v1h-1zM19 28h1v1h-1zM21 28h1v1h-1zM25 28h1v1h-1zM26 28h1v1h-1zM27 28h1v1h-1zM30 28h1v1h-1zM2 29h1v1h-1zM8 29h1v1h-1zM11 29h1v1h-1zM14 29h1v1h-1zM15 29h1v1h-1zM17 29h1v1h-1zM21 29h1v1h-1zM22 29h1v1h-1zM24 29h1v1h-1zM25 29h1v1h-1zM29 29h1v1h-1zM2 30h1v1h-1zM3 30h1v1h-1zM4 30h1v1h-1zM5 30h1v1h-1zM6 30h1v1h-1zM7 30h1v1h-1zM8 30h1v1h-1zM10 30h1v1h-1zM12 30h1v1h-1zM13 30h1v1h-1zM18 30h1v1h-1zM21 30h1v1h-1zM22 30h1v1h-1zM23 30h1v1h-1zM26 30h1v1h-1zM27 30h1v1h-1zM29 30h1v1h-1zM30 30h1v1h-1z" fill="#000"/></svg>
