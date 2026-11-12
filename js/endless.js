@@ -128,7 +128,7 @@ export function newEndless(seed = 0, hard = false) {
     start: { x: WX + WH_W / 2, y: 2.2, a: Math.PI / 2 },
   };
   const g = gameFromLayout(layout, 0, seed, hard);
-  g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, arriveT: DOCK_ARRIVE_T, wBoxes: RATE_PRIOR * RATE_PRIOR_T, wBusy: RATE_PRIOR_T, waiting: 0, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, live: 0, over: false, bays, docks };
+  g.endless = { rs: (Math.random() * 4294967296) >>> 0, elapsed: 0, arriveT: DOCK_ARRIVE_T, wBoxes: RATE_PRIOR * RATE_PRIOR_T, wBusy: RATE_PRIOR_T, waiting: 0, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, live: 0, over: false, bays, docks };
   g.layoutVersion = 0;
   for (const b of bays) {
     const r = bayRects(b.x0, 0);
