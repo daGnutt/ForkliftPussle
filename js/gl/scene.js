@@ -38,7 +38,8 @@ export function wallCaps(g, [nx, ny, d, z]) {
   const m = new Mesh();
   if (z >= WALL_H) return m;
   const grey = parseColor('#6d737a');
-  for (const w of g.walls) {
+  for (let w of g.walls) {
+    if (w.draw) w = { ...w, ...w.draw };
     if (w.charger || w.hidden || isCab(w)) continue;
     const col = w.truck ? parseColor(truckPaint(w.truck.color)) : grey;
     const pts = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]], out = [];
@@ -108,6 +109,7 @@ function addRampDecal(tm, r) {
 // One wall rectangle: sides in 1-tile segments with a checker tint, plus decals in cabin mode.
 function addWall(sm, tm, g, w, mode) {
   if (w.hidden) return;
+  if (w.draw) w = { ...w, ...w.draw };
   const top = WALL_H;
   const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
   if (w.charger) {

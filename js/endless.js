@@ -129,6 +129,7 @@ export function newEndless(seed = 0, hard = false) {
     start: { x: WX + WH_W / 2, y: 2.2, a: Math.PI / 2 },
   };
   const g = gameFromLayout(layout, 0, seed, hard);
+  g.walls[0].draw = { x: 0, y: -WALL, w: ENDLESS_W, h: WALL }; // the north border wall is drawn as a thin strip along the play area only
   for (const w of g.walls.slice(1, 4)) w.hidden = true; // south, west and east border walls: still solid, not drawn, so trucks do not clip through them
   g.endless = { rs: (Math.random() * 4294967296) >>> 0, elapsed: 0, arriveT: DOCK_ARRIVE_T, wBoxes: RATE_PRIOR * RATE_PRIOR_T, wBusy: RATE_PRIOR_T, waiting: 0, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, live: 0, over: false, bays, docks };
   g.layoutVersion = 0;
