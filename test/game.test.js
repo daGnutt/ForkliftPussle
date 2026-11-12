@@ -15,7 +15,7 @@ import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
-import { newEndless, stepEndless, rampDecals, truckGeom, unloadRate, interval } from '../js/endless.js';
+import { newEndless, stepEndless, endEndless, rampDecals, truckGeom, unloadRate, interval } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
 
 const NONE = {};
@@ -1751,4 +1751,15 @@ console.log('all tests passed');
   a.status = 'over';
   assert.throws(() => deserializeEndless(serializeEndless(a)), 'a finished game is not resumable');
   console.log('endless ok');
+}
+
+{
+  const g = newEndless(3);
+  endEndless(g);
+  assert.equal(g.status, 'over');
+  assert.ok(g.endless.over, 'ending by hand marks the run over');
+  const t = g.endless.elapsed;
+  stepEndless(g, 1);
+  assert.equal(g.endless.elapsed, t, 'a finished run no longer advances');
+  console.log('end endless run ok');
 }

@@ -1,5 +1,5 @@
 import { newGame, update, forkUp, forkDown, zoneDone, zoneWonky, score, liveTrucks } from './game.js';
-import { newEndless, stepEndless } from './endless.js';
+import { newEndless, stepEndless, endEndless } from './endless.js';
 import { createInput } from './input.js';
 import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
 import { createRelay } from './net/relay.js';
@@ -645,6 +645,7 @@ randomOpt.addEventListener('change', () => setMusicRandom(randomOpt.checked));
 trackSel.addEventListener('change', () => { setMusicTrack(trackSel.value); startAudio(); });
 const muteOpt = document.getElementById('muteOpt');
 const menuLevel = document.getElementById('menuLevel');
+const menuEndRun = document.getElementById('menuEndRun');
 const decalOpt = document.getElementById('decalOpt');
 const glOpt = document.getElementById('glOpt');
 const glParam = new URLSearchParams(location.search).get('gl');
@@ -697,6 +698,7 @@ function toggleMenu(open) {
     menuLevel.value = level;
     for (const el of menuEl.querySelectorAll('[data-hostonly]')) el.hidden = mp?.role === 'guest';
     menuLeave.hidden = !mp;
+    menuEndRun.hidden = !game.endless || game.status === 'over' || mp?.role === 'guest';
     mpName.value = localStorage.getItem('forklift-player') || '';
     renderMpPage();
     updateTutorialBtn();
@@ -837,6 +839,10 @@ document.getElementById('menuRestart').addEventListener('click', () => {
 });
 document.getElementById('menuEndless').addEventListener('click', () => {
   if (!game.endless) loadEndless();
+  toggleMenu(false);
+});
+menuEndRun.addEventListener('click', () => {
+  endEndless(game);
   toggleMenu(false);
 });
 // While the menu is open it swallows all keys (so the game keys do nothing); Tab/Space/Enter still work on its controls.

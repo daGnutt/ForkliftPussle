@@ -322,6 +322,14 @@ export function stepEndless(g, dt) {
   for (const b of e.bays) stepBay(g, b, dt);
 }
 
+// Ends the run by hand (menu): same outcome as running out of free docks.
+export function endEndless(g) {
+  const e = g.endless;
+  if (!e || e.over) return;
+  e.over = true;
+  g.status = 'over';
+}
+
 // Lorries whose horn is sounding (an incoming truck arriving: one blast just before its gate opens, a delivery truck leaving: two with a short pause just before its gate closes, the label shown only during each blast), shaped like forklifts for the HONK label.
 export function lorryHonks(g) {
   const e = g.endless;
