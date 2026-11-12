@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays } from '../endless.js';
+import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
@@ -81,14 +81,15 @@ function addCab(sm, w, col, a) {
 
 // Delivery truck panels: sides/cab in the bay colour on a dark skirt with wheels, rear doors (the gate) in light grey.
 const TRUCK_SKIRT = 0.45;
-function addTruckPart(sm, w) {
+function addTruckPart(sm, w, lift = 0) {
   if (w.truck.part === 'cab') { addCab(sm, w, parseColor(truckPaint(w.truck.color)), Math.PI / 2); return; }
   if (w.truck.part === 'wcab') { addCab(sm, w, parseColor(truckPaint(w.truck.color)), w.truck.side < 0 ? Math.PI : 0); return; }
   const { color, part } = w.truck, cx = w.x + w.w / 2, cy = w.y + w.h / 2, hl = w.w / 2, hw = w.h / 2;
   const body = part === 'gate' ? '#b9bec5' : part === 'back' ? shade(parseColor(truckPaint(color)), 0.7) : parseColor(truckPaint(color));
-  sm.cuboid(cx, cy, 0, hl, hw, 0, TRUCK_SKIRT, '#26292e', { top: false });
-  sm.cuboid(cx, cy, 0, hl, hw, TRUCK_SKIRT, TRUCK_H, body, { bottom: false });
-  if (part === 'gate' && hl > 0.2) sm.cuboid(cx, cy, 0, hl - 0.15, hw + 0.01, 1, 1.15, '#7b8088', { top: false, bottom: false });
+  const lo = lift * (TRUCK_H - 0.25); // a gate rolls up towards its header
+  if (lo < 0.01) sm.cuboid(cx, cy, 0, hl, hw, 0, TRUCK_SKIRT, '#26292e', { top: false });
+  sm.cuboid(cx, cy, 0, hl, hw, Math.max(TRUCK_SKIRT, lo), TRUCK_H, body, { bottom: false });
+  if (part === 'gate' && hl > 0.2 && lo < 0.9) sm.cuboid(cx, cy, 0, hl - 0.15, hw + 0.01, 1 + lo, 1.15 + lo, '#7b8088', { top: false, bottom: false });
   if (part === 'left' || part === 'right') {
     const out = part === 'left' ? -1 : 1;
     for (const d of BOGIE) sm.wheel(cx + out * (hl + 0.05), w.y + d, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
@@ -108,11 +109,13 @@ function addRampDecal(tm, r) {
 }
 
 // The factory's roller door: horizontal steel slats up to the wall height, a yellow bottom bar and a dark top box.
-function addRollerDoor(sm, w) {
+// `lift` (0 shut .. 1 open) raises the bar and bunches the slats up under the box.
+function addRollerDoor(sm, w, lift = 0) {
   const cx = w.x + w.w / 2, cy = w.y + w.h / 2, hl = w.w / 2, hw = w.h / 2, bar = 0.3, box = 0.35, n = 12;
-  sm.cuboid(cx, cy, 0, hl, hw, 0, bar, '#f4c414', { bottom: false });
-  const s = (WALL_H - bar - box) / n;
-  for (let i = 0; i < n; i++) sm.cuboid(cx, cy, 0, hl, hw, bar + i * s, bar + (i + 1) * s, i & 1 ? '#aeb5bd' : '#c9cfd6', { top: false, bottom: false });
+  const z0 = lift * (WALL_H - box - bar - 0.02);
+  sm.cuboid(cx, cy, 0, hl, hw, z0, z0 + bar, '#f4c414', { bottom: false });
+  const s = (WALL_H - bar - box - z0) / n;
+  for (let i = 0; i < n; i++) sm.cuboid(cx, cy, 0, hl, hw, z0 + bar + i * s, z0 + bar + (i + 1) * s, i & 1 ? '#aeb5bd' : '#c9cfd6', { top: false, bottom: false });
   sm.cuboid(cx, cy, 0, hl + 0.02, hw + 0.04, WALL_H - box, WALL_H, '#3b4048');
 }
 
@@ -261,7 +264,7 @@ export function staticMeshes(g, mode) {
   addFloor(sm, tm, g, mode);
   // overview: a trailer with its gate closed (arriving or leaving) is one solid block, so its walls skip the clipping plane (not a dock's gate: that is the warehouse's own loading bay door)
   const solid = new Set(mode === 'ov' ? truckBays(g).filter((b) => b.gateClosed).flatMap((b) => Object.values(b.parts).filter((w) => !(b.dock && w === b.parts.gate))) : []);
-  for (const w of g.walls) { if (isCab(w) || solid.has(w)) addTruckPart(cm, w); else addWall(sm, tm, g, w, mode); }
+  for (const w of g.walls) { if (mode === 'pov' && w.lift !== undefined) continue; if (isCab(w) || solid.has(w)) addTruckPart(cm, w); else addWall(sm, tm, g, w, mode); }
   if (mode === 'pov') addCeiling(sm, g);
   addTruckRoofs(cm, g, mode);
   addDoorways(sm, g, mode);
@@ -429,6 +432,7 @@ export function dynamicMeshes(g, mode, eye) {
     tm.alpha = 1;
   }
   addCarried(om, tm, g);
+  if (mode === 'pov') for (const { w } of animatedDoors(g)) { if (w.roller) addRollerDoor(om, w, w.lift); else addTruckPart(om, w, w.lift); }
   for (const t of otherTrucksShown(g)) {
     const ghost = isGhost(g, t.truck.id), m = ghost ? tm : om;
     if (ghost) tm.alpha = 0.4;

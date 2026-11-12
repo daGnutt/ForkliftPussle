@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { truckPaint, TRUCK_H, truckRoofs } from '../endless.js';
+import { truckPaint, TRUCK_H, truckRoofs, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, overheadDecals, boxDecalKind } from '../decals.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
@@ -205,6 +205,7 @@ export function buildFaces(g, cam) {
   addOverhead(faces, cam, g);
   addDoorways(faces, cam, g);
   for (const w of g.walls) {
+    if (w.lift !== undefined) continue; // bay doors are added below, animated
     if (w.charger) {
       const n = faces.length;
       addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, CHARGER_H, '#c62828');
@@ -213,6 +214,10 @@ export function buildFaces(g, cam) {
       const c = w.truck.part === 'gate' ? '#b9bec5' : truckPaint(w.truck.color);
       addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, w.truck.part === 'cab' || w.truck.part === 'wcab' ? 2.6 : TRUCK_H, c);
     } else addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, 0, WALL_H, w.roller ? '#c9cfd6' : null, !w.roller);
+  }
+  for (const { w } of animatedDoors(g)) {
+    const top = w.roller ? WALL_H : TRUCK_H, lo = w.lift * (top - (w.roller ? 0.65 : 0.25));
+    addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, lo, top, w.roller ? '#c9cfd6' : w.truck.part === 'gate' ? '#b9bec5' : truckPaint(w.truck.color));
   }
   for (const r of truckRoofs(g)) addPrism(faces, cam, (r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, 0, (r.x1 - r.x0) / 2, (r.y1 - r.y0) / 2, TRUCK_H - 0.03, TRUCK_H, truckPaint(r.color), false, 1);
   const lw = g.lowWalls?.[0];

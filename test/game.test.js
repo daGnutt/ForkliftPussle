@@ -16,7 +16,7 @@ import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
-import { newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore } from '../js/endless.js';
+import { newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
 
 const NONE = {};
@@ -1774,6 +1774,15 @@ console.log('all tests passed');
   assert.ok(unloadRate(fast.endless) > unloadRate(slow.endless), 'removing boxes raises the measured rate');
   assert.ok(interval(fast.endless, 12) < interval(slow.endless, 12));
 
+  // bay doors ease open and shut instead of popping
+  {
+    const g = newEndless(1);
+    const d = animatedDoors(g).find((o) => o.w.roller && o.w.lift === 0);
+    assert(d, 'a shut dock roller door starts at lift 0');
+    d.w.lift = 0.5;
+    stepEndless(g, 0.1);
+    assert(d.w.lift > 0 && d.w.lift < 0.5, 'a shut door keeps lowering gradually');
+  }
   // a saved endless game resumes exactly, also through JSON
   const a = newEndless(7);
   a.fl.x = 20; a.fl.y = 7; a.fl.a = 0;

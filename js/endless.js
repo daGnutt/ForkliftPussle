@@ -164,7 +164,32 @@ export function newEndless(seed = 0, hard = false) {
     setRect(d.parts.gate, [dockGateX(d.side), d.y0, WALL, TRUCK_W]);
     g.walls.push(d.parts.gate); g.pillars.push(d.parts.gate); // closed until a truck arrives
   }
+  animateDoors(g, 1e3);
   return g;
+}
+
+const DOOR_T = 0.8; // s a bay door takes to roll up or down
+
+// Every door that is animated in the cabin views: [{ w, closed }]; `w.lift` runs 0 (shut) to 1 (open). The walls only hold the shut ones.
+export function animatedDoors(g) {
+  const e = g.endless, out = [];
+  if (!e) return out;
+  for (const b of e.bays) {
+    out.push({ w: b.door, closed: b.state === 'leaving' || b.state === 'away' || b.state === 'arriving' });
+    if (b.state !== 'away') out.push({ w: b.parts.gate, closed: b.gateClosed });
+  }
+  for (const d of e.docks) {
+    out.push({ w: d.parts.gate, closed: d.gateClosed });
+    if (d.state !== 'free') out.push({ w: d.parts.rear, closed: d.gateClosed });
+  }
+  return out;
+}
+
+export function animateDoors(g, dt) {
+  for (const { w, closed } of animatedDoors(g)) {
+    const to = closed ? 0 : 1, l = w.lift ?? to;
+    w.lift = l < to ? Math.min(to, l + dt / DOOR_T) : Math.max(to, l - dt / DOOR_T);
+  }
 }
 
 function rnd(e) {
@@ -329,7 +354,9 @@ function measureRate(g, e, dt) {
 // Advances the endless mode one step; call after `update`.
 export function stepEndless(g, dt) {
   const e = g.endless;
-  if (!e || e.over) return;
+  if (!e) return;
+  animateDoors(g, dt);
+  if (e.over) return;
   e.elapsed += dt;
   e.arriveT -= dt;
   if (e.arriveT <= 0) {
@@ -452,4 +479,5 @@ export function restoreEndless(g, snap) {
   docks.forEach((s, i) => apply(e.docks[i], s));
   for (const b of e.bays) place(g, b);
   for (const d of e.docks) placeDock(g, d);
+  animateDoors(g, 1e3);
 }
