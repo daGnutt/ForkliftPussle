@@ -261,7 +261,7 @@ export function staticMeshes(g, mode) {
   addFloor(sm, tm, g, mode);
   // overview: a trailer with its gate closed (arriving or leaving) is one solid block, so its walls skip the clipping plane (not a dock's gate: that is the warehouse's own loading bay door)
   const solid = new Set(mode === 'ov' ? truckBays(g).filter((b) => b.gateClosed).flatMap((b) => Object.values(b.parts).filter((w) => !(b.dock && w === b.parts.gate))) : []);
-  for (const w of g.walls) { if (w.roller && mode === 'ov') addRollerDoor(cm, w); else if (isCab(w) || solid.has(w)) addTruckPart(cm, w); else addWall(sm, tm, g, w, mode); } // closed roller doors stay full height in the overview
+  for (const w of g.walls) { if (isCab(w) || solid.has(w)) addTruckPart(cm, w); else addWall(sm, tm, g, w, mode); }
   if (mode === 'pov') addCeiling(sm, g);
   addTruckRoofs(cm, g, mode);
   addDoorways(sm, g, mode);
