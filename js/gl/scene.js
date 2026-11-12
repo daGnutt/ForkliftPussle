@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays } from '../endless.js';
+import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays } from '../endless.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
@@ -31,12 +31,15 @@ const circlePts = (u, v, r, n = 18) => Array.from({ length: n }, (_, i) => [u + 
 
 // Tops for the clipped part of each wall (at the clip height) so the cut walls look solid; the rectangle is cut
 // to the clipped half-plane.
+// Cabs are drawn into their own mesh that the wall clipping plane never cuts.
+const isCab = (w) => w.truck && (w.truck.part === 'cab' || w.truck.part === 'wcab');
+
 export function wallCaps(g, [nx, ny, d, z]) {
   const m = new Mesh();
   if (z >= WALL_H) return m;
   const grey = parseColor('#6d737a');
   for (const w of g.walls) {
-    if (w.charger) continue;
+    if (w.charger || isCab(w)) continue;
     const col = w.truck ? parseColor(truckPaint(w.truck.color)) : grey;
     const pts = [[w.x, w.y], [w.x + w.w, w.y], [w.x + w.w, w.y + w.h], [w.x, w.y + w.h]], out = [];
     for (let i = 0; i < 4; i++) {
@@ -49,23 +52,37 @@ export function wallCaps(g, [nx, ny, d, z]) {
   return m;
 }
 
-// The truck's cab, a solid block at the south edge behind the trailer: body, windscreen, bumper, wheels and headlights.
-function addCab(sm, w, col) {
-  const cx = w.x + w.w / 2, cy = w.y + w.h / 2, hl = w.w / 2, hw = w.h / 2, yf = w.y + w.h;
-  sm.cuboid(cx, cy, 0, hl, hw, 0.5, 2.6, col);
-  sm.cuboid(cx, cy, 0, hl, hw, 0.3, 0.5, '#26292e', { top: false });
-  sm.cuboid(cx, yf - 0.02, 0, hl - 0.25, 0.04, 1.5, 2.3, '#1d2a38', { top: false, bottom: false });
-  sm.cuboid(cx, yf - 0.1, 0, hl, 0.1, 0.3, 0.6, '#c9ccd1');
+// A truck cab facing `a` (0 east, PI/2 south, PI west): a tall cab at the trailer end, a lower hood in front with grille,
+// bumper and headlights, side windows, mirrors and wheels. Shared by the delivery and the incoming lorries.
+function addCab(sm, w, col, a) {
+  const f = [Math.round(Math.cos(a)), Math.round(Math.sin(a))], l = [-f[1], f[0]], horiz = f[0] !== 0;
+  const depth = horiz ? w.w : w.h, hw = (horiz ? w.h : w.w) / 2, cx = w.x + w.w / 2, cy = w.y + w.h / 2;
+  const fx = cx + (f[0] * depth) / 2, fy = cy + (f[1] * depth) / 2; // centre of the front edge
+  const pos = (t, lat = 0) => [fx - f[0] * t + l[0] * lat, fy - f[1] * t + l[1] * lat];
+  const box = (t0, t1, hh, z0, z1, c, o, lat = 0) => { const [x, y] = pos((t0 + t1) / 2, lat); sm.cuboid(x, y, a, (t1 - t0) / 2, hh, z0, z1, c, o); };
+  box(0, depth, hw, 0.3, 0.5, '#26292e', { top: false });
+  box(0.8, depth, hw, 0.5, 2.6, col);
+  box(0, 0.8, hw - 0.1, 0.5, 1.35, col);
+  box(0.8, depth, hw + 0.01, 0.5, 0.65, shade(col, 0.7), { top: false, bottom: false });
+  box(0.78, 0.82, hw - 0.25, 1.5, 2.3, '#1d2a38', { top: false, bottom: false });
+  box(0.9, 1.7, hw + 0.01, 1.5, 2.25, '#1d2a38', { top: false, bottom: false });
+  box(0.8, depth, hw, 2.6, 2.7, shade(col, 0.8));
+  box(-0.02, 0.03, hw - 0.4, 0.7, 1.2, '#15171a', { top: false, bottom: false });
+  box(0, 0.12, hw, 0.3, 0.6, '#c9ccd1');
   for (const s of [-1, 1]) {
-    sm.cuboid(cx + s * (hl - 0.35), yf - 0.02, 0, 0.2, 0.04, 0.9, 1.2, '#fff6c0', { emissive: true });
-    sm.wheel(cx + s * (hl + 0.05), cy, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
+    box(-0.03, 0.04, 0.2, 0.7, 0.95, '#fff6c0', { emissive: true }, s * (hw - 0.5));
+    const [mx, my] = pos(0.8, s * (hw + 0.12));
+    sm.cuboid(mx, my, a, 0.06, 0.1, 1.5, 2.1, '#15171a');
+    const [wx, wy] = pos(1.4, s * (hw + 0.05));
+    sm.wheel(wx, wy, 0.4, a, 0.4, 0.14, '#15171a');
   }
 }
 
 // Delivery truck panels: sides/cab in the bay colour on a dark skirt with wheels, rear doors (the gate) in light grey.
 const TRUCK_SKIRT = 0.45;
 function addTruckPart(sm, w) {
-  if (w.truck.part === 'cab') { addCab(sm, w, parseColor(truckPaint(w.truck.color))); return; }
+  if (w.truck.part === 'cab') { addCab(sm, w, parseColor(truckPaint(w.truck.color)), Math.PI / 2); return; }
+  if (w.truck.part === 'wcab') { addCab(sm, w, parseColor(truckPaint(w.truck.color)), w.truck.side < 0 ? Math.PI : 0); return; }
   const { color, part } = w.truck, cx = w.x + w.w / 2, cy = w.y + w.h / 2, hl = w.w / 2, hw = w.h / 2;
   const body = part === 'gate' ? '#b9bec5' : part === 'back' ? shade(parseColor(truckPaint(color)), 0.7) : parseColor(truckPaint(color));
   sm.cuboid(cx, cy, 0, hl, hw, 0, TRUCK_SKIRT, '#26292e', { top: false });
@@ -73,7 +90,10 @@ function addTruckPart(sm, w) {
   if (part === 'gate' && hl > 0.2) sm.cuboid(cx, cy, 0, hl - 0.15, hw + 0.01, 1, 1.15, '#7b8088', { top: false, bottom: false });
   if (part === 'left' || part === 'right') {
     const out = part === 'left' ? -1 : 1;
-    for (const y of [w.y + 0.9, w.y + w.h - 0.9]) sm.wheel(cx + out * (hl + 0.05), y, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
+    for (const d of BOGIE) sm.wheel(cx + out * (hl + 0.05), w.y + d, 0.4, Math.PI / 2, 0.4, 0.14, '#15171a');
+  }
+  if (part === 'side') { // incoming trailer: the gate end is east (west dock) or west (east dock)
+    for (const d of BOGIE) sm.wheel(w.truck.side < 0 ? w.x + w.w - d : w.x + d, cy + w.truck.lat * (hw + 0.05), 0.4, 0, 0.4, 0.14, '#15171a');
   }
 }
 
@@ -206,19 +226,19 @@ function addFloor(sm, tm, g, mode) {
 
 const cache = new WeakMap();
 
-// { opaque, trans } meshes that only change with the level, theme and decal switch.
+// { opaque, trans, cabs } meshes that only change with the level, theme and decal switch.
 export function staticMeshes(g, mode) {
   const key = [theme(), decalsEnabled(), mode, g.layoutVersion || 0];
   let e = cache.get(g);
   if (!e) cache.set(g, (e = {}));
   const hit = e[mode];
   if (hit && hit.key.every((k, i) => k === key[i])) return hit;
-  const sm = new Mesh(), tm = new Mesh();
+  const sm = new Mesh(), tm = new Mesh(), cm = new Mesh();
   addFloor(sm, tm, g, mode);
-  for (const w of g.walls) addWall(sm, tm, g, w, mode);
+  for (const w of g.walls) { if (isCab(w)) addTruckPart(cm, w); else addWall(sm, tm, g, w, mode); }
   if (mode === 'pov') addCeiling(sm, g);
   addDoorways(sm, g, mode);
-  return (e[mode] = { key, opaque: sm, trans: tm });
+  return (e[mode] = { key, opaque: sm, trans: tm, cabs: cm });
 }
 
 const revAlpha = (g) => 0.45 + 0.2 * Math.sin(g.clock * 14);

@@ -156,14 +156,14 @@ function staticBuffers(r, g, mode) {
   const meshes = staticMeshes(g, mode), { gl } = r;
   let e = r.statics[mode];
   if (e && e.meshes === meshes) return e;
-  if (e) { gl.deleteBuffer(e.opaque.buf); gl.deleteBuffer(e.trans.buf); }
+  if (e) { gl.deleteBuffer(e.opaque.buf); gl.deleteBuffer(e.trans.buf); gl.deleteBuffer(e.cabs.buf); }
   const up = (m) => {
     const buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, m.floats(), gl.STATIC_DRAW);
     return { buf, count: m.count };
   };
-  e = r.statics[mode] = { meshes, opaque: up(meshes.opaque), trans: up(meshes.trans) };
+  e = r.statics[mode] = { meshes, opaque: up(meshes.opaque), trans: up(meshes.trans), cabs: up(meshes.cabs) };
   return e;
 }
 
@@ -250,6 +250,7 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
   gl.uniform4fv(u.uClip, clip);
   drawBuffer(r, st.opaque.buf, st.opaque.count);
   gl.uniform4fv(u.uClip, off);
+  drawBuffer(r, st.cabs.buf, st.cabs.count);
   if (clip !== off) drawMesh(r, wallCaps(g, clip));
   drawMesh(r, dyn.opaque);
 

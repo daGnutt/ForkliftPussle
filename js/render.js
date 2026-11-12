@@ -1,5 +1,5 @@
 import { COLORS } from './level.js';
-import { truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
+import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
@@ -549,27 +549,39 @@ function drawWorldObjects(ctx, g, vis) {
 // A delivery truck panel in its bay colour: dark wheels stick out of the sides, the cab is darker, the rear doors (gate) light grey.
 function drawTruckPart(ctx, w) {
   const { color, part } = w.truck;
-  if (part === 'cab') {
-    const x = w.x, y = w.y, cw = w.w;
+  if (part === 'cab' || part === 'wcab') { // seen from above; the front faces south (delivery) or `side` (west/east, incoming)
+    const south = part === 'cab', sd = w.truck.side || 1, depth = south ? w.h : w.w, wd = south ? w.w : w.h;
+    const rect = (t0, t1, l0, l1) => { // t: depth from the front edge, l: lateral offset from the left side
+      if (south) ctx.fillRect(w.x + l0, w.y + depth - t1, l1 - l0, t1 - t0);
+      else ctx.fillRect(sd < 0 ? w.x + t0 : w.x + depth - t1, w.y + l0, t1 - t0, l1 - l0);
+    };
     ctx.fillStyle = '#15171a';
-    ctx.fillRect(x - 0.1, y + 0.3, 0.2, 1.2);
-    ctx.fillRect(x + cw - 0.1, y + 0.3, 0.2, 1.2);
+    rect(1.0, 1.8, -0.1, 0.1); rect(1.0, 1.8, wd - 0.1, wd + 0.1);
     ctx.fillStyle = truckPaint(color);
-    ctx.fillRect(x, y, cw, w.h);
+    ctx.fillRect(w.x, w.y, w.w, w.h);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    rect(0.8, depth, 0, wd);
     ctx.fillStyle = '#1d2a38';
-    ctx.fillRect(x + 0.25, y + 1.2, cw - 0.5, 0.5);
+    rect(0.8, 1.15, 0.25, wd - 0.25);
+    ctx.fillStyle = '#15171a';
+    rect(0, 0.08, 0.4, wd - 0.4);
+    rect(0.7, 0.9, -0.1, 0.1); rect(0.7, 0.9, wd - 0.1, wd + 0.1);
     ctx.fillStyle = '#fff6c0';
-    ctx.fillRect(x + 0.2, y + 1.85, 0.4, 0.12);
-    ctx.fillRect(x + cw - 0.6, y + 1.85, 0.4, 0.12);
+    rect(0, 0.1, 0.1, 0.4); rect(0, 0.1, wd - 0.4, wd - 0.1);
     ctx.strokeStyle = '#1f2226';
     ctx.lineWidth = 0.06;
-    ctx.strokeRect(x, y, cw, w.h);
+    ctx.strokeRect(w.x, w.y, w.w, w.h);
     return;
   }
   if (part === 'left' || part === 'right') {
     ctx.fillStyle = '#15171a';
     const wx = part === 'left' ? w.x - 0.1 : w.x + w.w - 0.1;
-    for (const y of [w.y + 0.5, w.y + w.h - 1.3]) ctx.fillRect(wx, y, 0.2, 0.8);
+    for (const d of BOGIE) ctx.fillRect(wx, w.y + d - 0.4, 0.2, 0.8);
+  }
+  if (part === 'side') { // incoming trailer: wheels on the outer face of the side panel
+    ctx.fillStyle = '#15171a';
+    const wy = w.truck.lat < 0 ? w.y - 0.1 : w.y + w.h - 0.1;
+    for (const d of BOGIE) ctx.fillRect((w.truck.side < 0 ? w.x + w.w - d : w.x + d) - 0.4, wy, 0.8, 0.2);
   }
   ctx.fillStyle = part === 'gate' ? '#b9bec5' : truckPaint(color);
   ctx.fillRect(w.x, w.y, w.w, w.h);

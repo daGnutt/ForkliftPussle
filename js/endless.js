@@ -12,6 +12,7 @@ export const ROWS = 3; // incoming-truck bays per side
 export const DOCKS = 2 * ROWS; // west and east, alternating from the south
 export const DOCK_COLOR = ENDLESS_COLORS; // beyond the box colours: the incoming trucks are grey
 export const truckPaint = (c) => COLORS[c] ?? '#78909c';
+export const BOGIE = [1.2, 2.1]; // trailer wheel pair: distances from the gate (rear) end, centred under the row of drop points nearest the gate
 const SLOT = 1.5; // spacing of the delivery truck's stack slots (2 wide, 3 deep)
 const TRUCK_W = 3.6, TRUCK_D = 6, WALL = 0.3;
 const APRON = 0.9; // empty strip inside the gate before the first stack slots
@@ -139,7 +140,7 @@ export function newEndless(seed = 0, hard = false) {
   }
   for (const d of docks) {
     const r = dockRects(d, GONE);
-    for (const [n, part] of [['sideN', 'side'], ['sideS', 'side'], ['back', 'back'], ['cab', 'wcab']]) { const w = { truck: { color: DOCK_COLOR, part } }; setRect(w, r[n]); d.parts[n] = w; }
+    for (const [n, part] of [['sideN', 'side'], ['sideS', 'side'], ['back', 'back'], ['cab', 'wcab']]) { const w = { truck: { color: DOCK_COLOR, part, side: d.side, lat: n === 'sideN' ? -1 : 1 } }; setRect(w, r[n]); d.parts[n] = w; }
     d.parts.gate = { truck: { color: DOCK_COLOR, part: 'gate' } }; // closed while no truck stands at the bay
     setRect(d.parts.gate, [dockGateX(d.side), d.y0, WALL, TRUCK_W]);
     g.walls.push(d.parts.gate); g.pillars.push(d.parts.gate); // closed until a truck arrives
