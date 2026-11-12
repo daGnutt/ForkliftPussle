@@ -57,7 +57,7 @@ export function blendCameras(a, b, k) {
   return { ...b, vp: mul(proj, viewBasis(eye, r, u, f)), eye, pose: { r, u, f, near, far, f2h } };
 }
 
-export const CHASE_TILES = 7, CHASE_DEFAULT = 0.5, CHASE_TILT = 0.95, CHASE_OUT = 0.8; // CHASE_DEFAULT: the default chase view shows this fraction of the overview's tiles
+export const CHASE_TILES = 7, CHASE_DEFAULT = 0.5, CHASE_TILT = 1.1, CHASE_OUT = 0.8; // CHASE_DEFAULT: the default chase view shows this fraction of the overview's tiles
 
 // Chase zoom 0..100: 100 = fully zoomed in (CHASE_TILES tiles visible vertically), 0 = zoomed out by CHASE_OUT (80%).
 export function chaseTiles(zoom) {
