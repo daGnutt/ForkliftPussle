@@ -1823,5 +1823,17 @@ console.log('all tests passed');
   g.fl.steer = FL.maxSteer;
   const turning = chaseDrift(g, far, still.maxD, 0.1);
   assert.ok(Math.hypot(turning[0] - far[0], turning[1] - far[1]) > Math.hypot(straight[0] - far[0], straight[1] - far[1]), 'steering speeds up the drift');
+  // shuffling: a short reversal must not pull the camera to the front of the truck; a sustained one does
+  const h = newGame(1);
+  h.fl.a = 0;
+  const tc = toWorld(h.fl, (FL.tineX0 + FL.tineX1) / 2, 0), behind = [tc.x - 5, tc.y];
+  let pos = behind;
+  h.fl.speed = 3;
+  for (let i = 0; i < 5; i++) pos = chaseDrift(h, pos, 5, 0.1);
+  h.fl.speed = -3;
+  for (let i = 0; i < 3; i++) pos = chaseDrift(h, pos, 5, 0.1);
+  assert.ok(Math.abs(pos[0] - behind[0]) < 0.2, 'a short reversal keeps the camera behind the truck');
+  for (let i = 0; i < 20; i++) pos = chaseDrift(h, pos, 5, 0.1);
+  assert.ok(pos[0] - behind[0] > 1, 'a sustained reversal swings the camera to the front');
   console.log('chase tuning ok');
 }

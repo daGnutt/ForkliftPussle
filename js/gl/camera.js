@@ -78,7 +78,7 @@ const CHASE_MIN = 0.35; // closest the chase camera may get to the truck, as a f
 // `heading`); `yaw` swings the eye around the truck (user orbit). Returns { pos (the clamped floor position to keep for the next frame),
 // eye, target, heading (eye -> truck, without yaw) }.
 export function chaseRig(g, baseTiles, tilt, eye2, yaw = 0, heading = g.fl.a) {
-  const tiles = baseTiles * (1 + ZOOM_OUT * Math.min(1, Math.abs(g.fl.speed) / ZOOM_SPEED));
+  const tiles = baseTiles * (1 + ZOOM_OUT * Math.min(1, Math.abs(camState.get(g)?.speed ?? g.fl.speed) / ZOOM_SPEED));
   const p = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, 0);
   const dist = tiles / 2 / Math.tan(OV_VFOV / 2), maxD = Math.sin(tilt) * dist * CHASE_REACH, z = Math.cos(tilt) * dist;
   let ox = eye2 ? eye2[0] - p.x : -Math.cos(heading + yaw) * maxD, oy = eye2 ? eye2[1] - p.y : -Math.sin(heading + yaw) * maxD;
@@ -100,12 +100,26 @@ export function chaseOrbit(g, pos, ang) {
 
 const DRIFT_RATE = 0.7, DRIFT_SPEED = 2, DRIFT_STEER = 2; // 1/s at DRIFT_SPEED tiles/s or more (scales down with speed); up to (1 + DRIFT_STEER)x faster at full steering lock
 
+const SPEED_SMOOTH = 0.4, FLIP_TIME = 0.5, FLIP_DIST = 1; // s: low-pass time constant of the speed the camera reacts to; the truck must reverse this long (or this far, in tiles) before the camera changes side
+const camState = new WeakMap(); // per game: { speed (low-passed signed speed), dir (side the camera drifts to: 1 = behind, -1 = in front), t, d (time/distance spent going the other way) }
+
 // While the truck moves, the camera floor position `pos` slowly drifts towards the spot at distance `maxD` behind it (driving forwards) or in
 // front of it (reversing); within the distance limits the rig leaves it alone otherwise. Returns the new [x, y].
+// Short back-and-forth moves (shuffling) neither zoom nor flip the camera: it reacts to a low-passed speed and only changes side after a sustained reversal.
 export function chaseDrift(g, pos, maxD, dt) {
-  const f = g.fl, sp = Math.min(1, Math.abs(f.speed) / DRIFT_SPEED);
+  const f = g.fl;
+  let s = camState.get(g);
+  if (!s) camState.set(g, (s = { speed: f.speed, dir: f.speed < 0 ? -1 : 1, t: 0, d: 0 }));
+  s.speed += (f.speed - s.speed) * (1 - Math.exp(-dt / SPEED_SMOOTH));
+  const want = f.speed < 0 ? -1 : 1;
+  if (Math.abs(f.speed) > 1e-3 && want !== s.dir) {
+    s.t += dt;
+    s.d += Math.abs(f.speed) * dt;
+    if (s.t >= FLIP_TIME || s.d >= FLIP_DIST) { s.dir = want; s.t = s.d = 0; }
+  } else if (Math.abs(f.speed) > 1e-3) s.t = s.d = 0;
+  const sp = Math.min(1, Math.abs(s.speed) / DRIFT_SPEED);
   if (sp < 1e-3) return pos;
-  const p = toWorld(f, (FL.tineX0 + FL.tineX1) / 2, 0), dir = f.speed > 0 ? 1 : -1;
+  const p = toWorld(f, (FL.tineX0 + FL.tineX1) / 2, 0), dir = s.dir;
   const k = 1 - Math.exp(-DRIFT_RATE * (1 + DRIFT_STEER * Math.abs(f.steer) / FL.maxSteer) * sp * dt);
   return [pos[0] + (p.x - dir * Math.cos(f.a) * maxD - pos[0]) * k, pos[1] + (p.y - dir * Math.sin(f.a) * maxD - pos[1]) * k];
 }
