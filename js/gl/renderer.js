@@ -68,6 +68,60 @@ const DARK_LIGHT = {
   ov: { sun: [-0.4, -0.5, 0.8], sunCol: [0.08, 0.08, 0.09], up: [0.4, 0.41, 0.46], down: [0.27, 0.27, 0.31], fogA: 1e4, fogB: 2e4, fogMax: 0 },
 };
 
+
+// Sky pass for the void outside the level (overview): drawn first as a fullscreen triangle, no depth. Each pixel's view
+// ray picks stars (dark mode) or a blue gradient with clouds (light mode); clouds sit on planes above/below the eye.
+const SKY_VS = `#version 300 es
+out vec2 vP;
+void main() {
+  vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+  vP = p * 2.0 - 1.0;
+  gl_Position = vec4(vP, 1.0, 1.0);
+}`;
+
+const SKY_FS = `#version 300 es
+precision highp float;
+in vec2 vP;
+uniform mat4 uVP;
+uniform vec3 uEye;
+uniform float uDark;
+out vec4 o;
+float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float vn(vec2 p) {
+  vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y);
+}
+float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * vn(p); p = p * 2.03 + 11.7; a *= 0.5; } return s; }
+void main() {
+  mat4 iv = inverse(uVP);
+  vec4 a = iv * vec4(vP, -1.0, 1.0), b = iv * vec4(vP, 1.0, 1.0);
+  vec3 d = normalize(b.xyz / b.w - a.xyz / a.w);
+  vec3 col;
+  if (uDark > 0.5) {
+    col = mix(vec3(0.012, 0.014, 0.03), vec3(0.03, 0.035, 0.07), pow(1.0 - abs(d.z), 2.0));
+    vec3 q = d / max(max(abs(d.x), abs(d.y)), abs(d.z)); // cube mapping keeps the cells square
+    vec2 uv = abs(q.z) > 0.999 ? q.xy : (abs(q.x) > 0.999 ? q.yz + 7.0 : q.xz + 13.0);
+    vec2 g = uv * 70.0, c = floor(g);
+    float r = h21(c + 3.1);
+    if (r > 0.93) {
+      vec2 pos = vec2(h21(c + 9.7), h21(c + 1.3)) * 0.6 + 0.2;
+      float s = smoothstep(0.16, 0.0, length(fract(g) - pos)) * (0.4 + 0.6 * h21(c + 5.5));
+      col += mix(vec3(0.8, 0.85, 1.0), vec3(1.0, 0.9, 0.7), h21(c + 2.2)) * s;
+    }
+    col += vec3(0.02, 0.025, 0.05) * smoothstep(0.55, 0.9, fbm(uv * 3.0 + 40.0));
+  } else {
+    float up = clamp(abs(d.z), 0.0, 1.0);
+    col = mix(vec3(0.72, 0.86, 0.98), vec3(0.16, 0.42, 0.85), pow(up, 0.6));
+    float pz = d.z > 0.0 ? 45.0 : -45.0;
+    vec3 hit = uEye + d * ((pz - uEye.z) / (abs(d.z) < 1e-3 ? 1e-3 : d.z));
+    float n = fbm(hit.xy * 0.045 + (d.z > 0.0 ? 0.0 : 17.0));
+    float cl = smoothstep(0.5, 0.68, n) * smoothstep(0.02, 0.25, up);
+    col = mix(col, vec3(1.0), cl * 0.9);
+    col -= vec3(0.06, 0.05, 0.03) * smoothstep(0.7, 0.9, n) * cl;
+  }
+  o = vec4(col, 1.0);
+}`;
+
 let R = null; // { canvas, gl, prog, u, dyn, statics } | null; undefined while untried
 let D = null; // { r, ctx } for the visible GL canvas attached with attachGlCanvas
 let failed = false;
@@ -98,9 +152,16 @@ function init(visible) {
   u.uLC = gl.getUniformLocation(prog, 'uLC[0]');
   u.uLD = gl.getUniformLocation(prog, 'uLD[0]');
   for (const n of ['uVP', 'uEye', 'uSun', 'uSunCol', 'uAmbUp', 'uAmbDown', 'uFogCol', 'uFogA', 'uFogB', 'uFogMax', 'uAdd', 'uNL', 'uClip']) u[n] = gl.getUniformLocation(prog, n);
+  const sky = gl.createProgram();
+  gl.attachShader(sky, compile(gl, gl.VERTEX_SHADER, SKY_VS));
+  gl.attachShader(sky, compile(gl, gl.FRAGMENT_SHADER, SKY_FS));
+  gl.linkProgram(sky);
+  if (!gl.getProgramParameter(sky, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(sky));
+  const su = {};
+  for (const n of ['uVP', 'uEye', 'uDark']) su[n] = gl.getUniformLocation(sky, n);
   canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); if (visible) D = null; else R = null; });
   canvas.addEventListener('webglcontextrestored', () => { failed = false; });
-  return { canvas, gl, prog, u, vao: gl.createVertexArray(), buf: gl.createBuffer(), statics: { pov: null, ov: null } };
+  return { canvas, gl, prog, u, sky, su, vao: gl.createVertexArray(), buf: gl.createBuffer(), statics: { pov: null, ov: null } };
 }
 
 function get() {
@@ -217,6 +278,15 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
   gl.clearColor(bg[0], bg[1], bg[2], 1);
   gl.depthMask(true);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  if (mode === 'ov') {
+    gl.disable(gl.DEPTH_TEST);
+    gl.useProgram(r.sky);
+    gl.uniformMatrix4fv(r.su.uVP, false, cam.vp);
+    gl.uniform3fv(r.su.uEye, cam.eye);
+    gl.uniform1f(r.su.uDark, theme().dark ? 1 : 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.useProgram(r.prog);
+  }
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
   gl.disable(gl.CULL_FACE);
