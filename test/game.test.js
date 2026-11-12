@@ -5,7 +5,7 @@ import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
 import { chaseOrbit } from '../js/gl/camera.js';
-import { povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
+import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
@@ -1810,4 +1810,18 @@ console.log('all tests passed');
   stepEndless(g, 1);
   assert.equal(g.endless.elapsed, t, 'a finished run no longer advances');
   console.log('end endless run ok');
+}
+
+// chase camera: zooms out with speed, looks higher with raised forks, drifts faster when steering
+{
+  const g = newGame(1), still = chaseRig(g, 11, CHASE_TILT, null, 0, g.fl.a);
+  g.ef = 3;
+  assert.ok(chaseRig(g, 11, CHASE_TILT, null, 0, g.fl.a).tz > still.tz, 'raised forks lift the look-at point');
+  g.fl.speed = 3;
+  assert.ok(chaseRig(g, 11, CHASE_TILT, null, 0, g.fl.a).maxD > still.maxD * 1.15, 'speed zooms the chase view out');
+  const far = [g.fl.x - 20, g.fl.y], straight = chaseDrift(g, far, still.maxD, 0.1);
+  g.fl.steer = FL.maxSteer;
+  const turning = chaseDrift(g, far, still.maxD, 0.1);
+  assert.ok(Math.hypot(turning[0] - far[0], turning[1] - far[1]) > Math.hypot(straight[0] - far[0], straight[1] - far[1]), 'steering speeds up the drift');
+  console.log('chase tuning ok');
 }

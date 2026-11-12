@@ -69,13 +69,16 @@ export function chaseZoom(tiles) {
 }
 
 const CHASE_REACH = 0.5; // the floor distance the camera may trail the truck, as a fraction of the distance that frames `tiles` (height unchanged)
+const ZOOM_OUT = 0.2, ZOOM_SPEED = 3; // the view zooms out by up to 20% as the truck approaches ZOOM_SPEED tiles/s
+const TARGET_LIFT = 0.6; // the camera looks this fraction of the fork height above the floor, so raised stacks stay in frame
 const CHASE_MIN = 0.35; // closest the chase camera may get to the truck, as a fraction of its maximum distance
 
 // Chase rig: the eye hangs at a fixed height (from `tilt`) and only slides over the floor when it has to, staying within `maxD` of the tines'
 // middle (and not closer than CHASE_MIN * maxD); it then pitches/yaws to keep that point centred. `eye2` = [x, y] last eye position (null: behind
 // `heading`); `yaw` swings the eye around the truck (user orbit). Returns { pos (the clamped floor position to keep for the next frame),
 // eye, target, heading (eye -> truck, without yaw) }.
-export function chaseRig(g, tiles, tilt, eye2, yaw = 0, heading = g.fl.a) {
+export function chaseRig(g, baseTiles, tilt, eye2, yaw = 0, heading = g.fl.a) {
+  const tiles = baseTiles * (1 + ZOOM_OUT * Math.min(1, Math.abs(g.fl.speed) / ZOOM_SPEED));
   const p = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, 0);
   const dist = tiles / 2 / Math.tan(OV_VFOV / 2), maxD = Math.sin(tilt) * dist * CHASE_REACH, z = Math.cos(tilt) * dist;
   let ox = eye2 ? eye2[0] - p.x : -Math.cos(heading + yaw) * maxD, oy = eye2 ? eye2[1] - p.y : -Math.sin(heading + yaw) * maxD;
@@ -86,7 +89,7 @@ export function chaseRig(g, tiles, tilt, eye2, yaw = 0, heading = g.fl.a) {
   oy *= k;
   const hd = Math.atan2(-oy, -ox), c = Math.cos(yaw), s = Math.sin(yaw);
   const rx = eye2 ? ox * c - oy * s : ox, ry = eye2 ? ox * s + oy * c : oy;
-  return { pos: [p.x + ox, p.y + oy], eye: [p.x + rx, p.y + ry, z], target: [p.x, p.y], heading: eye2 ? hd : heading, dist, maxD };
+  return { pos: [p.x + ox, p.y + oy], eye: [p.x + rx, p.y + ry, z], target: [p.x, p.y], heading: eye2 ? hd : heading, dist, maxD, tz: g.ef * (BOX_H + PAL) * TARGET_LIFT };
 }
 
 // Swings the camera floor position `pos` by `ang` radians around the middle of the tines (the user orbiting the chase camera); keeps its distance.
@@ -95,7 +98,7 @@ export function chaseOrbit(g, pos, ang) {
   return [p.x + ox * c - oy * s, p.y + ox * s + oy * c];
 }
 
-const DRIFT_RATE = 0.7, DRIFT_SPEED = 2; // 1/s at DRIFT_SPEED tiles/s or more (scales down with speed)
+const DRIFT_RATE = 0.7, DRIFT_SPEED = 2, DRIFT_STEER = 2; // 1/s at DRIFT_SPEED tiles/s or more (scales down with speed); up to (1 + DRIFT_STEER)x faster at full steering lock
 
 // While the truck moves, the camera floor position `pos` slowly drifts towards the spot at distance `maxD` behind it (driving forwards) or in
 // front of it (reversing); within the distance limits the rig leaves it alone otherwise. Returns the new [x, y].
@@ -103,7 +106,7 @@ export function chaseDrift(g, pos, maxD, dt) {
   const f = g.fl, sp = Math.min(1, Math.abs(f.speed) / DRIFT_SPEED);
   if (sp < 1e-3) return pos;
   const p = toWorld(f, (FL.tineX0 + FL.tineX1) / 2, 0), dir = f.speed > 0 ? 1 : -1;
-  const k = 1 - Math.exp(-DRIFT_RATE * sp * dt);
+  const k = 1 - Math.exp(-DRIFT_RATE * (1 + DRIFT_STEER * Math.abs(f.steer) / FL.maxSteer) * sp * dt);
   return [pos[0] + (p.x - dir * Math.cos(f.a) * maxD - pos[0]) * k, pos[1] + (p.y - dir * Math.sin(f.a) * maxD - pos[1]) * k];
 }
 
@@ -112,8 +115,8 @@ export function chaseDrift(g, pos, maxD, dt) {
 // `tiles` = tiles visible vertically at the truck when the camera is at its maximum distance.
 export function chaseCamera(g, w, h, tiles = CHASE_TILES, heading = g.fl.a, orbit = null, eye2 = null) {
   const r = chaseRig(g, tiles, orbit ? orbit.tilt : CHASE_TILT, eye2, orbit ? orbit.yaw : 0, heading);
-  const [ex, ey, ez] = r.eye, dx = r.target[0] - ex, dy = r.target[1] - ey, d = Math.hypot(dx, dy) || 1e-6, rr = Math.hypot(d, ez);
-  const ux = dx / d, uy = dy / d, st = d / rr, ct = ez / rr;
+  const [ex, ey, ez] = r.eye, dx = r.target[0] - ex, dy = r.target[1] - ey, d = Math.hypot(dx, dy) || 1e-6, tz = r.tz, rr = Math.hypot(d, ez - tz);
+  const ux = dx / d, uy = dy / d, st = d / rr, ct = (ez - tz) / rr;
   const f2h = 1 / Math.tan(OV_VFOV / 2);
   const proj = perspective((f2h * h) / w, f2h, 0, r.dist * 0.15, r.dist * 3);
   const view = viewBasis(r.eye, [-uy, ux, 0], [ux * ct, uy * ct, st], [ux * st, uy * st, -ct]);
