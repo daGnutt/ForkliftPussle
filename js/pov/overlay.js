@@ -84,13 +84,26 @@ export function honkText(elapsed) {
   const text = `H${'O'.repeat(o)}NK`;
   return elapsed >= 3 ? `*${text}*` : text;
 }
+// Keeps a honk label inside `rect` ({ x, y, w, h }): one that falls outside (or lies behind the camera, then (dx, dy) is the screen direction towards it)
+// is moved along the ray from the centre to just inside the edge, drawn smaller.
+export function pinHonk(sx, sy, size, rect, behind = false, dx = 0, dy = 0) {
+  const mx = rect.x + rect.w / 2, my = rect.y + rect.h / 2;
+  const hx = Math.max(1, rect.w / 2 - size * 2.6), hy = Math.max(1, rect.h / 2 - size * 0.8);
+  if (!behind && Math.abs(sx - mx) <= hx && Math.abs(sy - my) <= hy) return [sx, sy, size];
+  const small = Math.max(10, size * 0.6);
+  const ex = Math.max(1, rect.w / 2 - small * 2.6), ey = Math.max(1, rect.h / 2 - small * 0.8);
+  const vx = behind ? dx : sx - mx, vy = behind ? dy : sy - my;
+  const k = Math.min(ex / (Math.abs(vx) || 1e-9), ey / (Math.abs(vy) || 1e-9));
+  return [mx + vx * k, my + vy * k, small];
+}
+
 export function drawHonk(ctx, t, clock, sx, sy, size) {
   const bob = Math.sin(clock * 16 + t.id * 2) * size * 0.1;
   label(ctx, t.text ?? honkText(Math.max(0, clock - (honkStart.get(t.id) ?? clock))), sx, sy + bob, size, t.paint ?? truckColor(t.color).body);
 }
 
 // Damage popups floating up from the damaged box.
-export function drawHits(ctx, g, cam) {
+export function drawHits(ctx, g, cam, rect) {
   for (const h of g.hits || []) {
     const k = (g.clock - h.t) / hitLife(h);
     const [fw, rt] = toCam(cam, h.x, h.y, 0);
@@ -102,7 +115,14 @@ export function drawHits(ctx, g, cam) {
   ctx.globalAlpha = 1;
   for (const t of honkers(g)) {
     const [fw, rt] = toCam(cam, t.fl.x, t.fl.y, 0);
-    if (fw <= 0.3) continue;
-    drawHonk(ctx, t, g.clock, cam.cx + (rt / fw) * cam.f, cam.cy - ((1.8 - cam.z) / fw) * cam.f, Math.max(10, Math.min(60, (0.6 / fw) * cam.f)));
+    if (fw <= 0.3) {
+      if (!rect) continue;
+      const [x, y, s] = pinHonk(0, 0, 60, rect, true, rt || 1e-6, 0);
+      drawHonk(ctx, t, g.clock, x, y, s);
+      continue;
+    }
+    let sx = cam.cx + (rt / fw) * cam.f, sy = cam.cy - ((1.8 - cam.z) / fw) * cam.f, size = Math.max(10, Math.min(60, (0.6 / fw) * cam.f));
+    if (rect) [sx, sy, size] = pinHonk(sx, sy, size, rect);
+    drawHonk(ctx, t, g.clock, sx, sy, size);
   }
 }

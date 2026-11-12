@@ -1,9 +1,10 @@
 import { COLORS } from '../level.js';
 import { hitLife, zoneDone } from '../game.js';
-import { label, labelRows, hitRows, honkers, drawHonk } from '../pov/overlay.js';
+import { label, labelRows, hitRows, honkers, drawHonk, pinHonk } from '../pov/overlay.js';
 import { povCamera, overviewCamera, chaseCamera, groundFootprint } from './camera.js';
 import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';
+import { clipPoint } from './mat.js';
 
 // Screen-space glue between the WebGL scene and the 2D game canvas: view entry points and the text overlays
 // (cabin zone counts, damage and score popups) that are drawn in 2D over the 3D image through the camera projection.
@@ -53,8 +54,14 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
   }
   ctx.globalAlpha = 1;
   for (const t of honkers(g)) {
-    const p = proj(t.fl.x, t.fl.y, 1.8);
-    if (p && p[2] >= 0.3 && p[2] <= 60) drawHonk(ctx, t, g.clock, p[0], p[1], Math.max(10, Math.min(60, (0.6 / p[2]) * (w / 2))));
+    const rect = { x, y, w, h }, p = proj(t.fl.x, t.fl.y, 1.8);
+    if (p) {
+      const [sx, sy, sz] = pinHonk(p[0], p[1], p[2] > 60 ? 10 : Math.max(10, Math.min(60, (0.6 / p[2]) * (w / 2))), rect);
+      drawHonk(ctx, t, g.clock, sx, sy, sz);
+    } else {
+      const c = clipPoint(cam.vp, t.fl.x, t.fl.y, 1.8), [sx, sy, sz] = pinHonk(0, 0, 60, rect, true, c[0] || 1e-6, -c[1]);
+      drawHonk(ctx, t, g.clock, sx, sy, sz);
+    }
   }
   ctx.restore();
   ctx.strokeStyle = '#111';
@@ -93,8 +100,14 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = n
   }
   ctx.globalAlpha = 1;
   for (const t of honkers(g)) {
-    const p = proj(t.fl.x, t.fl.y, 1.8);
-    if (p) drawHonk(ctx, t, g.clock, p[0], p[1], 0.7 * s);
+    const rect = { x: rx, y: ry, w: rw, h: rh }, p = proj(t.fl.x, t.fl.y, 1.8);
+    if (p) {
+      const [sx, sy, sz] = pinHonk(p[0], p[1], 0.7 * s, rect);
+      drawHonk(ctx, t, g.clock, sx, sy, sz);
+    } else {
+      const c = clipPoint(cam.vp, t.fl.x, t.fl.y, 1.8), [sx, sy, sz] = pinHonk(0, 0, 0.7 * s, rect, true, c[0] || 1e-6, -c[1]);
+      drawHonk(ctx, t, g.clock, sx, sy, sz);
+    }
   }
   ctx.restore();
   return foot;

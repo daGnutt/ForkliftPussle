@@ -49,3 +49,8 @@ export function projectPoint(vp, x, y, z, w, h) {
   if (cw <= 1e-4) return null;
   return [(cx / cw * 0.5 + 0.5) * w, (0.5 - (cy / cw) * 0.5) * h, cw];
 }
+
+// Clip-space x, y and w of a world point (w <= 0: behind the camera).
+export function clipPoint(vp, x, y, z) {
+  return [vp[0] * x + vp[4] * y + vp[8] * z + vp[12], vp[1] * x + vp[5] * y + vp[9] * z + vp[13], vp[3] * x + vp[7] * y + vp[11] * z + vp[15]];
+}
