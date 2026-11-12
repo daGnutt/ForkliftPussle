@@ -81,15 +81,15 @@ export function addForklift(m, g, solidRoof) {
   box(-1.0, -0.3, -0.85, 0.3, 0.6, 1.05, '#2b2e33');
   const pw = solidRoof ? 0.04 : 0.018, mw = solidRoof ? 0.06 : 0.03;
   for (const s of [-1, 1]) {
-    box(FL.front - 0.12, s * 0.38 - mw, FL.front + 0.02, s * 0.38 + mw, 0.5, 1.5, '#555');
+    box(FL.front - 0.115, s * 0.38 - mw * 0.9, FL.front + 0.015, s * 0.38 + mw * 0.9, 0.5, 1.5, '#555');
     box(FL.front - 0.1, s * 0.3 - mw * 0.66, FL.front, s * 0.3 + mw * 0.66, 0.5, Math.max(1.5, g.hf * (BOX_H + PAL) + 0.9), '#8a8f96'); // inner mast
     for (const px of [-1.1, -0.05]) box(px - pw, s * 0.42 - pw, px + pw, s * 0.42 + pw, solidRoof ? 0.5 : 0.3, 1.15, '#37474f');
   }
-  if (solidRoof) box(FL.front - 0.12, -0.38, FL.front + 0.02, 0.38, 1.3, 1.5, '#555');
+  if (solidRoof) box(FL.front - 0.1, -0.35, FL.front, 0.35, 1.31, 1.46, '#555');
   if (theme().dark) {
     const tail = g.fl.gear === 'R' ? '#ffffff' : g.fl.brake ? '#ff2a1a' : '#6a0d0a';
     for (const s of [-1, 1]) {
-      box(HEAD_X - 0.12, s * LAMP_Y - 0.06, HEAD_X + 0.03, s * LAMP_Y + 0.06, HEAD_Z - 0.06, HEAD_Z + 0.06, '#fff4cf', { emissive: true });
+      box(HEAD_X - 0.12, s * LAMP_Y - 0.04, HEAD_X + 0.0, s * LAMP_Y + 0.04, HEAD_Z - 0.045, HEAD_Z + 0.045, '#fff4cf', { emissive: true });
       box(TAIL_X - 0.02, s * LAMP_Y - 0.08, TAIL_X + 0.1, s * LAMP_Y + 0.08, TAIL_Z - 0.04, TAIL_Z + 0.04, tail, { emissive: true });
     }
   }
@@ -128,10 +128,10 @@ export function addForks(m, g, hideMast = false) {
   if (hideMast) return;
   const mast = '#8a8f96', chain = '#3a3d42', top = Math.max(1.5, tz + 0.9);
   for (const s of [-1, 1]) {
-    cub(x0 - 0.1, s * 0.41 - 0.025, x0 + 0.02, s * 0.41 + 0.025, tz, tz + 0.86, col); // side plates wrapping the inner mast
+    cub(x0 - 0.09, s * 0.41 - 0.025, x0 + 0.03, s * 0.41 + 0.025, tz, tz + 0.86, col); // side plates wrapping the inner mast
     cub(x0 - 0.01, s * 0.3 - 0.012, x0 + 0.02, s * 0.3 + 0.012, tz + 0.86, top, chain); // lift chains up to the mast head
   }
-  cub(x0 - 0.12, -0.38, x0 + 0.02, 0.38, top - 0.05, top, mast); // mast head cross-member
+  cub(x0 - 0.12, -0.38, x0 + 0.02, 0.38, top - 0.1, top - 0.05, mast); // mast head cross-member
   cub(x0 - 0.1, -0.04, x0 - 0.04, 0.04, 0.5, tz + 0.82, mast); // lift cylinder rod
 }
 
