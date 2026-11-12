@@ -12,7 +12,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, scoreEnough, isParked, otherTrucksShown, isGhost, stackZ } from './game.js';
+import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -449,7 +449,7 @@ function paintFloor(ctx, g, vis) {
 function drawWorldObjects(ctx, g, vis) {
   const seen = (x, y, w, h) => visSeen(vis, x, y, w, h);
   {
-    const p = g.parking, ok = isSolved(g) && scoreEnough(g);
+    const p = g.parking, ok = isSolved(g);
     const hx = (FL.front - FL.back) / 2 + 0.2, hy = FL.halfW + 0.2;
     rotRect(ctx, p.x, p.y, p.a, () => {
       ctx.fillStyle = ok ? '#66bb6a' : '#9e9e9e';
@@ -931,10 +931,10 @@ export function draw(ctx, g, view) {
   const bestText = E ? `Bays ${E.docks.filter((d) => d.state !== 'free').length}/${DOCKS}` : best ? `Best ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Best: none yet';
   const globalText = E ? '' : globalLine(view.global);
   const hint = g.status === 'play' && isSolved(g)
-    ? (scoreEnough(g) ? 'All zones filled – return to the parking spot (P)' : 'Score is below 50% – fix damage/placement to finish')
+    ? 'All zones filled – return to the parking spot (P)'
     : '';
   const lostNow = lostBreakdown(g);
-  const ready = g.status === 'play' && isSolved(g) && scoreEnough(g);
+  const ready = g.status === 'play' && isSolved(g);
   const now = performance.now();
   const sig = `${g.level}|${g.seed}|${done}|${score(g)}|${lostNow.crash}|${lostNow.square}|${hint}`;
   // A change only (re)triggers the HUD while it is hidden or on its way up; otherwise it is locked.

@@ -857,31 +857,11 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage('main'); return; }
   if (e.code === 'Escape' || (e.code === 'KeyP' && !typing)) { e.preventDefault(); toggleMenu(false); return; }
   if (e.code === 'Enter' && e.target !== menuLevel && e.target !== pullName) { e.preventDefault(); toggleMenu(false); return; }
-  if (e.target === trackSel && e.code !== 'KeyT') return;
-  if (e.target === themeSel && e.code !== 'KeyC') return;
+  if (e.target === trackSel || e.target === themeSel) return;
   if (typing || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
-  const toggle = (el) => { el.checked = !el.checked; el.dispatchEvent(new Event('change')); };
   const actions = {
-    KeyA: () => toggle(muteOpt),
-    KeyO: () => toggle(sfxOpt),
-    KeyE: () => { if (!engineOpt.disabled) toggle(engineOpt); },
-    KeyN: () => { if (!beepOpt.disabled) toggle(beepOpt); },
-    KeyM: () => toggle(musicOpt),
-    KeyS: () => showPage('sound'),
-    KeyV: () => showPage('display'),
-    KeyT: () => { showPage('sound'); trackSel.focus(); },
-    KeyD: () => toggle(decalOpt),
-    KeyC: () => {
-      const o = [...themeSel.options].map((x) => x.value);
-      themeSel.value = o[(o.indexOf(themeSel.value) + 1) % o.length];
-      themeSel.dispatchEvent(new Event('change'));
-    },
-    KeyB: () => toggle(bareOpt),
-    KeyI: () => toggle(discoOpt),
-    KeyH: () => toggle(chaseOpt),
+    KeyM: () => { muteOpt.checked = !muteOpt.checked; muteOpt.dispatchEvent(new Event('change')); },
     KeyG: () => { showPage('game'); menuLevel.focus(); menuLevel.select(); },
-    KeyL: () => document.getElementById('menuLowest').click(),
-    KeyF: toggleFullscreen,
   };
   if (actions[e.code]) { e.preventDefault(); actions[e.code](); }
 }, true);

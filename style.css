@@ -74,9 +74,11 @@ footer b { color: var(--accent); }
 #menu h3 { margin: 0; text-align: center; color: var(--accent); }
 #menu hr { width: 100%; margin: 2px 0; border: 0; border-top: 1px solid rgba(128,128,128,.35); }
 #menu .item { padding: 4px 2px; }
-#menu button.nav, #menu button.back { display: flex; justify-content: space-between; align-items: center; text-align: left; background: transparent; color: var(--fg); font-weight: normal; padding: 9px 4px; border-radius: 0; border-bottom: 1px solid rgba(128,128,128,.2); }
+#menu button.nav, #menu button.back, #menu a.nav { display: flex; justify-content: space-between; align-items: center; text-align: left; background: transparent; color: var(--fg); font-weight: normal; padding: 9px 4px; border-radius: 0; border-bottom: 1px solid rgba(128,128,128,.2); }
+#menu a.nav { text-decoration: none; box-sizing: border-box; }
+#menu a.nav:hover, #menu a.nav:focus-visible { background: rgba(128,128,128,.18); }
 #menu button.nav:hover, #menu button.back:hover, #menu button.nav:focus-visible, #menu button.back:focus-visible { background: rgba(128,128,128,.18); }
-#menu button.nav i { font-style: normal; opacity: .6; }
+#menu a.nav i, #menu button.nav i { font-style: normal; opacity: .6; }
 
 #menu .pair { display: flex; gap: 8px; }
 #menu .pair button { flex: 1; }

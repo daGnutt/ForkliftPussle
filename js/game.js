@@ -955,7 +955,6 @@ export function forkDown(g) {
 }
 
 const PARK_POS = 0.6, PARK_ANGLE = 0.35, PARK_SPEED = 0.5;
-const MIN_SCORE_FRACTION = 0.5;
 
 export function isParked(g) {
   const f = g.fl, p = g.parking;
@@ -966,11 +965,9 @@ export function isParked(g) {
   return Math.hypot(c.x - p.x, c.y - p.y) < PARK_POS && Math.abs(da) < PARK_ANGLE && Math.abs(f.speed) < PARK_SPEED;
 }
 
-export const scoreEnough = (g) => score(g) >= MIN_SCORE_FRACTION * maxScore(g);
-
-// A level is finished: every zone filled, enough score, and a forklift (any player's) back in its parking spot.
+// A level is finished: every zone filled and a forklift (any player's) back in its parking spot.
 export function isFinished(g) {
-  return isSolved(g) && scoreEnough(g) && g.root.trucks.some((t, i) => !t.gone && isParked(truckView(g.root, i)));
+  return isSolved(g) && g.root.trucks.some((t, i) => !t.gone && isParked(truckView(g.root, i)));
 }
 
 export function isSolved(g) {

@@ -365,7 +365,7 @@ const driveUntil = (g, x, brakeAt) => {
   assert.equal(score(g), 85);
 }
 
-// Parking spot: forklift spawns parked; a level finishes only when solved, score >= 50% and parked.
+// Parking spot: forklift spawns parked; a level finishes only when solved and parked.
 {
   const g = newGame(1);
   assert.ok(isParked(g), 'spawns in parking spot');
@@ -373,7 +373,7 @@ const driveUntil = (g, x, brakeAt) => {
   g.zones = [{ x: 12, y: 5, color: 0, count: 1 }];
   assert.ok(isFinished(g), 'solved and parked');
   g.stacks[0].pen = [{ crash: 60, sq: 0 }];
-  assert.ok(!isFinished(g), 'score below 50%');
+  assert.ok(isFinished(g), 'no minimum score needed');
   g.stacks[0].pen = [{ crash: 0, sq: 0 }];
   g.fl.x += 3;
   assert.ok(!isParked(g) && !isFinished(g), 'must be parked');
