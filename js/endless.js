@@ -160,7 +160,7 @@ export function newEndless(seed = 0, hard = false) {
     const r = dockRects(d, GONE);
     for (const [n, part] of [['sideN', 'side'], ['sideS', 'side'], ['back', 'back'], ['cab', 'wcab']]) { const w = { truck: { color: DOCK_COLOR, part, side: d.side, lat: n === 'sideN' ? -1 : 1 } }; setRect(w, r[n]); d.parts[n] = w; }
     d.parts.rear = { truck: { color: DOCK_COLOR, part: 'door' } }; setRect(d.parts.rear, r.rear);
-    d.parts.gate = { truck: { color: DOCK_COLOR, part: 'gate' } }; // closed while no truck stands at the bay
+    d.parts.gate = { roller: true }; // the factory's roller door: closed while no truck stands at the bay
     setRect(d.parts.gate, [dockGateX(d.side), d.y0, WALL, TRUCK_W]);
     g.walls.push(d.parts.gate); g.pillars.push(d.parts.gate); // closed until a truck arrives
   }

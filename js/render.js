@@ -602,14 +602,15 @@ function drawTruckPart(ctx, w) {
   if (part === 'gate') { ctx.beginPath(); ctx.moveTo(w.x + w.w / 2, w.y); ctx.lineTo(w.x + w.w / 2, w.y + w.h); ctx.stroke(); }
 }
 
-// The factory's roller door: light steel with horizontal slats.
+// The factory's roller door: light steel with slats along its long side.
 function drawRollerDoor(ctx, w) {
   ctx.fillStyle = '#9aa1a9';
   ctx.fillRect(w.x, w.y, w.w, w.h);
   ctx.strokeStyle = '#6b7178';
   ctx.lineWidth = 0.04;
   ctx.beginPath();
-  for (let y = w.y + w.h / 3; y < w.y + w.h - 0.01; y += w.h / 3) { ctx.moveTo(w.x, y); ctx.lineTo(w.x + w.w, y); }
+  if (w.w >= w.h) for (let y = w.y + w.h / 3; y < w.y + w.h - 0.01; y += w.h / 3) { ctx.moveTo(w.x, y); ctx.lineTo(w.x + w.w, y); }
+  else for (let x = w.x + w.w / 3; x < w.x + w.w - 0.01; x += w.w / 3) { ctx.moveTo(x, w.y); ctx.lineTo(x, w.y + w.h); }
   ctx.stroke();
   ctx.strokeStyle = theme().wallEdge;
   ctx.lineWidth = 0.06;
