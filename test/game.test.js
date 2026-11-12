@@ -16,7 +16,7 @@ import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
-import { newEndless, stepEndless, endEndless, rampDecals, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore } from '../js/endless.js';
+import { newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
 
 const NONE = {};
@@ -1662,6 +1662,7 @@ console.log('all tests passed');
   step(10);
   assert.equal(d.state, 'present');
   assert.ok(!g.walls.includes(d.parts.gate), 'the gate opens when the truck has arrived');
+  assert.ok(truckRoofs(g).length >= 6 && truckRoofs(g).every((r) => r.color !== undefined), 'roofs exist for the present trailers and bays');
   assert.equal(E.docks.length, 6);
   assert.equal(E.bays.length, 5);
   assert.ok(E.docks.every((o) => o.y0 <= d.y0), 'the first truck takes the southernmost bay');
@@ -1701,13 +1702,16 @@ console.log('all tests passed');
   step(1.2 + 1);
   assert.ok(E.points > 1500 && E.boxes === 24, 'closing the gate banks the points');
   assert.ok(bay.off > 0 && g.stacks.length === 6, 'truck drives off with its load');
+  assert.ok(g.walls.includes(bay.door), 'the bay door shuts the wall while the truck is out');
   step(4);
+  assert.ok(g.walls.includes(bay.door), 'and stays shut while the bay is empty');
   assert.equal(E.delivered, 1);
   assert.equal(E.boxes, 24);
   assert.ok(E.points > 1500, 'delivered boxes are scored');
   assert.equal(g.stacks.length, 0, 'the load left with the truck');
   step(8);
   assert.ok(bay.state === 'open' && bay.off === 0 && !g.walls.includes(bay.parts.gate), 'a new truck waits with an open gate');
+  assert.ok(!g.walls.includes(bay.door), 'the bay door opens with the new truck');
 
   // removing a stack from an open drop point takes its points off the running score
   const rk = newEndless(3);

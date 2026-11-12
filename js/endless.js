@@ -114,7 +114,7 @@ export function truckRoofs(g) {
   for (const b of truckBays(g)) {
     if (b.state === 'away') continue;
     const p = b.parts, a = p.left && p.right ? [p.left.x, p.left.y - p.gate.h, p.right.x + p.right.w, p.back.y + p.back.h] : p.sideN && [p.sideN.x, p.sideN.y, p.sideN.x + p.sideN.w, p.sideS.y + p.sideS.h];
-    if (a) out.push({ x0: a[0], y0: a[1], x1: a[2], y1: a[3], color: p.gate.truck.color, closed: b.gateClosed });
+    if (a) out.push({ x0: a[0], y0: a[1], x1: a[2], y1: a[3], color: p.back.truck.color, closed: b.gateClosed });
   }
   return out;
 }
@@ -153,12 +153,14 @@ export function newEndless(seed = 0, hard = false) {
     for (const n of ['left', 'right', 'back', 'cab']) { const w = { truck: { color: b.k, part: n } }; setRect(w, r[n]); b.parts[n] = w; g.walls.push(w); g.pillars.push(w); }
     b.parts.gate = { truck: { color: b.k, part: 'gate' } }; // only part of the walls while the gate is closed
     setRect(b.parts.gate, r.gate);
+    b.door = { roller: true }; // the factory's roller door in the south wall: shut while the truck is out, so nobody drives out of the factory
+    setRect(b.door, r.gate);
   }
   for (const d of docks) {
     const r = dockRects(d, GONE);
     for (const [n, part] of [['sideN', 'side'], ['sideS', 'side'], ['back', 'back'], ['cab', 'wcab']]) { const w = { truck: { color: DOCK_COLOR, part, side: d.side, lat: n === 'sideN' ? -1 : 1 } }; setRect(w, r[n]); d.parts[n] = w; }
     d.parts.rear = { truck: { color: DOCK_COLOR, part: 'door' } }; setRect(d.parts.rear, r.rear);
-    d.parts.gate = { truck: { color: DOCK_COLOR, part: 'gate' } }; // closed while no truck stands at the bay
+    d.parts.gate = { roller: true }; // the factory's roller door: closed while no truck stands at the bay
     setRect(d.parts.gate, [dockGateX(d.side), d.y0, WALL, TRUCK_W]);
     g.walls.push(d.parts.gate); g.pillars.push(d.parts.gate); // closed until a truck arrives
   }
@@ -195,6 +197,9 @@ function place(g, b) {
   const has = g.walls.includes(b.parts.gate);
   if (b.gateClosed && !has) { g.walls.push(b.parts.gate); g.pillars.push(b.parts.gate); }
   if (!b.gateClosed && has) { g.walls.splice(g.walls.indexOf(b.parts.gate), 1); g.pillars.splice(g.pillars.indexOf(b.parts.gate), 1); }
+  const shut = b.state === 'leaving' || b.state === 'away' || b.state === 'arriving', doorOn = g.walls.includes(b.door);
+  if (shut && !doorOn) { g.walls.push(b.door); g.pillars.push(b.door); g.layoutVersion++; }
+  if (!shut && doorOn) { g.walls.splice(g.walls.indexOf(b.door), 1); g.pillars.splice(g.pillars.indexOf(b.door), 1); g.layoutVersion++; }
   if (d !== 0 || has !== b.gateClosed) g.layoutVersion++;
   b.placed = off;
 }
