@@ -897,6 +897,23 @@ export function forkUp(g) {
   g.H = Math.min(MAX_H, g.H + 1);
 }
 
+// The box that empty forks at level g.H cannot be lowered through, or null (also null while carrying).
+function boxUnderForks(g) {
+  if (g.carried || g.H <= 0) return null;
+  const S = stackInZone(g);
+  return S && relH(g, S) > 0 && S.layers.length >= relH(g, S) ? S : null;
+}
+
+// Holding "lower": drops the forks to the lowest safe level in one go. Stops at the floor, when a carried stack is put down
+// (or handed over) and above a box the empty forks cannot pass; never damages anything.
+export function forkDownAll(g) {
+  while (g.H > 0 && !boxUnderForks(g)) {
+    const h = g.H, carried = g.carried;
+    forkDown(g);
+    if (g.H === h || (carried && !g.carried)) break;
+  }
+}
+
 // Lowering empty forks through a box is refused ('blocked') and damages that box.
 export function forkDown(g) {
   if (g.carried) {
@@ -909,8 +926,8 @@ export function forkDown(g) {
     }
   }
   if (!g.carried) {
-    const S = g.H > 0 ? stackInZone(g) : null;
-    if (S && relH(g, S) > 0 && S.layers.length >= relH(g, S)) {
+    const S = boxUnderForks(g);
+    if (S) {
       ensure(S);
       hurt(g, [S.pen[relH(g, S) - 1]], FORK_BLOCK_POINTS, S.x, S.y, g.H, S);
       addDent(S.pen[relH(g, S) - 1], 't');

@@ -17,7 +17,7 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
 
 const NONE = {};
 const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
@@ -437,6 +437,32 @@ console.log('all tests passed');
   assert.equal(forkDown(g), undefined, 'free to lower above the stack');
   assert.equal(g.H, 2);
   console.log('fork-blocked ok');
+}
+
+// Holding "lower" (forkDownAll) drops to the lowest safe level without damage.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1] }];
+  const f = g.fl;
+  f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
+  g.H = 4;
+  forkDownAll(g);
+  assert.equal(g.H, 0, 'empty forks away from boxes go to the floor');
+  driveUntil(g, 10, 8);
+  g.H = 4;
+  forkDownAll(g);
+  assert.equal(g.H, 2, 'stops above the box the forks cannot pass');
+  assert.equal(g.hits.length, 0, 'no damage');
+  assert.equal(g.stacks[0].pen?.[1]?.crash ?? 0, 0);
+  g.stacks = [];
+  g.H = 3;
+  g.carried = [2];
+  forkDownAll(g);
+  assert.equal(g.H, 0, 'carried stack lowered to the floor');
+  assert.equal(g.carried, null, 'and released');
+  assert.equal(g.stacks.length, 1);
+  console.log('fork-down-all ok');
 }
 
 // Raising a carried stack into the ceiling is blocked and damages every carried box.

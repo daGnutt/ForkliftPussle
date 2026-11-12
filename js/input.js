@@ -1,12 +1,19 @@
 const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyZ', 'KeyQ', 'KeyW', 'KeyM', 'KeyF', 'KeyC', 'Tab', 'KeyP', 'KeyH', 'Escape']);
 
+const HOLD_MS = 400; // holding the lower key this long drops the forks to the lowest safe level
+
 export function createInput(handlers) {
   const down = new Set();
+  let zPress = 0;
   function press(code) {
     down.add(code);
     handlers.anyKey?.();
     if (code === 'KeyA') handlers.up?.();
-    else if (code === 'KeyZ') handlers.down?.();
+    else if (code === 'KeyZ') {
+      handlers.down?.();
+      const id = ++zPress;
+      setTimeout(() => { if (id === zPress && down.has('KeyZ')) handlers.downAll?.(); }, HOLD_MS);
+    }
     else if (code === 'Enter') handlers.next?.();
     else if (code === 'KeyM' || code === 'Tab') handlers.swapView?.();
     else if (code === 'KeyC') handlers.toggleChase?.();

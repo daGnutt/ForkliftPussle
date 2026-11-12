@@ -2,7 +2,7 @@
 // feels instant whatever the ping. Everything else (other trucks, stacks, forks) still comes from the host. Each snapshot
 // carries the host's version of the truck; it is compared with what the prediction was one round trip ago and the difference
 // is blended away (or snapped when it is large, e.g. after a collision with another truck).
-import { newGame, update, forkUp, forkDown } from '../game.js';
+import { newGame, update, forkUp, forkDown, forkDownAll } from '../game.js';
 import { newEndless } from '../endless.js';
 
 const STEP = 1 / 120;
@@ -88,7 +88,7 @@ export function createPredictor() {
     fork(dir, now) {
       if (!sim || !pred) return;
       forkAt = now;
-      return (dir === 'up' ? forkUp : forkDown)(sim);
+      return (dir === 'up' ? forkUp : dir === 'downAll' ? forkDownAll : forkDown)(sim);
     },
     // Advances the prediction by `dt` seconds of real time with the held keys; `g` is the interpolated host game.
     step(g, input, dt, now) {

@@ -1,5 +1,5 @@
 // The host side of a party: owns the relay party, one WebRTC link per guest and the guests' trucks in the running game.
-import { addTruck, removeTruck, truckView, forkUp, forkDown } from '../game.js';
+import { addTruck, removeTruck, truckView, forkUp, forkDown, forkDownAll } from '../game.js';
 import { createLink } from './peer.js';
 import { createSnapshotter, snapshot, encode, SNAPSHOT_HZ } from './protocol.js';
 
@@ -49,7 +49,7 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
       const t = g.trucks[m.slot];
       if (!t || t.gone) return;
       if (msg.t === 'in') t.input = { up: !!msg.up, down: !!msg.down, left: !!msg.left, right: !!msg.right, horn: !!msg.horn };
-      else if (msg.t === 'fork') (msg.dir === 'up' ? forkUp : forkDown)(truckView(g, m.slot));
+      else if (msg.t === 'fork') (msg.dir === 'up' ? forkUp : msg.dir === 'downAll' ? forkDownAll : forkDown)(truckView(g, m.slot));
     }
   }
 

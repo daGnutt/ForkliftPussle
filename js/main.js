@@ -1,4 +1,4 @@
-import { newGame, update, forkUp, forkDown, zoneDone, zoneWonky, score, liveTrucks } from './game.js';
+import { newGame, update, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks } from './game.js';
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput } from './input.js';
 import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
@@ -242,6 +242,12 @@ const input = createInput({
     const h = game.H;
     if (forkDown(game) === 'blocked') playBlocked();
     else if (game.H !== h) playFork(false);
+  },
+  downAll: () => {
+    if (mp?.role === 'guest') { mp.guest.sendFork('downAll'); mp.guest.predictor.fork('downAll', performance.now() / 1000); return; }
+    const h = game.H;
+    forkDownAll(game);
+    if (game.H !== h) playFork(false);
   },
   next: () => nextLevel(),
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
