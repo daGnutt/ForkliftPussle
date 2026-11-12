@@ -86,7 +86,7 @@
   <div class="row">
   <ul>
     <li>Per-box scoring: crash and squareness deductions (5° allowance)</li>
-    <li>Parking spot; finishing needs parking and ≥ 50% score</li>
+    <li>Parking spot; finishing needs parking (no minimum score)</li>
     <li>Procedural audio: engine whine, music, fork sounds, success chime</li>
     <li>Rebrand to “Forklift Frenzy”: splash screen, favicon, 3D boxes</li>
     <li>Custom level seeds and a random-seed button</li>
@@ -315,7 +315,7 @@
   <div class="date">Day 19 · 8 Nov</div>
   <h2>Chase camera &amp; look around</h2>
   <div class="row"><ul style="font-size:1.6vw">
-    <li>Third-person chase camera for the overview (<b>C</b>, menu option or double tap): spring-mounted, orbits to the front when reversing and upwards when a wall hides the forklift</li>
+    <li>Third-person chase camera for the overview (<b>C</b>, menu option or double tap): it moves only as far as needed to stay within its maximum distance, pitches and yaws to keep the truck centred, drifts behind (or in front when reversing) and eases back to its default height while moving; <b>Q</b>/<b>W</b> orbit it in 45° steps and it stays where you leave it</li>
     <li>Drag to orbit the overview; <b>W</b>/<b>Q</b> or drag to look around in the cabin; camera zoom slider with reset</li>
     <li>The overview cuts walls at a low height; the minimap shows the chase camera's floor footprint</li>
     <li>D/R gear state drives reverse lights and beeper; a mirrored reversing-camera inset in the cabin</li>
@@ -345,7 +345,8 @@
     <li>Trucks collide; hand over or split carried stacks with your tines</li>
     <li>Guests predict their own truck, so high ping does not hurt driving</li>
     <li>Menu roster with ping, kick and ban; sounds from other trucks fade with distance</li>
-    <li>Horn on <b>H</b> with floating HOOOONK labels</li>
+    <li>Horn: hold <b>H</b> (two fingers on touch) for a continuous two-tone honk, each truck with its own pitch, heard by everyone with distance fade</li>
+    <li>A floating label in the truck's colour grows while you hold it: HONK → HOOOOONK → <i>HOOOOONK</i> with stars after 3 s; off-screen honks are pinned to the view edge so you know which way to look</li>
   </ul>
   <figure><img src="shots/20-multiplayer-splash.png" alt=""><figcaption>Host / join on the splash screen</figcaption></figure>
   </div>
