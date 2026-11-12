@@ -4,7 +4,7 @@ import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
-import { povCamera, overviewCamera, chaseCamera, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
+import { povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
@@ -1143,8 +1143,8 @@ console.log('all tests passed');
   const g = newGame(1);
   g.walls = [];
   assert.equal(clearChaseTilt(g, 11, g.fl.a, 0, CHASE_TILT), CHASE_TILT);
-  const a = g.fl.a, p = toWorld(g.fl, FL.back, 0);
-  g.walls = [{ x: p.x - Math.cos(a) * 3 - 1, y: p.y - Math.sin(a) * 3 - 1, w: 2, h: 2 }]; // between camera and truck
+  const a = g.fl.a, p = toWorld(g.fl, FL.back, 0), eye = chaseRig(g, 11, CHASE_TILT, null, 0, a).eye, back = Math.hypot(eye[0] - p.x, eye[1] - p.y) * 0.2; // wall between camera and truck
+  g.walls = [{ x: p.x - Math.cos(a) * back - 1, y: p.y - Math.sin(a) * back - 1, w: 2, h: 2 }];
   const t = clearChaseTilt(g, 11, a, 0, CHASE_TILT);
   assert.ok(t < CHASE_TILT, 'camera should lift over the wall');
   console.log('chase wall clearing ok');

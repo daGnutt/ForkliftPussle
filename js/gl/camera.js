@@ -53,6 +53,7 @@ export function chaseZoom(tiles) {
   return Math.min(100, Math.max(0, Math.round(100 - ((1 - CHASE_TILES / tiles) / CHASE_OUT) * 100)));
 }
 
+const CHASE_REACH = 0.5; // the floor distance the camera may trail the truck, as a fraction of the distance that frames `tiles` (height unchanged)
 const CHASE_MIN = 0.35; // closest the chase camera may get to the truck, as a fraction of its maximum distance
 
 // Chase rig: the eye hangs at a fixed height (from `tilt`) and only slides over the floor when it has to, staying within `maxD` of the tines'
@@ -61,7 +62,7 @@ const CHASE_MIN = 0.35; // closest the chase camera may get to the truck, as a f
 // eye, target, heading (eye -> truck, without yaw) }.
 export function chaseRig(g, tiles, tilt, eye2, yaw = 0, heading = g.fl.a) {
   const p = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, 0);
-  const dist = tiles / 2 / Math.tan(OV_VFOV / 2), maxD = Math.sin(tilt) * dist, z = Math.cos(tilt) * dist;
+  const dist = tiles / 2 / Math.tan(OV_VFOV / 2), maxD = Math.sin(tilt) * dist * CHASE_REACH, z = Math.cos(tilt) * dist;
   let ox = eye2 ? eye2[0] - p.x : -Math.cos(heading + yaw) * maxD, oy = eye2 ? eye2[1] - p.y : -Math.sin(heading + yaw) * maxD;
   const d = Math.hypot(ox, oy);
   if (d < 1e-6) { ox = -Math.cos(heading); oy = -Math.sin(heading); }
