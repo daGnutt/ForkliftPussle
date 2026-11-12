@@ -45,7 +45,8 @@ window.addEventListener('resize', resize);
 resize();
 
 let level = Number(localStorage.getItem('forklift-level')) || 1;
-let seedText = localStorage.getItem('forklift-seed') || '';
+// The seed only comes from the URL (?seed=...), meant for tournaments.
+let seedText = (new URLSearchParams(location.search).get('seed') || '').trim().slice(0, 32);
 let seed = parseSeed(seedText);
 let hard = localStorage.getItem('forklift-hard') === '1';
 let game = newGame(level, seed, hard);
@@ -398,8 +399,6 @@ syncScores(localStorage).then(refreshGlobal); // upload bests that never reached
 
 const splash = document.getElementById('splash');
 let splashOn = true;
-const seedInput = document.getElementById('seed');
-seedInput.value = seedText;
 
 // Each step is done when its action has happened (also if it happened earlier, so
 // early presses are credited), but every step stays visible for at least MIN_MS.
@@ -461,13 +460,6 @@ showTutorial();
 
 function startGame(endless = false) {
   if (mp?.role === 'guest' && !mp.go) return; // waiting for the host
-  const text = seedInput.value.trim();
-  if (mp?.role !== 'guest' && text !== seedText) {
-    seedText = text;
-    seed = parseSeed(text);
-    localStorage.setItem('forklift-seed', text);
-    load(1);
-  }
   if (mp?.role !== 'guest' && hardOpt.checked !== hard) {
     hard = hardOpt.checked;
     localStorage.setItem('forklift-hard', hard ? '1' : '0');
@@ -488,28 +480,17 @@ function startGame(endless = false) {
   splashOn = false;
   applyPause();
   splash.classList.add('hide');
-  seedInput.blur();
   last = performance.now();
   if (mp?.role === 'host') mp.host.started(game);
 }
 
-document.getElementById('seedRandom').addEventListener('click', () => {
-  seedInput.value = String(1 + Math.floor(Math.random() * 999999));
-  seedInput.focus();
-});
-
-// Typing in the seed box must not reach the game keys; Enter there starts the game.
-seedInput.addEventListener('keydown', (e) => {
-  e.stopPropagation();
-  if (e.key === 'Enter') { e.preventDefault(); startAudio(); startGame(); }
-});
 document.getElementById('seedForm').addEventListener('submit', (e) => {
   e.preventDefault();
   startAudio();
   startGame(e.submitter && e.submitter.id === 'endlessStart');
 });
 window.addEventListener('keydown', (e) => {
-  if (!splashOn || e.target === seedInput || e.target === partyName || e.target === joinCode) return;
+  if (!splashOn || e.target === partyName || e.target === joinCode) return;
   e.stopImmediatePropagation();
   if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); startAudio(); startGame(); }
 }, true);
@@ -919,13 +900,10 @@ document.getElementById('stateImport').addEventListener('click', async () => {
   }
   if (recordOpen) closeRecord();
   seed = g.seed;
-  seedText = typeof data.seedText === 'string' && parseSeed(data.seedText) === seed ? data.seedText : String(seed);
   hard = g.hard;
   if (!g.endless) level = g.level;
-  localStorage.setItem('forklift-seed', seedText);
   localStorage.setItem('forklift-hard', hard ? '1' : '0');
   if (!g.endless) localStorage.setItem('forklift-level', String(level));
-  seedInput.value = seedText;
   hardOpt.checked = hard;
   game = g;
   recorded = g.status === 'won';
