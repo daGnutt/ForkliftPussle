@@ -27,9 +27,9 @@
 <body>
 <header>
   <h1>Pallet Polka – Devlog</h1>
-  <p>45 milestones from the first prototype to today, newest features last. Bug fixes, refactors and tooling are skipped; each entry names the commit it was captured from. Screenshots and animations are taken from the actual game at that commit (see <code>docs/PRESENTATION_GUIDE.md</code>). The shorter slide deck is <a href="presentation.html" style="color:#6fb1ff">presentation.html</a>.</p>
+  <p>48 milestones from the first prototype to today, newest features last. Bug fixes, refactors and tooling are skipped; each entry names the commit it was captured from. Screenshots and animations are taken from the actual game at that commit (see <code>docs/PRESENTATION_GUIDE.md</code>). The shorter slide deck is <a href="presentation.html" style="color:#6fb1ff">presentation.html</a>.</p>
 </header>
-<nav><a href="#d2026-10-21">10-21</a><a href="#d2026-10-23">10-23</a><a href="#d2026-10-24">10-24</a><a href="#d2026-10-25">10-25</a><a href="#d2026-10-28">10-28</a><a href="#d2026-10-29">10-29</a><a href="#d2026-11-01">11-01</a><a href="#d2026-11-04">11-04</a><a href="#d2026-11-07">11-07</a><a href="#d2026-11-08">11-08</a><a href="#d2026-11-09">11-09</a></nav>
+<nav><a href="#d2026-10-21">10-21</a><a href="#d2026-10-23">10-23</a><a href="#d2026-10-24">10-24</a><a href="#d2026-10-25">10-25</a><a href="#d2026-10-28">10-28</a><a href="#d2026-10-29">10-29</a><a href="#d2026-11-01">11-01</a><a href="#d2026-11-04">11-04</a><a href="#d2026-11-07">11-07</a><a href="#d2026-11-08">11-08</a><a href="#d2026-11-09">11-09</a><a href="#d2026-11-10">11-10</a><a href="#d2026-11-12">11-12</a></nav>
 <main>
 <section class="day" id="d2026-10-21"><h2><span>2026-10-21</span> The prototype</h2>
 <article><div class="shots"><img src="devlog/01-prototype-anim.webp" loading="lazy" alt="First prototype"></div><div class="txt"><h3>First prototype</h3><p>Top-down forklift on a tiled floor. A rear-wheel-steering bicycle model makes the tail swing out; push coloured boxes onto matching zones.</p><code>6974f64</code></div></article>
@@ -97,6 +97,13 @@
 </section>
 <section class="day" id="d2026-11-09"><h2><span>2026-11-09</span> Today</h2>
 <article><div class="shots"><img src="devlog/45-latest-over.webp" loading="lazy" alt="Where it stands"><img src="devlog/45-latest-cab.webp" loading="lazy" alt="Where it stands"><img src="devlog/45-latest-chase.webp" loading="lazy" alt="Where it stands"></div><div class="txt"><h3>Where it stands</h3><p>Overview, cabin view and chase camera, in dark mode with WebGL2.</p><code>eaa7b3c</code></div></article>
+</section>
+<section class="day" id="d2026-11-10"><h2><span>2026-11-10</span> Multiplayer and effects</h2>
+<article><div class="shots"><img src="devlog/48-multiplayer.webp" loading="lazy" alt="Multiplayer"></div><div class="txt"><h3>Multiplayer</h3><p>Up to four trucks share a level over peer-to-peer WebRTC: host or join from the splash, trucks collide and can hand over or split stacks, guests predict their own truck, and the menu shows ping with kick and ban. A horn (H) adds floating HONK labels.</p><code>acbd575</code></div></article>
+<article><div class="shots"><img src="devlog/47-sparks.webp" loading="lazy" alt="Sparks and smoke"></div><div class="txt"><h3>Sparks, smoke and impact physics</h3><p>GL particle effects (sparks, tyre and damage smoke, dust, confetti, a pop when trucks join or leave) plus off-centre impacts that spin the truck and topple stacks.</p><code>acbd575</code></div></article>
+</section>
+<section class="day" id="d2026-11-12"><h2><span>2026-11-12</span> Endless mode</h2>
+<article><div class="shots"><img src="devlog/46-endless.webp" loading="lazy" alt="Endless mode"></div><div class="txt"><h3>Endless mode</h3><p>Lorries arrive at numbered incoming bays and delivery lorries wait at the south gates. Unload, stack by colour and load; the pace adapts to how fast you work, with a running score, autosave and high scores. Works in multiplayer.</p><code>acbd575</code></div></article>
 </section>
 </main>
 </body>

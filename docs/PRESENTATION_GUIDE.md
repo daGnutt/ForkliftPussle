@@ -1,12 +1,12 @@
 # Presentation guide (for agents)
 
-`docs/presentation.html` is a self-contained slide deck (no build, no dependencies) telling the development timeline of the game. Screenshots live in `docs/shots/`. Navigate with ←/→/Space, Home/End, `F` for full screen; `#N` in the URL opens slide N.
+`docs/presentation.html` is a self-contained slide deck (no build, no dependencies) telling the development timeline of the game. Screenshots live in `docs/shots/`. Navigate with ←/→/Space, Home/End, `F` for full screen; on touch tap the left third (back) or the rest (forward), or swipe; `#N` in the URL opens slide N.
 
 ## Structure
 - Each slide is a `<section class="slide">`. Timeline slides have a `.date` line (day · date), an `<h2>`, then `<div class="row"><ul>…</ul><figure><img src="shots/NN-name.png"><figcaption>…</figcaption></figure></div>`.
 - Slides: title, idea & stack, one or more per day of development, "where it ended up", timeline at a glance, thank you.
 - Keep stats current: commit count (`git rev-list --count HEAD`), JS lines (`wc -l js/*.js`), number of days, and the per-day bar in "Timeline at a glance". The "Commits per day" slide embeds a `perDay` object in the script (lines changed per commit, per day, from `git log --date=short --pretty='C %ad' --numstat`; binary files count as 0); refresh it when adding commits.
-- Slogan poster slides ("Wall posters · n / 3"): the script holds a copy of `FONT` and `SLOGANS` from `js/pov/face.js` (colours as Y/K/W) and draws each poster to a canvas; when slogans change, refresh that copy and the `data-from`/`data-to` ranges of the three slides.
+- Slogan poster slide ("Wall posters"): the script holds a copy of `FONT` and `SLOGANS` from `js/pov/face.js` (colours as Y/K/W) and draws a handful of posters to canvases, chosen by the slide's `data-pick` list of `SLOGANS` indices; when slogans change, refresh that copy and check the picks still exist.
 
 ## Regenerating / updating
 1. Read the history: `git log --reverse --date=short --pretty='%ad %h %s'`. Group commits by day and theme; for an update, only add what is new since the last slide (check the last date/commit mentioned).
