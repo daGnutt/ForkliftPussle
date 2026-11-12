@@ -5,7 +5,7 @@ import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
 import { labelRows, hitRows, honkers, drawHonk } from './pov/overlay.js';
-import { chaseTiles as chaseTilesFor, clearChaseTilt, CHASE_TILT, headTurn } from './gl/camera.js';
+import { chaseTiles as chaseTilesFor, chaseRig, clearChaseTilt, CHASE_TILT, CHASE_TILES, CHASE_DEFAULT, headTurn } from './gl/camera.js';
 import { beginGlFrame } from './gl/renderer.js';
 import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
@@ -264,14 +264,20 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
     }
   }
   view.ovTiles = rh / (zoomed && !userS ? MIN_FOLLOW_SCALE : fit);
-  const chaseTiles = view.chaseZoom == null ? view.ovTiles : chaseTilesFor(view.chaseZoom);
+  const chaseTiles = view.chaseZoom == null ? Math.max(CHASE_TILES, view.ovTiles * CHASE_DEFAULT) : chaseTilesFor(view.chaseZoom);
   if (follow && view.chase) {
+    // the camera only slides when the truck gets further than its maximum distance (the rig clamps view.camP) and then looks at the truck
+    const yaw = view.orbit ? view.orbit.yaw : 0, base = view.orbit ? view.orbit.tilt : CHASE_TILT;
+    const rig = chaseRig(g, chaseTiles, base, view.camG === g ? view.camP : null, 0, g.fl.a);
+    view.camP = rig.pos;
+    view.chaseD = rig.maxD;
+    view.camG = g;
+    view.camA = rig.heading;
     // wall in the way: orbit upwards (smaller tilt) until half the forklift is visible; main.js eases view.chaseLift toward the target
-    const heading = view.camA ?? g.fl.a, yaw = view.orbit ? view.orbit.yaw : 0, base = view.orbit ? view.orbit.tilt : CHASE_TILT;
-    view.chaseLiftTarget = base - clearChaseTilt(g, chaseTiles, heading, yaw, base);
+    view.chaseLiftTarget = base - clearChaseTilt(g, chaseTiles, rig.heading, yaw, base, rig.pos);
   }
   const lifted = view.chase && view.chaseLift > 0.001 ? { yaw: view.orbit ? view.orbit.yaw : 0, tilt: Math.max(0.05, (view.orbit ? view.orbit.tilt : CHASE_TILT) - view.chaseLift) } : view.orbit;
-  const foot = follow && view.chase && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, lifted, chaseTiles, view.camA ?? g.fl.a);
+  const foot = follow && view.chase && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, lifted, chaseTiles, view.camA ?? g.fl.a, view.camP);
   if (foot) {
     if (zoomed) ctx.restore();
     return { x: 0, y: 0, w: g.w, h: g.h, poly: foot }; // chase: the minimap outlines the tilted floor footprint

@@ -17,7 +17,7 @@ import { decalsEnabled, setDecalsEnabled } from './decals.js';
 import { glEnabled, setGlEnabled, attachGlCanvas } from './gl/renderer.js';
 import { themeMode, setThemeMode, theme } from './theme.js';
 import { discoEnabled, setDiscoEnabled } from './disco.js';
-import { CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
+import { chaseDrift, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
@@ -260,7 +260,6 @@ if (isTouch) canvas.addEventListener('pointerdown', (e) => {
 // Look around in the 3D views: drag the canvas or hold Q/W. The big view's camera swings around the forklift (overview,
 // view.orbit { yaw, tilt }) or turns on the spot (cabin, view.look { yaw, pitch }); driving springs it back.
 const ORBIT_HOME = 0.35, ORBIT_TILT_MAX = 1.3, LOOK_PITCH_MAX = 0.7, LOOK_SPEED = 2;
-const CAM_SPRING = 3;
 // Flat overview: a Q/W press springs the camera a quarter turn (o.goal = target yaw) instead of turning continuously.
 function quarterTurn(dir) {
   const o = lookState(), q = Math.PI / 2;
@@ -694,7 +693,7 @@ function toggleMenu(open) {
     discoOpt.checked = discoEnabled();
     bareOpt.checked = bareForksEnabled();
     chaseOpt.checked = view.chase;
-    chaseZoomSel.value = view.chaseZoom ?? chaseZoomOf(view.ovTiles || 14);
+    chaseZoomSel.value = view.chaseZoom ?? chaseZoomOf(Math.max(CHASE_TILES, (view.ovTiles || 14) * CHASE_DEFAULT));
     themeSel.value = themeMode();
     menuHardOpt.checked = hard;
     menuLevel.value = level;
@@ -735,7 +734,7 @@ const zoomSlider = document.getElementById('zoomSlider');
 const zoomBar = document.getElementById('zoomBar');
 function syncZoomBar() {
   zoomBar.classList.toggle('hide', splashOn || !!view.menuOpen || view.povBig);
-  if (document.activeElement !== zoomSlider) zoomSlider.value = view.chaseZoom ?? chaseZoomOf(view.ovTiles || 14);
+  if (document.activeElement !== zoomSlider) zoomSlider.value = view.chaseZoom ?? chaseZoomOf(Math.max(CHASE_TILES, (view.ovTiles || 14) * CHASE_DEFAULT));
 }
 setInterval(syncZoomBar, 200);
 zoomSlider.addEventListener('input', () => {
@@ -751,7 +750,7 @@ document.getElementById('chaseZoomReset').addEventListener('click', (e) => {
   e.preventDefault();
   view.chaseZoom = null;
   localStorage.removeItem('forklift-chase-zoom');
-  chaseZoomSel.value = chaseZoomOf(view.ovTiles || 14);
+  chaseZoomSel.value = chaseZoomOf(Math.max(CHASE_TILES, (view.ovTiles || 14) * CHASE_DEFAULT));
 });
 chaseOpt.addEventListener('change', () => {
   view.chase = chaseOpt.checked;
@@ -962,13 +961,9 @@ function frame(now) {
     if (view.snap) springBack(dt);
   };
   const followStep = (dt) => {
-    // chase camera heading follows the forklift on a spring
-    if (view.camA == null || game !== view.camG) { view.camA = game.fl.a; view.camG = game; }
-    else {
-      // in reverse (same delay as the cabin's look-back) the camera orbits round to the front of the forklift
-      const target = game.fl.a + (game.rv > 0.5 ? Math.PI - 0.001 : 0);
-      view.camA += wrap(target - view.camA) * (1 - Math.exp(-CAM_SPRING * dt));
-    }
+    // the chase camera position is kept by render.js (chaseRig); a new game starts it behind the forklift
+    if (game !== view.camG || !view.chase) view.camP = null;
+    else if (view.camP && view.chaseD) view.camP = chaseDrift(game, view.camP, view.chaseD, dt);
     const tgt = view.chase ? view.chaseLiftTarget || 0 : 0, cur = view.chaseLift || 0;
     view.chaseLift = cur + (tgt - cur) * (1 - Math.exp(-(tgt > cur ? 8 : 3) * dt));
   };
