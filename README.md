@@ -26,7 +26,7 @@ The overview, cabin view and look windows are rendered in true 3D with WebGL2 (d
 The level in progress (stacks, forklift, forks, timer) is saved in your browser every second, so reloading the page resumes where you left off. The pause menu has **Export state** (fills the text box with a compressed base64 string, or plain JSON in `?debug` mode, and copies it to the clipboard) and **Import state** (paste a previously exported state into the box to load it, including its seed, hard mode and level).
 
 ## Seeds
-On the splash screen you can type a seed (a number or any text) and press Enter/Start. The shuffle button fills in a random seed. The same seed and level number always give the same layout; empty = the default levels. Changing the seed resets you to level 1. The seed is remembered between visits.
+The seed is only set through the URL parameter `?seed=` (a number or any text), intended for tournaments; there is no seed field on the splash screen. The same seed and level number always give the same layout; no seed = the default levels.
 
 The top 10 local scores and the top 10 global scores for the level are shown when a level loads and on the end-of-level screen. The best score per seed and level is stored locally in your browser and shown in the HUD. Finishing a level with a higher score (or the same score faster) asks for a name. The submitted score is the level score minus 1 point per 10 seconds spent (this does not affect whether the level counts as finished) to store with the record. The menu's "Game & levels" page has "Pull my scores from server" downloads your online scores (by the saved player name) into this browser.
 

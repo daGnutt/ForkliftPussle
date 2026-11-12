@@ -7,7 +7,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | Term | Meaning | In code |
 |------|---------|---------|
 | **Level** | One generated map, deterministic per level number + seed | `generateLevel`, `g.level` |
-| **Seed** | Text/number that varies the generated layouts | `g.seed`, `#seed` |
+| **Seed** | Text/number that varies the generated layouts; only set via URL `?seed=` | `g.seed` |
 | **Tile** | Simulation unit; one box is 1×1 tile | – |
 | **Outer wall / border** | Walls around the level | `g.walls` |
 | **Dividing wall** | Interior wall splitting the level into rooms/corridors | `g.pillars` |
@@ -132,7 +132,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Status strip** | Compact HUD line (e.g. with the cabin view) | `render.js` |
 | **Start board** | Level + local/global best shown until the truck first moves, the canvas is touched/clicked, or 10 s have passed | `drawStartBoard` |
 | **Level complete overlay** | End-of-level breakdown with top lists | `render.js` |
-| **Splash** | Title screen: seed, Start, Start endless, options | `#splash` |
+| **Splash** | Title screen: Start, Start endless, options | `#splash` |
 | **Menu / pause menu** | Esc/P menu with pages: main, sound, display, game, info, state | `#menu` |
 | **Zoom slider** | Desktop-only on-screen camera zoom slider in the bottom-right of the main view (same value as Camera zoom in the menu) | `#zoomBar` |
 | **Record prompt** | Name entry when a record is set | `#record` |
