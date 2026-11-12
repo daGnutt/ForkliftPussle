@@ -198,8 +198,8 @@ function addCeiling(sm, g) {
 function addTruckRoofs(sm, g, mode) {
   for (const r of truckRoofs(g)) {
     if (mode === 'ov' && !r.closed) continue;
-    const c = parseColor(truckPaint(r.color));
-    sm.quad([r.x0, r.y0, TRUCK_H], [r.x0, r.y1, TRUCK_H], [r.x1, r.y1, TRUCK_H], [r.x1, r.y0, TRUCK_H], [0, 0, mode === 'pov' ? -1 : 1], c);
+    const c = parseColor(truckPaint(r.color)), z = mode === 'ov' ? TRUCK_H + 0.01 : TRUCK_H; // overview: just above the wall tops, which would z-fight with a coplanar roof
+    sm.quad([r.x0, r.y0, z], [r.x0, r.y1, z], [r.x1, r.y1, z], [r.x1, r.y0, z], [0, 0, mode === 'pov' ? -1 : 1], c);
   }
 }
 
