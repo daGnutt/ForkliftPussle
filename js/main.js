@@ -1,5 +1,5 @@
 import { newGame, update, forkUp, forkDown, zoneDone, zoneWonky, score, liveTrucks } from './game.js';
-import { newEndless, stepEndless, endEndless } from './endless.js';
+import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput } from './input.js';
 import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
 import { createRelay } from './net/relay.js';
@@ -355,7 +355,7 @@ document.getElementById('recordForm').addEventListener('submit', (e) => {
 // Game over in endless mode: the run's points go to the local and global lists (level 0 of the seed).
 function recordEndless(force = false) {
   if (!mp) localStorage.removeItem(ENDLESS_KEY);
-  const result = { score: game.endless.points, time: game.time };
+  const result = { score: endlessScore(game.endless), time: game.time };
   if (!result.score) return;
   if (!force && !beats(result, getBest(localStorage, seed, 0))) {
     if (addTop(localStorage, seed, 0, { ...result, name: localStorage.getItem('forklift-player') || 'Anonymous' })) view.localList = getTop(localStorage, seed, 0);

@@ -15,7 +15,7 @@ import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
-import { newEndless, stepEndless, endEndless, rampDecals, truckGeom, unloadRate, interval } from '../js/endless.js';
+import { newEndless, stepEndless, endEndless, rampDecals, truckGeom, unloadRate, interval, endlessScore } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
 
 const NONE = {};
@@ -1678,9 +1678,11 @@ console.log('all tests passed');
   assert.equal(bay.state, 'closing');
   assert.equal(bay.honkN, 2, 'the truck honks twice first');
   assert.ok(!g.walls.includes(bay.parts.gate), 'the gate is still open while it honks');
+  assert.ok(E.live > 1500 && E.points === 0 && endlessScore(E) === E.live, 'a full load counts in the running score but is not banked yet');
   step(0.7);
   assert.ok(g.walls.includes(bay.parts.gate), 'gate closes when the truck is full');
   step(1.2 + 1);
+  assert.ok(E.points > 1500 && E.boxes === 24, 'closing the gate banks the points');
   assert.ok(bay.off > 0 && g.stacks.length === 6, 'truck drives off with its load');
   step(4);
   assert.equal(E.delivered, 1);
@@ -1689,6 +1691,22 @@ console.log('all tests passed');
   assert.equal(g.stacks.length, 0, 'the load left with the truck');
   step(8);
   assert.ok(bay.state === 'open' && bay.off === 0 && !g.walls.includes(bay.parts.gate), 'a new truck waits with an open gate');
+
+  // removing a stack from an open drop point takes its points off the running score
+  const rk = newEndless(3);
+  rk.endless.arriveT = 1e9;
+  const rb = rk.endless.bays[0];
+  rk.stacks = [{ x: rb.zones[0].x, y: rb.zones[0].y, layers: [0, 0, 0, 0] }];
+  rk.fl.x = 5; rk.fl.y = 5;
+  stepEndless(rk, 1 / 60);
+  assert.equal(endlessScore(rk.endless), 400);
+  rk.stacks = [];
+  stepEndless(rk, 1 / 60);
+  assert.equal(endlessScore(rk.endless), 0, 'points are deducted when the stack leaves the drop point');
+  rk.stacks = [{ x: rb.zones[0].x, y: rb.zones[0].y, layers: [0, 0] }, { x: rb.zones[1].x, y: rb.zones[1].y, layers: [0, 0, 0, 0] }];
+  stepEndless(rk, 1 / 60);
+  endEndless(rk);
+  assert.equal(endlessScore(rk.endless), 400, 'at the end only completed stacks of a partly packed lorry count');
 
   // a forklift inside keeps the gate open
   const h = newEndless(2);

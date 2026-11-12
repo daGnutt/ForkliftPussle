@@ -128,7 +128,7 @@ export function newEndless(seed = 0, hard = false) {
     start: { x: WX + WH_W / 2, y: 2.2, a: Math.PI / 2 },
   };
   const g = gameFromLayout(layout, 0, seed, hard);
-  g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, arriveT: DOCK_ARRIVE_T, wBoxes: RATE_PRIOR * RATE_PRIOR_T, wBusy: RATE_PRIOR_T, waiting: 0, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, over: false, bays, docks };
+  g.endless = { rs: (seed ^ 0x9e3779b9) >>> 0, elapsed: 0, arriveT: DOCK_ARRIVE_T, wBoxes: RATE_PRIOR * RATE_PRIOR_T, wBusy: RATE_PRIOR_T, waiting: 0, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, live: 0, over: false, bays, docks };
   g.layoutVersion = 0;
   for (const b of bays) {
     const r = bayRects(b.x0, 0);
@@ -195,15 +195,15 @@ function stepBay(g, b, dt) {
     if (!clearOfTrucks(g, b, 0.4)) { b.state = 'open'; b.gateClosed = false; for (const s of b.cargo) delete s.leaving; b.cargo = []; } // a forklift got too close: reopen
     else {
       if (b.t >= HONK_T) b.gateClosed = true;
-      if (b.t >= HONK_T + GATE_DELAY) { b.state = 'leaving'; b.v = 0; }
+      if (b.t >= HONK_T + GATE_DELAY) {
+        b.state = 'leaving'; b.v = 0;
+        for (const z of b.zones) { const p = zonePoints(g, z); if (p) { e.points += p.total; e.boxes += p.n; } } // the closed door banks the load's points for good
+      }
     }
   } else if (b.state === 'leaving') {
     b.v = Math.min(5, b.v + 2.5 * dt);
     b.off += b.v * dt;
     if (b.off >= OUT_DIST) {
-      let pts = 0;
-      for (const z of b.zones) { const p = zonePoints(g, z); if (p) { pts += p.total; e.boxes += p.n; } }
-      e.points += pts;
       e.delivered++;
       g.stacks = g.stacks.filter((s) => !b.cargo.includes(s));
       b.cargo = [];
@@ -320,6 +320,22 @@ export function stepEndless(g, dt) {
   for (const d of e.docks) stepDock(g, d, dt);
   measureRate(g, e, dt);
   for (const b of e.bays) stepBay(g, b, dt);
+  e.live = liveBayPoints(g);
+}
+
+// Points of the loads still at a drop point (gate not yet closed); they go up and down with the stacks and are banked into `e.points` when the gate closes.
+function liveBayPoints(g) {
+  let n = 0;
+  for (const b of g.endless.bays) {
+    if (b.state !== 'open' && b.state !== 'closing') continue;
+    for (const z of b.zones) { const p = zonePoints(g, z); if (p) n += p.total; }
+  }
+  return n;
+}
+
+// The running score: banked points plus the completed stacks waiting at open drop points (kept at the end of the run, so partly packed lorries count).
+export function endlessScore(e) {
+  return e.points + (e.live || 0);
 }
 
 // Ends the run by hand (menu): same outcome as running out of free docks.

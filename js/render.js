@@ -1,5 +1,5 @@
 import { COLORS } from './level.js';
-import { truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays, DOCKS } from './endless.js';
+import { truckPaint, truckGeom, truckFloorArt, rampDecals, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
@@ -720,7 +720,7 @@ function drawStatusStrip(ctx, g, view, mm, title, bestText, globalText, hint, wi
   const lw = lx - PAD, rw = width - PAD - rx;
   const E = g.endless;
   line(E ? 'Endless' : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`, lx, 2, '#eee', 'right', lw, true);
-  line(E ? `Trucks ${E.delivered}   Score ${E.points}` : `Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}`, lx, 1, '#eee', 'right', lw);
+  line(E ? `Trucks ${E.delivered}   Score ${endlessScore(E)}` : `Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}`, lx, 1, '#eee', 'right', lw);
   line(formatTime(g.time), lx, 0, '#eee', 'right', lw);
   line(globalText, rx, 3, '#c5e1a5', 'left', rw);
   line(bestText, rx, 2, '#b3e5fc', 'left', rw);
@@ -894,7 +894,7 @@ export function draw(ctx, g, view) {
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
   const best = view.best;
   const E = g.endless;
-  const title = E ? `Endless   Trucks ${E.delivered}   Boxes ${E.boxes}   Bays ${E.docks.filter((d) => d.state !== 'free').length}/${DOCKS}   Score ${E.points}   ${formatTime(g.time)}` : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${formatTime(g.time)}`;
+  const title = E ? `Endless   Trucks ${E.delivered}   Boxes ${E.boxes}   Bays ${E.docks.filter((d) => d.state !== 'free').length}/${DOCKS}   Score ${endlessScore(E)}   ${formatTime(g.time)}` : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${formatTime(g.time)}`;
   const bestText = E ? `Bays ${E.docks.filter((d) => d.state !== 'free').length}/${DOCKS}` : best ? `Best ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Best: none yet';
   const globalText = E ? '' : globalLine(view.global);
   const hint = g.status === 'play' && isSolved(g)
@@ -1030,7 +1030,7 @@ export function draw(ctx, g, view) {
     ctx.font = 'bold 36px sans-serif';
     ctx.fillText('Game over!', width / 2, height / 2 - 40);
     ctx.font = '20px sans-serif';
-    ctx.fillText(`${E.delivered} trucks delivered, ${E.boxes} boxes, ${E.points} points, ${formatTime(g.time)}`, width / 2, height / 2);
+    ctx.fillText(`${E.delivered} trucks delivered, ${E.boxes} boxes, ${endlessScore(E)} points, ${formatTime(g.time)}`, width / 2, height / 2);
     ctx.fillText(view.touch ? 'Tap to play again' : 'Press Enter to play again', width / 2, height / 2 + 40);
     drawTopLists(ctx, view, width / 2, height / 2 + 70, width / 2);
   }
