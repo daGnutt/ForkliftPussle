@@ -1800,6 +1800,14 @@ console.log('all tests passed');
   assert.ok(unloadRate(fast.endless) > unloadRate(slow.endless), 'removing boxes raises the measured rate');
   assert.ok(interval(fast.endless, 12) < interval(slow.endless, 12));
 
+  // the pace slides up: the same rate gets trucks sooner later in the run
+  {
+    const e = { wBoxes: 9, wBusy: 60, elapsed: 0 };
+    const early = interval(e, 12);
+    e.elapsed = 1800;
+    assert.ok(interval(e, 12) < early * 0.7, 'late trucks come faster');
+  }
+
   // bay doors ease open and shut instead of popping
   {
     const g = newEndless(1);

@@ -35,15 +35,18 @@ const DOCK_ARRIVE_T = 1; // s until the first incoming truck
 
 // Adaptive pace: the unloading rate (boxes/s while there is work) is measured as an exponentially decayed average over about
 // RATE_TAU s of busy time, starting from a prior per player. The next truck is due after the time that rate needs to unload it,
-// plus a small margin, so the pace follows the crew: slacking or accidents lower the rate (and give a little more time), but the
+// times a margin that slides from 1.15 to 0.75 over 30 min (the run gets steadily harder), so the pace follows the crew: slacking or accidents lower the rate (and give a little more time), but the
 // queue grows meanwhile and the bays fill.
 const RATE_PRIOR = 0.15; // boxes/s per player before anything was measured
 const RATE_PRIOR_T = 60; // s of busy time the prior is worth
 const RATE_TAU = 150;
-const PACE_MARGIN = 1.15;
+const PACE_MARGIN = 1.15; // start margin over the measured unloading time
+const PACE_MARGIN_END = 0.75; // below 1 the trucks come faster than the crew unloads, so the queue grows towards a full yard
+const PACE_RAMP_T = 1800; // s over which the margin slides from start to end
 export const MIN_GAP = 20, MAX_GAP = 150;
 export const unloadRate = (e) => e.wBoxes / e.wBusy;
-export const interval = (e, boxes) => Math.min(MAX_GAP, Math.max(MIN_GAP, (boxes / unloadRate(e)) * PACE_MARGIN));
+export const paceMargin = (e) => PACE_MARGIN + (PACE_MARGIN_END - PACE_MARGIN) * Math.min(1, e.elapsed / PACE_RAMP_T);
+export const interval = (e, boxes) => Math.min(MAX_GAP, Math.max(MIN_GAP, (boxes / unloadRate(e)) * paceMargin(e)));
 
 function bayRects(x0, off) {
   const y = BAY_Y + off;
