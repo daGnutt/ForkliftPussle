@@ -1769,13 +1769,13 @@ console.log('all tests passed');
   k.endless.arriveT = 1e9;
   const b3 = k.endless.bays[2];
   k.stacks = b3.zones.map((z) => ({ x: z.x, y: z.y, layers: [2, 2, 2, 2] }));
-  k.fl.x = b3.x0 + 1.8; k.fl.y = 14 + 0.3 - 1.0; k.fl.a = Math.PI / 2; // tines reach ~0.5 into the trailer
+  k.fl.x = b3.x0 + 1.8; k.fl.y = 18 + 0.3 - 1.0; k.fl.a = Math.PI / 2; // tines reach ~0.5 into the trailer
   update(k, NONE, 1 / 60); stepEndless(k, 1 / 60);
   assert.equal(b3.state, 'open', 'gate stays open while the tines are in the truck');
   k.fl.x = 20; k.fl.y = 7; // clear
   update(k, NONE, 1 / 60); stepEndless(k, 1 / 60);
   assert.equal(b3.state, 'closing');
-  k.fl.x = b3.x0 + 1.8; k.fl.y = 14 + 0.3 - 1.0;
+  k.fl.x = b3.x0 + 1.8; k.fl.y = 18 + 0.3 - 1.0;
   update(k, NONE, 1 / 60); stepEndless(k, 1 / 60);
   assert.equal(b3.state, 'open', 'closing is aborted when a forklift comes too close');
   assert.ok(!k.walls.includes(b3.parts.gate));

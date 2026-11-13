@@ -17,14 +17,15 @@ const SLOT = 1.5; // spacing of the delivery truck's stack slots (2 wide, 3 deep
 const TRUCK_W = 3.6, TRUCK_D = 6, WALL = 0.3;
 const APRON = 0.9; // empty strip inside the gate before the first stack slots
 const RAMP_D = 0.9, DOCK_RAMP_D = 1.8, CAB_D = 2;
-const WH_W = 26, WH_H = 15; // the warehouse floor; its south wall runs along y = WH_H, with an opening for each truck
+const WH_W = 26, WH_H = 19; // the warehouse floor; its south wall runs along y = WH_H, with an opening for each truck
 const WX = TRUCK_D + CAB_D + WALL; // the warehouse floor starts here: the west wall (the incoming trucks' gates) is just before it
 export const ENDLESS_W = 2 * WX + WH_W;
 export const ENDLESS_H = WH_H + TRUCK_D + CAB_D; // the trucks stand in the yard south of the wall, cab last
 const BAY_Y = WH_H; // the trailer's north edge, its gate in line with the south wall
 const SLOTS = 6;
 const FIRST_X = WX + 1.0, BAY_STEP = 4.8;
-const DOCK_Y0 = 0.8, DOCK_STEP = 4.8;
+const DOCK_Y0 = 1.0, DOCK_STEP = 6.6; // 3 tiles of wall between neighbouring incoming bays, with a loading lane in front of it
+const LANE_H = 2, LANE_GAP = (DOCK_STEP - TRUCK_W - LANE_H) / 2;
 const GONE = 200; // a truck that is away is parked this far off the map
 const OUT_DIST = 9;
 const HONK_T = 0.7; // s of horn before a gate opens or closes
@@ -108,6 +109,9 @@ function outerWalls() {
   return out.filter((r) => r.w > 1e-6 && r.h > 1e-6);
 }
 
+// Loading lanes: a yellow-outlined strip (two box rows deep) across the warehouse, west to east, in each gap between incoming bays.
+const loadingLanes = () => Array.from({ length: ROWS - 1 }, (_, i) => ({ x: WX + 0.2, y: dockY(ROWS - 1 - i) + TRUCK_W + LANE_GAP, w: WH_W - 0.4, h: LANE_H }));
+
 // Asphalt where the trucks stand: the yard west of the warehouse and the one south of it.
 export const yardRects = () => [{ x: 0, y: 0, w: XR, h: ENDLESS_H }, { x: XE + WALL, y: 0, w: ENDLESS_W - XE - WALL, h: ENDLESS_H }, { x: XR, y: WH_H + WALL, w: XE + WALL - XR, h: ENDLESS_H - WH_H - WALL }];
 export const TRUCK_H = 3.7; // trailer height, a bit under the 4 high factory ceiling
@@ -143,7 +147,7 @@ export function newEndless(seed = 0, hard = false) {
     docks.push({ k, y0, side, dock: true, off: GONE, placed: GONE, state: 'free', honkT: -1e9, honkN: 0, honked: false, since: -1, t: 0, v: 0, gateClosed: true, area: { x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] }, parts: {} });
   }
   const layout = {
-    w: ENDLESS_W, h: ENDLESS_H, walls: outerWalls(), charger: null, zones, areas, bays: [], doors: [], stacks: [],
+    w: ENDLESS_W, h: ENDLESS_H, walls: outerWalls(), charger: null, zones, areas, bays: loadingLanes(), doors: [], stacks: [],
     start: { x: WX + WH_W / 2, y: 2.2, a: Math.PI / 2 },
   };
   const g = gameFromLayout(layout, 0, seed, hard);
