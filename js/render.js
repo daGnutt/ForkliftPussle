@@ -1010,7 +1010,7 @@ export function draw(ctx, g, view) {
     ctx.font = 'bold 20px sans-serif';
     let boxW = ctx.measureText(title).width;
     ctx.font = '14px sans-serif';
-    boxW = Math.max(boxW, 380 + Math.max(ctx.measureText(bestText).width, ctx.measureText(globalText).width));
+    boxW = Math.max(boxW, 380 + Math.max(E ? 0 : ctx.measureText(bestText).width, ctx.measureText(globalText).width));
     ctx.font = 'bold 16px sans-serif';
     if (hint) boxW = Math.max(boxW, ctx.measureText(hint).width);
     ctx.fillStyle = 'rgba(0,0,0,0.45)';
@@ -1020,7 +1020,7 @@ export function draw(ctx, g, view) {
     ctx.fillText(title, hx0, 25);
     ctx.font = '14px sans-serif';
     ctx.fillStyle = '#b3e5fc';
-    ctx.fillText(bestText, hx0 + 380, 48);
+    if (!E) ctx.fillText(bestText, hx0 + 380, 48); // endless: Bays is already in the title
     ctx.fillStyle = '#c5e1a5';
     ctx.fillText(globalText, hx0 + 380, 68);
     const lost = lostBreakdown(g);
