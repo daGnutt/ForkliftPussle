@@ -29,6 +29,7 @@ const LANE_H = 2, LANE_GAP = (DOCK_STEP - TRUCK_W - LANE_H) / 2;
 const GONE = 200; // a truck that is away is parked this far off the map
 const OUT_DIST = 9;
 const NAG_BASE = 0.5, NAG_STEP = 0.5; // s: an impatient driver honks every minute, 0.5 s longer for every 5 minutes waited
+export const TRUCK_BONUS = 500; // points for every finished (full, departing) delivery truck
 const HONK_T = 0.7; // s of horn before a gate opens or closes
 const GATE_DELAY = 1; // s between the gate closing and the truck driving off
 const AWAY_TIME = 2; // s before the replacement truck arrives
@@ -254,7 +255,7 @@ function stepBay(g, b, dt) {
       if (b.t >= HONK_T) b.gateClosed = true;
       if (b.t >= HONK_T + GATE_DELAY) {
         b.state = 'leaving'; b.v = 0;
-        for (const z of b.zones) { const p = zonePoints(g, z); if (p) { e.points += p.total; e.boxes += p.n; } } // the closed door banks the load's points for good
+        for (const z of b.zones) { const p = zonePoints(g, z); if (p) { e.points += p.total; e.boxes += p.n; } } e.points += TRUCK_BONUS; // the closed door banks the load's points (plus the finished-truck bonus) for good
       }
     }
   } else if (b.state === 'leaving') {
