@@ -266,16 +266,58 @@ export function boxDecalShapes(kind) {
     });
     return out;
   }
-  if (kind === 4) {
-    const circle = (r, fill) => ({ pts: Array.from({ length: 20 }, (_, k) => [Math.cos((k / 20) * Math.PI * 2) * r, Math.sin((k / 20) * Math.PI * 2) * r]), fill });
-    const RED = 'rgba(198,40,40,0.95)';
-    return [
-      { pts: [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]], fill: 'rgba(245,245,245,0.95)' },
-      circle(0.46, RED), circle(0.34, 'rgba(245,245,245,0.98)'),
-      { pts: [[-0.17, -0.2], [0.17, -0.2], [0.17, -0.02], [-0.17, -0.02]], fill: INK },
-      { pts: [[-0.17, 0.02], [0.17, 0.02], [0.17, 0.2], [-0.17, 0.2]], fill: INK },
-      { pts: [[-0.3, 0.2], [-0.2, 0.3], [0.3, -0.2], [0.2, -0.3]], fill: RED },
-    ];
-  }
+  if (kind === 4) return DO_NOT_STACK;
   return [];
 }
+
+// "Do not stack" label: red rounded frame, crossed-out pair of stacked cubes and the words in a stroke font.
+const RED = '#c62828', PAPER = '#f7f7f7';
+const roundSquare = (h, r, fill) => ({
+  pts: [[1, 1, 0], [-1, 1, 90], [-1, -1, 180], [1, -1, 270]].flatMap(([sx, sy, a0]) =>
+    Array.from({ length: 7 }, (_, k) => {
+      const a = ((a0 + k * 15) * Math.PI) / 180;
+      return [sx * (h - r) + Math.cos(a) * r, sy * (h - r) + Math.sin(a) * r];
+    })),
+  fill,
+});
+const GLYPHS = {
+  D: [[[0, 0], [0, 1], [0.6, 1], [1, 0.7], [1, 0.3], [0.6, 0], [0, 0]]],
+  O: [[[0.3, 0], [0.7, 0], [1, 0.3], [1, 0.7], [0.7, 1], [0.3, 1], [0, 0.7], [0, 0.3], [0.3, 0]]],
+  N: [[[0, 0], [0, 1], [1, 0], [1, 1]]],
+  T: [[[0, 1], [1, 1]], [[0.5, 1], [0.5, 0]]],
+  S: [[[1, 0.9], [0.7, 1], [0.3, 1], [0, 0.8], [0.1, 0.55], [0.9, 0.45], [1, 0.2], [0.7, 0], [0.3, 0], [0, 0.1]]],
+  A: [[[0, 0], [0.5, 1], [1, 0]], [[0.2, 0.4], [0.8, 0.4]]],
+  C: [[[1, 0.85], [0.7, 1], [0.3, 1], [0, 0.75], [0, 0.25], [0.3, 0], [0.7, 0], [1, 0.15]]],
+  K: [[[0, 0], [0, 1]], [[1, 1], [0, 0.45]], [[0.3, 0.65], [1, 0]]],
+};
+const cube = (cx, cy) => {
+  const a = 0.1, b = 0.1, c = 0.05, g = 0.007, at = (x, y) => [cx + x, cy + y];
+  return [
+    { pts: [at(-a, c), at(-g, 0), at(-g, b), at(-a, b + c)], fill: RED },
+    { pts: [at(a, c), at(g, 0), at(g, b), at(a, b + c)], fill: RED },
+    { pts: [at(0, b + g), at(a, b + c + g), at(0, b + 2 * c + g), at(-a, b + c + g)], fill: RED },
+  ];
+};
+const ring = (cx, cy, r0, r1) => {
+  const out = [];
+  for (let k = 0; k < 24; k++) {
+    const a0 = (k / 24) * Math.PI * 2, a1 = ((k + 1) / 24) * Math.PI * 2;
+    out.push({ pts: [[cx + Math.cos(a0) * r0, cy + Math.sin(a0) * r0], [cx + Math.cos(a1) * r0, cy + Math.sin(a1) * r0], [cx + Math.cos(a1) * r1, cy + Math.sin(a1) * r1], [cx + Math.cos(a0) * r1, cy + Math.sin(a0) * r1]], fill: RED });
+  }
+  return out;
+};
+function doNotStack() {
+  const out = [roundSquare(0.5, 0.15, RED), roundSquare(0.44, 0.1, PAPER)];
+  const cy = 0.1;
+  out.push(...ring(0, cy, 0.25, 0.29), ...cube(0, cy - 0.175), ...cube(0, cy - 0.025));
+  const slash = [[-0.2, cy + 0.2], [0.2, cy - 0.2]];
+  out.push(...strip(slash, 0.07, PAPER), ...strip(slash, 0.035, RED));
+  let x = -0.37;
+  const sx = 0.05, sy = 0.075, y0 = -0.4;
+  for (const ch of 'DO NOT STACK') {
+    for (const line of GLYPHS[ch] || []) out.push(...strip(line.map(([u, v]) => [x + u * sx, y0 + v * sy]), 0.014, RED));
+    x += ch === ' ' ? sx * 1.1 : sx * 1.3;
+  }
+  return out;
+}
+const DO_NOT_STACK = doNotStack();
