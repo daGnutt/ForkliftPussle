@@ -1800,12 +1800,19 @@ console.log('all tests passed');
   assert.ok(unloadRate(fast.endless) > unloadRate(slow.endless), 'removing boxes raises the measured rate');
   assert.ok(interval(fast.endless, 12) < interval(slow.endless, 12));
 
-  // the pace slides up: the same rate gets trucks sooner later in the run
+  // difficulty slides: harder while fewer than 5 docks are occupied, easier once 5 are
   {
-    const e = { wBoxes: 9, wBusy: 60, elapsed: 0 };
-    const early = interval(e, 12);
-    e.elapsed = 1800;
-    assert.ok(interval(e, 12) < early * 0.7, 'late trucks come faster');
+    const g = newEndless(4);
+    g.fl.x = 20; g.fl.y = 7; g.fl.a = 0;
+    const m0 = g.endless.margin;
+    for (const d of g.endless.docks) d.state = 'free';
+    stepEndless(g, 60);
+    assert.ok(g.endless.margin < m0, 'margin falls with few lorries');
+    const m1 = g.endless.margin;
+    for (const d of g.endless.docks.slice(0, 5)) d.state = 'present';
+    g.endless.arriveT = 1e9;
+    stepEndless(g, 60);
+    assert.ok(g.endless.margin > m1, 'margin rises with 5 lorries');
   }
 
   // bay doors ease open and shut instead of popping

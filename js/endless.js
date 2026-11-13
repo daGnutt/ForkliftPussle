@@ -35,18 +35,19 @@ const DOCK_ARRIVE_T = 1; // s until the first incoming truck
 
 // Adaptive pace: the unloading rate (boxes/s while there is work) is measured as an exponentially decayed average over about
 // RATE_TAU s of busy time, starting from a prior per player. The next truck is due after the time that rate needs to unload it,
-// times a margin that slides from 1.15 to 0.75 over 30 min (the run gets steadily harder), so the pace follows the crew: slacking or accidents lower the rate (and give a little more time), but the
+// times `e.margin`, so the pace follows the crew: slacking or accidents lower the rate (and give a little more time), but the
 // queue grows meanwhile and the bays fill.
 const RATE_PRIOR = 0.15; // boxes/s per player before anything was measured
 const RATE_PRIOR_T = 60; // s of busy time the prior is worth
 const RATE_TAU = 150;
-const PACE_MARGIN = 1.15; // start margin over the measured unloading time
-const PACE_MARGIN_END = 0.75; // below 1 the trucks come faster than the crew unloads, so the queue grows towards a full yard
-const PACE_RAMP_T = 1800; // s over which the margin slides from start to end
+// The margin is the difficulty: it slides down (harder) while fewer than TARGET_DOCKS docks are occupied and back up (easier) once
+// that many are, so the queue hovers around the target instead of ending the run on a fixed schedule. It only affects trucks yet to arrive.
+const MARGIN_START = 1.15, MARGIN_MIN = 0.5, MARGIN_MAX = 1.3;
+const MARGIN_RATE = 0.4 / 1800; // margin change per second (about 30 min for the full 0.4)
+export const TARGET_DOCKS = 5;
 export const MIN_GAP = 20, MAX_GAP = 150;
 export const unloadRate = (e) => e.wBoxes / e.wBusy;
-export const paceMargin = (e) => PACE_MARGIN + (PACE_MARGIN_END - PACE_MARGIN) * Math.min(1, e.elapsed / PACE_RAMP_T);
-export const interval = (e, boxes) => Math.min(MAX_GAP, Math.max(MIN_GAP, (boxes / unloadRate(e)) * paceMargin(e)));
+export const interval = (e, boxes) => Math.min(MAX_GAP, Math.max(MIN_GAP, (boxes / unloadRate(e)) * e.margin));
 
 function bayRects(x0, off) {
   const y = BAY_Y + off;
@@ -148,7 +149,7 @@ export function newEndless(seed = 0, hard = false) {
   const g = gameFromLayout(layout, 0, seed, hard);
   g.walls[0].draw = { x: XR, y: -WALL, w: XE + WALL - XR, h: WALL }; // the north border wall is drawn as a thin strip over the warehouse only, not the yards beside it
   for (const w of g.walls.slice(1, 4)) w.hidden = true; // south, west and east border walls: still solid, not drawn, so trucks do not clip through them
-  g.endless = { rs: (Math.random() * 4294967296) >>> 0, elapsed: 0, arriveT: DOCK_ARRIVE_T, wBoxes: RATE_PRIOR * RATE_PRIOR_T, wBusy: RATE_PRIOR_T, waiting: 0, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, live: 0, over: false, bays, docks };
+  g.endless = { rs: (Math.random() * 4294967296) >>> 0, elapsed: 0, margin: MARGIN_START, arriveT: DOCK_ARRIVE_T, wBoxes: RATE_PRIOR * RATE_PRIOR_T, wBusy: RATE_PRIOR_T, waiting: 0, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, live: 0, over: false, bays, docks };
   g.layoutVersion = 0;
   for (const b of bays) {
     const r = bayRects(b.x0, 0);
@@ -362,6 +363,8 @@ export function stepEndless(g, dt) {
   if (e.over) return;
   e.elapsed += dt;
   e.arriveT -= dt;
+  const occupied = e.docks.filter((o) => o.state !== 'free').length;
+  e.margin = Math.min(MARGIN_MAX, Math.max(MARGIN_MIN, e.margin + (occupied < TARGET_DOCKS ? -MARGIN_RATE : MARGIN_RATE) * dt));
   if (e.arriveT <= 0) {
     const d = e.docks.find((o) => o.state === 'free');
     if (!d) { e.over = true; g.status = 'over'; return; }
