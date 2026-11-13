@@ -11,7 +11,7 @@ import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
-import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
+import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes } from './decals.js';
 import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
@@ -118,7 +118,7 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
         }
       }
       if (decalsEnabled()) {
-        for (const d of boxDecalShapes(pens[i]?.deco ?? boxDecalKind(layers[i], i))) {
+        for (const d of boxDecalShapes(boxDeco(pens[i], layers[i], i))) {
           ctx.fillStyle = d.fill;
           ctx.beginPath();
           d.pts.forEach(([u, v], k) => (k ? ctx.lineTo(u * 0.4, -v * 0.4) : ctx.moveTo(u * 0.4, -v * 0.4)));

@@ -240,6 +240,9 @@ export function boxDecalKind(col, i) {
   return r < 0.25 ? 0 : r < 0.5 ? 1 : r < 0.75 ? 2 : 3;
 }
 
+// The decal kind of a box: open-top boxes always carry the "do not stack" sign, whatever their pen says (older saves).
+export const boxDeco = (pen, col, i) => (pen?.open ? 4 : pen?.deco ?? boxDecalKind(col, i));
+
 const INK = 'rgba(25,25,25,0.8)';
 const arrow = (u) => [
   { pts: [[u - 0.05, -0.35], [u + 0.05, -0.35], [u + 0.05, 0.1], [u - 0.05, 0.1]], fill: INK },
