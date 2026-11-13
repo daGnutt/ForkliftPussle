@@ -612,6 +612,13 @@ export function playTruckHonk(n = 1, vol = 1) {
   for (let i = 0; i < n; i++) for (const f of [118, 148]) tone(sfxBus, f, t + i * 0.34, 0.26, { type: 'sawtooth', gain: 0.07 * vol, attack: 0.02, release: 0.06, cutoff: 1100 });
 }
 
+// An impatient incoming-truck driver: one long blast of `dur` seconds.
+export function playImpatientHonk(dur = 0.5, vol = 1) {
+  if (!ctx || ctx.state !== 'running' || vol <= 0) return;
+  const t = ctx.currentTime;
+  for (const f of [118, 148]) tone(sfxBus, f, t, dur, { type: 'sawtooth', gain: 0.07 * vol, attack: 0.02, release: 0.06, cutoff: 1100 });
+}
+
 // Reversing warning: 880 Hz soft sine beep, 0.4 s on / 0.4 s off while backing up.
 function setBeeper(reversing, t, id, vol) {
   let beeper = beepers.get(id);

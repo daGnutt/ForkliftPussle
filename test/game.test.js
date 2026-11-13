@@ -16,7 +16,7 @@ import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
-import { newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
+import { lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
 
 const NONE = {};
@@ -1704,6 +1704,21 @@ console.log('all tests passed');
   assert.ok(g.stacks.every((s) => !s.leaving && s.x < 8 && s.x > 2 && s.layers.length >= 1 && s.layers.length <= 3), 'stacks stand in the trailer');
   const slots = new Set(g.stacks.map((s) => `${Math.round(s.x)},${Math.round(s.y)}`));
   assert.equal(slots.size, 6);
+  // impatient driver: honks every minute, 0.5 s longer for every 5 minutes waited
+  E.arriveT = 1e9;
+  const held = g.stacks;
+  const nag = (min, n) => { d.since = E.elapsed - min * 60 + 0.01; d.nagN = n; d.nagT = -1e9; step(0.05); };
+  assert.equal(d.nagN, 0);
+  nag(1, 0);
+  assert.equal(d.nagN, 1); assert.equal(d.nagDur, 0.5);
+  assert.ok(lorryHonks(g).some((h) => h.id === 100 + d.k), 'the label shows during the honk');
+  nag(5, 4);
+  assert.equal(d.nagDur, 1);
+  nag(10, 9);
+  assert.equal(d.nagDur, 1.5);
+  d.nagT = E.elapsed - 2; step(0.05);
+  assert.ok(!lorryHonks(g).some((h) => h.id === 100 + d.k), 'the honk ends');
+  g.stacks = held;
   // an unloaded truck leaves
   g.stacks = [];
   step(0.2);

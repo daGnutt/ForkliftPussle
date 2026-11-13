@@ -21,7 +21,7 @@ import { chaseDrift, chaseOrbit, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZo
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
-import { startAudio, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -115,11 +115,16 @@ function watchPops() {
 }
 const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8);
 // Delivery trucks honk (see `lorryHonks`): once before an incoming truck opens its gate, twice before a full one closes its gate (heard by distance).
-const truckHonks = new Map();
+const truckHonks = new Map(), truckNags = new Map();
 function honkTrucks() {
   const e = game.endless;
-  if (!e) { truckHonks.clear(); return; }
+  if (!e) { truckHonks.clear(); truckNags.clear(); return; }
   for (const o of [...e.docks, ...e.bays]) {
+    if (o.dock) {
+      const n = truckNags.get(o);
+      truckNags.set(o, o.nagT);
+      if (n !== undefined && n !== o.nagT && o.nagT >= 0) playImpatientHonk(o.nagDur, hearVol(o.area.x + o.area.w / 2, o.area.y + o.area.h / 2));
+    }
     const prev = truckHonks.get(o);
     truckHonks.set(o, o.honkT);
     if (prev === undefined || prev === o.honkT || o.honkT < 0) continue;

@@ -28,6 +28,7 @@ const DOCK_Y0 = 1.0, DOCK_STEP = 6.6; // 3 tiles of wall between neighbouring in
 const LANE_H = 2, LANE_GAP = (DOCK_STEP - TRUCK_W - LANE_H) / 2;
 const GONE = 200; // a truck that is away is parked this far off the map
 const OUT_DIST = 9;
+const NAG_BASE = 0.5, NAG_STEP = 0.5; // s: an impatient driver honks every minute, 0.5 s longer for every 5 minutes waited
 const HONK_T = 0.7; // s of horn before a gate opens or closes
 const GATE_DELAY = 1; // s between the gate closing and the truck driving off
 const AWAY_TIME = 2; // s before the replacement truck arrives
@@ -144,7 +145,7 @@ export function newEndless(seed = 0, hard = false) {
   for (let k = 0; k < DOCKS; k++) {
     const side = k % 2 ? 1 : -1, y0 = dockY(Math.floor(k / 2));
     const r = dockRects({ y0, side }, GONE);
-    docks.push({ k, y0, side, dock: true, off: GONE, placed: GONE, state: 'free', honkT: -1e9, honkN: 0, honked: false, since: -1, t: 0, v: 0, gateClosed: true, area: { x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] }, parts: {} });
+    docks.push({ k, y0, side, dock: true, off: GONE, placed: GONE, state: 'free', honkT: -1e9, honkN: 0, honked: false, since: -1, nagT: -1e9, nagDur: 0, nagN: 0, t: 0, v: 0, gateClosed: true, area: { x: r.area[0], y: r.area[1], w: r.area[2], h: r.area[3] }, parts: {} });
   }
   const layout = {
     w: ENDLESS_W, h: ENDLESS_H, walls: outerWalls(), charger: null, zones, areas, bays: loadingLanes(), doors: [], stacks: [],
@@ -324,9 +325,11 @@ function stepDock(g, d, dt) {
     d.off = Math.max(0, d.off - Math.max(0.8, d.off * 0.7) * dt);
     if (d.off <= 0) {
       if (!d.honked) { d.honked = true; d.honkT = g.endless.elapsed; d.honkN = 1; }
-      if (g.endless.elapsed - d.honkT >= HONK_T) { d.honked = false; d.gateClosed = false; d.state = 'present'; d.since = g.endless.elapsed; for (const s of d.cargo) delete s.leaving; }
+      if (g.endless.elapsed - d.honkT >= HONK_T) { d.honked = false; d.gateClosed = false; d.state = 'present'; d.since = g.endless.elapsed; d.nagN = 0; for (const s of d.cargo) delete s.leaving; }
     }
   } else if (d.state === 'present') {
+    const mins = Math.floor((g.endless.elapsed - d.since) / 60);
+    if (mins > d.nagN) { d.nagN = mins; d.nagT = g.endless.elapsed; d.nagDur = NAG_BASE + NAG_STEP * Math.floor(mins / 5); } // impatient driver: a longer honk every 5 minutes waited
     const r = dockInterior(d), f = dockRect(d, 0.5);
     const empty = !g.stacks.some((s) => s.x > r.x0 && s.x < r.x1 && s.y > r.y0 && s.y < r.y1);
     if (empty && !g.trucks.some((t) => !t.gone && solidPolys(t).some((p) => sat(p, f)))) { d.state = 'leaving'; d.gateClosed = true; d.v = 0; d.cargo = []; }
@@ -412,8 +415,9 @@ export function lorryHonks(g) {
   if (!e) return [];
   const out = [];
   for (const o of [...e.docks, ...e.bays]) {
-    const age = e.elapsed - o.honkT;
-    if (age < 0 || age >= 0.34 * o.honkN || age % 0.34 > 0.26) continue; // matches the blasts of `playTruckHonk`
+    const age = e.elapsed - o.honkT, nag = o.dock ? e.elapsed - o.nagT : -1;
+    const blast = age >= 0 && age < 0.34 * o.honkN && age % 0.34 <= 0.26; // matches the blasts of `playTruckHonk`
+    if (!blast && !(nag >= 0 && nag < o.nagDur)) continue;
     out.push({ id: 100 + (o.dock ? o.k : 10 + o.k), gone: false, horn: true, text: 'HONK', paint: truckPaint(o.dock ? DOCK_COLOR : o.k), fl: { x: o.area.x + o.area.w / 2, y: o.area.y + o.area.h / 2 } });
   }
   return out;
