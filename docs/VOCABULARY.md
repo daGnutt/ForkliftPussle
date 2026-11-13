@@ -27,8 +27,8 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Layer** | One box's position/colour in a stack (bottom → top) | `layers` |
 | **Top box** | The box drawn in its colour; lower ones show as coloured numbers | `drawStack` |
 | **Open-top box** | Box with an open lid and a "do not stack" sign; nothing can be put on it, so it is only ever the top box (`pen.open`, `stack.open` in layouts) | `topOpen`, `newPen`, `boxDecalShapes(4)` |
-| **Wide box** | Always gray; 1×2 box (long side across the forks) on two pallets; always alone on the floor, lifted only with both tines under it and heading within ~27° of its local x axis, never stacked on or under anything; worth 200 and only fits a wide zone (`pen.wide`, `stack.wide` in layouts) | `wideBox`, `halfY`, `boxPoints`, `markWide` |
-| **Wide zone** | 1×2 drop point for a wide box, with an area of its own (`zone.wide`, `hx`/`hy` half extents, `a`) | `zoneExt`, `tryWide` |
+| **Wide box** | Always gray; 1×2 box (long side across the forks) on two pallets; lifted only with both tines under it and heading within ~27° of its local x axis, stacks only with other wide boxes; worth 200 and only fits a wide zone (`pen.wide`, `stack.wide` in layouts) | `wideBox`, `halfY`, `boxPoints`, `markWide` |
+| **Wide zone** | 1×2 drop point for a stack of 1–3 wide boxes, grouped with the other wide zones in the one gray area (`zone.wide`, `hx`/`hy` half extents, `a`) | `zoneExt`, `tryWide` |
 | **Carried stack** | The boxes currently on the forks | `g.carried` |
 | **Wonky / crooked stack** | Boxes turned/offset from each other | `wonkyStack`, `rots`, `offs` |
 | **Colour** | Box/zone colour (index into the palette) | `COLORS`, `COLOR_NAMES` |

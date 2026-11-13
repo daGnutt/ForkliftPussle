@@ -1941,13 +1941,14 @@ console.log('all tests passed');
   console.log('endless open-top ok');
 }
 
-// Wide boxes (1×2): need both tines under them, can't be stacked, only fit wide zones.
+// Wide boxes (1×2): need both tines under them, only stack on each other, only fit wide zones.
 {
   for (let n = 1; n <= 40; n++) {
     const l = generateLevel(n);
     const wide = l.stacks.filter((s) => s.wide), wz = l.zones.filter((z) => z.wide);
-    assert.equal(wide.length, wz.length, `level ${n} wide boxes match wide zones`);
-    assert.ok(wide.every((s) => s.layers.length === 1 && s.layers[0] === 5 && wz.some((z) => z.color === 5)), 'wide boxes and zones are gray');
+    assert.equal(wide.reduce((a, s) => a + s.layers.length, 0), wz.reduce((a, z) => a + z.count, 0), `level ${n} wide boxes match wide zones`);
+    assert.ok(wide.every((s) => s.layers.every((c) => c === 5)) && wz.every((z) => z.color === 5), 'wide boxes and zones are gray');
+    assert.equal(l.areas.filter((a) => a.color === 5).length, wz.length ? 1 : 0, 'wide zones share one area');
     if (n < 3) assert.equal(wide.length, 0);
   }
   assert.ok(generateLevel(20).stacks.some((s) => s.wide), 'later levels have wide boxes');
@@ -1972,6 +1973,15 @@ console.log('all tests passed');
   forkDown(g);
   assert.equal(g.carried, null, 'put down on the floor');
   assert.equal(g.stacks[0].pen[0].wide, true);
+
+  const two = newGame(1);
+  const z2 = { x: 10, y: 5, color: 5, count: 2, wide: true, hx: 0.6, hy: 1.1, a: 0 };
+  two.zones = [z2];
+  two.stacks = [{ x: 10, y: 5, layers: [5, 5], wide: true, a: 0 }].map(wonkyStack);
+  assert.ok(zoneDone(two, z2) && two.stacks[0].pen.every((p) => p.wide), 'two stacked wide boxes fill a wide zone of two');
+  assert.equal(maxScore(two), 400);
+  two.stacks = [{ x: 10, y: 5, layers: [5], wide: true, a: 0 }].map(wonkyStack);
+  assert.ok(!zoneDone(two, z2), 'one is not enough');
 
   const zones = [{ x: 10, y: 5, color: 5, count: 1 }, { x: 10, y: 5, color: 5, count: 1, wide: true, hx: 0.6, hy: 1.1, a: 0 }];
   const z = newGame(1);
@@ -2003,5 +2013,15 @@ console.log('all tests passed');
   driveUntil(h, 13.9, 12.4);
   forkDown(h);
   assert.deepEqual(h.carried, [5], 'a wide box cannot be put down on another box');
+  const w = setup(5);
+  w.stacks.push(...[{ x: 14, y: 5, layers: [5], wide: true }].map(wonkyStack));
+  driveUntil(w, 10, 8);
+  forkUp(w);
+  driveUntil(w, 13.9, 12.4);
+  for (let i = 0; i < 4 && w.carried; i++) forkDown(w);
+  assert.equal(w.carried, null, 'a wide box is put down on another wide box');
+  assert.equal(w.stacks.length, 1);
+  assert.deepEqual(w.stacks[0].layers, [5, 5]);
+  assert.ok(w.stacks[0].pen.every((p) => p.wide));
   console.log('wide boxes ok');
 }

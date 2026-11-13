@@ -170,56 +170,78 @@ function markOpenTops(n, attempt, seed, stacks, zones) {
   }
 }
 
-// From level 3 a few gray boxes (`WIDE_COLOR`) are wide: one box of a colour is taken out of its stack together with one of that colour's
-// single-box zones, and a gray 1×2 box is set down alone in a bay of its own instead (`stack.wide`, `a` = its heading: the long side runs
-// along local y), with a gray 1×2 zone
-// (`zone.wide`, world half extents `hx`/`hy`, `a`) in a drop-off area of its own. A wide box only ever stands alone and only fits a wide zone.
+// From level 3 a few gray boxes (`WIDE_COLOR`) are wide: some of the normal drop points (zone + its boxes of that colour) are swapped for gray
+// 1×2 drop points (`zone.wide`, world half extents `hx`/`hy`, `a`) holding the same number of wide boxes (`stack.wide`, `a` = heading: the
+// long side runs along local y). All wide zones share one gray drop-off area laid out on a grid, like the zones of any colour; the wide boxes
+// stand in stacks of 1-3 (all wide) in bays of their own. A wide box only ever stacks on wide boxes and only fits a wide zone.
 // Uses its own generator and leaves the layout alone when there is no clear spot.
-const WIDE_ZONE_LONG = 1.1, WIDE_ZONE_SHORT = 0.6;
+const WIDE_ZONE_LONG = 1.1, WIDE_ZONE_SHORT = 0.6, WIDE_MAX_COUNT = 3;
 
-function tryWide(lvl, rnd) {
+function tryWide(lvl, rnd, want) {
   const { w, h, walls, doors, start } = lvl;
-  const picks = [];
-  lvl.stacks.forEach((st, si) => st.layers.forEach((c, i) => {
-    const open = lvl.stacks.filter((q) => q.open && q.layers[q.layers.length - 1] === c).length, zs = lvl.zones.filter((q) => q.color === c).length;
-    if (!st.wide && !(st.open && i === st.layers.length - 1) && open < zs && lvl.zones.some((z) => z.count === 1 && z.color === c)) picks.push({ si, i, c });
-  }));
-  if (!picks.length) return null;
-  const { si, i, c } = picks[Math.floor(rnd() * picks.length)];
-  const z = lvl.zones.find((q) => q.count === 1 && q.color === c);
-  const sa = rnd() < 0.5 ? 0 : Math.PI / 2, za = rnd() < 0.5 ? 0 : Math.PI / 2;
+  const stacks = lvl.stacks.map((q) => ({ ...q, layers: [...q.layers] }));
+  const picked = [];
+  let zones = lvl.zones.map((z) => ({ ...z }));
+  for (let t = 0; t < want; t++) {
+    const cands = zones.filter((z) => !z.wide && z.count <= WIDE_MAX_COUNT && !picked.includes(z));
+    if (!cands.length) break;
+    const z = cands[Math.floor(rnd() * cands.length)], c = z.color;
+    const open = stacks.filter((q) => q.open && q.layers[q.layers.length - 1] === c).length;
+    const spots = [];
+    stacks.forEach((q, si) => q.layers.forEach((col, i) => { if (col === c && !(q.open && i === q.layers.length - 1)) spots.push({ si, i }); }));
+    if (open >= zones.filter((q) => q.color === c && !picked.includes(q)).length || spots.length < z.count) continue;
+    const take = [];
+    while (take.length < z.count) take.push(spots.splice(Math.floor(rnd() * spots.length), 1)[0]);
+    take.sort((a, b) => b.i - a.i).forEach(({ si, i }) => stacks[si].layers.splice(i, 1));
+    picked.push(z);
+  }
+  if (!picked.length) return null;
+  const za = rnd() < 0.5 ? 0 : Math.PI / 2, sa = rnd() < 0.5 ? 0 : Math.PI / 2;
   const ex = za ? WIDE_ZONE_LONG : WIDE_ZONE_SHORT, ey = za ? WIDE_ZONE_SHORT : WIDE_ZONE_LONG;
+  const cols = Math.min(picked.length, 3), rows = Math.ceil(picked.length / cols), px = 2 * ex + 0.4, py = 2 * ey + 0.4;
   const free = (r, areas, bays) => pointRectDist(start.x, start.y, r) >= 3.2 && !walls.some((o) => rectGap(o, r) < 1.5) &&
     !areas.some((o) => rectGap(o, r) < 1.5) && !bays.some((o) => rectGap(o, r) < 1.5) && !doors.some((o) => rectGap(o, r) < 1.0);
-  let zr = null;
-  for (let t = 0; t < 300 && !zr; t++) {
-    const x = 0.5 + ex + rnd() * (w - 1 - 2 * ex), y = 0.5 + ey + rnd() * (h - 1 - 2 * ey);
-    const r = { x: x - ex, y: y - ey, w: 2 * ex, h: 2 * ey };
-    if (free(r, lvl.areas, lvl.bays)) zr = r;
+  const keep = (ar) => zones.some((q) => !picked.includes(q) && q.color === ar.color && q.x >= ar.x && q.x <= ar.x + ar.w && q.y >= ar.y && q.y <= ar.y + ar.h);
+  const oldAreas = lvl.areas.filter((ar) => keep(ar));
+  const aw = (cols - 1) * px + 2 * ex, ah = (rows - 1) * py + 2 * ey;
+  let area = null;
+  for (let t = 0; t < 300 && !area; t++) {
+    const r = { x: 0.5 + rnd() * (w - 1 - aw), y: 0.5 + rnd() * (h - 1 - ah), w: aw, h: ah };
+    if (free(r, oldAreas, lvl.bays)) area = r;
   }
-  if (!zr) return null;
-  const zones = lvl.zones.map((q) => (q === z ? { ...q, color: WIDE_COLOR, x: zr.x + ex, y: zr.y + ey, wide: true, hx: ex, hy: ey, a: za } : q));
-  const inArea = (q, ar) => q.color === ar.color && q.x - (q.hx ?? 0.6) >= ar.x - 1e-9 && q.x + (q.hx ?? 0.6) <= ar.x + ar.w + 1e-9 &&
-    q.y - (q.hy ?? 0.6) >= ar.y - 1e-9 && q.y + (q.hy ?? 0.6) <= ar.y + ar.h + 1e-9;
-  const areas = [...lvl.areas.filter((ar) => ar.color !== c || zones.some((q) => inArea(q, ar))), { color: WIDE_COLOR, ...zr }];
-  for (let t = 0; t < 300; t++) {
-    const br = { x: 1.3 + rnd() * (w - 2.6 - 2), y: 1.3 + rnd() * (h - 2.6 - 2), w: 2, h: 2 };
-    if (!free(br, areas, lvl.bays)) continue;
-    const stacks = lvl.stacks.flatMap((q, k) => (k !== si ? [q] : q.layers.length === 1 ? [] : [{ ...q, layers: q.layers.filter((_, j) => j !== i) }]));
-    stacks.push({ x: br.x + 1, y: br.y + 1, layers: [WIDE_COLOR], wide: true, a: sa });
-    const inBay = (b) => stacks.some((q) => q.x > b.x && q.x < b.x + b.w && q.y > b.y && q.y < b.y + b.h);
-    const cand = { ...lvl, zones, areas, bays: [...lvl.bays.filter((b) => inBay(b)), br], stacks };
-    return isReachable(cand) ? cand : null;
+  if (!area) return null;
+  const wz = picked.map((z, k) => ({ ...z, color: WIDE_COLOR, x: area.x + ex + (k % cols) * px, y: area.y + ey + Math.floor(k / cols) * py, wide: true, hx: ex, hy: ey, a: za }));
+  zones = [...zones.filter((z) => !picked.includes(z)), ...wz];
+  const areas = [...oldAreas, { color: WIDE_COLOR, ...area }];
+  let left = picked.reduce((n, z) => n + z.count, 0);
+  const bays = [...lvl.bays];
+  const wide = [];
+  while (left > 0) {
+    const k = 1 + Math.floor(rnd() * Math.min(3, left));
+    let br = null;
+    for (let t = 0; t < 300 && !br; t++) {
+      const r = { x: 1.3 + rnd() * (w - 2.6 - 2), y: 1.3 + rnd() * (h - 2.6 - 2), w: 2, h: 2 };
+      if (free(r, areas, bays)) br = r;
+    }
+    if (!br) return null;
+    bays.push(br);
+    wide.push({ x: br.x + 1, y: br.y + 1, layers: Array(k).fill(WIDE_COLOR), wide: true, a: sa });
+    left -= k;
   }
-  return null;
+  const all = [...stacks.filter((q) => q.layers.length), ...wide];
+  const inBay = (b) => all.some((q) => q.x > b.x && q.x < b.x + b.w && q.y > b.y && q.y < b.y + b.h);
+  const cand = { ...lvl, zones, areas, bays: bays.filter(inBay), stacks: all };
+  return isReachable(cand) ? cand : null;
 }
 
 function markWide(n, attempt, seed, lvl) {
   if (n < 3) return lvl;
   const rnd = mulberry32(n * 7727 + attempt * 13 + 11 + Math.imul(seed, 69069));
-  let cur = lvl;
-  for (let k = Math.min(3, 1 + Math.floor((n - 3) / 4)); k > 0; k--) cur = tryWide(cur, rnd) || cur;
-  return cur;
+  for (let want = Math.min(4, 1 + Math.floor((n - 3) / 3)); want > 0; want--) {
+    const r = tryWide(lvl, rnd, want);
+    if (r) return r;
+  }
+  return lvl;
 }
 
 function tryGenerate(n, attempt, seed = 0) {

@@ -29,8 +29,8 @@ const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
 
 // `deco` is the box's decal kind; it lives in the pen entry so it travels with the box.
 // `open` marks an open-top box: nothing can be stacked on it, so it only ever sits on top of a stack.
-// `wide` marks a wide box (1×2 tiles, long side across the forks): it always sits alone on the floor, and only forks that have both
-// tines under it can lift it.
+// `wide` marks a wide box (1×2 tiles, long side across the forks): only forks that have both tines under it can lift it, and it only
+// stacks on (and under) other wide boxes.
 const newPen = (col = 0, seed = 0, open = false, wide = false) => ({ crash: 0, sq: 0, deco: open ? 4 : boxDecalKind(col, seed), ...(open && { open: true }), ...(wide && { wide: true }) });
 export const topOpen = (pens) => !!pens?.[pens.length - 1]?.open;
 export const wideBox = (pens) => !!pens?.[0]?.wide;
@@ -249,7 +249,7 @@ function settle(g, S) {
     const rel = offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y }));
     // Landing within stackable reach of another stack's top box, the fallen boxes come to rest on it.
     const under = g.stacks.find((t) => {
-      if (t === S || t.layers.length + layers.length > MAX_LAYERS || topOpen(t.pen) || wideBox(t.pen)) return false;
+      if (t === S || t.layers.length + layers.length > MAX_LAYERS || topOpen(t.pen) || wideBox(t.pen) !== wideBox(pen)) return false;
       const c = boxPos(t, t.layers.length - 1);
       return Math.abs(c.x - nx) < 0.55 && Math.abs(c.y - ny) < 0.55;
     });
@@ -359,7 +359,7 @@ export function score(g) {
 const WONK_ROT = 15 * Math.PI / 180, WONK_OFF = 0.06;
 export function wonkyStack(s) {
   const base = Math.floor(s.x * 31 + s.y * 17);
-  if (s.wide) return { x: s.x, y: s.y, layers: [...s.layers], rots: [s.a || 0], pen: [newPen(s.layers[0], base, false, true)], offs: [{ x: 0, y: 0 }], a: s.a || 0 };
+  if (s.wide) return { x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => s.a || 0), pen: s.layers.map((c, i) => newPen(c, base + i, false, true)), offs: s.layers.map(() => ({ x: 0, y: 0 })), a: s.a || 0 };
   const r = (i, k) => { const t = Math.sin((base + i * 7.13 + k * 3.7) * 12.9898) * 43758.5453; return (t - Math.floor(t)) * 2 - 1; };
   const rots = s.layers.map((_, i) => r(i, 1) * WONK_ROT);
   const offs = s.layers.map((_, i) => (i === 0 ? { x: 0, y: 0 } : { x: r(i, 2) * WONK_OFF, y: r(i, 3) * WONK_OFF }));
@@ -959,7 +959,7 @@ export function forkDown(g) {
   const cnt = S ? S.layers.length : 0;
   const cp = toWorld(g.fl, FL.carryX, 0);
   const n = cnt + (S ? stackZ(g, S) : zAt(g, cp.x, cp.y)); // resting height: on the belt that is one level up
-  const minH = cnt + g.carried.length <= MAX_LAYERS && !(S && (topOpen(S.pen) || wideBox(S.pen) || wideBox(g.carriedPen))) ? n : n + 1;
+  const minH = cnt + g.carried.length <= MAX_LAYERS && !(S && (topOpen(S.pen) || wideBox(S.pen) !== wideBox(g.carriedPen))) ? n : n + 1;
   if (g.H > minH) g.H = Math.max(minH, g.H - 1);
   // Reaching the resting height puts the boxes down.
   if (g.H === n && minH === n) {
