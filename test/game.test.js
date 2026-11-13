@@ -17,7 +17,7 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ, wonkyStack } from '../js/game.js';
 
 const NONE = {};
 const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
@@ -1894,4 +1894,49 @@ console.log('all tests passed');
   for (let i = 0; i < 20; i++) pos = chaseDrift(h, pos, 5, 0.1);
   assert.ok(pos[0] - behind[0] > 1, 'a sustained reversal swings the camera to the front');
   console.log('chase tuning ok');
+}
+
+// Open-top boxes: only on top of a stack, never more than stacks, nothing can be put on them.
+{
+  let seen = 0;
+  for (let n = 1; n <= 40; n++) {
+    const l = generateLevel(n);
+    const open = l.stacks.filter((s) => s.open);
+    seen += open.length;
+    assert.ok(open.length <= l.stacks.length);
+    [0, 1, 2, 3, 4].forEach((c) => assert.ok(open.filter((s) => s.layers[s.layers.length - 1] === c).length <= l.zones.filter((z) => z.color === c).length, `level ${n} open boxes fit zones`));
+  }
+  assert.ok(seen > 0, 'some levels have open-top boxes');
+  assert.ok(generateLevel(1).stacks.every((s) => !s.open), 'none on level 1');
+
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0] }, { x: 14, y: 5, layers: [1, 2], open: true }].map(wonkyStack);
+  assert.equal(g.stacks[1].pen[1].open, true);
+  assert.equal(g.stacks[1].pen[1].deco, 4, 'do-not-stack decal');
+  assert.ok(!g.stacks[1].pen[0].open);
+  const f = g.fl;
+  f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
+  driveUntil(g, 10, 8);
+  forkUp(g); forkUp(g); forkUp(g);
+  driveUntil(g, 13.9, 12.4);
+  forkDown(g); forkDown(g); forkDown(g);
+  assert.deepEqual(g.carried, [0], 'cannot be put down on an open box');
+  assert.deepEqual(g.stacks[0].layers, [1, 2]);
+  assert.equal(g.H, 3);
+  console.log('open-top boxes ok');
+}
+
+// Endless: open-top boxes stay under a quarter of each colour.
+{
+  const g = newEndless(7);
+  for (let i = 0; i < 4000; i++) { update(g, {}, 0.05); stepEndless(g, 0.05); }
+  const e = g.endless;
+  let open = 0;
+  for (let c = 0; c < 5; c++) {
+    assert.ok(e[`opened${c}`] / e[`spawned${c}`] < 0.25, `colour ${c} share`);
+    open += e[`opened${c}`];
+  }
+  assert.ok(open > 0, 'endless spawns open boxes');
+  console.log('endless open-top ok');
 }

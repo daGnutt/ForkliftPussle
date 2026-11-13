@@ -66,6 +66,7 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
     } else addPrism(faces, cam, x, y, r, 0.5, 0.5, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
     const first = faces.length;
     addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? pens[i]?.deco ?? boxDecalKind(col, i) : 0);
+    if (pens[i]?.open) addPrism(faces, cam, x, y, r, 0.4, 0.4, z + PAL + BOX_H, z + PAL + BOX_H + 0.01, '#1b1b1b', false, 0, 0, false, true);
     const dent = pens[i]?.dent;
     if (dent) for (let k = first; k < faces.length; k++) { faces[k].pen = pens[i]; faces[k].dseed = i + Math.round(col * 7); faces[k].box = { x, y, r }; }
   });

@@ -95,8 +95,13 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
       ctx.lineWidth = 0.05;
       ctx.strokeRect(-h, -h, size, size);
       // tape strip across the lid
-      ctx.fillStyle = 'rgba(255,255,255,0.18)';
-      ctx.fillRect(-0.07, -h, 0.14, size);
+      if (pens[i]?.open) {
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(-h + 0.1, -h + 0.1, size - 0.2, size - 0.2);
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(-0.07, -h, 0.14, size);
+      }
       if (pens[i]?.dent) {
         for (const poly of topShapes(pens[i], i + Math.round(layers[i] * 7))) {
           ctx.beginPath();

@@ -234,7 +234,7 @@ export function overheadDecals(g) {
   return res;
 }
 
-// Box decal for the box of colour `col` at stack index `i`: 0 = none, 1 = "this side up" arrows, 2 = fragile glass, 3 = barcode label.
+// Box decal for the box of colour `col` at stack index `i`: 0 = none, 1 = "this side up" arrows, 2 = fragile glass, 3 = barcode label, 4 = "do not stack" sign (always on open-top boxes).
 export function boxDecalKind(col, i) {
   const r = hash(col, i, 51);
   return r < 0.25 ? 0 : r < 0.5 ? 1 : r < 0.75 ? 2 : 3;
@@ -265,6 +265,17 @@ export function boxDecalShapes(kind) {
       out.push({ pts: [[u, -0.2], [u + w, -0.2], [u + w, 0.18], [u, 0.18]], fill: INK });
     });
     return out;
+  }
+  if (kind === 4) {
+    const circle = (r, fill) => ({ pts: Array.from({ length: 20 }, (_, k) => [Math.cos((k / 20) * Math.PI * 2) * r, Math.sin((k / 20) * Math.PI * 2) * r]), fill });
+    const RED = 'rgba(198,40,40,0.95)';
+    return [
+      { pts: [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]], fill: 'rgba(245,245,245,0.95)' },
+      circle(0.46, RED), circle(0.34, 'rgba(245,245,245,0.98)'),
+      { pts: [[-0.17, -0.2], [0.17, -0.2], [0.17, -0.02], [-0.17, -0.02]], fill: INK },
+      { pts: [[-0.17, 0.02], [0.17, 0.02], [0.17, 0.2], [-0.17, 0.2]], fill: INK },
+      { pts: [[-0.3, 0.2], [-0.2, 0.3], [0.3, -0.2], [0.2, -0.3]], fill: RED },
+    ];
   }
   return [];
 }

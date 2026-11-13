@@ -8,6 +8,7 @@ import { gameFromLayout, liveTrucks, wonkyStack, solidPolys, zoneDone, zonePoint
 // of 4 boxes) closes its gate once no forklift is inside, drives off with its load and is replaced. An incoming truck that is
 // unloaded closes its gate and drives off; when a new one is due and every bay is still occupied, the game is over.
 export const ENDLESS_COLORS = 5;
+const OPEN_SHARE = 0.25, OPEN_CHANCE = 0.5; // open-top boxes: strictly less than this share of each colour; chance a stack top is tried
 export const ROWS = 3; // incoming-truck bays per side
 export const DOCKS = 2 * ROWS; // west and east, alternating from the south
 export const DOCK_COLOR = ENDLESS_COLORS; // beyond the box colours: the incoming trucks are grey
@@ -155,7 +156,7 @@ export function newEndless(seed = 0, hard = false) {
   const g = gameFromLayout(layout, 0, seed, hard);
   g.walls[0].draw = { x: XR, y: -WALL, w: XE + WALL - XR, h: WALL }; // the north border wall is drawn as a thin strip over the warehouse only, not the yards beside it
   for (const w of g.walls.slice(1, 4)) w.hidden = true; // south, west and east border walls: still solid, not drawn, so trucks do not clip through them
-  g.endless = { rs: (Math.random() * 4294967296) >>> 0, elapsed: 0, margin: MARGIN_START, arriveT: DOCK_ARRIVE_T, wBoxes: RATE_PRIOR * RATE_PRIOR_T, wBusy: RATE_PRIOR_T, waiting: 0, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, live: 0, over: false, bays, docks };
+  g.endless = { rs: (Math.random() * 4294967296) >>> 0, elapsed: 0, margin: MARGIN_START, arriveT: DOCK_ARRIVE_T, wBoxes: RATE_PRIOR * RATE_PRIOR_T, wBusy: RATE_PRIOR_T, waiting: 0, arrived: 0, unloaded: 0, delivered: 0, boxes: 0, points: 0, live: 0, over: false, ...Object.fromEntries(Array.from({ length: ENDLESS_COLORS }, (_, c) => [`spawned${c}`, 0]).concat(Array.from({ length: ENDLESS_COLORS }, (_, c) => [`opened${c}`, 0]))), bays, docks };
   g.layoutVersion = 0;
   for (const b of bays) {
     const r = bayRects(b.x0, 0);
@@ -314,7 +315,12 @@ function loadDock(g, d) {
     const n = 1 + Math.floor(rnd(e) * 3);
     const mixed = rnd(e) < mess, col = Math.floor(rnd(e) * ENDLESS_COLORS);
     const layers = Array.from({ length: n }, () => (mixed ? Math.floor(rnd(e) * ENDLESS_COLORS) : col));
-    const s = wonkyStack({ ...dockSlot(d, i, d.placed), layers });
+    // Open-top boxes stay below OPEN_SHARE of the boxes spawned so far in their colour.
+    const top = layers[n - 1];
+    for (const c of layers) e[`spawned${c}`]++;
+    const open = rnd(e) < OPEN_CHANCE && (e[`opened${top}`] + 1) / e[`spawned${top}`] < OPEN_SHARE;
+    if (open) e[`opened${top}`]++;
+    const s = wonkyStack({ ...dockSlot(d, i, d.placed), layers, open });
     s.leaving = true; // rides in on the truck, through the border
     d.cargo.push(s);
     g.stacks.push(s);

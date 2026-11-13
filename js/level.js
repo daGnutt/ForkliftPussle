@@ -155,6 +155,20 @@ export function isReachable(lvl) {
   return stacks.every(near) && zones.every(near);
 }
 
+// From level 2 some stacks get an open-top box (`stack.open`: its top box). One per stack at most, and never more of a colour than that
+// colour has zones, since each needs a stack of its own to end on. Uses its own generator so the layouts stay as they were.
+const OPEN_CHANCE = 0.25;
+
+function markOpenTops(n, attempt, seed, stacks, zones) {
+  if (n < 2) return;
+  const rnd = mulberry32(n * 31337 + attempt * 7 + 5 + Math.imul(seed, 40503));
+  const left = COLORS.map((_, c) => zones.filter((z) => z.color === c).length);
+  for (const st of stacks) {
+    const c = st.layers[st.layers.length - 1];
+    if (rnd() < OPEN_CHANCE && left[c] > 0) { st.open = true; left[c]--; }
+  }
+}
+
 function tryGenerate(n, attempt, seed = 0) {
   const rnd = mulberry32(n * 7919 + attempt * 104729 + 17 + Math.imul(seed, 2654435761));
   const { w, h, maxH, colors, total, dividers } = levelParams(n);
@@ -265,6 +279,8 @@ function tryGenerate(n, attempt, seed = 0) {
       st.y = bay.y + SP / 2 + Math.floor(j / cols) * SP;
     });
   }
+
+  markOpenTops(n, attempt, seed, stacks, zones);
 
   const lvl = { n, w, h, walls, doors, zones, areas, bays, stacks, start, charger };
   return isReachable(lvl) ? lvl : null;

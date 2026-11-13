@@ -26,6 +26,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Stack** | 1–5 boxes on top of each other on the floor | `g.stacks` |
 | **Layer** | One box's position/colour in a stack (bottom → top) | `layers` |
 | **Top box** | The box drawn in its colour; lower ones show as coloured numbers | `drawStack` |
+| **Open-top box** | Box with an open lid and a "do not stack" sign; nothing can be put on it, so it is only ever the top box (`pen.open`, `stack.open` in layouts) | `topOpen`, `newPen`, `boxDecalShapes(4)` |
 | **Carried stack** | The boxes currently on the forks | `g.carried` |
 | **Wonky / crooked stack** | Boxes turned/offset from each other | `wonkyStack`, `rots`, `offs` |
 | **Colour** | Box/zone colour (index into the palette) | `COLORS`, `COLOR_NAMES` |

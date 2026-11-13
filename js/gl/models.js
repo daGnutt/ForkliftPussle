@@ -32,8 +32,11 @@ function addBox(m, tm, x, y, r, z, col, pen, level) {
   const body = dented ? shade(base, 0.82) : base;
   const z0 = z + PAL, z1 = z0 + BOX_H;
   m.cuboid(x, y, r, 0.5, 0.5, z0, z1, body, { bottom: false });
-  m.cuboid(x, y, r, 0.46, 0.46, z1, z1 + 0.012, shade(mix(body, WHITE, 0.18), 1), { bottom: false });
-  m.cuboid(x, y, r, 0.07, 0.505, z0, z1 + 0.018, mix(body, WHITE, 0.45), { bottom: false });
+  if (pen?.open) m.cuboid(x, y, r, 0.4, 0.4, z1, z1 + 0.012, shade(body, 0.2), { bottom: false });
+  else {
+    m.cuboid(x, y, r, 0.46, 0.46, z1, z1 + 0.012, shade(mix(body, WHITE, 0.18), 1), { bottom: false });
+    m.cuboid(x, y, r, 0.07, 0.505, z0, z1 + 0.018, mix(body, WHITE, 0.45), { bottom: false });
+  }
   const top = z1 + 0.02;
   const place = (u, v) => [x + u * co - v * si, y + u * si + v * co];
   if (dented) for (const poly of topShapes(pen, level + Math.round(col * 7))) tm.poly(poly.map(([u, v]) => place(u, v)), top, [...parseColor(DENT_FILL).slice(0, 3), 0.6]);
