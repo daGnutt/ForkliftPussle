@@ -1,6 +1,7 @@
 import { pointRectDist } from './geom.js';
 
-export const COLORS = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa'];
+export const COLORS = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#9e9e9e'];
+export const WIDE_COLOR = 5; // gray: only wide boxes and their zones; the generator's colours are 0..4
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -169,8 +170,9 @@ function markOpenTops(n, attempt, seed, stacks, zones) {
   }
 }
 
-// From level 3 a few boxes become wide: one box of a colour is taken out of its stack and set down alone in a bay of its own as a 1×2 box
-// (`stack.wide`, `a` = its heading: the long side runs along local y), and one of that colour's single-box zones turns into a 1×2 zone
+// From level 3 a few gray boxes (`WIDE_COLOR`) are wide: one box of a colour is taken out of its stack together with one of that colour's
+// single-box zones, and a gray 1×2 box is set down alone in a bay of its own instead (`stack.wide`, `a` = its heading: the long side runs
+// along local y), with a gray 1×2 zone
 // (`zone.wide`, world half extents `hx`/`hy`, `a`) in a drop-off area of its own. A wide box only ever stands alone and only fits a wide zone.
 // Uses its own generator and leaves the layout alone when there is no clear spot.
 const WIDE_ZONE_LONG = 1.1, WIDE_ZONE_SHORT = 0.6;
@@ -179,11 +181,12 @@ function tryWide(lvl, rnd) {
   const { w, h, walls, doors, start } = lvl;
   const picks = [];
   lvl.stacks.forEach((st, si) => st.layers.forEach((c, i) => {
-    if (!st.wide && !(st.open && i === st.layers.length - 1) && lvl.zones.some((z) => z.count === 1 && !z.wide && z.color === c)) picks.push({ si, i, c });
+    const open = lvl.stacks.filter((q) => q.open && q.layers[q.layers.length - 1] === c).length, zs = lvl.zones.filter((q) => q.color === c).length;
+    if (!st.wide && !(st.open && i === st.layers.length - 1) && open < zs && lvl.zones.some((z) => z.count === 1 && z.color === c)) picks.push({ si, i, c });
   }));
   if (!picks.length) return null;
   const { si, i, c } = picks[Math.floor(rnd() * picks.length)];
-  const z = lvl.zones.find((q) => q.count === 1 && !q.wide && q.color === c);
+  const z = lvl.zones.find((q) => q.count === 1 && q.color === c);
   const sa = rnd() < 0.5 ? 0 : Math.PI / 2, za = rnd() < 0.5 ? 0 : Math.PI / 2;
   const ex = za ? WIDE_ZONE_LONG : WIDE_ZONE_SHORT, ey = za ? WIDE_ZONE_SHORT : WIDE_ZONE_LONG;
   const free = (r, areas, bays) => pointRectDist(start.x, start.y, r) >= 3.2 && !walls.some((o) => rectGap(o, r) < 1.5) &&
@@ -195,15 +198,15 @@ function tryWide(lvl, rnd) {
     if (free(r, lvl.areas, lvl.bays)) zr = r;
   }
   if (!zr) return null;
-  const zones = lvl.zones.map((q) => (q === z ? { ...q, x: zr.x + ex, y: zr.y + ey, wide: true, hx: ex, hy: ey, a: za } : q));
+  const zones = lvl.zones.map((q) => (q === z ? { ...q, color: WIDE_COLOR, x: zr.x + ex, y: zr.y + ey, wide: true, hx: ex, hy: ey, a: za } : q));
   const inArea = (q, ar) => q.color === ar.color && q.x - (q.hx ?? 0.6) >= ar.x - 1e-9 && q.x + (q.hx ?? 0.6) <= ar.x + ar.w + 1e-9 &&
     q.y - (q.hy ?? 0.6) >= ar.y - 1e-9 && q.y + (q.hy ?? 0.6) <= ar.y + ar.h + 1e-9;
-  const areas = [...lvl.areas.filter((ar) => ar.color !== c || zones.some((q) => inArea(q, ar))), { color: c, ...zr }];
+  const areas = [...lvl.areas.filter((ar) => ar.color !== c || zones.some((q) => inArea(q, ar))), { color: WIDE_COLOR, ...zr }];
   for (let t = 0; t < 300; t++) {
     const br = { x: 1.3 + rnd() * (w - 2.6 - 2), y: 1.3 + rnd() * (h - 2.6 - 2), w: 2, h: 2 };
     if (!free(br, areas, lvl.bays)) continue;
     const stacks = lvl.stacks.flatMap((q, k) => (k !== si ? [q] : q.layers.length === 1 ? [] : [{ ...q, layers: q.layers.filter((_, j) => j !== i) }]));
-    stacks.push({ x: br.x + 1, y: br.y + 1, layers: [c], wide: true, a: sa });
+    stacks.push({ x: br.x + 1, y: br.y + 1, layers: [WIDE_COLOR], wide: true, a: sa });
     const inBay = (b) => stacks.some((q) => q.x > b.x && q.x < b.x + b.w && q.y > b.y && q.y < b.y + b.h);
     const cand = { ...lvl, zones, areas, bays: [...lvl.bays.filter((b) => inBay(b)), br], stacks };
     return isReachable(cand) ? cand : null;
