@@ -17,22 +17,22 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zonePoints, zoneLabelPos, stackZ, wonkyStack } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack } from '../js/game.js';
 
 const NONE = {};
 const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
 const run = (g, inp, secs) => { for (let i = 0; i < secs * 120; i++) update(g, inp, 1 / 120); };
 
-// Every colour's zones sit together in one area, clear of other areas.
+// Every zone sits inside a drop-off area of its colour (wide zones have an area of their own), clear of other areas.
 for (let n = 1; n <= 40; n++) {
   const l = generateLevel(n);
-  for (const a of l.areas) {
-    for (const z of l.zones.filter((z) => z.color === a.color)) {
-      assert.ok(z.x - 0.6 >= a.x - 1e-9 && z.x + 0.6 <= a.x + a.w + 1e-9, `level ${n} zone x in area`);
-      assert.ok(z.y - 0.6 >= a.y - 1e-9 && z.y + 0.6 <= a.y + a.h + 1e-9, `level ${n} zone y in area`);
-    }
+  for (const z of l.zones) {
+    const ex = z.hx ?? 0.6, ey = z.hy ?? 0.6;
+    assert.ok(l.areas.some((a) => a.color === z.color && z.x - ex >= a.x - 1e-9 && z.x + ex <= a.x + a.w + 1e-9 &&
+      z.y - ey >= a.y - 1e-9 && z.y + ey <= a.y + a.h + 1e-9), `level ${n} zone in an area of its colour`);
   }
-  assert.equal(new Set(l.zones.map((z) => z.color)).size, l.areas.length, `level ${n} one area per colour`);
+  assert.equal(new Set(l.zones.map((z) => z.color)).size, new Set(l.areas.map((a) => a.color)).size, `level ${n} area per colour`);
+  for (const a of l.areas) assert.ok(l.zones.some((z) => z.color === a.color), `level ${n} no empty area`);
 }
 
 // Generator: counts match, nothing overlaps walls, deterministic.
@@ -1939,4 +1939,69 @@ console.log('all tests passed');
   }
   assert.ok(open > 0, 'endless spawns open boxes');
   console.log('endless open-top ok');
+}
+
+// Wide boxes (1×2): need both tines under them, can't be stacked, only fit wide zones.
+{
+  for (let n = 1; n <= 40; n++) {
+    const l = generateLevel(n);
+    const wide = l.stacks.filter((s) => s.wide), wz = l.zones.filter((z) => z.wide);
+    assert.equal(wide.length, wz.length, `level ${n} wide boxes match wide zones`);
+    assert.ok(wide.every((s) => s.layers.length === 1 && wz.some((z) => z.color === s.layers[0])));
+    if (n < 3) assert.equal(wide.length, 0);
+  }
+  assert.ok(generateLevel(20).stacks.some((s) => s.wide), 'later levels have wide boxes');
+
+  const setup = (y) => {
+    const g = newGame(1);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [2], wide: true }].map(wonkyStack);
+    const f = g.fl;
+    f.x = 6; f.y = y; f.a = 0; f.speed = 0;
+    return g;
+  };
+  assert.equal(setup(5).stacks[0].pen[0].wide, true);
+  assert.equal(maxScore(setup(5)), 200, 'a wide box is worth two');
+
+  const g = setup(5);
+  driveUntil(g, 10, 8);
+  assert.equal(stackInZone(g), g.stacks[0]);
+  forkUp(g);
+  assert.deepEqual(g.carried, [2], 'both tines under: lifted');
+  assert.equal(g.stacks.length, 0);
+  forkDown(g);
+  assert.equal(g.carried, null, 'put down on the floor');
+  assert.equal(g.stacks[0].pen[0].wide, true);
+
+  const zones = [{ x: 10, y: 5, color: 2, count: 1 }, { x: 10, y: 5, color: 2, count: 1, wide: true, hx: 0.6, hy: 1.1, a: 0 }];
+  const z = newGame(1);
+  z.zones = zones;
+  z.stacks = [{ x: 10, y: 5, layers: [2], wide: true, a: 0 }].map(wonkyStack);
+  assert.ok(!zoneDone(z, zones[0]) && zoneDone(z, zones[1]), 'a wide box only fills a wide zone');
+  z.stacks = [{ x: 10, y: 5, layers: [2], wide: true, a: Math.PI / 2 }].map(wonkyStack);
+  assert.ok(!zoneDone(z, zones[1]), 'and only lined up with it');
+  z.stacks = [{ x: 10, y: 5, layers: [2] }].map(wonkyStack);
+  assert.ok(zoneDone(z, zones[0]) && !zoneDone(z, zones[1]), 'a normal box never fills a wide zone');
+
+  const off = setup(5.9);
+  driveUntil(off, 10, 8);
+  assert.equal(stackInZone(off), null, 'only one tine under it: not found');
+  forkUp(off);
+  assert.equal(off.carried, null);
+
+  const t2 = setup(5);
+  t2.fl.a = 0.6;
+  t2.fl.x = t2.stacks[0].x - Math.cos(0.6) * FL.carryX; t2.fl.y = t2.stacks[0].y - Math.sin(0.6) * FL.carryX;
+  assert.equal(stackInZone(t2), t2.stacks[0]);
+  assert.equal(forkUp(t2), 'blocked', 'a crooked approach does not get the tines under it');
+  assert.equal(t2.carried, null);
+
+  const h = setup(5);
+  h.stacks.push(...[{ x: 14, y: 5, layers: [1] }].map(wonkyStack));
+  driveUntil(h, 10, 8);
+  forkUp(h);
+  driveUntil(h, 13.9, 12.4);
+  forkDown(h);
+  assert.deepEqual(h.carried, [2], 'a wide box cannot be put down on another box');
+  console.log('wide boxes ok');
 }

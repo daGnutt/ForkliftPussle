@@ -58,14 +58,14 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
   layers.forEach((col, i) => {
     const x = x0 + (offs[i]?.x || 0), y = y0 + (offs[i]?.y || 0);
     const z = (level + i + (i >= from ? extra : 0)) * (BOX_H + PAL), r = rots[i] ?? 0;
-    const cr = Math.cos(r), sr = Math.sin(r);
+    const cr = Math.cos(r), sr = Math.sin(r), hy = pens[i]?.wide ? 1 : 0.5, slots = hy > 0.5 ? [-0.5, 0.5] : [0]; // a wide box rests on two pallets
     // as in the GL view: three runners along local x, five deck slats across them (perpendicular to the box tape)
     if (Math.hypot(x - cam.x, y - cam.y) < 14) {
-      for (const [off, hw] of PAL_RUNNERS) addPrism(faces, cam, x - sr * off, y + cr * off, r, 0.5, hw, z, z + PAL - 0.025, PALLET_COLOR, false, 0, 0, true, i > 0);
-      for (const u of PAL_SLATS) addPrism(faces, cam, x + cr * u, y + sr * u, r, 0.075, 0.5, z + PAL - 0.03, z + PAL, PALLET_COLOR, false, 0, 0, false, true);
-    } else addPrism(faces, cam, x, y, r, 0.5, 0.5, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
+      for (const sl of slots) for (const [o, hw] of PAL_RUNNERS) { const off = sl + o; addPrism(faces, cam, x - sr * off, y + cr * off, r, 0.5, hw, z, z + PAL - 0.025, PALLET_COLOR, false, 0, 0, true, i > 0); }
+      for (const u of PAL_SLATS) addPrism(faces, cam, x + cr * u, y + sr * u, r, 0.075, hy, z + PAL - 0.03, z + PAL, PALLET_COLOR, false, 0, 0, false, true);
+    } else addPrism(faces, cam, x, y, r, 0.5, hy, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
     const first = faces.length;
-    addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? boxDeco(pens[i], col, i) : 0);
+    addPrism(faces, cam, x, y, r, 0.5, hy, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? boxDeco(pens[i], col, i) : 0);
     if (pens[i]?.open) addPrism(faces, cam, x, y, r, 0.4, 0.4, z + PAL + BOX_H, z + PAL + BOX_H + 0.01, '#1b1b1b', false, 0, 0, false, true);
     const dent = pens[i]?.dent;
     if (dent) for (let k = first; k < faces.length; k++) { faces[k].pen = pens[i]; faces[k].dseed = i + Math.round(col * 7); faces[k].box = { x, y, r }; }

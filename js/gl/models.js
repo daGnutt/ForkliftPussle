@@ -25,17 +25,19 @@ const SLATS = [-0.42, -0.21, 0, 0.21, 0.42];
 // `dent`/`deco` decals go to the transparent mesh `tm` (drawn after, blended over the box top).
 function addBox(m, tm, x, y, r, z, col, pen, level) {
   const co = Math.cos(r), si = Math.sin(r), wood = parseColor(PALLET_COLOR);
-  for (const [off, hw] of RUNNERS) m.cuboid(x - si * off, y + co * off, r, 0.5, hw, z, z + PAL - 0.025, shade(wood, 0.82), { top: false, bottom: level === 0 });
-  SLATS.forEach((u, i) => m.cuboid(x + co * u, y + si * u, r, 0.075, 0.5, z + PAL - 0.03, z + PAL, shade(wood, i & 1 ? 1 : 0.92), { bottom: false }));
+  const hy = pen?.wide ? 1 : 0.5; // a wide box is 1 × 2 and rests on two pallets side by side
+  for (const sl of pen?.wide ? [-0.5, 0.5] : [0]) for (const [o, hw] of RUNNERS) { const off = sl + o; m.cuboid(x - si * off, y + co * off, r, 0.5, hw, z, z + PAL - 0.025, shade(wood, 0.82), { top: false, bottom: level === 0 }); }
+  SLATS.forEach((u, i) => m.cuboid(x + co * u, y + si * u, r, 0.075, hy, z + PAL - 0.03, z + PAL, shade(wood, i & 1 ? 1 : 0.92), { bottom: false }));
   const dented = !!pen?.dent;
   const base = parseColor(COLORS[col]);
   const body = dented ? shade(base, 0.82) : base;
   const z0 = z + PAL, z1 = z0 + BOX_H;
-  m.cuboid(x, y, r, 0.5, 0.5, z0, z1, body, { bottom: false });
+  m.cuboid(x, y, r, 0.5, hy, z0, z1, body, { bottom: false });
   if (pen?.open) m.cuboid(x, y, r, 0.4, 0.4, z1, z1 + 0.012, shade(body, 0.2), { bottom: false });
   else {
-    m.cuboid(x, y, r, 0.46, 0.46, z1, z1 + 0.012, shade(mix(body, WHITE, 0.18), 1), { bottom: false });
-    m.cuboid(x, y, r, 0.07, 0.505, z0, z1 + 0.018, mix(body, WHITE, 0.45), { bottom: false });
+    m.cuboid(x, y, r, 0.46, hy - 0.04, z1, z1 + 0.012, shade(mix(body, WHITE, 0.18), 1), { bottom: false });
+    m.cuboid(x, y, r, 0.07, hy + 0.005, z0, z1 + 0.018, mix(body, WHITE, 0.45), { bottom: false });
+    if (pen?.wide) m.cuboid(x, y, r, 0.505, 0.012, z0, z1 + 0.016, shade(body, 0.55), { bottom: false }); // seam between the two pallets
   }
   const top = z1 + 0.02;
   const place = (u, v) => [x + u * co - v * si, y + u * si + v * co];

@@ -169,6 +169,56 @@ function markOpenTops(n, attempt, seed, stacks, zones) {
   }
 }
 
+// From level 3 a few boxes become wide: one box of a colour is taken out of its stack and set down alone in a bay of its own as a 1×2 box
+// (`stack.wide`, `a` = its heading: the long side runs along local y), and one of that colour's single-box zones turns into a 1×2 zone
+// (`zone.wide`, world half extents `hx`/`hy`, `a`) in a drop-off area of its own. A wide box only ever stands alone and only fits a wide zone.
+// Uses its own generator and leaves the layout alone when there is no clear spot.
+const WIDE_ZONE_LONG = 1.1, WIDE_ZONE_SHORT = 0.6;
+
+function tryWide(lvl, rnd) {
+  const { w, h, walls, doors, start } = lvl;
+  const picks = [];
+  lvl.stacks.forEach((st, si) => st.layers.forEach((c, i) => {
+    if (!st.wide && !(st.open && i === st.layers.length - 1) && lvl.zones.some((z) => z.count === 1 && !z.wide && z.color === c)) picks.push({ si, i, c });
+  }));
+  if (!picks.length) return null;
+  const { si, i, c } = picks[Math.floor(rnd() * picks.length)];
+  const z = lvl.zones.find((q) => q.count === 1 && !q.wide && q.color === c);
+  const sa = rnd() < 0.5 ? 0 : Math.PI / 2, za = rnd() < 0.5 ? 0 : Math.PI / 2;
+  const ex = za ? WIDE_ZONE_LONG : WIDE_ZONE_SHORT, ey = za ? WIDE_ZONE_SHORT : WIDE_ZONE_LONG;
+  const free = (r, areas, bays) => pointRectDist(start.x, start.y, r) >= 3.2 && !walls.some((o) => rectGap(o, r) < 1.5) &&
+    !areas.some((o) => rectGap(o, r) < 1.5) && !bays.some((o) => rectGap(o, r) < 1.5) && !doors.some((o) => rectGap(o, r) < 1.0);
+  let zr = null;
+  for (let t = 0; t < 300 && !zr; t++) {
+    const x = 0.5 + ex + rnd() * (w - 1 - 2 * ex), y = 0.5 + ey + rnd() * (h - 1 - 2 * ey);
+    const r = { x: x - ex, y: y - ey, w: 2 * ex, h: 2 * ey };
+    if (free(r, lvl.areas, lvl.bays)) zr = r;
+  }
+  if (!zr) return null;
+  const zones = lvl.zones.map((q) => (q === z ? { ...q, x: zr.x + ex, y: zr.y + ey, wide: true, hx: ex, hy: ey, a: za } : q));
+  const inArea = (q, ar) => q.color === ar.color && q.x - (q.hx ?? 0.6) >= ar.x - 1e-9 && q.x + (q.hx ?? 0.6) <= ar.x + ar.w + 1e-9 &&
+    q.y - (q.hy ?? 0.6) >= ar.y - 1e-9 && q.y + (q.hy ?? 0.6) <= ar.y + ar.h + 1e-9;
+  const areas = [...lvl.areas.filter((ar) => ar.color !== c || zones.some((q) => inArea(q, ar))), { color: c, ...zr }];
+  for (let t = 0; t < 300; t++) {
+    const br = { x: 1.3 + rnd() * (w - 2.6 - 2), y: 1.3 + rnd() * (h - 2.6 - 2), w: 2, h: 2 };
+    if (!free(br, areas, lvl.bays)) continue;
+    const stacks = lvl.stacks.flatMap((q, k) => (k !== si ? [q] : q.layers.length === 1 ? [] : [{ ...q, layers: q.layers.filter((_, j) => j !== i) }]));
+    stacks.push({ x: br.x + 1, y: br.y + 1, layers: [c], wide: true, a: sa });
+    const inBay = (b) => stacks.some((q) => q.x > b.x && q.x < b.x + b.w && q.y > b.y && q.y < b.y + b.h);
+    const cand = { ...lvl, zones, areas, bays: [...lvl.bays.filter((b) => inBay(b)), br], stacks };
+    return isReachable(cand) ? cand : null;
+  }
+  return null;
+}
+
+function markWide(n, attempt, seed, lvl) {
+  if (n < 3) return lvl;
+  const rnd = mulberry32(n * 7727 + attempt * 13 + 11 + Math.imul(seed, 69069));
+  let cur = lvl;
+  for (let k = Math.min(3, 1 + Math.floor((n - 3) / 4)); k > 0; k--) cur = tryWide(cur, rnd) || cur;
+  return cur;
+}
+
 function tryGenerate(n, attempt, seed = 0) {
   const rnd = mulberry32(n * 7919 + attempt * 104729 + 17 + Math.imul(seed, 2654435761));
   const { w, h, maxH, colors, total, dividers } = levelParams(n);
@@ -282,8 +332,9 @@ function tryGenerate(n, attempt, seed = 0) {
 
   markOpenTops(n, attempt, seed, stacks, zones);
 
-  const lvl = { n, w, h, walls, doors, zones, areas, bays, stacks, start, charger };
-  return isReachable(lvl) ? lvl : null;
+  const base = { n, w, h, walls, doors, zones, areas, bays, stacks, start, charger };
+  if (!isReachable(base)) return null;
+  return markWide(n, attempt, seed, base);
 }
 
 // Integer seeds are used as-is; any other text is hashed. Empty/0 = the default layouts.

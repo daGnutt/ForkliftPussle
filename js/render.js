@@ -12,7 +12,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ } from './game.js';
+import { carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -76,31 +76,36 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
   };
   if (z0 > 0) {
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    at(x + (offs[0]?.x || 0) + 0.1, y + (offs[0]?.y || 0) + 0.1, 0, () => ctx.fillRect(-h, -h, size, size));
+    at(x + (offs[0]?.x || 0) + 0.1, y + (offs[0]?.y || 0) + 0.1, 0, () => ctx.fillRect(-h, -halfY(pens[0]), size, 2 * halfY(pens[0])));
   }
   const cx = x + (offs[n - 1]?.x || 0) + (z0 + n - 1) * PX, cy = y + (offs[n - 1]?.y || 0) + (z0 + n - 1) * PY;
   for (let i = 0; i < n; i++) {
     at(x + (offs[i]?.x || 0) + (z0 + i) * PX, y + (offs[i]?.y || 0) + (z0 + i) * PY, i, () => {
       const col = COLORS[layers[i]];
+      const hy = halfY(pens[i]), sh = 2 * hy; // a wide box is 1 × 2
       const a = rots[i] || 0, ca = Math.cos(a), sa = Math.sin(a);
       // extrusion towards the floor, expressed in the box's local frame
       const ex = -PX * ca - PY * sa, ey = PX * sa - PY * ca;
-      const edges = [[0, -1, -h, -h, h, -h], [1, 0, h, -h, h, h], [0, 1, h, h, -h, h], [-1, 0, -h, h, -h, -h]];
+      const edges = [[0, -1, -h, -hy, h, -hy], [1, 0, h, -hy, h, hy], [0, 1, h, hy, -h, hy], [-1, 0, -h, hy, -h, -hy]];
       extrudeSides(ctx, edges, ex, ey, a, col, 'rgba(0,0,0,0.65)', 0.04);
       ctx.fillStyle = col;
-      ctx.fillRect(-h, -h, size, size);
-      ctx.fillStyle = shadeGradient(ctx, -h, -h, h, h, 0.35, 0.18);
-      ctx.fillRect(-h, -h, size, size);
+      ctx.fillRect(-h, -hy, size, sh);
+      ctx.fillStyle = shadeGradient(ctx, -h, -hy, h, hy, 0.35, 0.18);
+      ctx.fillRect(-h, -hy, size, sh);
       ctx.strokeStyle = 'rgba(0,0,0,0.65)';
       ctx.lineWidth = 0.05;
-      ctx.strokeRect(-h, -h, size, size);
+      ctx.strokeRect(-h, -hy, size, sh);
       // tape strip across the lid
       if (pens[i]?.open) {
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.fillRect(-h + 0.1, -h + 0.1, size - 0.2, size - 0.2);
       } else {
         ctx.fillStyle = 'rgba(255,255,255,0.18)';
-        ctx.fillRect(-0.07, -h, 0.14, size);
+        ctx.fillRect(-0.07, -hy, 0.14, sh);
+      }
+      if (pens[i]?.wide) {
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(-h, -0.02, size, 0.04); // the seam between the two pallets
       }
       if (pens[i]?.dent) {
         for (const poly of topShapes(pens[i], i + Math.round(layers[i] * 7))) {
@@ -130,7 +135,8 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
   at(cx, cy, n - 1, () => {
     ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.lineWidth = 0.04;
-    ctx.strokeRect(-h + 0.12, -h + 0.12, size - 0.24, size - 0.24);
+    const hy = halfY(pens[n - 1]);
+    ctx.strokeRect(-h + 0.12, -hy + 0.12, size - 0.24, 2 * hy - 0.24);
     if (n > 1) {
       ctx.font = 'bold 0.34px sans-serif';
       ctx.textAlign = 'center';
@@ -342,7 +348,8 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   for (const z of g.zones) {
     ctx.fillStyle = COLORS[z.color];
     ctx.globalAlpha = zoneDone(g, z) ? 1 : 0.5;
-    ctx.fillRect((z.x - 0.6) * s, (z.y - 0.6) * s, 1.2 * s, 1.2 * s);
+    const e = zoneExt(z);
+    ctx.fillRect((z.x - e.x) * s, (z.y - e.y) * s, 2 * e.x * s, 2 * e.y * s);
   }
   ctx.globalAlpha = 1;
   ctx.fillStyle = '#9e9e9e';
@@ -509,16 +516,17 @@ function drawWorldObjects(ctx, g, vis) {
   }
 
   for (const z of g.zones) {
-    if (!seen(z.x - 0.6, z.y - 1.2, 1.2, 2.4)) continue;
+    const e = zoneExt(z);
+    if (!seen(z.x - e.x, z.y - e.y - 0.6, 2 * e.x, 2 * e.y + 1.2)) continue;
     const done = zoneDone(g, z);
     ctx.fillStyle = COLORS[z.color];
     ctx.globalAlpha = done ? 0.75 : 0.4;
-    ctx.fillRect(z.x - 0.6, z.y - 0.6, 1.2, 1.2);
+    ctx.fillRect(z.x - e.x, z.y - e.y, 2 * e.x, 2 * e.y);
     ctx.globalAlpha = 1;
     ctx.strokeStyle = COLORS[z.color];
     ctx.lineWidth = 0.1;
     ctx.setLineDash(done ? [] : [0.2, 0.15]);
-    ctx.strokeRect(z.x - 0.6, z.y - 0.6, 1.2, 1.2);
+    ctx.strokeRect(z.x - e.x, z.y - e.y, 2 * e.x, 2 * e.y);
     ctx.setLineDash([]);
     if (done) continue;
     ctx.font = 'bold 0.5px sans-serif';

@@ -112,7 +112,7 @@ export function floorDecals(g) {
   const addTracks = (list) => { if (trackOk(list)) for (const pts of list) out.push(...strip(pts, 0.16, RUBBER)); };
 
   // Random filler: not on the drop-offs or parking spot.
-  const zoneBoxes = g.zones.map((z) => ({ x: z.x - 0.6, y: z.y - 0.6, w: 1.2, h: 1.2 }));
+  const zoneBoxes = g.zones.map((z) => ({ x: z.x - (z.hx ?? 0.6), y: z.y - (z.hy ?? 0.6), w: 2 * (z.hx ?? 0.6), h: 2 * (z.hy ?? 0.6) }));
   const pk = g.parking, pr = { x: pk.x - 1.8, y: pk.y - 1.8, w: 3.6, h: 3.6 };
   const keepClear = [...zoneBoxes, pr, ...g.areas.map((a) => ({ x: a.x - 0.3, y: a.y - 0.3, w: a.w + 0.6, h: a.h + 0.6 })), ...(g.bays || [])];
   const free = (pts, m) => { const [a, b, c, d] = ptsBox(pts); return !keepClear.some((r) => bboxHit(a, b, c, d, r, m)); };

@@ -5,7 +5,7 @@ import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
-import { zoneDone, zoneLabelPos, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ } from '../game.js';
+import { zoneDone, zoneExt, zoneLabelPos, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
 import { addParticles } from './particles.js';
@@ -313,15 +313,15 @@ function floorText(tm, str, cx, cy, u, t, z, color) {
 
 function addMarks(tm, g, mode) {
   for (const z of g.zones) {
-    const done = zoneDone(g, z), r = 0.6, c = parseColor(COLORS[z.color]);
+    const done = zoneDone(g, z), e = zoneExt(z), c = parseColor(COLORS[z.color]);
     if (mode === 'ov' && !done) {
       const txt = `×${z.count}`;
       const lp = zoneLabelPos(g, z);
       floorText(tm, txt, lp.x, lp.y, 0.1, 0.16, 0.003, '#fff');
       floorText(tm, txt, lp.x, lp.y, 0.1, 0.07, 0.005, '#000');
     }
-    tm.poly([[z.x - r, z.y - r], [z.x + r, z.y - r], [z.x + r, z.y + r], [z.x - r, z.y + r]], 0, [c[0], c[1], c[2], done ? 0.8 : 0.47]);
-    tm.frame(z.x - r, z.y - r, z.x + r, z.y + r, 0.07, 0, c);
+    tm.poly([[z.x - e.x, z.y - e.y], [z.x + e.x, z.y - e.y], [z.x + e.x, z.y + e.y], [z.x - e.x, z.y + e.y]], 0, [c[0], c[1], c[2], done ? 0.8 : 0.47]);
+    tm.frame(z.x - e.x, z.y - e.y, z.x + e.x, z.y + e.y, 0.07, 0, c);
   }
   const ready = isSolved(g);
   const { hx, hy, at } = parkingCorners(g);

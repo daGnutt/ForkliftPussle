@@ -29,8 +29,16 @@ const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
 
 // `deco` is the box's decal kind; it lives in the pen entry so it travels with the box.
 // `open` marks an open-top box: nothing can be stacked on it, so it only ever sits on top of a stack.
-const newPen = (col = 0, seed = 0, open = false) => ({ crash: 0, sq: 0, deco: open ? 4 : boxDecalKind(col, seed), ...(open && { open: true }) });
+// `wide` marks a wide box (1×2 tiles, long side across the forks): it always sits alone on the floor, and only forks that have both
+// tines under it can lift it.
+const newPen = (col = 0, seed = 0, open = false, wide = false) => ({ crash: 0, sq: 0, deco: open ? 4 : boxDecalKind(col, seed), ...(open && { open: true }), ...(wide && { wide: true }) });
 export const topOpen = (pens) => !!pens?.[pens.length - 1]?.open;
+export const wideBox = (pens) => !!pens?.[0]?.wide;
+export const halfY = (pen) => (pen?.wide ? 1 : 0.5); // half extent across the box's local x axis (the fork axis)
+const reach = (s) => (wideBox(s.pen) ? 1.13 : 0.71); // radius that contains the whole box
+const boxMass = (s) => (wideBox(s.pen) ? 2 : 1);
+const WIDE_ALIGN = 0.45; // max |sin| of the angle between truck heading and a wide box's local x axis for the tines to get under it
+export const boxPoints = (pen) => (pen?.wide ? 2 * BOX_POINTS : BOX_POINTS);
 
 // Trucks. Every player drives one entry of `g.trucks`; the fields below belong to a truck. `g` itself is the view of
 // the local truck (`g.self`): g.fl, g.H, g.carried... forward to `g.trucks[g.self]`, so single-player code and
@@ -99,7 +107,7 @@ const bodyPoly = (t) => {
 const carriedPoly = (t) => {
   if (!t.carried) return null;
   const c = toWorld(t.fl, FL.carryX, 0);
-  return rectPoly(c.x, c.y, 0.5, 0.5, t.fl.a + t.carriedRel);
+  return rectPoly(c.x, c.y, 0.5, halfY(t.carriedPen?.[0]), t.fl.a + t.carriedRel);
 };
 export const solidPolys = (t) => [bodyPoly(t), carriedPoly(t)].filter(Boolean);
 const trucksOverlap = (a, b) => {
@@ -113,7 +121,7 @@ export const ghostBetween = (g, i, j) => g.root.ghostPairs.some(([a, b]) => (a =
 export const isGhost = (g, i) => g.root.ghostPairs.some((p) => p.includes(i));
 
 // Stacks under a truck that spawns carry `ghost` = [truck ids]: those trucks pass through them (drawn translucent) until clear.
-const stackUnder = (t, s) => sat(bodyPoly(t), rectPoly(s.x, s.y, 0.5, 0.5, s.a || 0));
+const stackUnder = (t, s) => sat(bodyPoly(t), rectPoly(s.x, s.y, 0.5, halfY(s.pen?.[0]), s.a || 0));
 function markSpawnStacks(g, i) {
   const t = g.trucks[i];
   for (const s of g.stacks) {
@@ -241,7 +249,7 @@ function settle(g, S) {
     const rel = offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y }));
     // Landing within stackable reach of another stack's top box, the fallen boxes come to rest on it.
     const under = g.stacks.find((t) => {
-      if (t === S || t.layers.length + layers.length > MAX_LAYERS || topOpen(t.pen)) return false;
+      if (t === S || t.layers.length + layers.length > MAX_LAYERS || topOpen(t.pen) || wideBox(t.pen)) return false;
       const c = boxPos(t, t.layers.length - 1);
       return Math.abs(c.x - nx) < 0.55 && Math.abs(c.y - ny) < 0.55;
     });
@@ -314,7 +322,8 @@ function refreshSquare(S) {
 }
 
 export function maxScore(g) {
-  return BOX_POINTS * (g.stacks.reduce((n, s) => n + s.layers.length, 0) + g.root.trucks.reduce((n, t) => n + (t.carried ? t.carried.length : 0), 0));
+  const sum = (layers, pens) => layers.reduce((n, _, i) => n + boxPoints(pens?.[i]), 0);
+  return g.stacks.reduce((n, s) => n + sum(s.layers, s.pen), 0) + g.root.trucks.reduce((n, t) => n + (t.carried ? sum(t.carried, t.carriedPen) : 0), 0);
 }
 
 // Points lost to crashes (permanent) and to crooked placement (recoverable).
@@ -339,7 +348,7 @@ export function score(g) {
     if (!S || counted.has(S)) continue;
     counted.add(S);
     refreshSquare(S);
-    for (const p of S.pen) pts += BOX_POINTS - p.crash - p.sq;
+    for (const p of S.pen) pts += boxPoints(p) - p.crash - p.sq;
   }
   for (const S of g.stacks) if (!counted.has(S)) { ensure(S); for (const p of S.pen) pts -= p.crash; }
   for (const t of g.root.trucks) for (const p of t.carriedPen) pts -= p.crash;
@@ -350,6 +359,7 @@ export function score(g) {
 const WONK_ROT = 15 * Math.PI / 180, WONK_OFF = 0.06;
 export function wonkyStack(s) {
   const base = Math.floor(s.x * 31 + s.y * 17);
+  if (s.wide) return { x: s.x, y: s.y, layers: [...s.layers], rots: [s.a || 0], pen: [newPen(s.layers[0], base, false, true)], offs: [{ x: 0, y: 0 }], a: s.a || 0 };
   const r = (i, k) => { const t = Math.sin((base + i * 7.13 + k * 3.7) * 12.9898) * 43758.5453; return (t - Math.floor(t)) * 2 - 1; };
   const rots = s.layers.map((_, i) => r(i, 1) * WONK_ROT);
   const offs = s.layers.map((_, i) => (i === 0 ? { x: 0, y: 0 } : { x: r(i, 2) * WONK_OFF, y: r(i, 3) * WONK_OFF }));
@@ -401,7 +411,7 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
   return g;
 }
 
-const stackPoly = (s) => rectPoly(s.x, s.y, 0.5, 0.5, s.a || 0);
+const stackPoly = (s) => rectPoly(s.x, s.y, 0.5, halfY(s.pen?.[0]), s.a || 0);
 
 function forkShapes(g) {
   const f = g.fl;
@@ -412,7 +422,7 @@ function forkShapes(g) {
   const boxes = (from) => (s) => {
     ensure(s);
     const out = [];
-    for (let i = from; i < s.layers.length; i++) { const c = boxPos(s, i); out.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, s.rots[i]), from: i }); }
+    for (let i = from; i < s.layers.length; i++) { const c = boxPos(s, i); out.push({ poly: rectPoly(c.x, c.y, 0.5, halfY(s.pen?.[i]), s.rots[i]), from: i }); }
     return out;
   };
   const shapes = [
@@ -421,7 +431,7 @@ function forkShapes(g) {
   const tx = (FL.tineX0 + FL.tineX1) / 2, thx = (FL.tineX1 - FL.tineX0) / 2;
   if (g.carried) {
     const c = toWorld(f, FL.carryX, 0);
-    shapes.push({ poly: rectPoly(c.x, c.y, 0.5, 0.5, f.a + g.carriedRel), stackFilter: (s) => s.layers.length > relH(g, s), carried: true, targets: (s) => boxes(Math.max(0, relH(g, s)))(s) });
+    shapes.push({ poly: rectPoly(c.x, c.y, 0.5, halfY(g.carriedPen?.[0]), f.a + g.carriedRel), stackFilter: (s) => s.layers.length > relH(g, s), carried: true, targets: (s) => boxes(Math.max(0, relH(g, s)))(s) });
   }
   const blocks = (s) => g.hard && relH(g, s) >= 0 && s.layers.length > relH(g, s);
   for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks, (s) => palletRunners(g, s).map((poly) => ({ poly, from: relH(g, s) }))), tine: true });
@@ -435,7 +445,8 @@ function palletRunners(g, s) {
   ensure(s);
   const k = relH(g, s), ang = s.rots[k], c = boxPos(s, k);
   const ux = Math.cos(ang), uy = Math.sin(ang);
-  return RUNNERS.map(([off, hw]) => rectPoly(c.x - uy * off, c.y + ux * off, 0.5, hw, ang));
+  const slots = wideBox(s.pen) ? [-0.5, 0.5] : [0]; // a wide box rests on two pallets side by side
+  return slots.flatMap((sl) => RUNNERS.map(([off, hw]) => rectPoly(c.x - uy * (sl + off), c.y + ux * (sl + off), 0.5, hw, ang)));
 }
 
 // Pushing a stack off its centre turns it by the lever arm of the push (the boxes from `from` upward).
@@ -443,7 +454,7 @@ function palletRunners(g, s) {
 function spinStack(s, from, tip, nx, ny, sx, sy) {
   const c = boxPos(s, from);
   const rx = tip.x - c.x, ry = tip.y - c.y;
-  const raw = ((rx * ny - ry * nx) * Math.hypot(sx, sy)) / (rx * rx + ry * ry + PALLET_INERTIA);
+  const raw = ((rx * ny - ry * nx) * Math.hypot(sx, sy)) / (rx * rx + ry * ry + PALLET_INERTIA * (wideBox(s.pen) ? 2.5 : 1));
   const da = Math.max(-0.01, Math.min(0.01, raw));
   s.rots = s.rots.map((r, i) => (i >= from ? r + da : r));
   if (from === 0) s.a = (s.a || 0) + da;
@@ -533,7 +544,7 @@ function resolve(g) {
         for (const t of sh.targets(s)) { m = sat(sh.poly, t.poly); if (m) { from = t.from; break; } }
         if (!m) continue;
         ensure(s);
-        const ws = 1 / (s.layers.length - from);
+        const ws = 1 / ((s.layers.length - from) * boxMass(s));
         if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && relH(g, s) > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? relH(g, s) : s.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: s.rots });
         if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 's', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
         if (!sh.carried && !sh.tine && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
@@ -555,7 +566,8 @@ function resolve(g) {
     for (const s of g.stacks) {
       if (s.leaving) continue; // a load riding away on a delivery truck passes through the border
       for (const w of g.walls) {
-        if (s.x + 0.71 < w.x || s.x - 0.71 > w.x + w.w || s.y + 0.71 < w.y || s.y - 0.71 > w.y + w.h) continue;
+        const r = reach(s);
+        if (s.x + r < w.x || s.x - r > w.x + w.w || s.y + r < w.y || s.y - r > w.y + w.h) continue;
         const m = sat(stackPoly(s), w.poly);
         if (m) {
           s.x += m.x * m.depth; s.y += m.y * m.depth;
@@ -572,13 +584,14 @@ function resolve(g) {
     for (let i = 0; i < g.stacks.length; i++) {
       for (let j = i + 1; j < g.stacks.length; j++) {
         const a = g.stacks[i], b = g.stacks[j];
-        if (Math.abs(a.x - b.x) >= 1.42 || Math.abs(a.y - b.y) >= 1.42) continue;
+        const rr = reach(a) + reach(b);
+        if (Math.abs(a.x - b.x) >= rr || Math.abs(a.y - b.y) >= rr) continue;
         const m = sat(stackPoly(a), stackPoly(b));
         if (!m) continue;
         ensure(a); ensure(b);
         crash(g, a.pen, a, a.pen.length, { kind: 's', dx: -m.x, dy: -m.y, rots: a.rots });
         crash(g, b.pen, b, b.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: b.rots });
-        const wa = 1 / a.layers.length, wb = 1 / b.layers.length;
+        const wa = 1 / (a.layers.length * boxMass(a)), wb = 1 / (b.layers.length * boxMass(b));
         const d = m.depth * 1.001;
         const ax = m.x * d * (wa / (wa + wb)), ay = m.y * d * (wa / (wa + wb));
         const bx = -m.x * d * (wb / (wa + wb)), by = -m.y * d * (wb / (wa + wb));
@@ -771,10 +784,12 @@ export function stackInZone(g) {
   let best = null, bd = Infinity;
   for (const s of g.stacks) {
     ensure(s);
-    const c = boxPos(s, g.carried ? s.layers.length - 1 : Math.min(Math.max(0, relH(g, s)), s.layers.length - 1));
+    const i = g.carried ? s.layers.length - 1 : Math.min(Math.max(0, relH(g, s)), s.layers.length - 1);
+    const c = boxPos(s, i);
     const l = toLocal(f, c.x, c.y);
     const dx = Math.abs(l.x - FL.carryX), dy = Math.abs(l.y);
-    if (dx < 0.55 && dy < 0.5 && dx + dy < bd) { best = s; bd = dx + dy; }
+    // a wide box is found while both tines are under it (centre within 0.6 of the middle of the forks)
+    if (dx < 0.55 && dy < (s.pen?.[i]?.wide && !g.carried ? 0.6 : 0.5) && dx + dy < bd) { best = s; bd = dx + dy; }
   }
   return best;
 }
@@ -846,7 +861,7 @@ const atCarryPoint = (g, o) => {
 // stack that truck carries (max 5 layers). Ghosts to each other never trade.
 function stackOnMyTines(g) {
   for (const o of otherTrucks(g)) {
-    if (!o.carried || o.H > g.H + 1 || g.H >= o.H + o.carried.length || ghostBetween(g, g.truck.id, o.truck.id)) continue;
+    if (!o.carried || wideBox(o.carriedPen) || o.H > g.H + 1 || g.H >= o.H + o.carried.length || ghostBetween(g, g.truck.id, o.truck.id)) continue;
     if (atCarryPoint(o, g)) return o;
   }
   return null;
@@ -854,7 +869,7 @@ function stackOnMyTines(g) {
 
 function tinesUnderMyStack(g) {
   for (const o of otherTrucks(g)) {
-    if (ghostBetween(g, g.truck.id, o.truck.id) || !atCarryPoint(g, o)) continue;
+    if (wideBox(g.carriedPen) || wideBox(o.carriedPen) || ghostBetween(g, g.truck.id, o.truck.id) || !atCarryPoint(g, o)) continue;
     if (!o.carried && o.H <= g.H) return o;
     if (o.carried && o.H + o.carried.length <= g.H && o.carried.length + g.carried.length <= MAX_LAYERS && !topOpen(o.carriedPen)) return o;
   }
@@ -885,6 +900,7 @@ export function forkUp(g) {
   const S = forkedStack(g);
   if (S) {
     const k = relH(g, S);
+    if (S.pen?.[k]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[k])) > WIDE_ALIGN) return 'blocked'; // the tines don't both fit under it
     g.carried = S.layers.splice(k);
     g.carriedRots = S.rots.splice(k).map((r) => r - g.fl.a);
     g.carriedPen = S.pen.splice(k);
@@ -943,7 +959,7 @@ export function forkDown(g) {
   const cnt = S ? S.layers.length : 0;
   const cp = toWorld(g.fl, FL.carryX, 0);
   const n = cnt + (S ? stackZ(g, S) : zAt(g, cp.x, cp.y)); // resting height: on the belt that is one level up
-  const minH = cnt + g.carried.length <= MAX_LAYERS && !(S && topOpen(S.pen)) ? n : n + 1;
+  const minH = cnt + g.carried.length <= MAX_LAYERS && !(S && (topOpen(S.pen) || wideBox(S.pen) || wideBox(g.carriedPen))) ? n : n + 1;
   if (g.H > minH) g.H = Math.max(minH, g.H - 1);
   // Reaching the resting height puts the boxes down.
   if (g.H === n && minH === n) {
@@ -993,11 +1009,16 @@ export function isSolved(g) {
   return g.zones.every((z) => zoneDone(g, z));
 }
 
+// Half extents (world x, y) of a drop point; a wide zone (`wide`, `hx`/`hy` set by the level) is 1×2 tiles plus margin.
+export const zoneExt = (z) => ({ x: z.hx ?? 0.6, y: z.hy ?? 0.6 });
+
 const stackFillsZone = (s, z) =>
   Math.abs(s.x - z.x) < 0.5 &&
   Math.abs(s.y - z.y) < 0.5 &&
   s.layers.length === z.count &&
-  s.layers.every((c) => c === z.color);
+  s.layers.every((c) => c === z.color) &&
+  !!z.wide === wideBox(s.pen) &&
+  (!z.wide || Math.abs(Math.sin((s.a || 0) - (z.a || 0))) < 0.4);
 
 // A completed drop point holds a stack with crooked boxes (squareness points lost).
 export function zoneWonky(g, z) {
@@ -1010,7 +1031,7 @@ export function zonePoints(g, z) {
   if (!S) return null;
   refreshSquare(S);
   const crash = S.pen.reduce((n, p) => n + p.crash, 0), square = S.pen.reduce((n, p) => n + p.sq, 0);
-  const base = BOX_POINTS * S.layers.length;
+  const base = S.pen.reduce((n, p) => n + boxPoints(p), 0);
   return { n: S.layers.length, base, total: base - Math.round(crash) - Math.round(square), crash: Math.round(crash), square: Math.round(square) };
 }
 
@@ -1022,8 +1043,9 @@ export function zoneDone(g, z) {
 // The choice is shared by every drop point of the drop-off area, so a row of labels never mixes above and below.
 export function zoneLabelPos(g, z) {
   const hit = (x, y) => g.walls.some((w) => x + 0.4 > w.x && x - 0.4 < w.x + w.w && y + 0.25 > w.y && y - 0.25 < w.y + w.h);
+  const off = (o) => zoneExt(o).y + 0.32;
   const mates = g.zones.filter((o) => o.color === z.color);
-  const southWall = mates.some((o) => hit(o.x, o.y + 0.92));
-  const above = southWall && !hit(z.x, z.y - 0.92);
-  return { x: z.x, y: above ? z.y - 0.92 : z.y + 0.92 };
+  const southWall = mates.some((o) => hit(o.x, o.y + off(o)));
+  const above = southWall && !hit(z.x, z.y - off(z));
+  return { x: z.x, y: above ? z.y - off(z) : z.y + off(z) };
 }
