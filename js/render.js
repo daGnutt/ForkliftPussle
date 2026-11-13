@@ -343,7 +343,7 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   ctx.fillStyle = '#9e9e9e';
   ctx.fillRect((g.parking.x - 0.8) * s - 1, (g.parking.y - 0.8) * s - 1, 1.6 * s + 2, 1.6 * s + 2);
   ctx.fillStyle = theme().wall;
-  for (const q of g.pillars) ctx.fillRect(q.x * s, q.y * s, Math.max(1.5, q.w * s), Math.max(1.5, q.h * s));
+  for (const q of g.pillars) if (q.y < g.h && q.x < g.w) ctx.fillRect(q.x * s, q.y * s, Math.max(1.5, q.w * s), Math.max(1.5, q.h * s));
   const dot = Math.max(3, s * 0.9);
   for (const st of g.stacks) {
     ctx.fillStyle = COLORS[st.layers[st.layers.length - 1]];
