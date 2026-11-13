@@ -1,7 +1,7 @@
 import { COLORS } from '../level.js';
 import { truckPaint, TRUCK_H, truckRoofs, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
-import { decalsEnabled, overheadDecals, boxDecalKind } from '../decals.js';
+import { decalsEnabled, overheadDecals, boxDeco } from '../decals.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
 import { carriedWorldOffs, otherTrucksShown, isGhost, dropLift, stackZ } from '../game.js';
 import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam } from './camera.js';
@@ -65,7 +65,8 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
       for (const u of PAL_SLATS) addPrism(faces, cam, x + cr * u, y + sr * u, r, 0.075, 0.5, z + PAL - 0.03, z + PAL, PALLET_COLOR, false, 0, 0, false, true);
     } else addPrism(faces, cam, x, y, r, 0.5, 0.5, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
     const first = faces.length;
-    addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? pens[i]?.deco ?? boxDecalKind(col, i) : 0);
+    addPrism(faces, cam, x, y, r, 0.5, 0.5, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? boxDeco(pens[i], col, i) : 0);
+    if (pens[i]?.open) addPrism(faces, cam, x, y, r, 0.4, 0.4, z + PAL + BOX_H, z + PAL + BOX_H + 0.01, '#1b1b1b', false, 0, 0, false, true);
     const dent = pens[i]?.dent;
     if (dent) for (let k = first; k < faces.length; k++) { faces[k].pen = pens[i]; faces[k].dseed = i + Math.round(col * 7); faces[k].box = { x, y, r }; }
   });

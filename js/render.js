@@ -11,7 +11,7 @@ import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
-import { decalsEnabled, floorDecals, boxDecalKind, boxDecalShapes } from './decals.js';
+import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes } from './decals.js';
 import { carriedWorldOffs, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
@@ -95,8 +95,13 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
       ctx.lineWidth = 0.05;
       ctx.strokeRect(-h, -h, size, size);
       // tape strip across the lid
-      ctx.fillStyle = 'rgba(255,255,255,0.18)';
-      ctx.fillRect(-0.07, -h, 0.14, size);
+      if (pens[i]?.open) {
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(-h + 0.1, -h + 0.1, size - 0.2, size - 0.2);
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(-0.07, -h, 0.14, size);
+      }
       if (pens[i]?.dent) {
         for (const poly of topShapes(pens[i], i + Math.round(layers[i] * 7))) {
           ctx.beginPath();
@@ -113,7 +118,7 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
         }
       }
       if (decalsEnabled()) {
-        for (const d of boxDecalShapes(pens[i]?.deco ?? boxDecalKind(layers[i], i))) {
+        for (const d of boxDecalShapes(boxDeco(pens[i], layers[i], i))) {
           ctx.fillStyle = d.fill;
           ctx.beginPath();
           d.pts.forEach(([u, v], k) => (k ? ctx.lineTo(u * 0.4, -v * 0.4) : ctx.moveTo(u * 0.4, -v * 0.4)));
@@ -1064,16 +1069,21 @@ export function draw(ctx, g, view) {
     ctx.fillStyle = '#aaa';
     ctx.fillText(String(lvl), gx - 10, yOf(lvl) + cell / 2);
   }
-  const cellBox = (lvl, color, alpha) => {
+  const cellBox = (lvl, color, alpha, open) => {
     if (lvl > top) return;
     ctx.globalAlpha = alpha;
     ctx.fillStyle = COLORS[color];
     ctx.fillRect(gx + 3, yOf(lvl) + 3, 24, cell - 8);
     ctx.globalAlpha = 1;
+    if (open) { // open-top box: nothing can be stacked on it
+      ctx.font = '15px sans-serif';
+      ctx.fillText('🚫', gx + 15, yOf(lvl) + cell / 2);
+      ctx.font = '12px sans-serif';
+    }
   };
   const under = stackInZone(g);
-  if (under) under.layers.forEach((c, i) => cellBox(i, c, 0.85));
-  if (g.carried) g.carried.forEach((c, i) => cellBox(g.H + i, c, 1));
+  if (under) under.layers.forEach((c, i) => cellBox(i, c, 0.85, under.pen?.[i]?.open));
+  if (g.carried) g.carried.forEach((c, i) => cellBox(g.H + i, c, 1, g.carriedPen?.[i]?.open));
   ctx.strokeStyle = tc.body;
   ctx.lineWidth = 3;
   ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);

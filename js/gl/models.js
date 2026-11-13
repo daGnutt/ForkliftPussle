@@ -2,7 +2,7 @@ import { COLORS } from '../level.js';
 import { theme } from '../theme.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
 import { topShapes, DENT_FILL } from '../dents.js';
-import { decalsEnabled, boxDecalKind, boxDecalShapes } from '../decals.js';
+import { decalsEnabled, boxDeco, boxDecalShapes } from '../decals.js';
 import { carriedWorldOffs } from '../game.js';
 import { parseColor, shade, mix } from './mesh.js';
 
@@ -32,13 +32,27 @@ function addBox(m, tm, x, y, r, z, col, pen, level) {
   const body = dented ? shade(base, 0.82) : base;
   const z0 = z + PAL, z1 = z0 + BOX_H;
   m.cuboid(x, y, r, 0.5, 0.5, z0, z1, body, { bottom: false });
-  m.cuboid(x, y, r, 0.46, 0.46, z1, z1 + 0.012, shade(mix(body, WHITE, 0.18), 1), { bottom: false });
-  m.cuboid(x, y, r, 0.07, 0.505, z0, z1 + 0.018, mix(body, WHITE, 0.45), { bottom: false });
+  if (pen?.open) m.cuboid(x, y, r, 0.4, 0.4, z1, z1 + 0.012, shade(body, 0.2), { bottom: false });
+  else {
+    m.cuboid(x, y, r, 0.46, 0.46, z1, z1 + 0.012, shade(mix(body, WHITE, 0.18), 1), { bottom: false });
+    m.cuboid(x, y, r, 0.07, 0.505, z0, z1 + 0.018, mix(body, WHITE, 0.45), { bottom: false });
+  }
   const top = z1 + 0.02;
   const place = (u, v) => [x + u * co - v * si, y + u * si + v * co];
   if (dented) for (const poly of topShapes(pen, level + Math.round(col * 7))) tm.poly(poly.map(([u, v]) => place(u, v)), top, [...parseColor(DENT_FILL).slice(0, 3), 0.6]);
+  if (pen?.open && decalsEnabled()) {
+    // the "do not stack" sign also on every side of the box
+    const corners = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+    const world = ([u, v]) => [x + u * co - v * si, y + u * si + v * co];
+    for (let k = 0; k < 4; k++) {
+      const [a, b] = [world(corners[k]), world(corners[(k + 1) % 4])];
+      const du = corners[(k + 1) % 4][0] - corners[k][0], dv = corners[(k + 1) % 4][1] - corners[k][1];
+      const nx = dv * co + du * si, ny = dv * si - du * co;
+      for (const d of boxDecalShapes(4)) tm.vpoly(a[0], a[1], b[0], b[1], nx, ny, 0.004, d.pts.map(([u, v]) => [0.5 - u * 0.46, (z0 + z1) / 2 + v * 0.46]), d.fill);
+    }
+  }
   if (decalsEnabled()) {
-    for (const d of boxDecalShapes(pen?.deco ?? boxDecalKind(col, level))) tm.poly(d.pts.map(([u, v]) => place(u * 0.4, -v * 0.4)), top, d.fill);
+    for (const d of boxDecalShapes(boxDeco(pen, col, level))) tm.poly(d.pts.map(([u, v]) => place(u * 0.4, -v * 0.4)), top, d.fill);
   }
 }
 
