@@ -2,7 +2,7 @@
 
 Read this first for a map of the code. Vanilla JS ES modules + Canvas 2D, no build, no dependencies. Source lives in `js/`, tests in `test/game.test.js` (`npm test`).
 
-**Open-top boxes**: a box whose `pen.open` is true (layouts mark a stack's top box with `stack.open`; `wonkyStack` sets it) cannot carry anything: `topOpen(pens)` blocks `forkDown` release (rest height stays one above it), `settle` landings, and handovers onto a carried stack with an open top. They get the "do not stack" decal (`boxDecalShapes(4)`) and a dark opening instead of a lid/tape in the renderers. `level.js` `markOpenTops` (own RNG, level ≥ 2) marks ≤ 1 per stack and ≤ zones of that colour; endless `loadDock` keeps `opened<c>`/`spawned<c>` below 25 % per colour.
+**Open-top boxes**: a box whose `pen.open` is true (layouts mark a stack's top box with `stack.open`; `wonkyStack` sets it) cannot carry anything: `topOpen(pens)` blocks `forkDown` release (rest height stays one above it), `settle` landings, and handovers onto a carried stack with an open top. They get the "do not stack" decal (and a 🚫 on their cell in the fork gauge) (`boxDecalShapes(4)`) and a dark opening instead of a lid/tape in the renderers. `level.js` `markOpenTops` (own RNG, level ≥ 2) marks ≤ 1 per stack and ≤ zones of that colour; endless `loadDock` keeps `opened<c>`/`spawned<c>` below 25 % per colour.
 
 ## Module map
 

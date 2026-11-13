@@ -1069,16 +1069,21 @@ export function draw(ctx, g, view) {
     ctx.fillStyle = '#aaa';
     ctx.fillText(String(lvl), gx - 10, yOf(lvl) + cell / 2);
   }
-  const cellBox = (lvl, color, alpha) => {
+  const cellBox = (lvl, color, alpha, open) => {
     if (lvl > top) return;
     ctx.globalAlpha = alpha;
     ctx.fillStyle = COLORS[color];
     ctx.fillRect(gx + 3, yOf(lvl) + 3, 24, cell - 8);
     ctx.globalAlpha = 1;
+    if (open) { // open-top box: nothing can be stacked on it
+      ctx.font = '15px sans-serif';
+      ctx.fillText('🚫', gx + 15, yOf(lvl) + cell / 2);
+      ctx.font = '12px sans-serif';
+    }
   };
   const under = stackInZone(g);
-  if (under) under.layers.forEach((c, i) => cellBox(i, c, 0.85));
-  if (g.carried) g.carried.forEach((c, i) => cellBox(g.H + i, c, 1));
+  if (under) under.layers.forEach((c, i) => cellBox(i, c, 0.85, under.pen?.[i]?.open));
+  if (g.carried) g.carried.forEach((c, i) => cellBox(g.H + i, c, 1, g.carriedPen?.[i]?.open));
   ctx.strokeStyle = tc.body;
   ctx.lineWidth = 3;
   ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);
