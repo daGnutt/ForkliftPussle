@@ -226,6 +226,7 @@ function toggleChase() {
   localStorage.setItem('forklift-chase-cam', view.chase ? '1' : '0');
 }
 
+const startBtn = document.getElementById('startBtn');
 const input = createInput({
   anyKey: startAudio,
   fullscreen: toggleFullscreen,
@@ -257,6 +258,8 @@ const input = createInput({
   next: () => nextLevel(),
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
+  menuToggle: () => { if (view.menuOpen) toggleMenu(false); else if (!splashOn && !recordOpen) toggleMenu(true); else if (splashOn) startBtn.click(); },
+  confirm: () => { if (splashOn) startBtn.click(); },
   blocked: () => splashOn || recordOpen || !!view.menuOpen,
 });
 
