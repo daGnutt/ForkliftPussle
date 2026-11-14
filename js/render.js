@@ -178,10 +178,11 @@ function block(ctx, f, x0, y0, x1, y1, z0, z1, col, rot = 0) {
   ctx.restore();
 }
 
-function drawWheel(ctx, f, lx, ly, ang) {
+function drawWheel(ctx, f, lx, ly, ang, big = false) {
   const c = Math.cos(f.a), s = Math.sin(f.a);
   const w = { x: f.x + lx * c - ly * s, y: f.y + lx * s + ly * c, a: f.a + ang };
-  block(ctx, w, -0.22, -0.1, 0.22, 0.1, 0, 0.32, '#1c1c1c');
+  const k = big ? 1.25 : 1;
+  block(ctx, w, -0.22 * k, -0.1, 0.22 * k, 0.1, 0, 0.32 * k, '#1c1c1c');
 }
 
 function drawForkliftBody(ctx, g) {
@@ -193,8 +194,8 @@ function drawForkliftBody(ctx, g) {
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.fillRect(FL.back, -W, FL.front - FL.back, W * 2);
   });
-  drawWheel(ctx, f, 0, -W - 0.02, 0);
-  drawWheel(ctx, f, 0, W + 0.02, 0);
+  drawWheel(ctx, f, FL.frontWheelX, -W - 0.02, 0, true);
+  drawWheel(ctx, f, FL.frontWheelX, W + 0.02, 0, true);
   drawWheel(ctx, f, -FL.L, -W + 0.08, -f.steer);
   drawWheel(ctx, f, -FL.L, W - 0.08, -f.steer);
   // chassis, rear counterweight, hood, seat

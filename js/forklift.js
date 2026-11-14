@@ -5,6 +5,7 @@ export const FL = {
   back: -1.9,
   front: 0.35,
   halfW: 0.55,
+  frontWheelX: -0.15, // drawn position of the front wheels (the physical axle stays at x = 0)
   tineX0: 0.35,
   tineX1: 1.55,
   tineOff: 0.3,

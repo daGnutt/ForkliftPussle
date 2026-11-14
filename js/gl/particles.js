@@ -42,7 +42,7 @@ const puff = (s, x, y, z, o = {}) => {
 
 const wheelPoints = (f) => {
   const W = FL.halfW;
-  return [toWorld(f, -FL.L, -W + 0.08), toWorld(f, -FL.L, W - 0.08), toWorld(f, 0, -W - 0.02), toWorld(f, 0, W + 0.02)];
+  return [toWorld(f, -FL.L, -W + 0.08), toWorld(f, -FL.L, W - 0.08), toWorld(f, FL.frontWheelX, -W - 0.02), toWorld(f, FL.frontWheelX, W + 0.02)];
 };
 
 // Hit height: `z` of a popup is in box heights.
