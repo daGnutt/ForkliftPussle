@@ -436,6 +436,20 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
 
 const stackPoly = (s) => rectPoly(s.x, s.y, 0.5, halfY(s.pen?.[0]), s.a || 0);
 
+// Boxes above the fork level that have slid more than SLID_MIN off the box below them: the forks and the fork plate hit these
+// (the tines otherwise never touch boxes), so such a box can be pushed back into line.
+const SLID_MIN = 0.2;
+function slidBoxes(g, s) {
+  ensure(s);
+  const out = [];
+  for (let i = Math.max(1, relH(g, s) + 1); i < s.layers.length; i++) {
+    if (Math.hypot(s.offs[i].x - s.offs[i - 1].x, s.offs[i].y - s.offs[i - 1].y) <= SLID_MIN) continue;
+    const c = boxPos(s, i);
+    out.push({ poly: rectPoly(c.x, c.y, 0.5, halfY(s.pen?.[i]), s.rots[i]), from: i });
+  }
+  return out;
+}
+
 function forkShapes(g) {
   const f = g.fl;
   const mk = (lx, ly, hx, hy, stackFilter, targets) => {
@@ -449,15 +463,16 @@ function forkShapes(g) {
     return out;
   };
   const shapes = [
-    mk((FL.back + FL.front) / 2, 0, (FL.front - FL.back) / 2, FL.halfW, () => true, (s) => [{ poly: stackPoly(s), from: 0 }]),
+    mk((FL.back + FL.front) / 2, 0, (FL.front - FL.back) / 2, FL.halfW, () => true, (s) => [{ poly: stackPoly(s), from: 0 }, ...slidBoxes(g, s)]),
   ];
   const tx = (FL.tineX0 + FL.tineX1) / 2, thx = (FL.tineX1 - FL.tineX0) / 2;
   if (g.carried) {
     const c = toWorld(f, FL.carryX, 0);
     shapes.push({ poly: rectPoly(c.x, c.y, 0.5, halfY(g.carriedPen?.[0]), f.a + g.carriedRel), stackFilter: (s) => s.layers.length > relH(g, s), carried: true, targets: (s) => boxes(Math.max(0, relH(g, s)))(s) });
   }
-  const blocks = (s) => g.hard && relH(g, s) >= 0 && s.layers.length > relH(g, s);
-  for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks, (s) => palletRunners(g, s).map((poly) => ({ poly, from: relH(g, s) }))), tine: true });
+  const blocks = (s) => relH(g, s) >= 0 && s.layers.length > relH(g, s) && (g.hard || slidBoxes(g, s).length > 0);
+  const tineTargets = (s) => [...(g.hard ? palletRunners(g, s).map((poly) => ({ poly, from: relH(g, s) })) : []), ...slidBoxes(g, s)];
+  for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks, tineTargets), tine: true });
   return shapes;
 }
 
