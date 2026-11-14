@@ -237,17 +237,16 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 }
 
 
-// Endless: open-top boxes stay under a quarter of each colour.
+// Endless: about 1 in 10 incoming stacks has an open top.
 {
-  const g = newEndless(7);
-  for (let i = 0; i < 4000; i++) { update(g, {}, 0.05); stepEndless(g, 0.05); }
-  const e = g.endless;
-  let open = 0;
-  for (let c = 0; c < 5; c++) {
-    assert.ok(e[`opened${c}`] / e[`spawned${c}`] < 0.25, `colour ${c} share`);
-    open += e[`opened${c}`];
+  const seen = new Set();
+  for (let rs = 1; rs <= 8; rs++) {
+    const g = newEndless(7, false, rs * 7919);
+    for (let i = 0; i < 2000; i++) { update(g, {}, 0.05); stepEndless(g, 0.05); for (const d of g.endless.docks) for (const c of d.cargo || []) seen.add(c); }
   }
-  assert.ok(open > 0, 'endless spawns open boxes');
+  const open = [...seen].filter((c) => c.pen[c.pen.length - 1].open).length;
+  assert.ok(seen.size >= 60, 'enough stacks arrived');
+  assert.ok(open / seen.size > 0.03 && open / seen.size < 0.2, `open-top share ${open}/${seen.size}`);
   console.log('endless open-top ok');
 }
 
