@@ -59,7 +59,8 @@ function loadSaved() {
     if (data && data.level === level && data.seed === seed && data.hard === hard) game = deserializeGame(data);
   } catch { localStorage.removeItem('forklift-state'); }
 }
-loadSaved();
+if (levelParam >= 1) localStorage.removeItem('forklift-state'); // ?level always starts fresh
+else loadSaved();
 // Local best now; global top fetched in the background (stale replies are ignored).
 // Endless scores live on level 0 of the seed's boards.
 const boardLevel = () => (game.endless ? 0 : level);
