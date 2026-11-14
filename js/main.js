@@ -1,4 +1,4 @@
-import { newGame, update, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks, topOpen } from './game.js';
+import { newGame, update, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges } from './game.js';
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput } from './input.js';
 import { createLocal } from './local.js';
@@ -105,17 +105,11 @@ let popGame = null, popPrev = new Map(), popN = 0;
 function watchPops() {
   if (popGame !== game) { popGame = game; popPrev = new Map(); }
   game.pops = (game.pops || []).filter((p) => game.clock - p.t < 2);
-  game.trucks.forEach((t, i) => {
-    if (i === game.self) return;
-    const prev = popPrev.get(i);
-    if (prev && prev.gone !== !!t.gone) {
-      const at = t.gone ? prev : t.fl;
-      game.pops.push({ n: ++popN, x: at.x, y: at.y, t: game.clock });
-      (game.popVis ||= {})[i] = { t: game.clock, kind: t.gone ? 'out' : 'in' };
-      playPop(hearVol(at.x, at.y));
-    }
-    popPrev.set(i, { gone: !!t.gone, x: t.fl.x, y: t.fl.y });
-  });
+  for (const p of truckPopChanges(game, popPrev)) {
+    game.pops.push({ n: ++popN, x: p.x, y: p.y, t: game.clock });
+    (game.popVis ||= {})[p.i] = { t: game.clock, kind: p.kind };
+    playPop(hearVol(p.x, p.y));
+  }
 }
 const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8);
 // Delivery trucks honk (see `lorryHonks`): once before an incoming truck opens its gate, twice before a full one closes its gate (heard by distance).
@@ -1097,6 +1091,7 @@ function frame(now) {
       if (game.H !== mp.lastH) { if (mp.lastH != null) playFork(game.H > mp.lastH); mp.lastH = game.H; }
     }
   }
+  watchPops();
   if (!mp && !splashOn && !view.paused && !view.menuOpen && localOpt.checked) local.step(game, performance.now() / 1000);
   view.shared = !mp && localOpt.checked && local.players > 0;
   while (mp?.role !== 'guest' && !splashOn && !view.paused && acc >= STEP) {
@@ -1120,7 +1115,6 @@ function frame(now) {
     return { id: t.id, on: !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : hearVol(t.fl.x, t.fl.y) };
   }));
   honkTrucks();
-  watchPops();
   const done = doneSet();
   const fresh = [...done].filter((z) => !doneZones.has(z));
   if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();

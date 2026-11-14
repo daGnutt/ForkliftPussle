@@ -17,15 +17,22 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, POP_DELAY, truckPopScale, otherTrucksShown } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, POP_DELAY, truckPopScale, otherTrucksShown, truckPopChanges } from '../js/game.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
 // Multiplayer trucks: ghosts at spawn, collisions once separated, stack handoff on the tines, leaving players
 {
   const boxes = (g) => g.stacks.reduce((n, s) => n + s.layers.length, 0) + g.trucks.reduce((n, t) => n + (t.carried ? t.carried.length : 0), 0);
+  const alreadyJoined = newGame(1);
+  addTruck(alreadyJoined, 'Already joined');
+  assert.deepEqual(truckPopChanges(alreadyJoined, new Map()), [], 'trucks present on the first sight of a game stay silent');
+
   const popGame = newGame(1);
+  const popHistory = new Map();
+  assert.deepEqual(truckPopChanges(popGame, popHistory), [], 'the first sight of a game is silent');
   addTruck(popGame, 'Pop');
+  assert.equal(truckPopChanges(popGame, popHistory)[0].kind, 'in', 'a first-time local player joining is detected');
   popGame.popVis = { 1: { t: popGame.clock, kind: 'in' } };
   assert.equal(otherTrucksShown(popGame).length, 1, 'a spawning truck is visible inside the pop smoke');
   assert.equal(truckPopScale(popGame, 1), 0.03, 'it starts tiny');

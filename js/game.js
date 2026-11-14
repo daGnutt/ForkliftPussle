@@ -96,6 +96,22 @@ export function truckView(g, i) {
 // The live truck objects.
 export const liveTrucks = (g) => g.root.trucks.filter((t) => !t.gone);
 // Views of the live trucks other than the one `g` is the view of.
+export function truckPopChanges(g, previous) {
+  const root = g.root, changes = [];
+  root.trucks.forEach((t, i) => {
+    if (i === root.self) return;
+    const prev = previous.get(i);
+    if (prev && prev.gone !== !!t.gone) {
+      const at = t.gone ? prev : t.fl;
+      changes.push({ i, kind: t.gone ? 'out' : 'in', x: at.x, y: at.y });
+    }
+    previous.set(i, { gone: !!t.gone, x: t.fl.x, y: t.fl.y });
+  });
+  for (let i = root.trucks.length; i < MAX_PLAYERS; i++) {
+    if (!previous.has(i)) previous.set(i, { gone: true });
+  }
+  return changes;
+}
 // View-only pop timing (set by main.js `watchPops`): arrivals scale in and departures linger for the smoke to build
 // before scaling out. Renderers use this; it does not affect the simulation.
 export const POP_DELAY = 0.8;
