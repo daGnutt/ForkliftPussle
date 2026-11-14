@@ -44,7 +44,7 @@ export const boxPoints = (pen) => (pen?.wide ? 2 * BOX_POINTS : BOX_POINTS);
 // the local truck (`g.self`): g.fl, g.H, g.carried... forward to `g.trucks[g.self]`, so single-player code and
 // tests just use `g`. `truckView(g, i)` gives the same view for another truck (a Proxy), which every per-truck
 // function (update steps, forkUp/forkDown, resolve) accepts in place of `g`.
-const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hf', 'ef', 'revTime', 'rv', 'hitAt', 'horn', 'lifting', 'liftedBy', 'liftRel', 'perchZ'];
+const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hf', 'ef', 'revTime', 'rv', 'hitAt', 'horn', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
 const TRUCK_SET = new Set(TRUCK_KEYS);
 
 export function makeTruck(start, id = 0, name = '') {
@@ -60,6 +60,8 @@ export function makeTruck(start, id = 0, name = '') {
     lifting: -1, // id of the truck riding on this truck's tines (-1 none)
     liftedBy: -1, // id of the truck whose tines carry this one (it cannot move by itself meanwhile)
     perchZ: 0, // > 0: the truck sits on top of stacks this many box levels up and cannot move until lifted off
+    rideLv: 0, // > 0: it sits on top of the stack of this many boxes its carrier carries (instead of on the tines)
+    rideOff: null, // pose of a truck riding on a carried stack, in the carrier's frame { x, y, a }
     liftRel: 0, // heading of a lifted truck relative to its carrier (+-PI/2: it rides sideways on the tines)
     revTime: 0, // seconds spent in gear R; the chase camera only looks back after LOOK_BACK_DELAY
     rv: 0, // 0..1 smoothed: how far the chase camera has turned to look backwards (gear R)
@@ -116,9 +118,15 @@ export function liftedPose(carrier, liftRel) {
   const a = carrier.fl.a + liftRel, p = toWorld(carrier.fl, FL.carryX, 0);
   return { x: p.x - BODY_MID * Math.cos(a), y: p.y - BODY_MID * Math.sin(a), a };
 }
+// Where a lifted truck is: on the tines, or (rideLv > 0) fixed relative to the carrier on top of its carried stack.
+function riderPose(carrier, v) {
+  if (!(v.rideLv > 0 && v.rideOff)) return liftedPose(carrier, v.liftRel);
+  const p = toWorld(carrier.fl, v.rideOff.x, v.rideOff.y);
+  return { x: p.x, y: p.y, a: carrier.fl.a + v.rideOff.a };
+}
 // Height (box levels, incl. the tine thickness) a lifted or perched truck's wheels are at, or null when the truck is on the floor.
 const LIFT_OFF = 0.1 / 0.6; // pallet/tine thickness in box levels (PAL / (BOX_H + PAL))
-export const liftedHf = (g) => (g.truck.liftedBy >= 0 ? (g.root.trucks[g.truck.liftedBy]?.hf ?? 0) + LIFT_OFF : g.truck.perchZ > 0 ? g.truck.perchZ + LIFT_OFF : null);
+export const liftedHf = (g) => (g.truck.liftedBy >= 0 ? (g.root.trucks[g.truck.liftedBy]?.hf ?? 0) + g.truck.rideLv + LIFT_OFF : g.truck.perchZ > 0 ? g.truck.perchZ + LIFT_OFF : null);
 // A truck that cannot drive or work its forks: on another's tines or perched on stacks.
 const stuck = (g) => g.liftedBy >= 0 || g.perchZ > 0;
 // Box levels of the highest stack top under a truck body at pose p.
@@ -131,12 +139,15 @@ function supportLevels(root, p) {
 function syncLifted(root, carrier) {
   const v = root.trucks[carrier.lifting];
   if (!v) return;
-  const p = liftedPose(carrier, v.liftRel);
-  Object.assign(v.fl, p, { speed: 0, steer: 0 });
+  if (v.rideLv > 0 && !carrier.carried) return releaseLifted(root, carrier); // the stack it sat on is gone from the forks
+  Object.assign(v.fl, riderPose(carrier, v), { speed: 0, steer: 0 });
 }
 function releaseLifted(root, carrier) {
   const v = root.trucks[carrier.lifting];
-  if (v) { v.liftedBy = -1; v.liftRel = 0; }
+  if (v) {
+    v.liftedBy = -1; v.liftRel = 0;
+    if (v.rideLv > 0) { v.perchZ = supportLevels(root, v.fl); v.rideLv = 0; v.rideOff = null; } // set down with the stack: perched on it
+  }
   carrier.lifting = -1;
 }
 const carriedPoly = (t) => {
@@ -505,10 +516,10 @@ function forkShapes(g) {
   ];
   const tx = (FL.tineX0 + FL.tineX1) / 2, thx = (FL.tineX1 - FL.tineX0) / 2;
   if (g.lifting >= 0) { // the truck on the tines is part of this one: walls, trucks and stacks stop it too
-    const v = g.root.trucks[g.lifting], p = liftedPose(g.truck, v.liftRel), c = toWorld(p, BODY_MID, 0);
-    shapes.push({ poly: rectPoly(c.x, c.y, (FL.front - FL.back) / 2, FL.halfW, p.a), stackFilter: (s) => s.layers.length > relH(g, s), targets: (s) => [{ poly: stackPoly(s), from: 0 }] });
+    const v = g.root.trucks[g.lifting], p = riderPose(g.truck, v), c = toWorld(p, BODY_MID, 0);
+    shapes.push({ poly: rectPoly(c.x, c.y, (FL.front - FL.back) / 2, FL.halfW, p.a), stackFilter: (s) => s.layers.length > relH(g, s) + v.rideLv, targets: (s) => [{ poly: stackPoly(s), from: 0 }] });
     const vc = carriedPoly({ ...v, fl: p });
-    if (vc) shapes.push({ poly: vc, stackFilter: (s) => s.layers.length > relH(g, s) + v.H, targets: (s) => [{ poly: stackPoly(s), from: 0 }] });
+    if (vc) shapes.push({ poly: vc, stackFilter: (s) => s.layers.length > relH(g, s) + v.rideLv + v.H, targets: (s) => [{ poly: stackPoly(s), from: 0 }] });
   }
   if (g.carried) {
     const c = toWorld(f, FL.carryX, 0);
@@ -1015,9 +1026,9 @@ function tinesUnderMyStack(g) {
 }
 
 // Raising a truck (and the stack it carries) into the ceiling is refused and damages that stack.
-function liftBlocked(g, v) {
+function liftBlocked(g, v, hit = false) {
   const extent = v.carried ? Math.max(1, v.H + v.carried.length) : 1;
-  if (g.H + extent < CEILING_LEVELS) return false;
+  if (!hit && g.H + extent < CEILING_LEVELS) return false;
   if (v.carried) {
     while (v.carriedPen.length < v.carried.length) v.carriedPen.push(newPen(v.carried[v.carriedPen.length], v.carriedPen.length));
     const c = toWorld(v.fl, FL.carryX, 0);
@@ -1040,6 +1051,17 @@ function truckOnMyTines(g) {
   return null;
 }
 
+// A perched truck sitting on top of stack S (the one that goes with the boxes lifted off it), or null.
+function perchedOn(g, S) {
+  const top = stackZ(g, S) + S.layers.length;
+  for (const o of otherTrucks(g)) {
+    if (o.truck.perchZ !== top || o.truck.liftedBy >= 0) continue;
+    const c = toWorld(o.fl, BODY_MID, 0);
+    if (sat(rectPoly(c.x, c.y, (FL.front - FL.back) / 2, FL.halfW, o.fl.a), stackPoly(S))) return o;
+  }
+  return null;
+}
+
 // Raising carried boxes into the ceiling is refused ('blocked') and damages every carried box.
 export function forkUp(g) {
   if (stuck(g)) return;
@@ -1057,7 +1079,7 @@ export function forkUp(g) {
       return;
     }
   }
-  if (g.lifting >= 0) {
+  if (g.lifting >= 0 && !g.carried) {
     const v = truckView(g.root, g.lifting);
     return liftBlocked(g, v) ? 'blocked' : void (g.H = Math.min(MAX_H, g.H + 1));
   }
@@ -1070,7 +1092,9 @@ export function forkUp(g) {
     }
   }
   if (g.carried) {
-    if (g.H + g.carried.length >= CEILING_LEVELS) {
+    const rider = g.lifting >= 0 ? truckView(g.root, g.lifting) : null; // a truck sitting on the carried stack
+    if (g.H + g.carried.length + (rider ? (rider.carried ? Math.max(1, rider.H + rider.carried.length) : 1) : 0) >= CEILING_LEVELS) {
+      if (rider?.carried) liftBlocked(g, rider, true);
       while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen(g.carried[g.carriedPen.length], g.carriedPen.length));
       const c = toWorld(g.fl, FL.carryX, 0);
       hurt(g, g.carriedPen, CEILING_POINTS, c.x, c.y, g.H + g.carried.length, g);
@@ -1084,6 +1108,7 @@ export function forkUp(g) {
   if (S) {
     const k = relH(g, S);
     if (S.pen?.[k]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[k])) > WIDE_ALIGN) return 'blocked'; // the tines don't both fit under it
+    const rider = perchedOn(g, S);
     g.carried = S.layers.splice(k);
     g.carriedRots = S.rots.splice(k).map((r) => r - g.fl.a);
     g.carriedPen = S.pen.splice(k);
@@ -1094,6 +1119,14 @@ export function forkUp(g) {
     });
     g.carriedRel = g.carriedRots[0];
     if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
+    if (rider) { // a truck perched on top of the stack rides along on it
+      const l = toLocal(g.fl, rider.fl.x, rider.fl.y);
+      rider.truck.liftedBy = g.truck.id;
+      rider.truck.perchZ = 0;
+      rider.truck.rideLv = g.carried.length;
+      rider.truck.rideOff = { x: l.x, y: l.y, a: rider.fl.a - g.fl.a };
+      g.truck.lifting = rider.truck.id;
+    }
   }
   g.H = Math.min(MAX_H, g.H + 1);
 }
@@ -1118,7 +1151,7 @@ export function forkDownAll(g) {
 // Lowering empty forks through a box is refused ('blocked') and damages that box.
 export function forkDown(g) {
   if (stuck(g)) return;
-  if (g.lifting >= 0) { // the lifted truck is set down on the floor, or on the stacks under it, when the tines reach it
+  if (g.lifting >= 0 && !g.carried) { // the lifted truck is set down on the floor, or on the stacks under it, when the tines reach it
     const v = g.root.trucks[g.lifting], n = supportLevels(g.root, liftedPose(g.truck, v.liftRel));
     if (g.H > n) g.H--;
     if (g.H <= n) {
@@ -1179,6 +1212,7 @@ export function forkDown(g) {
     g.carriedRots = [];
     g.carriedPen = [];
     g.carriedOffs = [];
+    if (g.lifting >= 0) releaseLifted(g.root, g.truck); // a truck that rode on the stack stays perched on it
   }
 }
 

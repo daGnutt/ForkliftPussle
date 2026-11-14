@@ -342,5 +342,34 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('lift ceiling ok');
 }
 
+// Taking the stack a truck is perched on takes the truck along; putting the stack down perches it again.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 6, y: 5, layers: [0, 1] }];
+  const b = addTruck(g, 'Bob');
+  const bob = g.trucks[b];
+  g.ghostPairs = [];
+  Object.assign(bob.fl, { x: 6, y: 5.775, a: Math.PI / 2, speed: 0 });
+  bob.perchZ = 2;
+  Object.assign(g.fl, { x: 1, y: 5, a: 0, speed: 0 });
+  driveUntil(g, 6, 4);
+  forkUp(g);
+  assert.deepEqual(g.carried, [0, 1], 'the stack is lifted');
+  assert.equal(g.lifting, b, 'with the truck on top');
+  assert.equal(bob.perchZ, 0);
+  assert.equal(bob.liftedBy, g.truck.id);
+  assert.ok(liftedHf(truckView(g, b)) > 2, 'rides above the carried stack');
+  const x0 = bob.fl.x;
+  run(g, { down: true }, 0.8);
+  assert.ok(Math.abs(bob.fl.x - x0) > 0.5, 'the truck is carried along');
+  run(g, NONE, 1);
+  forkDown(g);
+  assert.equal(g.carried, null, 'stack set down');
+  assert.equal(g.lifting, -1);
+  assert.equal(bob.perchZ, 2, 'the truck is perched on it again');
+  console.log('lift stack with truck ok');
+}
+
 
 console.log('fork tests passed');

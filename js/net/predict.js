@@ -12,7 +12,7 @@ const SNAP_DIST = 2; // tiles; a bigger error replaces the prediction outright
 const PUSH_MEMORY = 0.5; // seconds a stack keeps the guest's own (predicted) push before the host's position is trusted again
 const MAX_STACK_DIFF = 0.6; // tiles; a predicted stack further off than this from the host's is not shown
 
-const AUX = ['carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hf', 'ef', 'revTime', 'rv', 'hitAt', 'lifting', 'liftedBy', 'liftRel', 'perchZ'];
+const AUX = ['carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hf', 'ef', 'revTime', 'rv', 'hitAt', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
 const SHOWN = ['lifting', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'H', 'hf', 'ef', 'rv']; // what is displayed while a fork action is unconfirmed
 const CONFIRM_SLACK = 0.3; // seconds after one round trip before the host's fork state is trusted over the predicted one
 
