@@ -12,7 +12,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes } from './decals.js';
-import { liftedHf, carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ } from './game.js';
+import { liftedHf, carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -588,17 +588,29 @@ function drawWorldObjects(ctx, g, vis) {
   const trucks = [...otherTrucksShown(g), g];
   for (const t of trucks) {
     ctx.globalAlpha = isGhost(g, t.truck.id) ? 0.4 : 1;
+    const popScale = truckPopScale(g, t.truck.id);
+    ctx.save();
+    ctx.translate(t.fl.x, t.fl.y);
+    ctx.scale(popScale, popScale);
+    ctx.translate(-t.fl.x, -t.fl.y);
     const lh = liftedHf(t);
     if (lh != null) { ctx.save(); ctx.translate(lh * PX, lh * PY); } // riding on another truck's tines
     drawForkliftBody(ctx, t);
     drawTines(ctx, t);
     if (lh != null) ctx.restore();
+    ctx.restore();
     ctx.globalAlpha = 1;
   }
   for (const st of high) dstack(st);
   for (const t of trucks) {
     ctx.globalAlpha = isGhost(g, t.truck.id) ? 0.4 : 1;
+    const popScale = truckPopScale(g, t.truck.id);
+    ctx.save();
+    ctx.translate(t.fl.x, t.fl.y);
+    ctx.scale(popScale, popScale);
+    ctx.translate(-t.fl.x, -t.fl.y);
     drawCarried(ctx, t);
+    ctx.restore();
     ctx.globalAlpha = 1;
   }
 

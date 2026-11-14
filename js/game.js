@@ -96,13 +96,26 @@ export function truckView(g, i) {
 // The live truck objects.
 export const liveTrucks = (g) => g.root.trucks.filter((t) => !t.gone);
 // Views of the live trucks other than the one `g` is the view of.
-// View-only pop timing (set by main.js `watchPops`): for POP_DELAY seconds after a truck popped in it stays hidden and after
-// it popped out it is still drawn, so the smoke cloud covers the moment it appears or vanishes. Renderers use this.
-export const POP_DELAY = 0.45;
+// View-only pop timing (set by main.js `watchPops`): arrivals scale in and departures linger for the smoke to build
+// before scaling out. Renderers use this; it does not affect the simulation.
+export const POP_DELAY = 0.8;
+const POP_OUT_HOLD = POP_DELAY * 0.5;
+const POP_MIN_SCALE = 0.03;
+export function truckPopScale(g, i) {
+  const root = g.root, pop = root.popVis?.[i];
+  if (!pop) return 1;
+  const elapsed = Math.max(0, root.clock - pop.t);
+  if (elapsed >= POP_DELAY) return 1;
+  const progress = pop.kind === 'out'
+    ? Math.max(0, Math.min(1, (elapsed - POP_OUT_HOLD) / (POP_DELAY - POP_OUT_HOLD)))
+    : Math.max(0, Math.min(1, elapsed / POP_DELAY));
+  const eased = progress * progress * (3 - 2 * progress);
+  return pop.kind === 'out' ? 1 - (1 - POP_MIN_SCALE) * eased : POP_MIN_SCALE + (1 - POP_MIN_SCALE) * eased;
+}
 export const otherTrucksShown = (g) => g.root.trucks.map((t, i) => {
   if (t === g.truck) return null;
   const pv = g.root.popVis?.[i], busy = pv && g.root.clock - pv.t < POP_DELAY;
-  return (busy ? pv.kind === 'out' : !t.gone) ? truckView(g.root, i) : null;
+  return (busy ? pv.kind === 'out' || pv.kind === 'in' : !t.gone) ? truckView(g.root, i) : null;
 }).filter(Boolean);
 export const otherTrucks = (g) => g.root.trucks.map((t, i) => (t.gone || t === g.truck ? null : truckView(g.root, i))).filter(Boolean);
 

@@ -3,7 +3,7 @@ import { truckPaint, TRUCK_H, truckRoofs, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, overheadDecals, boxDeco } from '../decals.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
-import { carriedWorldOffs, carriedJoltZ, otherTrucksShown, isGhost, dropLift, stackZ, fallView } from '../game.js';
+import { carriedWorldOffs, carriedJoltZ, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf } from '../game.js';
 import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam } from './camera.js';
 
 // Scene geometry: everything is a prism (walls, pallets, boxes, tines, fixtures) split into
@@ -232,7 +232,19 @@ export function buildFaces(g, cam) {
   addForks(faces, cam, g);
   for (const t of otherTrucksShown(g)) {
     if (isGhost(g, t.truck.id)) continue; // the software view cannot blend, so ghosts are left out
+    const start = faces.length;
     addTruck(faces, cam, t);
+    const popScale = truckPopScale(g, t.truck.id);
+    if (popScale < 1) {
+      const lift = (liftedHf(t) ?? 0) * (BOX_H + PAL), { x, y } = t.fl;
+      for (let i = start; i < faces.length; i++) {
+        const face = faces[i];
+        face.quad = face.quad.map(([px, py, pz]) => [x + (px - x) * popScale, y + (py - y) * popScale, lift + (pz - lift) * popScale]);
+        face.mx = x + (face.mx - x) * popScale;
+        face.my = y + (face.my - y) * popScale;
+        face.mz = lift + (face.mz - lift) * popScale;
+      }
+    }
   }
   for (const f of faces) f.d = Math.hypot(f.mx - cam.x, f.my - cam.y, f.mz - cam.z) + (f.boxFlat ? 0.6 : 0); // lids/undersides sit behind the pallet parts touching them
   faces.sort((a, b) => b.d - a.d);

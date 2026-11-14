@@ -17,13 +17,50 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, POP_DELAY, truckPopScale, otherTrucksShown } from '../js/game.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
 // Multiplayer trucks: ghosts at spawn, collisions once separated, stack handoff on the tines, leaving players
 {
   const boxes = (g) => g.stacks.reduce((n, s) => n + s.layers.length, 0) + g.trucks.reduce((n, t) => n + (t.carried ? t.carried.length : 0), 0);
+  const popGame = newGame(1);
+  addTruck(popGame, 'Pop');
+  popGame.popVis = { 1: { t: popGame.clock, kind: 'in' } };
+  assert.equal(otherTrucksShown(popGame).length, 1, 'a spawning truck is visible inside the pop smoke');
+  assert.equal(truckPopScale(popGame, 1), 0.03, 'it starts tiny');
+  popGame.clock += POP_DELAY / 2;
+  assert.ok(truckPopScale(popGame, 1) > 0.03 && truckPopScale(popGame, 1) < 1, 'it grows during the smoke');
+  popGame.clock += POP_DELAY;
+  assert.equal(truckPopScale(popGame, 1), 1, 'it reaches full size');
+  popGame.popVis[1] = { t: popGame.clock, kind: 'out' };
+  popGame.trucks[1].gone = true;
+  assert.equal(otherTrucksShown(popGame).length, 1, 'a disconnect stays visible during its pop');
+  assert.equal(truckPopScale(popGame, 1), 1, 'it waits for the smoke to build');
+  popGame.clock += POP_DELAY * 0.75;
+  assert.ok(truckPopScale(popGame, 1) < 1 && truckPopScale(popGame, 1) > 0.03, 'it shrinks after the smoke builds');
+  popGame.clock += POP_DELAY;
+  assert.equal(otherTrucksShown(popGame).length, 0, 'it is hidden after the pop');
+
+  const visual = newGame(1);
+  visual.stacks = [];
+  addTruck(visual, 'Visual');
+  Object.assign(visual.trucks[1].fl, { x: 100, y: 100 });
+  visual.ghostPairs = [];
+  visual.popVis = { 1: { t: visual.clock, kind: 'in' } };
+  const truckExtent = () => {
+    const a = dynamicMeshes(visual, 'ov', [100, 100]).opaque.floats();
+    let extent = 0;
+    for (let i = 0; i < a.length; i += 10) {
+      const d = Math.hypot(a[i] - 100, a[i + 1] - 100);
+      if (d < 10) extent = Math.max(extent, d);
+    }
+    return extent;
+  };
+  const tinyExtent = truckExtent();
+  visual.clock += POP_DELAY;
+  assert.ok(truckExtent() > tinyExtent * 10, 'WebGL truck geometry scales up from tiny');
+
   const g = newGame(1);
   const total = boxes(g);
   assert.equal(addTruck(g, 'B'), 1);

@@ -5,7 +5,7 @@ import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
-import { zoneDone, zoneExt, zoneLabelPos, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView } from '../game.js';
+import { zoneDone, zoneExt, zoneLabelPos, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
 import { addParticles } from './particles.js';
@@ -437,9 +437,14 @@ export function dynamicMeshes(g, mode, eye) {
   for (const t of otherTrucksShown(g)) {
     const ghost = isGhost(g, t.truck.id), m = ghost ? tm : om;
     if (ghost) tm.alpha = 0.4;
+    const popScale = truckPopScale(g, t.truck.id);
+    const lift = (liftedHf(t) ?? 0) * (BOX_H + PAL);
+    const transform = popScale < 1 ? { x: t.fl.x, y: t.fl.y, z: lift, scale: popScale } : null;
+    om.transform = tm.transform = transform;
     addCarried(m, tm, t);
     addForklift(m, t, true);
     addForks(m, t);
+    om.transform = tm.transform = null;
     tm.alpha = 1;
   }
   const bare = mode === 'pov' && bareForksEnabled();
