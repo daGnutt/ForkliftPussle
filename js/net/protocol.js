@@ -7,7 +7,7 @@
 import { makeTruck } from '../game.js';
 import { endlessSnapshot, restoreEndless } from '../endless.js';
 
-const TRUCK_FIELDS = ['id', 'color', 'name', 'gone', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'contact', 'slip', 'H', 'hf', 'ef', 'rv', 'hitAt', 'horn'];
+const TRUCK_FIELDS = ['id', 'color', 'name', 'gone', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'contact', 'slip', 'H', 'hf', 'ef', 'rv', 'hitAt', 'horn', 'lifting', 'liftedBy', 'liftRel', 'perchZ'];
 export const SNAPSHOT_HZ = 30;
 const STACK_RESEND = 5; // snapshots are unreliable, so changed stacks are repeated this many times
 const STACK_REFRESH = 2; // seconds between full stack refreshes while nothing changes

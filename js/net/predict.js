@@ -12,8 +12,8 @@ const SNAP_DIST = 2; // tiles; a bigger error replaces the prediction outright
 const PUSH_MEMORY = 0.5; // seconds a stack keeps the guest's own (predicted) push before the host's position is trusted again
 const MAX_STACK_DIFF = 0.6; // tiles; a predicted stack further off than this from the host's is not shown
 
-const AUX = ['carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hf', 'ef', 'revTime', 'rv', 'hitAt'];
-const SHOWN = ['carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'H', 'hf', 'ef', 'rv']; // what is displayed while a fork action is unconfirmed
+const AUX = ['carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hf', 'ef', 'revTime', 'rv', 'hitAt', 'lifting', 'liftedBy', 'liftRel', 'perchZ'];
+const SHOWN = ['lifting', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'H', 'hf', 'ef', 'rv']; // what is displayed while a fork action is unconfirmed
 const CONFIRM_SLACK = 0.3; // seconds after one round trip before the host's fork state is trusted over the predicted one
 
 const wrap = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
@@ -63,7 +63,7 @@ export function createPredictor() {
       const auth = authTruck?.fl;
       if (!auth) return;
       const mine = sim.trucks[sim.self];
-      if (!pending(now) && (authTruck.H !== mine.H || JSON.stringify(authTruck.carried) !== JSON.stringify(mine.carried))) {
+      if (!pending(now) && (authTruck.H !== mine.H || authTruck.liftedBy !== mine.liftedBy || authTruck.lifting !== mine.lifting || JSON.stringify(authTruck.carried) !== JSON.stringify(mine.carried))) {
         for (const k of AUX) mine[k] = structuredClone(authTruck[k]);
       }
       const past = nearest(now - rtt);

@@ -1,5 +1,6 @@
 import { toWorld, FL } from '../forklift.js';
 import { EYE_X, EYE_Z, BOX_H, PAL } from '../pov/camera.js';
+import { liftedHf } from '../game.js';
 import { perspective, viewBasis, mul, projectPoint } from './mat.js';
 import { WALL_H } from './models.js';
 
@@ -24,7 +25,7 @@ export function povCamera(g, w, h, look = null) {
   const cp = Math.cos(pitch), sp = Math.sin(pitch), c = Math.cos(a), s = Math.sin(a);
   const f2w = 1 / Math.tan(GL_HFOV / 2);
   const proj = perspective(f2w, (f2w * w) / h, 0, POV_NEAR, POV_FAR);
-  const eye = [e.x, e.y, EYE_Z];
+  const eye = [e.x, e.y, EYE_Z + (liftedHf(g) ?? 0) * (BOX_H + PAL)];
   const view = viewBasis(eye, [-s, c, 0], [-c * sp, -s * sp, cp], [c * cp, s * cp, sp]);
   return { vp: mul(proj, view), eye, w, h };
 }

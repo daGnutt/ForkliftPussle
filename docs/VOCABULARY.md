@@ -66,6 +66,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Fork level** | Integer 0–5 height of the tines in box heights | `g.H` |
 | **Smoothed fork height** | Animated height used only for drawing | `g.hf`, `g.ef` |
 | **Fork up / fork down** | Keys A / Z | `forkUp`, `forkDown` |
+| **Lifted / perched truck** | A truck riding on another truck's tines (`liftedBy`, cannot move) or sitting on top of stacks (`perchZ`) | `forkUp`, `liftedHf` |
 | **Release / drop** | Lowering a carried stack onto the floor/stack | `forkDown` |
 | **Blocked fork down** | Refused lowering onto a box; 10 crash points | `'blocked'` |
 | **Nudge / align** | Slow forward contact straightens a stack | `g.aligning` |

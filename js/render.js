@@ -12,7 +12,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView } from './game.js';
+import { liftedHf, carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -251,7 +251,7 @@ function drawTines(ctx, g) {
 function drawCarried(ctx, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  drawStack(ctx, g.carried, p.x, p.y, g.hf, g.carriedRots.map((r) => r + g.fl.a), carriedWorldOffs(g), g.carriedPen);
+  drawStack(ctx, g.carried, p.x, p.y, g.hf + (liftedHf(g) ?? 0), g.carriedRots.map((r) => r + g.fl.a), carriedWorldOffs(g), g.carriedPen);
 }
 
 // Draws the top-down overview scaled into the screen rect (rx, ry, rw, rh).
@@ -588,8 +588,11 @@ function drawWorldObjects(ctx, g, vis) {
   const trucks = [...otherTrucksShown(g), g];
   for (const t of trucks) {
     ctx.globalAlpha = isGhost(g, t.truck.id) ? 0.4 : 1;
+    const lh = liftedHf(t);
+    if (lh != null) { ctx.save(); ctx.translate(lh * PX, lh * PY); } // riding on another truck's tines
     drawForkliftBody(ctx, t);
     drawTines(ctx, t);
+    if (lh != null) ctx.restore();
     ctx.globalAlpha = 1;
   }
   for (const st of high) dstack(st);
