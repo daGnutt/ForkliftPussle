@@ -83,7 +83,7 @@ function approachZero(v, d) {
 export function drive(f, inp, dt, h = 0) {
   const hsf = heightSpeedFactor(h);
   const capFwd = MAX_FWD * hsf, capRev = MAX_REV * hsf;
-  const th = (inp.up ? 1 : 0) - (inp.down ? 1 : 0);
+  const th = inp.thr ?? (inp.up ? 1 : 0) - (inp.down ? 1 : 0); // inp.thr/inp.str: optional analog -1..1 (gamepad)
   f.brake = th * f.speed < 0; // throttle opposing the motion: brake lights
   const overCap = f.speed > capFwd || f.speed < -capRev;
   if (overCap) {
@@ -109,7 +109,7 @@ export function drive(f, inp, dt, h = 0) {
   } else idleR.delete(f);
 
   const steerCap = maxSteerFor(f.speed);
-  const target = ((inp.right ? 1 : 0) - (inp.left ? 1 : 0)) * steerCap;
+  const target = (inp.str ?? (inp.right ? 1 : 0) - (inp.left ? 1 : 0)) * steerCap;
   const dSteer = Math.max(-STEER_RATE * dt, Math.min(STEER_RATE * dt, target - f.steer));
   f.steer = Math.max(-steerCap, Math.min(steerCap, f.steer + dSteer));
 
