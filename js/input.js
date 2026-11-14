@@ -122,15 +122,15 @@ export function createInput(handlers) {
   window.addEventListener('keyup', (e) => down.delete(e.code));
   window.addEventListener('blur', () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); });
   // Gamepad (standard mapping), polled on every state() call. Held controls are merged into state(); buttons act on their press edge.
-  // Drive: right trigger forward, left trigger back; steer: left stick X; fork up: B/RB; fork down: A/LB (hold: lowest safe level);
+  // Drive: right trigger forward, left trigger back; steer: left stick X; fork up: A/RB; fork down: B/LB (hold: lowest safe level);
   // horn: X; cabin view: Y; chase camera: right stick click; look: right stick X; menu: Start (also closes it).
   // While the menu (or splash) is open the d-pad moves/adjusts, A selects and B goes back, via the menuNav/menuSelect/menuBack handlers.
   const DEAD = 0.3, STICK_DEAD = 0.12, TRIG_DEAD = 0.05;
   const pad = { thr: 0, str: 0, up: false, down: false, left: false, right: false, lookL: false, lookR: false, horn: false };
   let padPrev = [];
   const padActions = [
-    [1, () => { handlers.up?.(); handlers.next?.(); }], [5, () => handlers.up?.()],
-    [0, () => press('KeyZ')], [4, () => press('KeyZ')],
+    [0, () => { handlers.up?.(); handlers.next?.(); }], [5, () => handlers.up?.()],
+    [1, () => press('KeyZ')], [4, () => press('KeyZ')],
     [3, () => handlers.swapView?.()], [11, () => handlers.toggleChase?.()],
   ];
   const menuDirs = { 12: 'up', 13: 'down', 14: 'left', 15: 'right' };
@@ -166,7 +166,7 @@ export function createInput(handlers) {
     pad.horn = b(2);
     for (const [i, act] of padActions) if (edge(i)) act();
     // lowering is a held action: the key stays 'down' while either button is held
-    if (b(0) || b(4)) down.add('KeyZ'); else if (was[0] || was[4]) down.delete('KeyZ');
+    if (b(1) || b(4)) down.add('KeyZ'); else if (was[1] || was[4]) down.delete('KeyZ');
   }
   return {
     clear: () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); buttons.forEach((b) => b.classList.remove('on')); },

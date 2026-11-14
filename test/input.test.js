@@ -22,9 +22,9 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   pad = mkPad({ axes: [0.8, 0, 0, 0], pressed: [7] });
   let s = inp.state();
   assert.ok(s.up && s.right && !s.left && !s.down);
-  pad = mkPad({ pressed: [1] });
+  pad = mkPad({ pressed: [0] });
   inp.state(); inp.state();
-  assert.deepEqual(calls, ['up'], 'B fires fork up once per press');
+  assert.deepEqual(calls, ['up'], 'A fires fork up once per press');
   pad = mkPad({ axes: [0, -1, 0, 0] });
   assert.ok(!inp.state().up, 'the stick does not drive');
   pad = mkPad({ pressed: [9] });
