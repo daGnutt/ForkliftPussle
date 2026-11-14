@@ -512,6 +512,43 @@ console.log('all tests passed');
   console.log('box-align ok');
 }
 
+// Pushing a stack gently into a wall squares it to the wall; a hard shove snags it and spins it.
+{
+  const mk = () => {
+    const g = newGame(1);
+    flatWorld(g);
+    g.walls = [{ x: 12, y: 0, w: 1, h: 20, poly: [{ x: 12, y: 0 }, { x: 13, y: 0 }, { x: 13, y: 20 }, { x: 12, y: 20 }] }];
+    g.stacks = [{ x: 11, y: 5, layers: [0], rots: [0.3], pen: [{ crash: 0, sq: 0 }], a: 0.3 }];
+    g.fl.x = 8.5; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
+    return g;
+  };
+  const g = mk();
+  for (let i = 0; i < 900; i++) {
+    g.fl.speed = Math.min(g.fl.speed + 0.01, 0.4);
+    update(g, { up: true }, 1 / 120);
+    if (g.fl.speed > 0.5) g.fl.speed = 0.4;
+  }
+  assert.ok(Math.abs(g.stacks[0].a) < 0.02, 'gentle push squares the stack to the wall');
+  const h = mk();
+  h.stacks[0].rots = [0.15]; h.stacks[0].a = 0.15;
+  for (let i = 0; i < 300; i++) {
+    h.fl.speed = 3;
+    update(h, { up: true }, 1 / 120);
+  }
+  assert.ok(Math.abs(h.stacks[0].a - 0.15) > 0.02, 'hard shove spins the stack');
+  // a carried stack pressed gently against a wall squares up to it on the forks
+  const c = mk();
+  c.stacks = [];
+  c.fl.x = 10; c.fl.a = 0.2; c.fl.speed = 0;
+  c.carried = [0]; c.carriedRel = 0; c.carriedRots = [0]; c.carriedPen = [{ crash: 0, sq: 0 }]; c.carriedOffs = [{ x: 0, y: 0 }];
+  for (let i = 0; i < 600; i++) {
+    c.fl.speed = Math.min(c.fl.speed + 0.01, 0.4);
+    update(c, { up: true }, 1 / 120);
+  }
+  assert.ok(Math.abs(c.fl.a + c.carriedRel) < 0.05, 'carried stack squares to the wall on the forks');
+  console.log('wall-align ok');
+}
+
 // high scores
 {
   const { getBest, beats, saveBest, finalScore, formatTime } = await import('../js/highscores.js');

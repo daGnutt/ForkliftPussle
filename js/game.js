@@ -481,6 +481,25 @@ function shiftPoly(poly, dx, dy) {
   for (const p of poly) { p.x += dx; p.y += dy; }
 }
 
+const CARRIED_TURN_MAX = 0.35; // rad a carried stack can twist on the forks away from square to them
+
+// Turns the carried stack about its centre by the lever arm of a wall's push (tip = contact point, (m.x, m.y) = push-out normal).
+function turnCarried(g, tip, m) {
+  const c = toWorld(g.fl, FL.carryX, 0);
+  const rx = tip.x - c.x, ry = tip.y - c.y;
+  const raw = (rx * m.y - ry * m.x) * m.depth / (rx * rx + ry * ry + PALLET_INERTIA);
+  twistCarried(g, Math.max(-0.01, Math.min(0.01, raw)));
+}
+
+function twistCarried(g, da) {
+  const q = Math.PI / 2, wrap = (a) => ((a + q / 2) % q + q) % q - q / 2;
+  const rel0 = wrap(g.carriedRel);
+  const rel = Math.max(-CARRIED_TURN_MAX, Math.min(CARRIED_TURN_MAX, rel0 + da));
+  const d = rel - rel0;
+  g.carriedRel += d;
+  g.carriedRots = g.carriedRots.map((r) => r + d);
+}
+
 function resolve(g) {
   const f = g.fl;
   g.wallPush = null;
@@ -507,6 +526,11 @@ function resolve(g) {
           const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
           wp.x += m.x * m.depth; wp.y += m.y * m.depth;
           if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 'c', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
+          // a carried stack (or the tines holding it) touching a wall turns on the forks: squares up when gentle, snags and twists when hard
+          if (g.carried && (sh.carried || sh.tine)) {
+            if (Math.abs(f.speed) < CRASH_MIN_SPEED) g.carriedAligning = true;
+            else turnCarried(g, tip, m);
+          }
         }
       }
     }
@@ -572,6 +596,12 @@ function resolve(g) {
         if (m) {
           s.x += m.x * m.depth; s.y += m.y * m.depth;
           const sp = Math.abs(f.speed);
+          if (sp < CRASH_MIN_SPEED) g.wallAligning?.add(s); // pressed gently: the stack squares up to the wall
+          else {
+            // a hard shove snags a corner on the wall: it turns about its centre and the turn also swings it sideways
+            ensure(s);
+            spinStack(s, 0, deepest(stackPoly(s), -m.x, -m.y), m.x, m.y, m.x * m.depth, m.y * m.depth);
+          }
           if (sp >= CRASH_MIN_SPEED && g.clock - (s.wallHitAt ?? -1) >= CRASH_COOLDOWN) {
             ensure(s);
             s.wallHitAt = g.clock;
@@ -609,10 +639,10 @@ function resolve(g) {
 }
 
 // Driving slowly into a stack turns every box square to the forklift's heading.
-function alignStack(g, s, dt) {
+function alignStack(g, s, dt, heading = g.fl.a) {
   const q = Math.PI / 2, step = ALIGN_RATE * dt;
   const turn = (a) => {
-    const diff = ((g.fl.a - a) % q + q * 1.5) % q - q / 2; // signed distance to nearest square angle
+    const diff = ((heading - a) % q + q * 1.5) % q - q / 2; // signed distance to nearest square angle
     return Math.max(-step, Math.min(step, diff));
   };
   ensure(s);
@@ -725,11 +755,18 @@ function stepTruck(g, input, dt) {
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;
   g.aligning = new Set();
+  g.wallAligning = new Set();
+  g.carriedAligning = false;
   if (forked && f.a !== prevA) glideWithForks(g, forked, forkedY, f.a - prevA, relH(g, forked));
   const speed0 = f.speed;
   resolve(g);
   impactKick(g, speed0, dt);
   for (const s of g.aligning) alignStack(g, s, dt);
+  for (const s of g.wallAligning) alignStack(g, s, dt, 0); // walls are axis-aligned
+  if (g.carried && g.carriedAligning) {
+    const q = Math.PI / 2, diff = ((0 - g.carriedRel - f.a) % q + q * 1.5) % q - q / 2;
+    twistCarried(g, Math.max(-ALIGN_RATE * dt, Math.min(ALIGN_RATE * dt, diff)));
+  }
 
   if (Math.abs(intended) > 1e-6) {
     const actual = (f.x - driven.x) * Math.cos(f.a) + (f.y - driven.y) * Math.sin(f.a) + intended;
