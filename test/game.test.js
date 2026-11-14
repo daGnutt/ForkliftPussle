@@ -754,15 +754,14 @@ console.log('all tests passed');
   assert.equal(h.stacks[0].x, 10, 'tines pass through');
 }
 
-// A box slid well off the one below is hit by the forks (which otherwise pass through boxes), so it can be pushed back into line.
+// Level-0 tines (beside an offset box) don't push the box on level 1 away.
 {
   const g = newGame(1);
   flatWorld(g);
-  g.stacks = [{ x: 10, y: 5, layers: [0, 1], rots: [0, 0], a: 0, offs: [{ x: 0, y: 0 }, { x: -0.4, y: 0 }] }];
-  g.fl.a = 0; g.fl.x = 7; g.fl.y = 5; g.fl.speed = 0.8;
-  for (let i = 0; i < 240; i++) { g.fl.speed = 0.8; update(g, { up: true }, 1 / 120); }
-  assert.ok(g.stacks[0].offs[1].x > -0.4 + 0.1, 'forks push the slid box back');
-  assert.equal(g.stacks[0].x, 10, 'the box below stays put');
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1], rots: [0, 0], a: 0, offs: [{ x: 0, y: 0 }, { x: 0, y: 0.4 }] }];
+  g.fl.a = 0; g.fl.x = 7; g.fl.y = 5;
+  for (let i = 0; i < 300; i++) { g.fl.speed = 0.8; update(g, { up: true }, 1 / 120); }
+  assert.equal(g.stacks.length, 1, 'the offset box stays on its stack');
 }
 
 // Start stacks are clustered into bays (big yellow squares) clear of walls, doorways and drop-off areas.
