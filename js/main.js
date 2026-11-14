@@ -45,7 +45,9 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-let level = Number(localStorage.getItem('forklift-level')) || 1;
+// ?level=N always starts that level on every page load (overrides the saved level)
+const levelParam = Math.floor(Number(new URLSearchParams(location.search).get('level')));
+let level = levelParam >= 1 ? levelParam : Number(localStorage.getItem('forklift-level')) || 1;
 // The seed only comes from the URL (?seed=...), meant for tournaments.
 let seedText = (new URLSearchParams(location.search).get('seed') || '').trim().slice(0, 32);
 let seed = parseSeed(seedText);
@@ -731,6 +733,11 @@ localOpt.addEventListener('change', () => {
   input.setLocalMode(localOpt.checked);
   if (!localOpt.checked) local.clear(game);
 });
+// ?local turns on local multiplayer for this visit
+if (new URLSearchParams(location.search).has('local')) {
+  localOpt.checked = true;
+  input.setLocalMode(true);
+}
 const autoFsOpt = document.getElementById('autoFsOpt');
 autoFsOpt.checked = autoFs;
 autoFsOpt.addEventListener('change', () => {
