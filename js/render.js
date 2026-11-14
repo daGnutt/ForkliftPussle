@@ -12,7 +12,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView } from './game.js';
+import { carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -900,6 +900,52 @@ function drawDockWaits(ctx, g, width) {
   });
 }
 
+// Fork height gauge of one truck view: 0 = floor; box layer i fills the cell at height i-1
+function drawForkGauge(ctx, g, gx, gy) {
+  const cell = 26, top = 5;
+  const yOf = (lvl) => gy + (top - lvl) * cell;
+  const tc = truckColor(g.truck.color);
+  ctx.fillStyle = tc.dark;
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(gx - 28, gy - 26, 82, top * cell + cell + 34, 6);
+  ctx.fill();
+  ctx.stroke();
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#aaa';
+  ctx.fillText('FORKS', gx + 15, gy - 12);
+  for (let lvl = top; lvl >= 0; lvl--) {
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(gx, yOf(lvl), 30, cell - 2);
+    ctx.fillStyle = '#aaa';
+    ctx.fillText(String(lvl), gx - 10, yOf(lvl) + cell / 2);
+  }
+  const cellBox = (lvl, color, alpha, open) => {
+    if (lvl > top) return;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = COLORS[color];
+    ctx.fillRect(gx + 3, yOf(lvl) + 3, 24, cell - 8);
+    ctx.globalAlpha = 1;
+    if (open) { // open-top box: nothing can be stacked on it
+      ctx.font = '15px sans-serif';
+      ctx.fillText('🚫', gx + 15, yOf(lvl) + cell / 2);
+      ctx.font = '12px sans-serif';
+    }
+  };
+  const under = stackInZone(g);
+  if (under) under.layers.forEach((c, i) => cellBox(i, c, 0.85, under.pen?.[i]?.open));
+  if (g.carried) g.carried.forEach((c, i) => cellBox(g.H + i, c, 1, g.carriedPen?.[i]?.open));
+  ctx.strokeStyle = tc.body;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);
+  ctx.fillStyle = tc.body;
+  ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
+}
+
 function drawCompass(ctx, g, view, width) {
   let a; // world heading of the screen's "up"
   if (view.povBig) a = g.fl.a + (view.look ? view.look.yaw : 0) + headTurn(g.fl);
@@ -1077,49 +1123,9 @@ export function draw(ctx, g, view) {
 
   if (view.party) drawPartyBadge(ctx, g, view.party, width);
 
-  // fork height gauge: 0 = floor; box layer i fills the cell at height i-1
-  const gx = width - 70, gy = 70, cell = 26, top = 5;
-  const yOf = (lvl) => gy + (top - lvl) * cell;
-  const tc = truckColor(g.truck.color);
-  ctx.fillStyle = tc.dark;
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.roundRect(gx - 28, gy - 26, 82, top * cell + cell + 34, 6);
-  ctx.fill();
-  ctx.stroke();
-  ctx.font = '12px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#aaa';
-  ctx.fillText('FORKS', gx + 15, gy - 12);
-  for (let lvl = top; lvl >= 0; lvl--) {
-    ctx.strokeStyle = '#666';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(gx, yOf(lvl), 30, cell - 2);
-    ctx.fillStyle = '#aaa';
-    ctx.fillText(String(lvl), gx - 10, yOf(lvl) + cell / 2);
-  }
-  const cellBox = (lvl, color, alpha, open) => {
-    if (lvl > top) return;
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = COLORS[color];
-    ctx.fillRect(gx + 3, yOf(lvl) + 3, 24, cell - 8);
-    ctx.globalAlpha = 1;
-    if (open) { // open-top box: nothing can be stacked on it
-      ctx.font = '15px sans-serif';
-      ctx.fillText('🚫', gx + 15, yOf(lvl) + cell / 2);
-      ctx.font = '12px sans-serif';
-    }
-  };
-  const under = stackInZone(g);
-  if (under) under.layers.forEach((c, i) => cellBox(i, c, 0.85, under.pen?.[i]?.open));
-  if (g.carried) g.carried.forEach((c, i) => cellBox(g.H + i, c, 1, g.carriedPen?.[i]?.open));
-  ctx.strokeStyle = tc.body;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);
-  ctx.fillStyle = tc.body;
-  ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
+  // fork height gauge(s): one per live truck in local multiplayer, extra ones to the left
+  const gauged = view.shared ? g.trucks.map((_, i) => i).filter((i) => !g.trucks[i].gone) : [g.self];
+  gauged.forEach((i, k) => drawForkGauge(ctx, i === g.self ? g : truckView(g, i), width - 70 - k * GAUGE_W, 70));
   drawCompass(ctx, g, view, width);
   if (g.endless) drawDockWaits(ctx, g, width);
 
