@@ -3,7 +3,7 @@ import { theme } from '../theme.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
 import { topShapes, DENT_FILL } from '../dents.js';
 import { decalsEnabled, boxDeco, boxDecalShapes } from '../decals.js';
-import { carriedWorldOffs } from '../game.js';
+import { carriedWorldOffs, carriedJoltZ, liftedHf } from '../game.js';
 import { parseColor, shade, mix } from './mesh.js';
 
 // Geometry of the movable things (forklift, pallets, boxes). Heights in tiles; a box is BOX_H tall, a pallet PAL.
@@ -73,18 +73,22 @@ export function setBareForks(on) { bareForks = !!on; }
 export function bareForksEnabled() { return bareForks; }
 
 // Forklift: wheels, chassis, counterweight, mast, overhead guard. In the cabin view the roof is a see-through grid.
+// Height of the tines' top (world z) under a lifted truck, 0 for a truck on the floor.
+const liftDz = (g) => { const h = liftedHf(g); return h == null ? 0 : h * (BOX_H + PAL); };
+
 export function addForklift(m, g, solidRoof) {
   const f = g.fl, a = f.a, W = FL.halfW, pal = truckColor(g.truck.color);
+  const dz = liftDz(g); // a truck on another's tines rides on top of them
   const box = (x0, y0, x1, y1, z0, z1, col, opts) => {
     const c = toWorld(f, (x0 + x1) / 2, (y0 + y1) / 2);
-    m.cuboid(c.x, c.y, a, Math.abs(x1 - x0) / 2, Math.abs(y1 - y0) / 2, z0, z1, col, opts);
+    m.cuboid(c.x, c.y, a, Math.abs(x1 - x0) / 2, Math.abs(y1 - y0) / 2, z0 + dz, z1 + dz, col, opts);
   };
-  const wheel = (lx, ly, ang) => {
+  const wheel = (lx, ly, ang, r = 0.17) => {
     const c = toWorld(f, lx, ly);
-    m.wheel(c.x, c.y, 0.17, a + ang, 0.17, 0.1, '#1c1c1c');
+    m.wheel(c.x, c.y, r + dz, a + ang, r, 0.1, '#1c1c1c', 12, -(f.roll || 0) / r);
   };
-  wheel(0, -W - 0.02, 0);
-  wheel(0, W + 0.02, 0);
+  wheel(FL.frontWheelX, -W - 0.02, 0, 0.2125);
+  wheel(FL.frontWheelX, W + 0.02, 0, 0.2125);
   wheel(-FL.L, -W + 0.08, -f.steer);
   wheel(-FL.L, W - 0.08, -f.steer);
   if (solidRoof) box(FL.back, -W, FL.front, W, 0.15, 0.5, pal.body);
@@ -113,7 +117,7 @@ export function addForklift(m, g, solidRoof) {
     box(-1.2, -0.5, 0.05, 0.5, 1.15, 1.25, pal.roof);
     box(-1.0, -0.33, -0.1, 0.33, 1.25, 1.27, '#fff3c4');
     const q = toWorld(f, 0.2, 0), r1 = toWorld(f, -0.1, -0.1), r2 = toWorld(f, -0.1, 0.1);
-    m.tri([r1.x, r1.y, 1.275], [q.x, q.y, 1.275], [r2.x, r2.y, 1.275], [0, 0, 1], parseColor('#c62828'));
+    m.tri([r1.x, r1.y, 1.275 + dz], [q.x, q.y, 1.275 + dz], [r2.x, r2.y, 1.275 + dz], [0, 0, 1], parseColor('#c62828'));
   } else {
     box(-1.2, -0.5, 0.05, -0.46, 1.15, 1.2, pal.roof);
     box(-1.2, 0.46, 0.05, 0.5, 1.15, 1.2, pal.roof);
@@ -124,7 +128,7 @@ export function addForklift(m, g, solidRoof) {
 
 // Fork carriage: backrest, upright shank and a blade with a tapered, thinner tip per tine.
 export function addForks(m, g, hideMast = false) {
-  const tz = g.hf * (BOX_H + PAL), col = theme().tine, a = g.fl.a;
+  const tz = g.hf * (BOX_H + PAL) + liftDz(g), col = theme().tine, a = g.fl.a;
   const { tineX0: x0, tineX1: x1, tineOff: off, tineHalf: hw } = FL;
   const cub = (lx0, ly0, lx1, ly1, z0, z1, c) => {
     const p = toWorld(g.fl, (lx0 + lx1) / 2, (ly0 + ly1) / 2);
@@ -154,5 +158,5 @@ export function addForks(m, g, hideMast = false) {
 export function addCarried(m, tm, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  addStack(m, tm, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, carriedWorldOffs(g), 0, 0, g.carriedPen);
+  addStack(m, tm, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf + (liftedHf(g) ?? 0) + carriedJoltZ(g), carriedWorldOffs(g), 0, 0, g.carriedPen);
 }

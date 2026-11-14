@@ -1,3 +1,5 @@
+import { padAxes, standardPads } from './gamepad.js';
+
 const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyZ', 'KeyQ', 'KeyW', 'KeyM', 'KeyF', 'KeyC', 'Tab', 'KeyP', 'KeyH', 'Escape']);
 
 const HOLD_MS = 400; // holding the lower key this long drops the forks to the lowest safe level
@@ -125,7 +127,8 @@ export function createInput(handlers) {
   // Drive: right trigger forward, left trigger back; steer: left stick X; fork up: A/RB; fork down: B/LB (hold: lowest safe level);
   // horn: X; cabin view: Y; chase camera: right stick click; look: right stick X; menu: Start (also closes it).
   // While the menu (or splash) is open the d-pad moves/adjusts, A selects and B goes back, via the menuNav/menuSelect/menuBack handlers.
-  const DEAD = 0.3, STICK_DEAD = 0.12, TRIG_DEAD = 0.05;
+  const DEAD = 0.3;
+  let localMode = false; // local multiplayer: pads belong to local.js; only Start and the menu still use them
   const pad = { thr: 0, str: 0, up: false, down: false, left: false, right: false, lookL: false, lookR: false, horn: false };
   let padPrev = [];
   const padActions = [
@@ -135,8 +138,7 @@ export function createInput(handlers) {
   ];
   const menuDirs = { 12: 'up', 13: 'down', 14: 'left', 15: 'right' };
   function pollPad() {
-    const pads = navigator.getGamepads?.() ?? [];
-    const gp = [...pads].find((x) => x?.connected && x.mapping === 'standard') ?? null;
+    const gp = standardPads()[0]?.gp ?? null;
     const was = padPrev;
     padPrev = gp ? gp.buttons.map((b) => b.pressed) : [];
     const edge = (i) => !!gp && padPrev[i] && !was[i];
@@ -151,12 +153,11 @@ export function createInput(handlers) {
       if (edge(1)) handlers.menuBack?.();
       return;
     }
+    if (localMode) return;
     const b = (i) => !!gp.buttons[i]?.pressed;
-    const [lx = 0, , rx = 0] = gp.axes;
-    const trig = (i) => { const v = gp.buttons[i]?.value || (gp.buttons[i]?.pressed ? 1 : 0); return v > TRIG_DEAD ? v : 0; };
-    // analog: trigger travel is the throttle/brake, left stick X the steering (dead zone rescaled so it starts from 0)
-    pad.thr = trig(7) - trig(6);
-    pad.str = Math.abs(lx) > STICK_DEAD ? Math.sign(lx) * (Math.abs(lx) - STICK_DEAD) / (1 - STICK_DEAD) : 0;
+    const rx = gp.axes[2] ?? 0;
+    // analog: trigger travel is the throttle/brake, left stick X the steering
+    ({ thr: pad.thr, str: pad.str } = padAxes(gp));
     pad.up = pad.thr > 0;
     pad.down = pad.thr < 0;
     pad.left = pad.str < 0;
@@ -169,6 +170,7 @@ export function createInput(handlers) {
     if (b(1) || b(4)) down.add('KeyZ'); else if (was[1] || was[4]) down.delete('KeyZ');
   }
   return {
+    setLocalMode: (on) => { localMode = on; },
     clear: () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); buttons.forEach((b) => b.classList.remove('on')); },
     state: () => {
       pollPad();

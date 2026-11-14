@@ -7,7 +7,7 @@
 import { makeTruck } from '../game.js';
 import { endlessSnapshot, restoreEndless } from '../endless.js';
 
-const TRUCK_FIELDS = ['id', 'color', 'name', 'gone', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'contact', 'slip', 'H', 'hf', 'ef', 'rv', 'hitAt', 'horn'];
+const TRUCK_FIELDS = ['id', 'color', 'name', 'gone', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'contact', 'slip', 'H', 'hf', 'ef', 'rv', 'hitAt', 'horn', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
 export const SNAPSHOT_HZ = 30;
 const STACK_RESEND = 5; // snapshots are unreliable, so changed stacks are repeated this many times
 const STACK_REFRESH = 2; // seconds between full stack refreshes while nothing changes
@@ -88,7 +88,7 @@ export function createInterpolator(delay = 0.1) {
           if (!u || u.gone || t.gone) return;
           const f = t.fl, v = u.fl;
           f.x = lerp(f.x, v.x, k); f.y = lerp(f.y, v.y, k); f.a = lerpAngle(f.a, v.a, k);
-          f.speed = lerp(f.speed, v.speed, k); f.steer = lerp(f.steer, v.steer, k);
+          f.speed = lerp(f.speed, v.speed, k); f.steer = lerp(f.steer, v.steer, k); f.roll = v.roll ?? f.roll;
           t.hf = lerp(t.hf, u.hf, k); t.ef = lerp(t.ef, u.ef, k);
         });
         const sa = a.snap.stacks, sb = b.snap.stacks;

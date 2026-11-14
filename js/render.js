@@ -12,7 +12,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView } from './game.js';
+import { liftedHf, carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -178,10 +178,20 @@ function block(ctx, f, x0, y0, x1, y1, z0, z1, col, rot = 0) {
   ctx.restore();
 }
 
-function drawWheel(ctx, f, lx, ly, ang) {
+function drawWheel(ctx, f, lx, ly, ang, big = false) {
   const c = Math.cos(f.a), s = Math.sin(f.a);
   const w = { x: f.x + lx * c - ly * s, y: f.y + lx * s + ly * c, a: f.a + ang };
-  block(ctx, w, -0.22, -0.1, 0.22, 0.1, 0, 0.32, '#1c1c1c');
+  const k = big ? 1.25 : 1;
+  block(ctx, w, -0.22 * k, -0.1, 0.22 * k, 0.1, 0, 0.32 * k, '#1c1c1c');
+  // tread marks on the top face scroll with the rolled distance
+  const step = 0.14 * k, h = 0.32 * k;
+  ctx.save();
+  ctx.translate(w.x + h * PX, w.y + h * PY);
+  ctx.rotate(w.a);
+  ctx.fillStyle = '#3c3c3c';
+  const off = ((f.roll || 0) % step + step) % step;
+  for (let x = -0.22 * k + off; x < 0.22 * k - 0.03; x += step) ctx.fillRect(x, -0.1, 0.03, 0.2);
+  ctx.restore();
 }
 
 function drawForkliftBody(ctx, g) {
@@ -193,8 +203,8 @@ function drawForkliftBody(ctx, g) {
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.fillRect(FL.back, -W, FL.front - FL.back, W * 2);
   });
-  drawWheel(ctx, f, 0, -W - 0.02, 0);
-  drawWheel(ctx, f, 0, W + 0.02, 0);
+  drawWheel(ctx, f, FL.frontWheelX, -W - 0.02, 0, true);
+  drawWheel(ctx, f, FL.frontWheelX, W + 0.02, 0, true);
   drawWheel(ctx, f, -FL.L, -W + 0.08, -f.steer);
   drawWheel(ctx, f, -FL.L, W - 0.08, -f.steer);
   // chassis, rear counterweight, hood, seat
@@ -241,7 +251,7 @@ function drawTines(ctx, g) {
 function drawCarried(ctx, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  drawStack(ctx, g.carried, p.x, p.y, g.hf, g.carriedRots.map((r) => r + g.fl.a), carriedWorldOffs(g), g.carriedPen);
+  drawStack(ctx, g.carried, p.x, p.y, g.hf + (liftedHf(g) ?? 0) + carriedJoltZ(g), g.carriedRots.map((r) => r + g.fl.a), carriedWorldOffs(g), g.carriedPen);
 }
 
 // Draws the top-down overview scaled into the screen rect (rx, ry, rw, rh).
@@ -256,16 +266,34 @@ function rotatedExtent(g, view) {
   return { w: co * g.w + si * g.h, h: si * g.w + co * g.h, co, si };
 }
 
+// Local multiplayer (view.shared): the flat overview shows every live truck, centred on their bounding box and as close as they allow.
+const GROUP_MARGIN = 5; // tiles around the outermost trucks
+function groupFrame(g, rw, rh, yaw = 0) {
+  // work in screen axes (right = (cos, sin), up = (sin, -cos)) so a rotated overview still frames every truck; the tilted camera needs a little extra room
+  const co = Math.cos(yaw), si = Math.sin(yaw);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const t of g.trucks) {
+    if (t.gone) continue;
+    const u = t.fl.x * co + t.fl.y * si, v = t.fl.x * si - t.fl.y * co;
+    x0 = Math.min(x0, u); x1 = Math.max(x1, u);
+    y0 = Math.min(y0, v); y1 = Math.max(y1, v);
+  }
+  const mu = (x0 + x1) / 2, mv = (y0 + y1) / 2;
+  return { cx: mu * co + mv * si, cy: mu * si - mv * co, s: Math.min(rw / (x1 - x0 + 2 * GROUP_MARGIN), rh / ((y1 - y0 + 2 * GROUP_MARGIN) * 1.2)) };
+}
+
 function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, panRight = 0, panBottom = 0) {
   const ext = rotatedExtent(g, view);
   const fit = Math.min(maxScale, rw / ext.w, rh / ext.h);
-  const userS = follow && !view.chase && view.zoom != null ? rh / chaseTilesFor(view.zoom) : 0; // slider zoom (software view)
-  const zoomed = follow && (userS > 0 || fit < MIN_FOLLOW_SCALE);
-  const s = userS || (zoomed ? MIN_FOLLOW_SCALE : fit);
+  const shared = follow && view.shared ? groupFrame(g, rw, rh, view.orbit && !view.chase ? view.orbit.yaw : 0) : null;
+  const sharedS = shared ? Math.min(maxScale, Math.max(fit, Math.min(shared.s, MIN_FOLLOW_SCALE * 1.6))) : 0;
+  const userS = !shared && follow && !view.chase && view.zoom != null ? rh / chaseTilesFor(view.zoom) : 0; // slider zoom (software view)
+  const zoomed = follow && (shared ? sharedS > fit * 1.001 : userS > 0 || fit < MIN_FOLLOW_SCALE);
+  const s = shared ? sharedS : userS || (zoomed ? MIN_FOLLOW_SCALE : fit);
   let ox = rx + (rw - g.w * s) / 2, oy = ry + (rh - g.h * s) / 2;
   let cam = null;
   if (zoomed) {
-    const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0);
+    const c = shared ? { x: shared.cx, y: shared.cy } : toWorld(g.fl, (FL.front - FL.back) / 2, 0);
     // On touch landscape the camera may pan `panRight` px past the right/bottom map edge (shown black) so the fork gauge and pads don't hide map.
     // `half`: half the visible world extent along that axis (the bounding box of the rotated view)
     const hx = (ext.co * rw + ext.si * rh) / 2 / s, hy = (ext.si * rw + ext.co * rh) / 2 / s;
@@ -286,7 +314,7 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
   }
   view.ovTiles = rh / (zoomed && !userS ? MIN_FOLLOW_SCALE : fit);
   const chaseTiles = view.chaseZoom == null ? Math.max(CHASE_TILES, view.ovTiles * CHASE_DEFAULT) : chaseTilesFor(view.chaseZoom);
-  if (follow && view.chase) {
+  if (follow && view.chase && !shared) {
     // the camera only slides when the truck gets further than its maximum distance (the rig clamps view.camP) and then looks at the truck
     const yaw = view.orbit ? view.orbit.yaw : 0, base = view.orbit ? view.orbit.tilt : CHASE_TILT;
     const rig = chaseRig(g, chaseTiles, base, view.camG === g ? view.camP : null, 0, g.fl.a);
@@ -298,12 +326,12 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
     view.chaseLiftTarget = base - clearChaseTilt(g, chaseTiles, rig.heading, yaw, base, rig.pos);
   }
   const lifted = view.chase && view.chaseLift > 0.001 ? { yaw: view.orbit ? view.orbit.yaw : 0, tilt: Math.max(0.05, (view.orbit ? view.orbit.tilt : CHASE_TILT) - view.chaseLift) } : view.orbit;
-  const foot = follow && view.chase && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, lifted, chaseTiles, view.camA ?? g.fl.a, view.camP);
+  const foot = follow && view.chase && !shared && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, lifted, chaseTiles, view.camA ?? g.fl.a, view.camP);
   if (foot) {
     if (zoomed) ctx.restore();
     return { x: 0, y: 0, w: g.w, h: g.h, poly: foot }; // chase: the minimap outlines the tilted floor footprint
   }
-  if (follow && view.zoom != null) { // user zoom: centred on the forklift at the slider's zoom
+  if (follow && !shared && view.zoom != null) { // user zoom: centred on the forklift at the slider's zoom
     const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0), s2 = rh / chaseTilesFor(view.zoom);
     if (drawOverview3d(ctx, g, rx, ry, rw, rh, c.x, c.y, s2, view.dpr, view.orbit)) {
       if (zoomed) ctx.restore();
@@ -560,8 +588,11 @@ function drawWorldObjects(ctx, g, vis) {
   const trucks = [...otherTrucksShown(g), g];
   for (const t of trucks) {
     ctx.globalAlpha = isGhost(g, t.truck.id) ? 0.4 : 1;
+    const lh = liftedHf(t);
+    if (lh != null) { ctx.save(); ctx.translate(lh * PX, lh * PY); } // riding on another truck's tines
     drawForkliftBody(ctx, t);
     drawTines(ctx, t);
+    if (lh != null) ctx.restore();
     ctx.globalAlpha = 1;
   }
   for (const st of high) dstack(st);
@@ -886,6 +917,52 @@ function drawDockWaits(ctx, g, width) {
   });
 }
 
+// Fork height gauge of one truck view: 0 = floor; box layer i fills the cell at height i-1
+function drawForkGauge(ctx, g, gx, gy) {
+  const cell = 26, top = 5;
+  const yOf = (lvl) => gy + (top - lvl) * cell;
+  const tc = truckColor(g.truck.color);
+  ctx.fillStyle = tc.dark;
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(gx - 28, gy - 26, 82, top * cell + cell + 34, 6);
+  ctx.fill();
+  ctx.stroke();
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#aaa';
+  ctx.fillText('FORKS', gx + 15, gy - 12);
+  for (let lvl = top; lvl >= 0; lvl--) {
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(gx, yOf(lvl), 30, cell - 2);
+    ctx.fillStyle = '#aaa';
+    ctx.fillText(String(lvl), gx - 10, yOf(lvl) + cell / 2);
+  }
+  const cellBox = (lvl, color, alpha, open) => {
+    if (lvl > top) return;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = COLORS[color];
+    ctx.fillRect(gx + 3, yOf(lvl) + 3, 24, cell - 8);
+    ctx.globalAlpha = 1;
+    if (open) { // open-top box: nothing can be stacked on it
+      ctx.font = '15px sans-serif';
+      ctx.fillText('🚫', gx + 15, yOf(lvl) + cell / 2);
+      ctx.font = '12px sans-serif';
+    }
+  };
+  const under = stackInZone(g);
+  if (under) under.layers.forEach((c, i) => cellBox(i, c, 0.85, under.pen?.[i]?.open));
+  if (g.carried) g.carried.forEach((c, i) => cellBox(g.H + i, c, 1, g.carriedPen?.[i]?.open));
+  ctx.strokeStyle = tc.body;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);
+  ctx.fillStyle = tc.body;
+  ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
+}
+
 function drawCompass(ctx, g, view, width) {
   let a; // world heading of the screen's "up"
   if (view.povBig) a = g.fl.a + (view.look ? view.look.yaw : 0) + headTurn(g.fl);
@@ -922,6 +999,16 @@ function drawCompass(ctx, g, view, width) {
   ctx.restore();
 }
 
+// Screen split for `n` cabin views: { ov, cabs } with the overview's window (null when four cabins fill the screen) and one window per cabin.
+// 1 cabin: half overview, half cabin; 2: overview on top, the cabins side by side below; 3: quadrants, overview top left; 4: all quadrants are cabins.
+function cabTiles(width, height, n) {
+  const R = (x, y, w, h) => ({ x, y, w, h }), hw = width / 2, hh = height / 2;
+  if (n === 1) return width >= height ? { ov: R(0, 0, hw, height), cabs: [R(hw, 0, hw, height)] } : { ov: R(0, 0, width, hh), cabs: [R(0, hh, width, hh)] };
+  if (n === 2) return { ov: R(0, 0, width, hh), cabs: [R(0, hh, hw, hh), R(hw, hh, hw, hh)] };
+  const q = [R(0, 0, hw, hh), R(hw, 0, hw, hh), R(0, hh, hw, hh), R(hw, hh, hw, hh)];
+  return n === 3 ? { ov: q[0], cabs: q.slice(1) } : { ov: null, cabs: q };
+}
+
 export function draw(ctx, g, view) {
   const { width, height } = view;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -934,7 +1021,9 @@ export function draw(ctx, g, view) {
   view.miniHit = null;
   const hx0 = 20;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-  if (view.povBig) {
+  const cabs = view.shared && view.cabs ? [...view.cabs].filter((i) => g.trucks[i] && !g.trucks[i].gone).sort((a, b) => a - b) : [];
+  const tiles = cabs.length ? cabTiles(width, height, cabs.length) : null;
+  if (view.povBig && !view.shared) {
     if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr, view.look)) drawPov(ctx, g, 0, 0, width, height);
     if (view.touch && width > height) { // easter egg: the minimap stays tappable to swap back to the overview
       const mm = miniSize(g, 120, 70), mx = (width - mm.w) / 2, my = height - 8 - mm.h;
@@ -959,25 +1048,42 @@ export function draw(ctx, g, view) {
     if (strip) Object.assign(mm, miniSize(g, 120, 70));
     const bottom = strip ? mm.h + 16 : view.touch ? 208 : 20;
     let rx = 20, ry = strip ? 8 : 50, rw = width - 40, rh = height - ry - bottom;
+    if (tiles?.ov) { const t = tiles.ov; rx = t.x + 8; ry = t.y + 50; rw = t.w - 16; rh = t.h - 58; }
     // When the map doesn't fit, reserve room for the minimap (above the field in portrait, left of it in landscape)
     // so it never covers the playing field.
     // Touch landscape: keep the field clear of the fork gauge at the right edge even when the whole map fits.
     const touchLand = view.touch && !portrait;
     const ext = rotatedExtent(g, view), zoomedIn = Math.min(48, rw / ext.w, rh / ext.h) < MIN_FOLLOW_SCALE;
-    if (touchLand && !zoomedIn) { rw = width - rx - GAUGE_W; rh = Math.min(rh, height - ry - PAD_H); }
+    if (!tiles && touchLand && !zoomedIn) { rw = width - rx - GAUGE_W; rh = Math.min(rh, height - ry - PAD_H); }
     let mmX = 13, mmY = 100 + 6;
     if (strip) {
       mmX = (width - mm.w) / 2;
       mmY = height - 8 - mm.h;
       mmBox = { x: mmX, w: mm.w, y: mmY };
       view.miniHit = { x: mmX - 3, y: mmY - 3, w: mm.w + 6, h: mm.h + 6 };
-    } else if (zoomedIn) {
+    } else if (zoomedIn && !tiles) {
       if (portrait) { ry = Math.max(ry, mmY + mm.h + 12); rh = height - ry - bottom; }
       else { rx = mmX + mm.w + 16; rw = width - rx - (touchLand ? 20 : GAUGE_W); }
     }
-    const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true, touchLand && zoomedIn ? GAUGE_W : 0, touchLand && zoomedIn ? PAD_H : 0);
+    const cam = tiles && !tiles.ov ? null : drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true, !tiles && touchLand && zoomedIn ? GAUGE_W : 0, !tiles && touchLand && zoomedIn ? PAD_H : 0);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-    if (strip || cam) drawMiniMap(ctx, g, cam || { x: 0, y: 0, w: g.w, h: g.h }, mmX, mmY, mm.s);
+    if (tiles) {
+      cabs.forEach((i, k) => {
+        const t = tiles.cabs[k], tv = i === g.self ? g : truckView(g, i);
+        if (!drawPov3d(ctx, tv, t.x, t.y, t.w, t.h, view.dpr)) drawPov(ctx, tv, t.x, t.y, t.w, t.h);
+        ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+        ctx.strokeStyle = truckColor(g.trucks[i].color).body;
+        ctx.lineWidth = 4;
+        ctx.strokeRect(t.x + 2, t.y + 2, t.w - 4, t.h - 4);
+      });
+      if (!tiles.ov) { // all four quadrants are cabins: a translucent whole-map minimap in the centre
+        const mm4 = miniSize(g, Math.min(260, width * 0.25), Math.min(160, height * 0.25));
+        ctx.globalAlpha = 0.6;
+        drawMiniMap(ctx, g, { x: 0, y: 0, w: g.w, h: g.h }, (width - mm4.w) / 2, (height - mm4.h) / 2, mm4.s);
+        ctx.globalAlpha = 1;
+      }
+    }
+    if (!tiles && (strip || cam)) drawMiniMap(ctx, g, cam || { x: 0, y: 0, w: g.w, h: g.h }, mmX, mmY, mm.s);
   }
   // screen-space HUD
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
@@ -1063,49 +1169,9 @@ export function draw(ctx, g, view) {
 
   if (view.party) drawPartyBadge(ctx, g, view.party, width);
 
-  // fork height gauge: 0 = floor; box layer i fills the cell at height i-1
-  const gx = width - 70, gy = 70, cell = 26, top = 5;
-  const yOf = (lvl) => gy + (top - lvl) * cell;
-  const tc = truckColor(g.truck.color);
-  ctx.fillStyle = tc.dark;
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.roundRect(gx - 28, gy - 26, 82, top * cell + cell + 34, 6);
-  ctx.fill();
-  ctx.stroke();
-  ctx.font = '12px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#aaa';
-  ctx.fillText('FORKS', gx + 15, gy - 12);
-  for (let lvl = top; lvl >= 0; lvl--) {
-    ctx.strokeStyle = '#666';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(gx, yOf(lvl), 30, cell - 2);
-    ctx.fillStyle = '#aaa';
-    ctx.fillText(String(lvl), gx - 10, yOf(lvl) + cell / 2);
-  }
-  const cellBox = (lvl, color, alpha, open) => {
-    if (lvl > top) return;
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = COLORS[color];
-    ctx.fillRect(gx + 3, yOf(lvl) + 3, 24, cell - 8);
-    ctx.globalAlpha = 1;
-    if (open) { // open-top box: nothing can be stacked on it
-      ctx.font = '15px sans-serif';
-      ctx.fillText('🚫', gx + 15, yOf(lvl) + cell / 2);
-      ctx.font = '12px sans-serif';
-    }
-  };
-  const under = stackInZone(g);
-  if (under) under.layers.forEach((c, i) => cellBox(i, c, 0.85, under.pen?.[i]?.open));
-  if (g.carried) g.carried.forEach((c, i) => cellBox(g.H + i, c, 1, g.carriedPen?.[i]?.open));
-  ctx.strokeStyle = tc.body;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);
-  ctx.fillStyle = tc.body;
-  ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
+  // fork height gauge(s): one per live truck in local multiplayer, extra ones to the left
+  const gauged = view.shared ? g.trucks.map((_, i) => i).filter((i) => !g.trucks[i].gone) : [g.self];
+  gauged.forEach((i, k) => drawForkGauge(ctx, i === g.self ? g : truckView(g, i), width - 70 - k * GAUGE_W, 70));
   drawCompass(ctx, g, view, width);
   if (g.endless) drawDockWaits(ctx, g, width);
 

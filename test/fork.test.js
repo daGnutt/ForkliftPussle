@@ -17,7 +17,7 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
+import { liftedHf, newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
@@ -243,6 +243,132 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.deepEqual(g.carriedPen.map((p) => p.crash), [10, 10], 'every carried box is damaged');
   assert.equal(g.hitCount, 1);
   console.log('ceiling ok');
+}
+
+// A truck can be lifted from its side; while lifted it cannot drive, and it is set down when the forks reach the floor.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [];
+  const b = addTruck(g, 'Bob');
+  const bob = g.trucks[b], vb = truckView(g, b);
+  Object.assign(bob.fl, { x: 9, y: 5.775, a: Math.PI / 2, speed: 0 });
+  Object.assign(g.fl, { x: 2, y: 5, a: 0, speed: 0 });
+  g.ghostPairs = [];
+  // from the front of Bob (not the side) nothing is lifted
+  const sav = { ...bob.fl };
+  Object.assign(bob.fl, { a: 0 });
+  driveUntil(g, 7.5, 6);
+  forkUp(g);
+  assert.equal(g.lifting, -1, 'not from the front/back');
+  forkDown(g);
+  Object.assign(bob.fl, sav);
+  Object.assign(g.fl, { x: 2, y: 5, a: 0, speed: 0 });
+  driveUntil(g, 8.9, 7);
+  forkUp(g);
+  assert.equal(g.lifting, b);
+  assert.equal(bob.liftedBy, g.truck.id);
+  assert.equal(g.H, 1);
+  bob.input = { up: true };
+  const bx = bob.fl.x, by = bob.fl.y;
+  run(g, { up: true }, 1);
+  assert.ok(g.fl.x > 9, 'carrier drives on');
+  assert.ok(Math.hypot(bob.fl.x - bx, bob.fl.y - by) > 1, 'the lifted truck is carried along');
+  const c = { x: g.fl.x + Math.cos(g.fl.a) * 1.0, y: g.fl.y + Math.sin(g.fl.a) * 1.0 };
+  assert.ok(Math.hypot(bob.fl.x + Math.cos(bob.fl.a) * -0.775 - c.x, bob.fl.y + Math.sin(bob.fl.a) * -0.775 - c.y) < 0.05, 'centred on the tines');
+  assert.equal(forkUp(vb), undefined, 'a lifted truck cannot work the forks');
+  assert.equal(vb.H, 0);
+  run(g, NONE, 2);
+  forkDown(g);
+  assert.equal(g.lifting, -1);
+  assert.equal(bob.liftedBy, -1);
+  bob.input = { up: true };
+  const px = bob.fl.x;
+  run(g, NONE, 1);
+  assert.ok(bob.fl.x !== px || bob.fl.y !== bob.fl.y || Math.abs(bob.fl.speed) > 0, 'drives again once down');
+  console.log('lift truck ok');
+}
+
+// A truck can be put down on top of a stack, stays there (cannot move), and drops when the stack is gone; trucks carrying boxes can be lifted.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 12, y: 5, layers: [0, 1] }];
+  const b = addTruck(g, 'Bob');
+  const bob = g.trucks[b];
+  g.ghostPairs = [];
+  Object.assign(bob.fl, { x: 7, y: 5.775, a: Math.PI / 2, speed: 0 });
+  bob.carried = [2]; bob.carriedRots = [0]; bob.carriedPen = []; bob.carriedOffs = [{ x: 0, y: 0 }]; bob.carriedRel = 0;
+  Object.assign(g.fl, { x: 1, y: 5, a: 0, speed: 0 });
+  driveUntil(g, 7, 5.5);
+  forkUp(g);
+  assert.equal(g.lifting, b, 'a truck carrying boxes can be lifted');
+  assert.ok(liftedHf(truckView(g, b)) > 0);
+  // drive over to the stack and put the truck down on it
+  forkUp(g);
+  assert.equal(g.H, 2);
+  driveUntil(g, 11.9, 10);
+  forkDown(g);
+  assert.equal(g.lifting, -1, 'set down');
+  assert.equal(bob.perchZ, 2, 'perched on the stack');
+  bob.input = { up: true };
+  const x = bob.fl.x, y = bob.fl.y;
+  run(g, NONE, 1);
+  assert.equal(bob.fl.x, x); assert.equal(bob.fl.y, y);
+  g.stacks = [];
+  run(g, NONE, 0.1);
+  assert.equal(bob.perchZ, 0, 'falls to the floor without the stack');
+  console.log('perch truck ok');
+}
+
+// Lifting a truck that carries a stack into the ceiling is refused and damages that stack.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [];
+  const b = addTruck(g, 'Bob');
+  const bob = g.trucks[b];
+  g.ghostPairs = [];
+  Object.assign(bob.fl, { x: 9, y: 5.775, a: Math.PI / 2, speed: 0 });
+  bob.carried = [2, 3]; bob.carriedRots = [0, 0]; bob.carriedPen = []; bob.carriedOffs = [{ x: 0, y: 0 }, { x: 0, y: 0 }]; bob.carriedRel = 0;
+  Object.assign(g.fl, { x: 2, y: 5, a: 0, speed: 0 });
+  driveUntil(g, 8.9, 7);
+  forkUp(g);
+  assert.equal(g.lifting, b);
+  while (g.H < 4) assert.equal(forkUp(g), undefined);
+  assert.equal(forkUp(g), 'blocked');
+  assert.equal(g.H, 4, 'lift stops');
+  assert.deepEqual(bob.carriedPen.map((p) => p.crash), [10, 10], 'the carried stack is damaged');
+  console.log('lift ceiling ok');
+}
+
+// Taking the stack a truck is perched on takes the truck along; putting the stack down perches it again.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 6, y: 5, layers: [0, 1] }];
+  const b = addTruck(g, 'Bob');
+  const bob = g.trucks[b];
+  g.ghostPairs = [];
+  Object.assign(bob.fl, { x: 6, y: 5.775, a: Math.PI / 2, speed: 0 });
+  bob.perchZ = 2;
+  Object.assign(g.fl, { x: 1, y: 5, a: 0, speed: 0 });
+  driveUntil(g, 6, 4);
+  forkUp(g);
+  assert.deepEqual(g.carried, [0, 1], 'the stack is lifted');
+  assert.equal(g.lifting, b, 'with the truck on top');
+  assert.equal(bob.perchZ, 0);
+  assert.equal(bob.liftedBy, g.truck.id);
+  assert.ok(liftedHf(truckView(g, b)) > 2, 'rides above the carried stack');
+  const x0 = bob.fl.x;
+  run(g, { down: true }, 0.8);
+  assert.ok(Math.abs(bob.fl.x - x0) > 0.5, 'the truck is carried along');
+  run(g, NONE, 1);
+  forkDown(g);
+  assert.equal(g.carried, null, 'stack set down');
+  assert.equal(g.lifting, -1);
+  assert.equal(bob.perchZ, 2, 'the truck is perched on it again');
+  console.log('lift stack with truck ok');
 }
 
 

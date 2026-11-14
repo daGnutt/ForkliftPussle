@@ -66,6 +66,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Fork level** | Integer 0–5 height of the tines in box heights | `g.H` |
 | **Smoothed fork height** | Animated height used only for drawing | `g.hf`, `g.ef` |
 | **Fork up / fork down** | Keys A / Z | `forkUp`, `forkDown` |
+| **Lifted / perched truck** | A truck riding on another truck's tines (`liftedBy`, cannot move) or sitting on top of stacks (`perchZ`) | `forkUp`, `liftedHf` |
 | **Release / drop** | Lowering a carried stack onto the floor/stack | `forkDown` |
 | **Blocked fork down** | Refused lowering onto a box; 10 crash points | `'blocked'` |
 | **Nudge / align** | Slow forward contact straightens a stack | `g.aligning` |
@@ -143,6 +144,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Record prompt** | Name entry when a record is set | `#record` |
 | **Tutorial banner** | 5-step hint strip | `#tutorial` |
 | **Testing banner** | Red "TEST" banner on non-official hosts | `#testingBanner` |
+| **Local multiplayer** | Extra trucks driven by gamepads on the same screen | `createLocal`, `view.shared` |
 | **Gamepad** | Controller input polled in `createInput` (standard mapping) | `pollPad` |
 | **Touch controls** | On-screen buttons or joystick (classic / rotated / joystick) | `#touch`, `#stick` |
 | **Paused overlay** | Drawn when the window is unfocused | `view.paused` |
@@ -167,7 +169,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | Term | Meaning | In code |
 |------|---------|---------|
 | **Music / track** | MIDI songs, random by default | `TRACKS`, `audio.js` |
-| **Horn** | Key H (hold): continuous two-tone horn with a floating label in the truck colour growing HONK → HOOOOONK → *HOOOOONK* (0.5 s per O, stars after 3 s) over the honking truck (`honkers`/`drawHonk` in `pov/overlay.js`, drawn in all four views; in the cabin and GL views a label outside the view is pinned just inside the edge, smaller, by `pinHonk`), one voice per truck with its own pitch; `truck.horn` is synced in snapshots and the guest's `in` message | `setHorns`, `hornFreq` |
+| **Horn** | Key H (hold; each press also fires a shockwave, a hop and small wiggle of nearby stacks, see *Honk shockwave* in CODE_GUIDE): continuous two-tone horn with a floating label in the truck colour growing HONK → HOOOOONK → *HOOOOONK* (0.5 s per O, stars after 3 s) over the honking truck (`honkers`/`drawHonk` in `pov/overlay.js`, drawn in all four views; in the cabin and GL views a label outside the view is pinned just inside the edge, smaller, by `pinHonk`), one voice per truck with its own pitch; `truck.horn` is synced in snapshots and the guest's `in` message | `setHorns`, `hornFreq` |
 | **Engine whine / beep** | Electric motor sound and reversing beep; separate sound-page toggles (E, N) nested under **Sound effects** (O), which silences all effects; music has its own toggle | `setEngine`, `setSfxOn`, `setEngineOn`, `setBeepOn` |
 | **Particles** | GL-only effects: sparks (wall bonk / scrape), tyre smoke (`slip`: wheelspin against a wall or when shoved), damage smoke + cardboard chips, dust when a stack is set down, confetti on a completed zone | `gl/particles.js`, `tireSlip`, truck `contact` / `slip` |
 | **Fork sound / blocked / break / bonk / scrape / success** | Sound effects | `playFork`, `playBlocked`, `playBreak`, `playBonk`, `setScrape`, `playSuccess` |
