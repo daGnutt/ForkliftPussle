@@ -17,7 +17,7 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 
 const NONE = {};
 const pts = (g) => maxScore(g) - lostBreakdown(g).crash - lostBreakdown(g).square;
@@ -510,6 +510,27 @@ console.log('all tests passed');
   assert.equal(s.pen[0].crash, 0, 'nudging does not damage the bottom box');
   assert.equal(s.pen[1].crash, 0, 'upper box undamaged');
   console.log('box-align ok');
+}
+
+// Boxes that topple off a stack tumble visually: the logical stack is at its landing spot at once, fallView interpolates.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1], rots: [0, 0], pen: [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }], a: 0, offs: [{ x: 0, y: 0 }, { x: 0.45, y: 0 }] }];
+  g.fl.x = 8; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
+  let fallen;
+  for (let i = 0; i < 600 && !fallen; i++) {
+    g.fl.speed = 2;
+    update(g, { up: true }, 1 / 120);
+    fallen = g.stacks.find((s) => s.fall);
+  }
+  assert.ok(fallen, 'a box toppled');
+  const v = fallView(g, fallen);
+  assert.ok(v.fallZ > 0 && Math.hypot(v.x - fallen.x, v.y - fallen.y) > 0.1, 'fallen box starts away from its landing spot');
+  for (let i = 0; i < 90; i++) update(g, {}, 1 / 120);
+  assert.equal(fallen.fall, undefined, 'animation ends');
+  assert.equal(fallView(g, fallen), fallen);
+  console.log('fall-anim ok');
 }
 
 // Pushing a stack gently into a wall squares it to the wall; a hard shove snags it and spins it.

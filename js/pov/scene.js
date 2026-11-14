@@ -3,7 +3,7 @@ import { truckPaint, TRUCK_H, truckRoofs, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, overheadDecals, boxDeco } from '../decals.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
-import { carriedWorldOffs, otherTrucksShown, isGhost, dropLift, stackZ } from '../game.js';
+import { carriedWorldOffs, otherTrucksShown, isGhost, dropLift, stackZ, fallView } from '../game.js';
 import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam } from './camera.js';
 
 // Scene geometry: everything is a prism (walls, pallets, boxes, tines, fixtures) split into
@@ -223,8 +223,8 @@ export function buildFaces(g, cam) {
   for (const r of truckRoofs(g)) addPrism(faces, cam, (r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, 0, (r.x1 - r.x0) / 2, (r.y1 - r.y0) / 2, TRUCK_H - 0.03, TRUCK_H, truckPaint(r.color), false, 1);
   const lw = g.lowWalls?.[0];
   if (lw) addPrism(faces, cam, lw.x + lw.w / 2, lw.y + lw.h / 2, 0, lw.w / 2, lw.h / 2, 0, BOX_H + PAL, '#1c1e22', false, 1, 0, true, true); // the raised belt; its top is painted with the floor marks
-  for (const st of g.stacks) addStack(faces, cam, st.x, st.y, st.rots || [], st.layers, stackZ(g, st), st.offs, st.dropFrom ?? 0,
-      dropLift(g, st), st.pen);
+  for (const st0 of g.stacks) { const st = fallView(g, st0); addStack(faces, cam, st.x, st.y, st.rots || [], st.layers, stackZ(g, st), st.offs, st.dropFrom ?? 0,
+      dropLift(g, st), st.pen); }
   if (g.carried) {
     const p = toWorld(g.fl, FL.carryX, 0);
     addStack(faces, cam, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf, carriedWorldOffs(g), 0, 0, g.carriedPen);

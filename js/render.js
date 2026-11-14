@@ -12,7 +12,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes } from './decals.js';
-import { carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ } from './game.js';
+import { carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -542,7 +542,7 @@ function drawWorldObjects(ctx, g, vis) {
 
   // Stacks whose top is below the tines are drawn first; stacks the tines
   // slide under are drawn over them.
-  const shown = g.stacks.filter((st) => seen(st.x - 1.2, st.y - 1.2, 2.4, 2.4));
+  const shown = g.stacks.map((st) => fallView(g, st)).filter((st) => seen(st.x - 1.2, st.y - 1.2, 2.4, 2.4));
   const low = shown.filter((st) => stackZ(g, st) + st.layers.length <= g.hf);
   const high = shown.filter((st) => stackZ(g, st) + st.layers.length > g.hf);
   const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, stackZ(g, st), st.rots, st.offs, st.pen);

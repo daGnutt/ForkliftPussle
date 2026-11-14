@@ -187,7 +187,7 @@ export const dropLift = (g, st) => (st.dropFrom != null ? Math.max(0, (g.root.tr
 
 // Height (in box levels) of the floor under a point: 1 on the raised conveyor belt (`g.lowWalls`), else 0.
 export const zAt = (g, x, y) => (g.lowWalls?.some((w) => x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) ? 1 : 0);
-export const stackZ = (g, s) => zAt(g, s.x, s.y);
+export const stackZ = (g, s) => zAt(g, s.x, s.y) + (s.fallZ || 0); // fallZ only exists on the drawing copies made by fallView
 // The fork level relative to the bottom of stack s (negative: the tines are below it, inside the belt).
 const relH = (g, s) => g.H - stackZ(g, s);
 
@@ -229,6 +229,26 @@ function fallSpot(g, S, dx, dy) {
   return { x: S.x + best.ux * best.d, y: S.y + best.uy * best.d };
 }
 
+const FALL_TIME = 0.5; // seconds a toppled box takes to tumble to the floor (drawing only; the stack is at its landing spot at once)
+
+// The stack as it should be drawn: while boxes are still tumbling off a stack (`s.fall`), they slide in from where they
+// toppled, turn and drop; the logical position, rotations and heights are always the final ones.
+export function fallView(g, s) {
+  const f = s.fall;
+  if (!f) return s;
+  const p = Math.min(1, ((g.root || g).clock - f.t0) / FALL_TIME);
+  if (p >= 1) return s;
+  const e = 1 - (1 - p) ** 2, k = 1 - e;
+  const v = { ...s, rots: s.rots.map((r, i) => (i >= f.from ? r + f.dr * (1 - p) * Math.sin(Math.PI * Math.min(1, p * 1.3)) : r)) };
+  if (f.from === 0) {
+    v.x = s.x + f.dx * k; v.y = s.y + f.dy * k;
+    v.fallZ = Math.max(0, f.z * (1 - p * p) + 0.25 * Math.sin(Math.PI * p));
+  } else {
+    v.offs = s.offs.map((o, i) => (i >= f.from ? { x: o.x + f.dx * k, y: o.y + f.dy * k } : o));
+  }
+  return v;
+}
+
 // A box with less than MIN_SUPPORT of its area on the box below falls off, together with everything above it,
 // to the floor beside the stack, taking maximum damage.
 function settle(g, S) {
@@ -239,6 +259,7 @@ function settle(g, S) {
     let dx = a.x - b.x, dy = a.y - b.y;
     const len = Math.hypot(dx, dy) || 1;
     dx /= len; dy /= len;
+    const startZ = stackZ(g, S) + i;
     addDent(S.pen[i - 1], 't');
     const pen = S.pen.splice(i);
     hurt(g, pen, CRASH_POINTS, S.x + dx * 1.45, S.y + dy * 1.45, pen.length);
@@ -253,12 +274,14 @@ function settle(g, S) {
       const c = boxPos(t, t.layers.length - 1);
       return Math.abs(c.x - nx) < 0.55 && Math.abs(c.y - ny) < 0.55;
     });
+    const fall = (from, z) => ({ t0: g.clock, dx: a.x - nx, dy: a.y - ny, dr: 0.7 * Math.sign(dx * dy || 1), z, from });
     if (under) {
+      under.fall = fall(under.layers.length, 0);
       under.layers.push(...layers); under.rots.push(...rots); under.pen.push(...pen);
       under.offs.push(...rel.map((o) => ({ x: nx + o.x - under.x, y: ny + o.y - under.y })));
       settle(g, under);
     } else {
-      g.stacks.push({ x: nx, y: ny, layers, rots, pen, a: rots[0], offs: rel });
+      g.stacks.push({ x: nx, y: ny, layers, rots, pen, a: rots[0], offs: rel, fall: fall(0, startZ - stackZ(g, { x: nx, y: ny })) });
     }
     break;
   }
@@ -735,6 +758,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 export function update(g, input, dt) {
   const root = g.root;
   root.clock += dt;
+  for (const s of root.stacks) if (s.fall && root.clock - s.fall.t0 >= FALL_TIME) delete s.fall;
   if (root.hits) root.hits = root.hits.filter((h) => root.clock - h.t < hitLife(h));
   root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self ? input : t.input, dt); });
   updateGhosts(root);

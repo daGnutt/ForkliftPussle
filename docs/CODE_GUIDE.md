@@ -119,4 +119,6 @@ The splash has two submit buttons: `#startBtn` (Start, keeps saved settings; Ent
 
 **Landing on another stack**: boxes that `settle()` drops off a stack land on the top box of another stack if that box is within 0.55 tiles on both axes of the landing spot and the result has ≤ `MAX_LAYERS` boxes (then `settle` runs on that stack too); otherwise they form a new stack.
 
+**Fall animation** (`fallView`, `FALL_TIME` in `game.js`): `settle()` still moves fallen boxes to their landing spot at once, but tags the stack with `s.fall = {t0, dx, dy, dr, z, from}`. Renderers (2D `render.js`, `gl/scene.js`, `pov/scene.js`) draw `fallView(g, st)` instead of the stack: for 0.5 s the boxes from `from` upward slide in from where they toppled, tumble (`dr`) and drop (`fallZ`, only when they land as their own stack; `stackZ` adds `fallZ`). `update()` deletes `s.fall` when done. Logic never reads it.
+
 **Fall spot** (`fallSpot` in `game.js`): boxes dropped by `settle()` land 1.45 tiles from the stack, but the spot is cut short at the first wall (`g.walls`, e.g. trailer sides) and other directions are tried if it ends up closer than 1.0, so boxes never end up inside or beyond a wall (unreachable).
