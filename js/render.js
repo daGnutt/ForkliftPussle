@@ -361,6 +361,15 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
     ctx.fillStyle = COLORS[st.layers[st.layers.length - 1]];
     ctx.fillRect(st.x * s - dot / 2, st.y * s - dot / 2, dot, dot);
   }
+  for (const t of [...otherTrucksShown(g), g]) {
+    if (!t.carried?.length) continue;
+    const p = toWorld(t.fl, FL.carryX, 0);
+    ctx.fillStyle = COLORS[t.carried[t.carried.length - 1]];
+    ctx.fillRect(p.x * s - dot / 2, p.y * s - dot / 2, dot, dot);
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(p.x * s - dot / 2, p.y * s - dot / 2, dot, dot);
+  }
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 1;
   const fr = Math.max(4, s * 1.1); // heading arrow in the truck's colour: the tip points where the forklift faces
