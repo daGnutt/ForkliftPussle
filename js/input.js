@@ -121,16 +121,71 @@ export function createInput(handlers) {
   });
   window.addEventListener('keyup', (e) => down.delete(e.code));
   window.addEventListener('blur', () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); });
+  // Gamepad (standard mapping), polled on every state() call. Held controls are merged into state(); buttons act on their press edge.
+  // Drive: right trigger forward, left trigger back; steer: left stick X; fork up: A/RB; fork down: B/LB (hold: lowest safe level);
+  // horn: X; cabin view: Y; chase camera: right stick click; look: right stick X; menu: Start (also closes it).
+  // While the menu (or splash) is open the d-pad moves/adjusts, A selects and B goes back, via the menuNav/menuSelect/menuBack handlers.
+  const DEAD = 0.3, STICK_DEAD = 0.12, TRIG_DEAD = 0.05;
+  const pad = { thr: 0, str: 0, up: false, down: false, left: false, right: false, lookL: false, lookR: false, horn: false };
+  let padPrev = [];
+  const padActions = [
+    [0, () => { handlers.up?.(); handlers.next?.(); }], [5, () => handlers.up?.()],
+    [1, () => press('KeyZ')], [4, () => press('KeyZ')],
+    [3, () => handlers.swapView?.()], [11, () => handlers.toggleChase?.()],
+  ];
+  const menuDirs = { 12: 'up', 13: 'down', 14: 'left', 15: 'right' };
+  function pollPad() {
+    const pads = navigator.getGamepads?.() ?? [];
+    const gp = [...pads].find((x) => x?.connected && x.mapping === 'standard') ?? null;
+    const was = padPrev;
+    padPrev = gp ? gp.buttons.map((b) => b.pressed) : [];
+    const edge = (i) => !!gp && padPrev[i] && !was[i];
+    pad.thr = pad.str = 0;
+    pad.up = pad.down = pad.left = pad.right = pad.lookL = pad.lookR = pad.horn = false;
+    if (!gp) return;
+    if (edge(0) || edge(9)) handlers.anyKey?.();
+    if (edge(9)) { handlers.menuToggle?.(); return; }
+    if (handlers.blocked?.()) {
+      for (const [i, dir] of Object.entries(menuDirs)) if (edge(+i)) handlers.menuNav?.(dir);
+      if (edge(0)) handlers.menuSelect?.();
+      if (edge(1)) handlers.menuBack?.();
+      return;
+    }
+    const b = (i) => !!gp.buttons[i]?.pressed;
+    const [lx = 0, , rx = 0] = gp.axes;
+    const trig = (i) => { const v = gp.buttons[i]?.value || (gp.buttons[i]?.pressed ? 1 : 0); return v > TRIG_DEAD ? v : 0; };
+    // analog: trigger travel is the throttle/brake, left stick X the steering (dead zone rescaled so it starts from 0)
+    pad.thr = trig(7) - trig(6);
+    pad.str = Math.abs(lx) > STICK_DEAD ? Math.sign(lx) * (Math.abs(lx) - STICK_DEAD) / (1 - STICK_DEAD) : 0;
+    pad.up = pad.thr > 0;
+    pad.down = pad.thr < 0;
+    pad.left = pad.str < 0;
+    pad.right = pad.str > 0;
+    pad.lookL = rx < -DEAD;
+    pad.lookR = rx > DEAD;
+    pad.horn = b(2);
+    for (const [i, act] of padActions) if (edge(i)) act();
+    // lowering is a held action: the key stays 'down' while either button is held
+    if (b(1) || b(4)) down.add('KeyZ'); else if (was[1] || was[4]) down.delete('KeyZ');
+  }
   return {
     clear: () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); buttons.forEach((b) => b.classList.remove('on')); },
-    state: () => ({
-      up: down.has('ArrowUp') || stick.up,
-      down: down.has('ArrowDown') || stick.down,
-      left: down.has('ArrowLeft') || stick.left,
-      right: down.has('ArrowRight') || stick.right,
-      lookL: down.has('KeyW'),
-      lookR: down.has('KeyQ'),
-      horn: down.has('KeyH') || twoFingerHorn,
-    }),
+    state: () => {
+      pollPad();
+      const kUp = down.has('ArrowUp') || stick.up, kDown = down.has('ArrowDown') || stick.down;
+      const kLeft = down.has('ArrowLeft') || stick.left, kRight = down.has('ArrowRight') || stick.right;
+      const kThr = (kUp ? 1 : 0) - (kDown ? 1 : 0), kStr = (kRight ? 1 : 0) - (kLeft ? 1 : 0);
+      return {
+        thr: kThr || pad.thr,
+        str: kStr || pad.str,
+        up: down.has('ArrowUp') || stick.up || pad.up,
+        down: down.has('ArrowDown') || stick.down || pad.down,
+        left: down.has('ArrowLeft') || stick.left || pad.left,
+        right: down.has('ArrowRight') || stick.right || pad.right,
+        lookL: down.has('KeyW') || pad.lookL,
+        lookR: down.has('KeyQ') || pad.lookR,
+        horn: down.has('KeyH') || twoFingerHorn || pad.horn,
+      };
+    },
   };
 }

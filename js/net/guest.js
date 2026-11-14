@@ -8,6 +8,8 @@ const INPUT_REFRESH = 0.25; // seconds; inputs are also resent while unchanged, 
 // Events: onGame({ slot, started, level, seed, hard, seedText, endless, snap }) for the welcome and every level change,
 // onClosed(reason) when the party ends or the connection drops.
 const BYE = { full: 'The party is full', kicked: 'The host removed you from the party', banned: 'You are banned from this party' };
+const analog = (v) => Math.round(Math.max(-1, Math.min(1, +v || 0)) * 20) / 20;
+
 export function createGuest({ relay, code, name, onGame, onClosed, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
   const interp = createInterpolator();
   const predictor = createPredictor();
@@ -51,7 +53,7 @@ export function createGuest({ relay, code, name, onGame, onClosed, linkFactory =
     // Sends the held keys (call every frame) and discrete fork actions.
     sendInput(st, now = clock()) {
       if (now - lastGping >= 1) { lastGping = now; link?.sendReliable({ t: 'gping', n: now }); }
-      const text = encode({ t: 'in', up: !!st.up, down: !!st.down, left: !!st.left, right: !!st.right, horn: !!st.horn });
+      const text = encode({ t: 'in', up: !!st.up, down: !!st.down, left: !!st.left, right: !!st.right, ...(st.thr !== undefined && { thr: analog(st.thr) }), ...(st.str !== undefined && { str: analog(st.str) }), horn: !!st.horn });
       if (text === lastIn && now - lastInAt < INPUT_REFRESH) return;
       lastIn = text; lastInAt = now;
       link?.sendReliable(text);

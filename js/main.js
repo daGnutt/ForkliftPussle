@@ -226,6 +226,7 @@ function toggleChase() {
   localStorage.setItem('forklift-chase-cam', view.chase ? '1' : '0');
 }
 
+const startBtn = document.getElementById('startBtn');
 const input = createInput({
   anyKey: startAudio,
   fullscreen: toggleFullscreen,
@@ -257,6 +258,10 @@ const input = createInput({
   next: () => nextLevel(),
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
+  menuToggle: () => { if (view.menuOpen) toggleMenu(false); else if (!splashOn && !recordOpen) toggleMenu(true); else if (splashOn) startBtn.click(); },
+  menuNav: (dir) => padMenuNav(dir),
+  menuSelect: () => { if (splashOn) startBtn.click(); else if (view.menuOpen) document.activeElement?.click?.(); },
+  menuBack: () => { if (!view.menuOpen) return; if (menuEl.dataset.page !== 'main') showPage('main'); else toggleMenu(false); },
   blocked: () => splashOn || recordOpen || !!view.menuOpen,
 });
 
@@ -725,6 +730,28 @@ menuEl.addEventListener('click', (e) => {
   const b = e.target.closest('[data-go]');
   if (b) showPage(b.dataset.go);
 });
+// Gamepad menu navigation: up/down move the focus between the visible controls, left/right adjust sliders, drop-downs and number fields.
+function padMenuNav(dir) {
+  if (!view.menuOpen) return;
+  const items = [...menuEl.querySelectorAll('button, input:not([type=hidden]), select, textarea')].filter((el) => !el.disabled && el.offsetParent !== null);
+  const cur = document.activeElement;
+  if (dir === 'up' || dir === 'down') {
+    const i = items.indexOf(cur);
+    const n = dir === 'down' ? (i + 1) % items.length : (i <= 0 ? items.length : i) - 1;
+    items[n]?.focus();
+    items[n]?.scrollIntoView?.({ block: 'nearest' });
+    return;
+  }
+  const d = dir === 'right' ? 1 : -1;
+  if (cur?.tagName === 'SELECT') {
+    const n = Math.max(0, Math.min(cur.options.length - 1, cur.selectedIndex + d));
+    if (n !== cur.selectedIndex) { cur.selectedIndex = n; cur.dispatchEvent(new Event('input', { bubbles: true })); cur.dispatchEvent(new Event('change', { bubbles: true })); }
+  } else if (cur?.tagName === 'INPUT' && (cur.type === 'range' || cur.type === 'number')) {
+    if (d > 0) cur.stepUp(); else cur.stepDown();
+    cur.dispatchEvent(new Event('input', { bubbles: true }));
+    cur.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+}
 function toggleMenu(open) {
   view.menuOpen = open;
   setFullscreen(!open);
