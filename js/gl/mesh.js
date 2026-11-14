@@ -83,8 +83,8 @@ export class Mesh {
       const u0 = Math.cos(a0) * r, w0 = Math.sin(a0) * r, u1 = Math.cos(a1) * r, w1 = Math.sin(a1) * r;
       const am = (a0 + a1) / 2, nu = Math.cos(am), nw = Math.sin(am);
       const nrm = [nu * co, nu * si, nw];
-      this.quad(at(u0, -hw, w0), at(u1, -hw, w1), at(u1, hw, w1), at(u0, hw, w0), nrm, i % 4 === 0 ? shade(c, 1.35) : c);
-      for (const s of [-1, 1]) this.tri(at(0, s * hw, 0), at(u0, s * hw, w0), at(u1, s * hw, w1), [-si * s, co * s, 0], shade(c, i % 2 ? 0.8 : 1.6));
+      this.quad(at(u0, -hw, w0), at(u1, -hw, w1), at(u1, hw, w1), at(u0, hw, w0), nrm, c);
+      for (const s of [-1, 1]) this.tri(at(0, s * hw, 0), at(u0, s * hw, w0), at(u1, s * hw, w1), [-si * s, co * s, 0], shade(c, 0.8));
     }
   }
 
