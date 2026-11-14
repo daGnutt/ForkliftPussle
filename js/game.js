@@ -281,7 +281,12 @@ const FALL_TIME = 0.5; // seconds a toppled box takes to tumble to the floor (dr
 
 // The stack as it should be drawn: while boxes are still tumbling off a stack (`s.fall`), they slide in from where they
 // toppled, turn and drop; the logical position, rotations and heights are always the final ones.
-export function fallView(g, s) {
+export function fallView(g, s0) {
+  const s = fallBase(g, s0), hop = joltHop((g.root || g).clock, s0.jolt);
+  return hop > 0 ? { ...s, fallZ: (s.fallZ || 0) + hop } : s;
+}
+
+function fallBase(g, s) {
   const f = s.fall;
   if (!f) return s;
   const p = Math.min(1, ((g.root || g).clock - f.t0) / FALL_TIME);
@@ -828,7 +833,10 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 export function update(g, input, dt) {
   const root = g.root;
   root.clock += dt;
-  for (const s of root.stacks) if (s.fall && root.clock - s.fall.t0 >= FALL_TIME) delete s.fall;
+  for (const s of root.stacks) {
+    if (s.fall && root.clock - s.fall.t0 >= FALL_TIME) delete s.fall;
+    if (s.jolt != null && root.clock - s.jolt >= JOLT_TIME) delete s.jolt;
+  }
   if (root.hits) root.hits = root.hits.filter((h) => root.clock - h.t < hitLife(h));
   root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self ? input : t.input, dt); });
   updateGhosts(root);
@@ -837,9 +845,63 @@ export function update(g, input, dt) {
   if (root.status === 'play' && !root.endless && isFinished(root)) root.status = 'won';
 }
 
+// Honking sends out a shockwave from the truck's nose: every stack within WAVE_RADIUS (including the ones on any
+// truck's forks) gets a "jump scare": the boxes shift and turn a little for real (`wiggleBoxes`) while the stack hops
+// for a moment (`jolt` = clock of the honk, drawing only). The wiggle is bounded so that a box never leaves the box below.
+const WAVE_RADIUS = 3.5, WAVE_COOLDOWN = 0.4, JOLT_TIME = 0.35;
+const WIGGLE_MOVE = 0.05, WIGGLE_TURN = 0.06, WIGGLE_MAX_OFF = 0.12, WIGGLE_MAX_TURN = 0.12, WIGGLE_BOTTOM = 0.03, WIGGLE_SUPPORT = 0.8;
+const noise = (i, k) => { const v = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return 2 * (v - Math.floor(v)) - 1; };
+
+// Randomly shifts and turns boxes 1.. of a stack given as arrays (`offs` relative to any common origin, `rots` angles),
+// keeping every box within WIGGLE_MAX_OFF / WIGGLE_MAX_TURN of the one below and on at least WIGGLE_SUPPORT of its
+// area; if the result would break that the stack is left as it was.
+function wiggleBoxes(offs, rots, seed, k) {
+  const o0 = offs.map((o) => ({ ...o })), r0 = rots.slice();
+  for (let j = 1; j < offs.length; j++) {
+    offs[j].x += WIGGLE_MOVE * k * noise(j, seed + 1); offs[j].y += WIGGLE_MOVE * k * noise(j, seed + 2);
+    rots[j] += WIGGLE_TURN * k * noise(j, seed + 3);
+    const dx = offs[j].x - offs[j - 1].x, dy = offs[j].y - offs[j - 1].y, m = Math.hypot(dx, dy);
+    if (m > WIGGLE_MAX_OFF) { offs[j].x = offs[j - 1].x + (dx / m) * WIGGLE_MAX_OFF; offs[j].y = offs[j - 1].y + (dy / m) * WIGGLE_MAX_OFF; }
+    rots[j] = rots[j - 1] + Math.max(-WIGGLE_MAX_TURN, Math.min(WIGGLE_MAX_TURN, rots[j] - rots[j - 1]));
+  }
+  for (let j = 1; j < offs.length; j++) {
+    const a = rectPoly(offs[j].x, offs[j].y, 0.5, 0.5, rots[j]), b = rectPoly(offs[j - 1].x, offs[j - 1].y, 0.5, 0.5, rots[j - 1]);
+    if (overlapArea(a, b) < WIGGLE_SUPPORT) { offs.forEach((o, i) => Object.assign(o, o0[i])); rots.splice(0, rots.length, ...r0); return; }
+  }
+}
+
+function hornWave(root, t) {
+  const o = toWorld(t.fl, 0.6, 0), seed = Math.round(root.clock * 1000);
+  root.stacks.forEach((s, n) => {
+    const d = Math.hypot(s.x - o.x, s.y - o.y);
+    if (d >= WAVE_RADIUS) return;
+    s.jolt = root.clock;
+    ensure(s);
+    s.x += WIGGLE_BOTTOM * noise(n, seed + 4); s.y += WIGGLE_BOTTOM * noise(n, seed + 5);
+    const da = WIGGLE_BOTTOM * noise(n, seed + 6);
+    s.rots[0] += da; s.a = (s.a || 0) + da;
+    wiggleBoxes(s.offs, s.rots, seed + n * 7, 1);
+  });
+  for (const u of root.trucks) {
+    if (u.gone || !u.carried) continue;
+    const c = toWorld(u.fl, FL.carryX, 0);
+    if (Math.hypot(c.x - o.x, c.y - o.y) >= WAVE_RADIUS) continue;
+    u.jolt = root.clock;
+    while (u.carriedOffs.length < u.carried.length) u.carriedOffs.push({ x: 0, y: 0 });
+    while (u.carriedRots.length < u.carried.length) u.carriedRots.push(u.carriedRel);
+    wiggleBoxes(u.carriedOffs, u.carriedRots, seed + u.id * 11, 1);
+  }
+}
+
+// Extra height (box heights, whole stack) `clock - t0` seconds after a jolt, or 0.
+export const joltHop = (clock, t0) => { const p = t0 == null ? 1 : (clock - t0) / JOLT_TIME; return p >= 0 && p < 1 ? 0.12 * Math.sin(Math.PI * p) : 0; };
+export const carriedJoltZ = (g) => (g.carried ? joltHop(g.root.clock, g.truck.jolt) : 0);
+
 function stepTruck(g, input, dt) {
   const f = g.fl;
-  g.horn = !!input.horn;
+  const hornOn = !!input.horn;
+  if (hornOn && !g.horn && g.root.clock - (g.truck.waveAt ?? -1e9) >= WAVE_COOLDOWN) { g.truck.waveAt = g.root.clock; hornWave(g.root, g.truck); }
+  g.horn = hornOn;
   if (g.liftedBy >= 0) { // riding on another truck's tines: no driving until it is put down
     const c = g.root.trucks[g.liftedBy];
     if (c && !c.gone) syncLifted(g.root, c);

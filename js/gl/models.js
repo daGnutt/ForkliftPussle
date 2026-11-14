@@ -3,7 +3,7 @@ import { theme } from '../theme.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
 import { topShapes, DENT_FILL } from '../dents.js';
 import { decalsEnabled, boxDeco, boxDecalShapes } from '../decals.js';
-import { carriedWorldOffs, liftedHf } from '../game.js';
+import { carriedWorldOffs, carriedJoltZ, liftedHf } from '../game.js';
 import { parseColor, shade, mix } from './mesh.js';
 
 // Geometry of the movable things (forklift, pallets, boxes). Heights in tiles; a box is BOX_H tall, a pallet PAL.
@@ -158,5 +158,5 @@ export function addForks(m, g, hideMast = false) {
 export function addCarried(m, tm, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  addStack(m, tm, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf + (liftedHf(g) ?? 0), carriedWorldOffs(g), 0, 0, g.carriedPen);
+  addStack(m, tm, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf + (liftedHf(g) ?? 0) + carriedJoltZ(g), carriedWorldOffs(g), 0, 0, g.carriedPen);
 }

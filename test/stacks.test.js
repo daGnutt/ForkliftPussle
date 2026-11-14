@@ -17,7 +17,7 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ } from '../js/game.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
@@ -345,3 +345,44 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 }
 
 console.log('stacks tests passed');
+
+// Honking jump-scares nearby stacks (and the one on the forks): boxes hop, shift and turn a little but never leave their stack.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  const pen = () => ({ crash: 0, sq: 0 });
+  g.fl.x = 5; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
+  g.stacks = [
+    { x: 7, y: 5, layers: [0, 1, 2, 3, 4], rots: [0, 0, 0, 0, 0], pen: [pen(), pen(), pen(), pen(), pen()], a: 0 },
+    { x: 14, y: 5, layers: [0, 1], rots: [0, 0], pen: [pen(), pen()], a: 0 },
+  ];
+  run(g, NONE, 0.05);
+  const far = JSON.stringify(g.stacks[1]);
+  for (let n = 0; n < 40; n++) {
+    run(g, { horn: true }, 0.05);
+    if (n === 0) assert.ok(fallView(g, g.stacks[0]).fallZ > 0, 'the stack hops');
+    run(g, NONE, 0.5);
+    if (n === 0) {
+      const s = g.stacks[0];
+      assert.ok(s.offs.some((o) => o.x !== 0 || o.y !== 0) && s.rots.some((r) => r !== 0), 'near stack shifted and turned');
+    }
+  }
+  const s = g.stacks[0];
+  assert.equal(s.layers.length, 5, 'a honk never topples a stack');
+  assert.equal(g.stacks.length, 2, 'no box fell off');
+  assert.ok(s.offs.every((o, j) => j === 0 || Math.hypot(o.x - s.offs[j - 1].x, o.y - s.offs[j - 1].y) <= 0.121), 'boxes stay on the one below');
+  assert.equal(JSON.stringify(g.stacks[1]), far, 'distant stack untouched');
+
+  const h = newGame(1);
+  flatWorld(h);
+  h.stacks = [{ x: 10, y: 5, layers: [0, 1, 2], rots: [0, 0, 0], pen: [pen(), pen(), pen()], a: 0 }];
+  faceStack(h, 0);
+  forkUp(h);
+  const rel = h.carriedRel;
+  for (let n = 0; n < 40; n++) { run(h, { horn: true }, 0.05); run(h, NONE, 0.5); }
+  assert.ok(h.carriedOffs.some((o) => o.x !== 0 || o.y !== 0), 'carried boxes shifted');
+  assert.equal(h.carriedRel, rel, 'carried bottom box stays square to the forks');
+  assert.ok(h.carriedOffs.every((o, j) => j === 0 || Math.hypot(o.x - h.carriedOffs[j - 1].x, o.y - h.carriedOffs[j - 1].y) <= 0.121), 'carried boxes stay on the one below');
+  assert.equal(h.carried.length, 3, 'still carrying all boxes');
+  console.log('horn-jolt ok');
+}
