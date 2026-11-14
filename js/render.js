@@ -183,6 +183,15 @@ function drawWheel(ctx, f, lx, ly, ang, big = false) {
   const w = { x: f.x + lx * c - ly * s, y: f.y + lx * s + ly * c, a: f.a + ang };
   const k = big ? 1.25 : 1;
   block(ctx, w, -0.22 * k, -0.1, 0.22 * k, 0.1, 0, 0.32 * k, '#1c1c1c');
+  // tread marks on the top face scroll with the rolled distance
+  const step = 0.14 * k, h = 0.32 * k;
+  ctx.save();
+  ctx.translate(w.x + h * PX, w.y + h * PY);
+  ctx.rotate(w.a);
+  ctx.fillStyle = '#3c3c3c';
+  const off = ((f.roll || 0) % step + step) % step;
+  for (let x = -0.22 * k + off; x < 0.22 * k - 0.03; x += step) ctx.fillRect(x, -0.1, 0.03, 0.2);
+  ctx.restore();
 }
 
 function drawForkliftBody(ctx, g) {

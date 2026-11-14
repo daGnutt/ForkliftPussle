@@ -75,16 +75,16 @@ export class Mesh {
   }
 
   // Cylinder lying along the local y axis (a wheel): centre (x, y, z), heading rot, radius r, half width hw.
-  wheel(x, y, z, rot, r, hw, color, n = 12) {
+  wheel(x, y, z, rot, r, hw, color, n = 12, spin = 0) {
     const c = parseColor(color), co = Math.cos(rot), si = Math.sin(rot);
     const at = (u, v, w) => [x + u * co - v * si, y + u * si + v * co, z + w];
     for (let i = 0; i < n; i++) {
-      const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2;
+      const a0 = (i / n) * Math.PI * 2 + spin, a1 = ((i + 1) / n) * Math.PI * 2 + spin;
       const u0 = Math.cos(a0) * r, w0 = Math.sin(a0) * r, u1 = Math.cos(a1) * r, w1 = Math.sin(a1) * r;
       const am = (a0 + a1) / 2, nu = Math.cos(am), nw = Math.sin(am);
       const nrm = [nu * co, nu * si, nw];
-      this.quad(at(u0, -hw, w0), at(u1, -hw, w1), at(u1, hw, w1), at(u0, hw, w0), nrm, c);
-      for (const s of [-1, 1]) this.tri(at(0, s * hw, 0), at(u0, s * hw, w0), at(u1, s * hw, w1), [-si * s, co * s, 0], shade(c, 0.8));
+      this.quad(at(u0, -hw, w0), at(u1, -hw, w1), at(u1, hw, w1), at(u0, hw, w0), nrm, i % 4 === 0 ? shade(c, 1.35) : c);
+      for (const s of [-1, 1]) this.tri(at(0, s * hw, 0), at(u0, s * hw, w0), at(u1, s * hw, w1), [-si * s, co * s, 0], shade(c, i % 2 ? 0.8 : 1.6));
     }
   }
 

@@ -18,6 +18,7 @@ export const FL = {
   maxSteer: 1.2,
 };
 
+export const WHEEL_R = 0.17; // rear wheel radius; the larger front wheels are 25% bigger
 const ACC = 3.2;
 const ROLL = 1.4;
 const MAX_FWD = 4;
@@ -63,7 +64,7 @@ export const TRUCK_COLORS = [
 export const truckColor = (i) => TRUCK_COLORS[i] || TRUCK_COLORS[0];
 
 export function makeForklift(x, y, a) {
-  return { x, y, a, speed: 0, steer: 0, brake: false, gear: 'D' };
+  return { x, y, a, speed: 0, steer: 0, brake: false, gear: 'D', roll: 0 };
 }
 
 export function toWorld(f, lx, ly) {
@@ -117,4 +118,5 @@ export function drive(f, inp, dt, h = 0) {
   f.a += (f.speed * Math.tan(f.steer) / FL.L) * dt;
   f.x += Math.cos(f.a) * f.speed * dt;
   f.y += Math.sin(f.a) * f.speed * dt;
+  f.roll = ((f.roll || 0) + f.speed * dt) % (2 * Math.PI * WHEEL_R);
 }

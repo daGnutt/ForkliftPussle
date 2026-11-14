@@ -81,7 +81,7 @@ export function addForklift(m, g, solidRoof) {
   };
   const wheel = (lx, ly, ang, r = 0.17) => {
     const c = toWorld(f, lx, ly);
-    m.wheel(c.x, c.y, r, a + ang, r, 0.1, '#1c1c1c');
+    m.wheel(c.x, c.y, r, a + ang, r, 0.1, '#1c1c1c', 12, -(f.roll || 0) / r);
   };
   wheel(FL.frontWheelX, -W - 0.02, 0, 0.2125);
   wheel(FL.frontWheelX, W + 0.02, 0, 0.2125);

@@ -88,7 +88,7 @@ export function createInterpolator(delay = 0.1) {
           if (!u || u.gone || t.gone) return;
           const f = t.fl, v = u.fl;
           f.x = lerp(f.x, v.x, k); f.y = lerp(f.y, v.y, k); f.a = lerpAngle(f.a, v.a, k);
-          f.speed = lerp(f.speed, v.speed, k); f.steer = lerp(f.steer, v.steer, k);
+          f.speed = lerp(f.speed, v.speed, k); f.steer = lerp(f.steer, v.steer, k); f.roll = v.roll ?? f.roll;
           t.hf = lerp(t.hf, u.hf, k); t.ef = lerp(t.ef, u.ef, k);
         });
         const sa = a.snap.stacks, sb = b.snap.stacks;
