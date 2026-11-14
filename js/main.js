@@ -1,4 +1,4 @@
-import { newGame, update, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks } from './game.js';
+import { newGame, update, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks, topOpen } from './game.js';
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput } from './input.js';
 import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
@@ -455,8 +455,27 @@ const tutorialEl = document.getElementById('tutorial');
 let tutStep = localStorage.getItem('forklift-tutorial-done') || new URLSearchParams(location.search).has('skip') ? -1 : 0;
 let tutDone = {};
 let tutShownAt = performance.now();
+// One-off tip the first time the truck lifts or comes up to an open-top box; it takes over the banner for a few seconds.
+const OPEN_TIP_KEY = 'forklift-opentop-tip', OPEN_TIP_MS = 8000, OPEN_TIP_DIST = 1.2;
+let tipUntil = 0;
+function checkOpenTip() {
+  if (tipUntil) {
+    if (performance.now() < tipUntil) return;
+    tipUntil = 0;
+    showTutorial();
+    return;
+  }
+  if (localStorage.getItem(OPEN_TIP_KEY) || splashOn || view.menuOpen) return;
+  const near = topOpen(game.carriedPen) || game.stacks.some((s) => topOpen(s.pen) && Math.hypot(s.x - game.fl.x, s.y - game.fl.y) < OPEN_TIP_DIST);
+  if (!near) return;
+  localStorage.setItem(OPEN_TIP_KEY, '1');
+  tipUntil = performance.now() + OPEN_TIP_MS;
+  tutorialEl.classList.remove('hide');
+  tutorialEl.innerHTML = '<small>Tip</small>This is an <b>open-top box</b>: nothing can be stacked on top of it.';
+}
 function showTutorial() {
   tutShownAt = performance.now();
+  if (tipUntil) return;
   tutorialEl.classList.toggle('hide', tutStep < 0);
   if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep].html}${TUTORIAL[tutStep].extra?.() ?? ''}`;
 }
@@ -467,6 +486,8 @@ function nextTutorial() {
 }
 let tutStart = { x: game.fl.x, y: game.fl.y };
 function checkTutorial() {
+  checkOpenTip();
+  if (tipUntil) return;
   if (tutStart.g !== game) tutStart = { x: game.fl.x, y: game.fl.y, g: game };
   if (tutStep < 0) return;
   const g = game;
