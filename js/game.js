@@ -439,10 +439,11 @@ const stackPoly = (s) => rectPoly(s.x, s.y, 0.5, halfY(s.pen?.[0]), s.a || 0);
 // Boxes above the fork level that have slid more than SLID_MIN off the box below them: the truck body and the fork plate hit these
 // (the tines never touch them, even offset), so such a box can be pushed back into line.
 const SLID_MIN = 0.2;
+const BODY_REACH = 3; // boxes the body/fork plate reaches above the fork level's own box; higher ones need the forks raised
 function slidBoxes(g, s) {
   ensure(s);
   const out = [];
-  for (let i = Math.max(1, relH(g, s) + 1); i < s.layers.length; i++) {
+  for (let i = Math.max(1, relH(g, s) + 1); i < Math.min(s.layers.length, relH(g, s) + BODY_REACH); i++) {
     if (Math.hypot(s.offs[i].x - s.offs[i - 1].x, s.offs[i].y - s.offs[i - 1].y) <= SLID_MIN) continue;
     const c = boxPos(s, i);
     out.push({ poly: rectPoly(c.x, c.y, 0.5, halfY(s.pen?.[i]), s.rots[i]), from: i });
