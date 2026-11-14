@@ -32,11 +32,18 @@ export const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) 
 export const shade = (c, k) => [Math.min(1, c[0] * k), Math.min(1, c[1] * k), Math.min(1, c[2] * k), c[3]];
 
 export class Mesh {
-  constructor() { this.a = []; this.alpha = 1; } // `alpha` scales the opacity of everything added afterwards (ghost trucks)
+  constructor() { this.a = new Float32Array(STRIDE * 1024); this.n = 0; this.alpha = 1; } // `alpha` scales the opacity of everything added afterwards (ghost trucks); `a` grows by doubling, `n` = floats used
 
-  get count() { return this.a.length / STRIDE; }
+  get count() { return this.n / STRIDE; }
 
-  vert(p, n, c) { this.a.push(p[0], p[1], p[2], n[0], n[1], n[2], c[0], c[1], c[2], c[3] * this.alpha); }
+  vert(p, n, c) {
+    let a = this.a, i = this.n;
+    if (i + STRIDE > a.length) { const b = new Float32Array(a.length * 2); b.set(a); this.a = a = b; }
+    a[i] = p[0]; a[i + 1] = p[1]; a[i + 2] = p[2];
+    a[i + 3] = n[0]; a[i + 4] = n[1]; a[i + 5] = n[2];
+    a[i + 6] = c[0]; a[i + 7] = c[1]; a[i + 8] = c[2]; a[i + 9] = c[3] * this.alpha;
+    this.n = i + STRIDE;
+  }
 
   tri(p0, p1, p2, n, c) {
     this.vert(p0, n, c);
@@ -124,5 +131,5 @@ export class Mesh {
     for (let i = 1; i + 1 < p.length; i++) this.tri(p[0], p[i], p[i + 1], [nx, ny, 0], c); // the wall normal makes decals take the scene lighting
   }
 
-  floats() { return new Float32Array(this.a); }
+  floats() { return this.a.subarray(0, this.n); }
 }
