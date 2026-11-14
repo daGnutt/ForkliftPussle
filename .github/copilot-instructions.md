@@ -5,7 +5,7 @@ Top-down, keyboard-only forklift puzzle. Vanilla JS ES modules + Canvas 2D, **no
 **Before starting any task, read `docs/CODE_GUIDE.md`** (module map, state shape, rules). Keep it up to date when you change the structure.
 
 ## Commands
-- Test (plain `node:assert`, no framework; Node ≥ 20): `npm test` (= `node test/game.test.js`). Tests are sequential blocks in one file, so to run one scenario, temporarily comment out the others.
+- Test (plain `node:assert`, no framework; Node ≥ 20): `npm test` runs all categories (`test/<category>.test.js`, see `docs/CODE_GUIDE.md`); `node test/run.js <category> ...` runs only some. Run the relevant categories for every commit, all tests before merging to `testing`, and re-run every test before merging to `main`.
 - Run: serve the repo root statically (modules don't load from `file://`), e.g. `python3 -m http.server`, then open `index.html`.
 - No linter or build.
 
@@ -22,7 +22,7 @@ Top-down, keyboard-only forklift puzzle. Vanilla JS ES modules + Canvas 2D, **no
 - `g.H` is the logical level; `g.hf` is the smoothed value used only for drawing. Rendering fakes height with a parallax offset (`PX`/`PY` in `render.js`) and draws tines at their own height, over low stacks and under high ones.
 - Stack `layers` are arrays of colour indices into `COLORS` (bottom → top). The top box is drawn in its colour, with coloured numbers for each box below.
 - Zones are only satisfied by a stack of *exactly* `zone.count` boxes all of `zone.color`.
-- Game-logic changes should be accompanied by a scenario in `test/game.test.js`, using the `run`/`driveUntil` helpers to simulate driving; update `README.md` control docs when the fork rules change.
+- Game-logic changes should be accompanied by a scenario in the matching `test/<category>.test.js`, using the `run`/`driveUntil` helpers to simulate driving; update `README.md` control docs when the fork rules change.
 - `docs/presentation.html` tells the development timeline; follow `docs/PRESENTATION_GUIDE.md` to regenerate or extend it, and update it when a merge to `main` adds a notable feature or visual change (skip small fixes).
 - Update `docs/CODE_GUIDE.md` whenever a change affects module structure, game state shape, rules, level generation, or rendering.
 - Create every new fix or feature on its own branch (not directly on `main`).

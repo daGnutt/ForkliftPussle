@@ -2,7 +2,7 @@
 // into a `__t("Title")` call on the same line (line numbers stay intact).
 export async function load(url, context, nextLoad) {
   const r = await nextLoad(url, context);
-  if (!url.endsWith('/test/game.test.js')) return r;
+  if (!/\/test\/[^/]+\.test\.js$/.test(url)) return r;
   const lines = String(r.source).split('\n');
   for (let i = 0; i < lines.length; i++) {
     const top = lines[i].startsWith('// ') && !(i > 0 && lines[i - 1].startsWith('// '));

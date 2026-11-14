@@ -69,6 +69,6 @@ You spawn in a parking spot (marked **P**). To finish a level, fill every zone a
 ## Scoring
 Each box is worth 100 points, but only boxes in a stack that is in its correct zone count towards your score. Nudging a box slowly head-on turns it square to the forklift. Crashing into boxes (or hitting a wall while carrying) costs a few points, down to 50 per box; the other 50 depend on how square a box is when you put it down (within 5° is free; deductions come in steps of 5); you can pick a box up and re-place it to fix its squareness (crash losses stay). The score resets on level load/restart.
 
-Levels are procedurally generated from the level number (deterministic). Tests: `npm test` (or `node test/game.test.js`).
+Levels are procedurally generated from the level number (deterministic). Tests: `npm test` runs everything; `node test/run.js fork score` runs only some categories (`level physics fork stacks score render save demo net endless`).
 
 The splash screen and the end-of-level overlay explain/break down how the score is calculated (box points, crash and squareness losses, time penalty, final score).
