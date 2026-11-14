@@ -258,20 +258,24 @@ function rotatedExtent(g, view) {
 
 // Local multiplayer (view.shared): the flat overview shows every live truck, centred on their bounding box and as close as they allow.
 const GROUP_MARGIN = 5; // tiles around the outermost trucks
-function groupFrame(g, rw, rh) {
+function groupFrame(g, rw, rh, yaw = 0) {
+  // work in screen axes (right = (cos, sin), up = (sin, -cos)) so a rotated overview still frames every truck; the tilted camera needs a little extra room
+  const co = Math.cos(yaw), si = Math.sin(yaw);
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const t of g.trucks) {
     if (t.gone) continue;
-    x0 = Math.min(x0, t.fl.x); x1 = Math.max(x1, t.fl.x);
-    y0 = Math.min(y0, t.fl.y); y1 = Math.max(y1, t.fl.y);
+    const u = t.fl.x * co + t.fl.y * si, v = t.fl.x * si - t.fl.y * co;
+    x0 = Math.min(x0, u); x1 = Math.max(x1, u);
+    y0 = Math.min(y0, v); y1 = Math.max(y1, v);
   }
-  return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, s: Math.min(rw / (x1 - x0 + 2 * GROUP_MARGIN), rh / (y1 - y0 + 2 * GROUP_MARGIN)) };
+  const mu = (x0 + x1) / 2, mv = (y0 + y1) / 2;
+  return { cx: mu * co + mv * si, cy: mu * si - mv * co, s: Math.min(rw / (x1 - x0 + 2 * GROUP_MARGIN), rh / ((y1 - y0 + 2 * GROUP_MARGIN) * 1.2)) };
 }
 
 function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, panRight = 0, panBottom = 0) {
   const ext = rotatedExtent(g, view);
   const fit = Math.min(maxScale, rw / ext.w, rh / ext.h);
-  const shared = follow && view.shared ? groupFrame(g, rw, rh) : null;
+  const shared = follow && view.shared ? groupFrame(g, rw, rh, view.orbit && !view.chase ? view.orbit.yaw : 0) : null;
   const sharedS = shared ? Math.min(maxScale, Math.max(fit, Math.min(shared.s, MIN_FOLLOW_SCALE * 1.6))) : 0;
   const userS = !shared && follow && !view.chase && view.zoom != null ? rh / chaseTilesFor(view.zoom) : 0; // slider zoom (software view)
   const zoomed = follow && (shared ? sharedS > fit * 1.001 : userS > 0 || fit < MIN_FOLLOW_SCALE);
