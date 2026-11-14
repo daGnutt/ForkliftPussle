@@ -232,7 +232,11 @@ function toggleChase() {
 }
 
 // Local multiplayer: gamepads join the running game as extra trucks (see local.js).
-const local = createLocal();
+const toggleCab = (slot) => {
+  view.cabs ||= new Set();
+  if (!view.cabs.delete(slot)) view.cabs.add(slot);
+};
+const local = createLocal(toggleCab);
 const startBtn = document.getElementById('startBtn');
 const input = createInput({
   anyKey: startAudio,
@@ -240,6 +244,7 @@ const input = createInput({
   toggleChase,
   swapView: () => {
     if (isTouch) return;
+    if (view.shared) { toggleCab(game.self); return; }
     view.povBig = !view.povBig;
     localStorage.setItem('forklift-cab-view', view.povBig ? '1' : '0');
     if (view.povBig) tutDone.cab = true;

@@ -982,6 +982,13 @@ function drawCompass(ctx, g, view, width) {
   ctx.restore();
 }
 
+// Grid of n equal windows covering the screen: the overview is window 0, cabin views follow (so it shrinks and moves as they appear).
+function cabTiles(width, height, n) {
+  const cols = n <= 2 && width >= height ? n : Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
+  const w = width / cols, h = height / rows;
+  return Array.from({ length: n }, (_, i) => ({ x: (i % cols) * w, y: Math.floor(i / cols) * h, w, h }));
+}
+
 export function draw(ctx, g, view) {
   const { width, height } = view;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -994,7 +1001,9 @@ export function draw(ctx, g, view) {
   view.miniHit = null;
   const hx0 = 20;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-  if (view.povBig) {
+  const cabs = view.shared && view.cabs ? [...view.cabs].filter((i) => g.trucks[i] && !g.trucks[i].gone).sort((a, b) => a - b) : [];
+  const tiles = cabs.length ? cabTiles(width, height, cabs.length + 1) : null;
+  if (view.povBig && !view.shared) {
     if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr, view.look)) drawPov(ctx, g, 0, 0, width, height);
     if (view.touch && width > height) { // easter egg: the minimap stays tappable to swap back to the overview
       const mm = miniSize(g, 120, 70), mx = (width - mm.w) / 2, my = height - 8 - mm.h;
@@ -1019,6 +1028,7 @@ export function draw(ctx, g, view) {
     if (strip) Object.assign(mm, miniSize(g, 120, 70));
     const bottom = strip ? mm.h + 16 : view.touch ? 208 : 20;
     let rx = 20, ry = strip ? 8 : 50, rw = width - 40, rh = height - ry - bottom;
+    if (tiles) { const t = tiles[0]; rx = t.x + 8; ry = t.y + 50; rw = t.w - 16; rh = t.h - 58; }
     // When the map doesn't fit, reserve room for the minimap (above the field in portrait, left of it in landscape)
     // so it never covers the playing field.
     // Touch landscape: keep the field clear of the fork gauge at the right edge even when the whole map fits.
@@ -1037,6 +1047,16 @@ export function draw(ctx, g, view) {
     }
     const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true, touchLand && zoomedIn ? GAUGE_W : 0, touchLand && zoomedIn ? PAD_H : 0);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+    if (tiles) {
+      cabs.forEach((i, k) => {
+        const t = tiles[k + 1], tv = i === g.self ? g : truckView(g, i);
+        if (!drawPov3d(ctx, tv, t.x, t.y, t.w, t.h, view.dpr)) drawPov(ctx, tv, t.x, t.y, t.w, t.h);
+        ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+        ctx.strokeStyle = truckColor(g.trucks[i].color).body;
+        ctx.lineWidth = 4;
+        ctx.strokeRect(t.x + 2, t.y + 2, t.w - 4, t.h - 4);
+      });
+    }
     if (strip || cam) drawMiniMap(ctx, g, cam || { x: 0, y: 0, w: g.w, h: g.h }, mmX, mmY, mm.s);
   }
   // screen-space HUD
