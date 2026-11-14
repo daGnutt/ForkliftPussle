@@ -256,16 +256,30 @@ function rotatedExtent(g, view) {
   return { w: co * g.w + si * g.h, h: si * g.w + co * g.h, co, si };
 }
 
+// Local multiplayer (view.shared): the flat overview shows every live truck, centred on their bounding box and as close as they allow.
+const GROUP_MARGIN = 5; // tiles around the outermost trucks
+function groupFrame(g, rw, rh) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const t of g.trucks) {
+    if (t.gone) continue;
+    x0 = Math.min(x0, t.fl.x); x1 = Math.max(x1, t.fl.x);
+    y0 = Math.min(y0, t.fl.y); y1 = Math.max(y1, t.fl.y);
+  }
+  return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, s: Math.min(rw / (x1 - x0 + 2 * GROUP_MARGIN), rh / (y1 - y0 + 2 * GROUP_MARGIN)) };
+}
+
 function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, panRight = 0, panBottom = 0) {
   const ext = rotatedExtent(g, view);
   const fit = Math.min(maxScale, rw / ext.w, rh / ext.h);
-  const userS = follow && !view.chase && view.zoom != null ? rh / chaseTilesFor(view.zoom) : 0; // slider zoom (software view)
-  const zoomed = follow && (userS > 0 || fit < MIN_FOLLOW_SCALE);
-  const s = userS || (zoomed ? MIN_FOLLOW_SCALE : fit);
+  const shared = follow && view.shared ? groupFrame(g, rw, rh) : null;
+  const sharedS = shared ? Math.min(maxScale, Math.max(fit, Math.min(shared.s, MIN_FOLLOW_SCALE * 1.6))) : 0;
+  const userS = !shared && follow && !view.chase && view.zoom != null ? rh / chaseTilesFor(view.zoom) : 0; // slider zoom (software view)
+  const zoomed = follow && (shared ? sharedS > fit * 1.001 : userS > 0 || fit < MIN_FOLLOW_SCALE);
+  const s = shared ? sharedS : userS || (zoomed ? MIN_FOLLOW_SCALE : fit);
   let ox = rx + (rw - g.w * s) / 2, oy = ry + (rh - g.h * s) / 2;
   let cam = null;
   if (zoomed) {
-    const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0);
+    const c = shared ? { x: shared.cx, y: shared.cy } : toWorld(g.fl, (FL.front - FL.back) / 2, 0);
     // On touch landscape the camera may pan `panRight` px past the right/bottom map edge (shown black) so the fork gauge and pads don't hide map.
     // `half`: half the visible world extent along that axis (the bounding box of the rotated view)
     const hx = (ext.co * rw + ext.si * rh) / 2 / s, hy = (ext.si * rw + ext.co * rh) / 2 / s;
@@ -286,7 +300,7 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
   }
   view.ovTiles = rh / (zoomed && !userS ? MIN_FOLLOW_SCALE : fit);
   const chaseTiles = view.chaseZoom == null ? Math.max(CHASE_TILES, view.ovTiles * CHASE_DEFAULT) : chaseTilesFor(view.chaseZoom);
-  if (follow && view.chase) {
+  if (follow && view.chase && !shared) {
     // the camera only slides when the truck gets further than its maximum distance (the rig clamps view.camP) and then looks at the truck
     const yaw = view.orbit ? view.orbit.yaw : 0, base = view.orbit ? view.orbit.tilt : CHASE_TILT;
     const rig = chaseRig(g, chaseTiles, base, view.camG === g ? view.camP : null, 0, g.fl.a);
@@ -298,12 +312,12 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
     view.chaseLiftTarget = base - clearChaseTilt(g, chaseTiles, rig.heading, yaw, base, rig.pos);
   }
   const lifted = view.chase && view.chaseLift > 0.001 ? { yaw: view.orbit ? view.orbit.yaw : 0, tilt: Math.max(0.05, (view.orbit ? view.orbit.tilt : CHASE_TILT) - view.chaseLift) } : view.orbit;
-  const foot = follow && view.chase && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, lifted, chaseTiles, view.camA ?? g.fl.a, view.camP);
+  const foot = follow && view.chase && !shared && drawOverview3d(ctx, g, rx, ry, rw, rh, 0, 0, 0, view.dpr, lifted, chaseTiles, view.camA ?? g.fl.a, view.camP);
   if (foot) {
     if (zoomed) ctx.restore();
     return { x: 0, y: 0, w: g.w, h: g.h, poly: foot }; // chase: the minimap outlines the tilted floor footprint
   }
-  if (follow && view.zoom != null) { // user zoom: centred on the forklift at the slider's zoom
+  if (follow && !shared && view.zoom != null) { // user zoom: centred on the forklift at the slider's zoom
     const c = toWorld(g.fl, (FL.front - FL.back) / 2, 0), s2 = rh / chaseTilesFor(view.zoom);
     if (drawOverview3d(ctx, g, rx, ry, rw, rh, c.x, c.y, s2, view.dpr, view.orbit)) {
       if (zoomed) ctx.restore();

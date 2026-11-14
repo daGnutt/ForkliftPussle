@@ -143,6 +143,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Record prompt** | Name entry when a record is set | `#record` |
 | **Tutorial banner** | 5-step hint strip | `#tutorial` |
 | **Testing banner** | Red "TEST" banner on non-official hosts | `#testingBanner` |
+| **Local multiplayer** | Extra trucks driven by gamepads on the same screen | `createLocal`, `view.shared` |
 | **Gamepad** | Controller input polled in `createInput` (standard mapping) | `pollPad` |
 | **Touch controls** | On-screen buttons or joystick (classic / rotated / joystick) | `#touch`, `#stick` |
 | **Paused overlay** | Drawn when the window is unfocused | `view.paused` |

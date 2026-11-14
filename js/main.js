@@ -1,6 +1,7 @@
 import { newGame, update, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks, topOpen } from './game.js';
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput } from './input.js';
+import { createLocal } from './local.js';
 import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
 import { createRelay } from './net/relay.js';
 import { createHost } from './net/host.js';
@@ -184,6 +185,7 @@ function loadEndless(fresh = false) {
 }
 // After the host's game was replaced: the guests get their trucks back in the new game.
 function partyGameChanged() {
+  local.levelLoaded(game);
   if (mp?.role !== 'host') return;
   game.trucks[0].name = mp.name;
   mp.host.levelLoaded(game);
@@ -226,6 +228,8 @@ function toggleChase() {
   localStorage.setItem('forklift-chase-cam', view.chase ? '1' : '0');
 }
 
+// Local multiplayer: gamepads join the running game as extra trucks (see local.js).
+const local = createLocal();
 const startBtn = document.getElementById('startBtn');
 const input = createInput({
   anyKey: startAudio,
@@ -644,6 +648,7 @@ async function hostParty(nameText = partyName.value) {
   const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed });
   try { await host.start(); } catch (e) { busy(false); partyErr.textContent = mpErr.textContent = e.message; return; }
   mpErr.textContent = '';
+  stopLocal();
   mp = { role: 'host', code: host.code, name, host };
   game.trucks[0].name = name;
   showParty('Press Start when everyone has joined (others can still join later).');
@@ -658,6 +663,7 @@ async function joinParty() {
   partyErr.textContent = '';
   busy(true);
   const guest = createGuest({ relay: createRelay(), code, name, onGame: onGuestGame, onClosed: partyClosed });
+  stopLocal();
   mp = { role: 'guest', code, name, guest, go: false, connected: false, lastH: null };
   try { await guest.join(); } catch (e) { mp = null; busy(false); partyErr.textContent = e.message; return; }
   showParty('Connecting…');
@@ -715,6 +721,16 @@ setBareForks(localStorage.getItem('forklift-bare-forks') === '1');
 const discoOpt = document.getElementById('discoOpt');
 setDiscoEnabled(localStorage.getItem('forklift-disco') === '1');
 const menuHardOpt = document.getElementById('menuHardOpt');
+const localOpt = document.getElementById('localOpt');
+function stopLocal() {
+  localOpt.checked = false;
+  input.setLocalMode(false);
+  local.clear(game);
+}
+localOpt.addEventListener('change', () => {
+  input.setLocalMode(localOpt.checked);
+  if (!localOpt.checked) local.clear(game);
+});
 const autoFsOpt = document.getElementById('autoFsOpt');
 autoFsOpt.checked = autoFs;
 autoFsOpt.addEventListener('change', () => {
@@ -771,6 +787,7 @@ function toggleMenu(open) {
     chaseZoomSel.value = view.chaseZoom ?? chaseZoomOf(Math.max(CHASE_TILES, (view.ovTiles || 14) * CHASE_DEFAULT));
     themeSel.value = themeMode();
     menuHardOpt.checked = hard;
+    localOpt.disabled = !!mp;
     menuLevel.value = level;
     for (const el of menuEl.querySelectorAll('[data-hostonly]')) el.hidden = mp?.role === 'guest';
     menuLeave.hidden = !mp;
@@ -1067,6 +1084,8 @@ function frame(now) {
       if (game.H !== mp.lastH) { if (mp.lastH != null) playFork(game.H > mp.lastH); mp.lastH = game.H; }
     }
   }
+  if (!mp && !splashOn && !view.paused && !view.menuOpen && localOpt.checked) local.step(game, performance.now() / 1000);
+  view.shared = !mp && localOpt.checked && local.players > 0;
   while (mp?.role !== 'guest' && !splashOn && !view.paused && acc >= STEP) {
     const inp = input.state();
     cameraStep(inp, STEP);

@@ -60,4 +60,39 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   for (let i = 0; i < 100; i++) drive(stFull, { right: true }, 0.02);
   assert.ok(st.steer > 0 && st.steer < stFull.steer, 'half stick steers less than full');
 }
+
+// Local multiplayer: gamepads join with A, each drives its own truck, level reloads keep them, unplugging removes the truck
+{
+  const { createLocal } = await import('../js/local.js');
+  const { newGame, update } = await import('../js/game.js');
+  const mk = (index, pressed = [], thr = 0) => {
+    const p = mkPad({ pressed });
+    p.index = index;
+    if (thr) p.buttons[7] = { pressed: true, value: thr };
+    return p;
+  };
+  let pads = [];
+  Object.defineProperty(globalThis.navigator, 'getGamepads', { value: () => pads, configurable: true });
+  let g = newGame(1, 1, false);
+  const local = createLocal();
+  pads = [mk(0), mk(1), mk(2), mk(3)];
+  local.step(g, 0);
+  pads = [mk(0, [0]), mk(1, [0]), mk(2, [0]), mk(3, [0])];
+  local.step(g, 0.1);
+  assert.equal(local.players, 3, 'at most three pads join besides the keyboard player');
+  assert.deepEqual(local.slots(), [1, 2, 3]);
+  assert.equal(g.trucks.length, 4);
+  pads = [mk(0, [], 1), mk(1), mk(2), mk(3)];
+  local.step(g, 0.2);
+  for (let i = 0; i < 120; i++) update(g, {}, 1 / 120);
+  assert.ok(g.trucks[1].fl.speed > 0, 'pad 0 drives truck 1');
+  assert.equal(g.trucks[2].fl.speed, 0, 'idle pads do not move their trucks');
+  assert.equal(g.trucks[0].fl.speed, 0, 'the keyboard truck is not driven by pads');
+  g = newGame(2, 1, false);
+  local.levelLoaded(g);
+  assert.deepEqual(g.trucks.map((t) => !t.gone), [true, true, true, true], 'a new level keeps every local player');
+  pads = [mk(0), mk(1), mk(3)];
+  local.step(g, 1);
+  assert.ok(g.trucks[3].gone && !g.trucks[2].gone && local.players === 2, 'unplugging removes the truck');
+}
 console.log('input tests passed');
