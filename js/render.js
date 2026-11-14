@@ -1038,18 +1038,18 @@ export function draw(ctx, g, view) {
     // Touch landscape: keep the field clear of the fork gauge at the right edge even when the whole map fits.
     const touchLand = view.touch && !portrait;
     const ext = rotatedExtent(g, view), zoomedIn = Math.min(48, rw / ext.w, rh / ext.h) < MIN_FOLLOW_SCALE;
-    if (touchLand && !zoomedIn) { rw = width - rx - GAUGE_W; rh = Math.min(rh, height - ry - PAD_H); }
+    if (!tiles && touchLand && !zoomedIn) { rw = width - rx - GAUGE_W; rh = Math.min(rh, height - ry - PAD_H); }
     let mmX = 13, mmY = 100 + 6;
     if (strip) {
       mmX = (width - mm.w) / 2;
       mmY = height - 8 - mm.h;
       mmBox = { x: mmX, w: mm.w, y: mmY };
       view.miniHit = { x: mmX - 3, y: mmY - 3, w: mm.w + 6, h: mm.h + 6 };
-    } else if (zoomedIn) {
+    } else if (zoomedIn && !tiles) {
       if (portrait) { ry = Math.max(ry, mmY + mm.h + 12); rh = height - ry - bottom; }
       else { rx = mmX + mm.w + 16; rw = width - rx - (touchLand ? 20 : GAUGE_W); }
     }
-    const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true, touchLand && zoomedIn ? GAUGE_W : 0, touchLand && zoomedIn ? PAD_H : 0);
+    const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true, !tiles && touchLand && zoomedIn ? GAUGE_W : 0, !tiles && touchLand && zoomedIn ? PAD_H : 0);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
     if (tiles) {
       cabs.forEach((i, k) => {
@@ -1061,7 +1061,7 @@ export function draw(ctx, g, view) {
         ctx.strokeRect(t.x + 2, t.y + 2, t.w - 4, t.h - 4);
       });
     }
-    if (strip || cam) drawMiniMap(ctx, g, cam || { x: 0, y: 0, w: g.w, h: g.h }, mmX, mmY, mm.s);
+    if (!tiles && (strip || cam)) drawMiniMap(ctx, g, cam || { x: 0, y: 0, w: g.w, h: g.h }, mmX, mmY, mm.s);
   }
   // screen-space HUD
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
