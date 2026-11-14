@@ -986,11 +986,14 @@ function drawCompass(ctx, g, view, width) {
   ctx.restore();
 }
 
-// Grid of n equal windows covering the screen: the overview is window 0, cabin views follow (so it shrinks and moves as they appear).
+// Screen split for `n` cabin views: { ov, cabs } with the overview's window (null when four cabins fill the screen) and one window per cabin.
+// 1 cabin: half overview, half cabin; 2: overview on top, the cabins side by side below; 3: quadrants, overview top left; 4: all quadrants are cabins.
 function cabTiles(width, height, n) {
-  const cols = n <= 2 && width >= height ? n : Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
-  const w = width / cols, h = height / rows;
-  return Array.from({ length: n }, (_, i) => ({ x: (i % cols) * w, y: Math.floor(i / cols) * h, w, h }));
+  const R = (x, y, w, h) => ({ x, y, w, h }), hw = width / 2, hh = height / 2;
+  if (n === 1) return width >= height ? { ov: R(0, 0, hw, height), cabs: [R(hw, 0, hw, height)] } : { ov: R(0, 0, width, hh), cabs: [R(0, hh, width, hh)] };
+  if (n === 2) return { ov: R(0, 0, width, hh), cabs: [R(0, hh, hw, hh), R(hw, hh, hw, hh)] };
+  const q = [R(0, 0, hw, hh), R(hw, 0, hw, hh), R(0, hh, hw, hh), R(hw, hh, hw, hh)];
+  return n === 3 ? { ov: q[0], cabs: q.slice(1) } : { ov: null, cabs: q };
 }
 
 export function draw(ctx, g, view) {
@@ -1006,7 +1009,7 @@ export function draw(ctx, g, view) {
   const hx0 = 20;
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   const cabs = view.shared && view.cabs ? [...view.cabs].filter((i) => g.trucks[i] && !g.trucks[i].gone).sort((a, b) => a - b) : [];
-  const tiles = cabs.length ? cabTiles(width, height, cabs.length + 1) : null;
+  const tiles = cabs.length ? cabTiles(width, height, cabs.length) : null;
   if (view.povBig && !view.shared) {
     if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr, view.look)) drawPov(ctx, g, 0, 0, width, height);
     if (view.touch && width > height) { // easter egg: the minimap stays tappable to swap back to the overview
@@ -1032,7 +1035,7 @@ export function draw(ctx, g, view) {
     if (strip) Object.assign(mm, miniSize(g, 120, 70));
     const bottom = strip ? mm.h + 16 : view.touch ? 208 : 20;
     let rx = 20, ry = strip ? 8 : 50, rw = width - 40, rh = height - ry - bottom;
-    if (tiles) { const t = tiles[0]; rx = t.x + 8; ry = t.y + 50; rw = t.w - 16; rh = t.h - 58; }
+    if (tiles?.ov) { const t = tiles.ov; rx = t.x + 8; ry = t.y + 50; rw = t.w - 16; rh = t.h - 58; }
     // When the map doesn't fit, reserve room for the minimap (above the field in portrait, left of it in landscape)
     // so it never covers the playing field.
     // Touch landscape: keep the field clear of the fork gauge at the right edge even when the whole map fits.
@@ -1049,17 +1052,23 @@ export function draw(ctx, g, view) {
       if (portrait) { ry = Math.max(ry, mmY + mm.h + 12); rh = height - ry - bottom; }
       else { rx = mmX + mm.w + 16; rw = width - rx - (touchLand ? 20 : GAUGE_W); }
     }
-    const cam = drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true, !tiles && touchLand && zoomedIn ? GAUGE_W : 0, !tiles && touchLand && zoomedIn ? PAD_H : 0);
+    const cam = tiles && !tiles.ov ? null : drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true, !tiles && touchLand && zoomedIn ? GAUGE_W : 0, !tiles && touchLand && zoomedIn ? PAD_H : 0);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
     if (tiles) {
       cabs.forEach((i, k) => {
-        const t = tiles[k + 1], tv = i === g.self ? g : truckView(g, i);
+        const t = tiles.cabs[k], tv = i === g.self ? g : truckView(g, i);
         if (!drawPov3d(ctx, tv, t.x, t.y, t.w, t.h, view.dpr)) drawPov(ctx, tv, t.x, t.y, t.w, t.h);
         ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
         ctx.strokeStyle = truckColor(g.trucks[i].color).body;
         ctx.lineWidth = 4;
         ctx.strokeRect(t.x + 2, t.y + 2, t.w - 4, t.h - 4);
       });
+      if (!tiles.ov) { // all four quadrants are cabins: a translucent whole-map minimap in the centre
+        const mm4 = miniSize(g, Math.min(260, width * 0.25), Math.min(160, height * 0.25));
+        ctx.globalAlpha = 0.6;
+        drawMiniMap(ctx, g, { x: 0, y: 0, w: g.w, h: g.h }, (width - mm4.w) / 2, (height - mm4.h) / 2, mm4.s);
+        ctx.globalAlpha = 1;
+      }
     }
     if (!tiles && (strip || cam)) drawMiniMap(ctx, g, cam || { x: 0, y: 0, w: g.w, h: g.h }, mmX, mmY, mm.s);
   }
