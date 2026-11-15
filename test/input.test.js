@@ -166,3 +166,21 @@ for (const [code, want] of [['KeyS', 'wasd'], ['ArrowLeft', 'arrows']]) {
   globalThis.document = stub();
   globalThis.window = stub();
 }
+
+// Joystick scheme: letting go of the stick brakes
+{
+  const stickEl = {
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
+    querySelector: () => ({ style: {} }), classList: { add() {}, remove() {} }, addEventListener() {},
+  };
+  globalThis.document = { querySelectorAll: () => [], getElementById: (id) => (id === 'stick' ? stickEl : null), addEventListener() {} };
+  const { createInput: mk } = await import('../js/input.js?brake');
+  assert.equal(mk({}).state().brake, true, 'untouched visible stick brakes');
+  globalThis.document = stub();
+  assert.equal(mk({}).state().brake, false, 'no stick (other schemes): coast as before');
+  const f = { x: 0, y: 0, a: 0, speed: 3, steer: 0, brake: false, gear: 'D', roll: 0 };
+  const g2 = { ...f };
+  drive(f, { thr: 0, str: 0, brake: true }, 0.5);
+  drive(g2, { thr: 0, str: 0 }, 0.5);
+  assert.ok(f.speed < g2.speed && f.brake, 'braking slows faster than coasting and lights the brake lamps');
+}

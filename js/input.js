@@ -201,6 +201,7 @@ export function createInput(handlers) {
         right: down.has('ArrowRight') || stick.right || pad.right,
         lookL: down.has('KeyW') || pad.lookL,
         lookR: down.has('KeyQ') || pad.lookR,
+        brake: !!stickRect() && stickId === null && !kThr && !pad.thr, // joystick scheme shown but untouched: brake
         horn: down.has('KeyH') || twoFingerHorn || pad.horn,
       };
     },
