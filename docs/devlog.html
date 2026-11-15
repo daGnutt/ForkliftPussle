@@ -27,7 +27,7 @@
 <body>
 <header>
   <h1>Pallet Polka – Devlog</h1>
-  <p>51 milestones from the first prototype to today, newest features last. Bug fixes, refactors and tooling are skipped; each entry names the commit it was captured from. Screenshots and animations are taken from the actual game at that commit (see <code>docs/PRESENTATION_GUIDE.md</code>). The shorter slide deck is <a href="presentation.html" style="color:#6fb1ff">presentation.html</a>.</p>
+  <p>52 milestones from the first prototype to today, newest features last. Bug fixes, refactors and tooling are skipped; each entry names the commit it was captured from. Screenshots and animations are taken from the actual game at that commit (see <code>docs/PRESENTATION_GUIDE.md</code>). The shorter slide deck is <a href="presentation.html" style="color:#6fb1ff">presentation.html</a>.</p>
 </header>
 <nav><a href="#d2026-10-21">10-21</a><a href="#d2026-10-23">10-23</a><a href="#d2026-10-24">10-24</a><a href="#d2026-10-25">10-25</a><a href="#d2026-10-28">10-28</a><a href="#d2026-10-29">10-29</a><a href="#d2026-11-01">11-01</a><a href="#d2026-11-04">11-04</a><a href="#d2026-11-07">11-07</a><a href="#d2026-11-08">11-08</a><a href="#d2026-11-09">11-09</a><a href="#d2026-11-10">11-10</a><a href="#d2026-11-12">11-12</a><a href="#d2026-11-14">11-14</a><a href="#d2026-11-15">11-15</a></nav>
 <main>
@@ -109,8 +109,9 @@
 <section class="day" id="d2026-11-14"><h2><span>2026-11-14</span> Multiplayer arrivals</h2>
 <article><div class="shots"><img src="devlog/50-local-pop.webp" loading="lazy" alt="A local multiplayer truck appearing in smoke"></div><div class="txt"><h3>Truck pop animations</h3><p>Joining trucks grow out of their smoke cloud; departing trucks shrink back into it. The first local controller gets the same welcome.</p><code>d282400</code></div></article>
 </section>
-<section class="day" id="d2026-11-15"><h2><span>2026-11-15</span> Drive and reverse</h2>
+<section class="day" id="d2026-11-15"><h2><span>2026-11-15</span> Tires and oil barrels</h2>
 <article><div class="shots"><img src="devlog/51-gear-controls.webp" loading="lazy" alt="A reversing truck in local multiplayer"></div><div class="txt"><h3>Changing direction</h3><p>Brake to a full stop before changing direction. Hold the opposite control for half a second, or release and press again to shift immediately. The reversing beep sounds only while moving backwards.</p><code>d282400</code></div></article>
+<article><div class="shots"><img src="devlog/52-oil-barrels.webp" loading="lazy" alt="Oil barrel and matching drop zone"></div><div class="txt"><h3>Oil barrels and spills</h3><p>Rigid two-height barrels count as one item in their own drop zones. Damage makes them leak a finite supply of drops; nearby puddles merge, and oil affects drive and steering tires independently.</p><code>898f171</code></div></article>
 </section>
 </main>
 </body>
