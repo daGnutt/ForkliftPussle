@@ -39,6 +39,7 @@ export function createPredictor() {
       return c;
     });
     sim.ghostPairs = g.ghostPairs;
+    sim.oil = structuredClone(g.oil || []);
     sim.started = g.started;
     sim.status = g.status;
     sim.hits = [];

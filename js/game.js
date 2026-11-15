@@ -2,7 +2,7 @@ import { boxDecalKind } from './decals.js';
 import { rectPoly, sat, overlapArea } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
-import { generateLevel } from './level.js';
+import { BARREL_COLOR, generateLevel } from './level.js';
 
 const FORKLIFT_MASS = 6;
 const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
@@ -33,6 +33,7 @@ const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
 // stacks on (and under) other wide boxes.
 const newPen = (col = 0, seed = 0, open = false, wide = false) => ({ crash: 0, sq: 0, deco: open ? 4 : boxDecalKind(col, seed), ...(open && { open: true }), ...(wide && { wide: true }) });
 export const topOpen = (pens) => !!pens?.[pens.length - 1]?.open;
+const blocksStacking = (pens) => topOpen(pens) || pens?.[pens.length - 1]?.barrelPart === 'top';
 export const wideBox = (pens) => !!pens?.[0]?.wide;
 export const halfY = (pen) => (pen?.wide ? 1 : 0.5); // half extent across the box's local x axis (the fork axis)
 const reach = (s) => (wideBox(s.pen) ? 1.13 : 0.71); // radius that contains the whole box
@@ -289,6 +290,7 @@ function boxPos(S, i) {
 
 // Moves boxes i and above together; box 0 is the stack position itself, so moving it moves the whole stack.
 function shiftBoxes(S, i, dx, dy) {
+  if (S.pen?.[i]?.barrelPart === 'top') i--;
   if (i === 0) { S.x += dx; S.y += dy; return; }
   for (let j = i; j < S.layers.length; j++) { S.offs[j].x += dx; S.offs[j].y += dy; }
 }
@@ -336,6 +338,7 @@ function fallBase(g, s) {
 function settle(g, S) {
   ensure(S);
   for (let i = 1; i < S.layers.length; i++) {
+    if (S.pen[i]?.barrelPart === 'top') continue;
     const a = boxPos(S, i), b = boxPos(S, i - 1);
     if (overlapArea(rectPoly(a.x, a.y, 0.5, 0.5, S.rots[i]), rectPoly(b.x, b.y, 0.5, 0.5, S.rots[i - 1])) >= MIN_SUPPORT) continue;
     let dx = a.x - b.x, dy = a.y - b.y;
@@ -352,7 +355,7 @@ function settle(g, S) {
     const rel = offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y }));
     // Landing within stackable reach of another stack's top box, the fallen boxes come to rest on it.
     const under = g.stacks.find((t) => {
-      if (t === S || t.layers.length + layers.length > MAX_LAYERS || topOpen(t.pen) || wideBox(t.pen) !== wideBox(pen)) return false;
+      if (t === S || t.layers.length + layers.length > MAX_LAYERS || blocksStacking(t.pen) || wideBox(t.pen) !== wideBox(pen)) return false;
       const c = boxPos(t, t.layers.length - 1);
       return Math.abs(c.x - nx) < 0.55 && Math.abs(c.y - ny) < 0.55;
     });
@@ -464,11 +467,21 @@ export function score(g) {
 const WONK_ROT = 15 * Math.PI / 180, WONK_OFF = 0.06;
 export function wonkyStack(s) {
   const base = Math.floor(s.x * 31 + s.y * 17);
-  if (s.wide) return { x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => s.a || 0), pen: s.layers.map((c, i) => newPen(c, base + i, false, true)), offs: s.layers.map(() => ({ x: 0, y: 0 })), a: s.a || 0 };
+  const pen = s.layers.map((c, i) => newPen(c, base + i, !!s.open && i === s.layers.length - 1, !!s.wide));
+  if (Number.isInteger(s.barrelAt) && s.barrelAt >= 0 && s.barrelAt + 1 < s.layers.length) {
+    const barrelId = `barrel:${s.x}:${s.y}:${s.barrelAt}`;
+    pen[s.barrelAt] = { ...pen[s.barrelAt], barrelPart: 'base', barrelId };
+    pen[s.barrelAt + 1] = { ...pen[s.barrelAt + 1], barrelPart: 'top', barrelId };
+  }
+  if (s.wide) return { x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => s.a || 0), pen, offs: s.layers.map(() => ({ x: 0, y: 0 })), a: s.a || 0 };
   const r = (i, k) => { const t = Math.sin((base + i * 7.13 + k * 3.7) * 12.9898) * 43758.5453; return (t - Math.floor(t)) * 2 - 1; };
   const rots = s.layers.map((_, i) => r(i, 1) * WONK_ROT);
   const offs = s.layers.map((_, i) => (i === 0 ? { x: 0, y: 0 } : { x: r(i, 2) * WONK_OFF, y: r(i, 3) * WONK_OFF }));
-  return { x: s.x, y: s.y, layers: [...s.layers], rots, pen: s.layers.map((c, i) => newPen(c, base + i, !!s.open && i === s.layers.length - 1)), offs, a: rots[0] };
+  if (Number.isInteger(s.barrelAt)) {
+    rots[s.barrelAt + 1] = rots[s.barrelAt];
+    offs[s.barrelAt + 1] = { ...offs[s.barrelAt] };
+  }
+  return { x: s.x, y: s.y, layers: [...s.layers], rots, pen, offs, a: rots[0] };
 }
 
 export function newGame(levelNumber, seed = 0, hard = false) {
@@ -502,6 +515,7 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
     parking: { ...toWorld(lvl.start, (FL.back + FL.front) / 2, 0), a: lvl.start.a },
     start: { x: lvl.start.x, y: lvl.start.y, a: lvl.start.a },
     trucks: [makeTruck(lvl.start)],
+    oil: [],
     self: 0, // index of the local player's truck
     ghostPairs: [], // [i, j] truck pairs that spawned inside each other and pass through each other until they separate
     hits: [],
@@ -559,7 +573,7 @@ function forkShapes(g) {
     const c = toWorld(f, FL.carryX, 0);
     shapes.push({ poly: rectPoly(c.x, c.y, 0.5, halfY(g.carriedPen?.[0]), f.a + g.carriedRel), stackFilter: (s) => s.layers.length > relH(g, s), carried: true, targets: (s) => boxes(Math.max(0, relH(g, s)))(s) });
   }
-  const blocks = (s) => relH(g, s) >= 0 && s.layers.length > relH(g, s) && g.hard;
+  const blocks = (s) => relH(g, s) >= 0 && s.layers.length > relH(g, s) && s.pen?.[relH(g, s)]?.barrelPart !== 'top' && g.hard;
   const tineTargets = (s) => palletRunners(g, s).map((poly) => ({ poly, from: relH(g, s) }));
   for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks, tineTargets), tine: true });
   return shapes;
@@ -579,6 +593,7 @@ function palletRunners(g, s) {
 // Pushing a stack off its centre turns it by the lever arm of the push (the boxes from `from` upward).
 // `tip` is the pushing shape's vertex deepest into the stack, (nx, ny) the push direction, (sx, sy) how far it moved the stack.
 function spinStack(s, from, tip, nx, ny, sx, sy) {
+  if (s.pen?.[from]?.barrelPart === 'top') from--;
   const c = boxPos(s, from);
   const rx = tip.x - c.x, ry = tip.y - c.y;
   const raw = ((rx * ny - ry * nx) * Math.hypot(sx, sy)) / (rx * rx + ry * ry + PALLET_INERTIA * (wideBox(s.pen) ? 2.5 : 1));
@@ -596,8 +611,10 @@ function nudgeStack(g, s, from, dx, dy, speed) {
   ensure(s);
   const len = Math.hypot(dx, dy) || 1;
   for (let j = Math.max(1, from + 1); j < s.layers.length; j++) {
+    if (s.pen[j]?.barrelPart === 'top') continue;
     const n = NUDGE_K * speed * (j - from) ** 2;
     s.offs[j].x += (dx / len) * n; s.offs[j].y += (dy / len) * n;
+    if (s.pen[j]?.barrelPart === 'base' && s.pen[j + 1]?.barrelPart === 'top') s.offs[j + 1] = { ...s.offs[j] };
   }
   settle(g, s);
 }
@@ -868,6 +885,7 @@ export function update(g, input, dt) {
   }
   if (root.hits) root.hits = root.hits.filter((h) => root.clock - h.t < hitLife(h));
   root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self ? input : t.input, dt); });
+  stepOil(root, dt);
   updateGhosts(root);
   if (root.status === 'play' && root.started) root.time += dt; // the level timer runs from the first move until solved
   scorePopups(root);
@@ -899,6 +917,14 @@ function wiggleBoxes(offs, rots, seed, k) {
   }
 }
 
+function keepBarrelsRigid(pens, offs, rots) {
+  for (let i = 0; i + 1 < pens.length; i++) {
+    if (pens[i]?.barrelPart !== 'base' || pens[i + 1]?.barrelPart !== 'top') continue;
+    offs[i + 1] = { ...offs[i] };
+    rots[i + 1] = rots[i];
+  }
+}
+
 function hornWave(root, t) {
   const o = toWorld(t.fl, 0.6, 0), seed = Math.round(root.clock * 1000);
   root.stacks.forEach((s, n) => {
@@ -910,6 +936,7 @@ function hornWave(root, t) {
     const da = WIGGLE_BOTTOM * noise(n, seed + 6);
     s.rots[0] += da; s.a = (s.a || 0) + da;
     wiggleBoxes(s.offs, s.rots, seed + n * 7, 1);
+    keepBarrelsRigid(s.pen, s.offs, s.rots);
   });
   for (const u of root.trucks) {
     if (u.gone || !u.carried) continue;
@@ -919,6 +946,85 @@ function hornWave(root, t) {
     while (u.carriedOffs.length < u.carried.length) u.carriedOffs.push({ x: 0, y: 0 });
     while (u.carriedRots.length < u.carried.length) u.carriedRots.push(u.carriedRel);
     wiggleBoxes(u.carriedOffs, u.carriedRots, seed + u.id * 11, 1);
+    keepBarrelsRigid(u.carriedPen, u.carriedOffs, u.carriedRots);
+  }
+}
+
+function wheelOilGrip(g, x, side) {
+  const p = toWorld(g.fl, x, side * (FL.halfW - 0.08));
+  return (g.oil || []).some((spill) => Math.hypot(p.x - spill.x, p.y - spill.y) <= spill.r + 0.18) ? 0.3 : 1;
+}
+
+function axleOilGrip(g, x) {
+  const left = wheelOilGrip(g, x, -1), right = wheelOilGrip(g, x, 1);
+  return { grip: (left + right) / 2, imbalance: right - left };
+}
+
+function oilDrift(f, rear, dt) {
+  const slip = 1 - rear.grip, speed = Math.abs(f.speed);
+  if (!slip || speed < 0.25) return;
+  const turn = f.speed * f.steer, turnSlip = slip * Math.min(1, Math.abs(turn) / 0.6);
+  const yaw = -rear.imbalance * speed * 1.4 + Math.sign(turn) * turnSlip * speed * 2.2;
+  f.spin = clamp((f.spin || 0) + yaw * dt, -MAX_SPIN, MAX_SPIN);
+  const side = -Math.sign(turn) * turnSlip * Math.min(speed, 3) * 5 * dt;
+  f.sx = clamp((f.sx || 0) - Math.sin(f.a) * side, -MAX_SKID, MAX_SKID);
+  f.sy = clamp((f.sy || 0) + Math.cos(f.a) * side, -MAX_SKID, MAX_SKID);
+}
+
+const OIL_DROPS = 50, OIL_FULL_R = 1.15, OIL_DROP_AREA = OIL_FULL_R ** 2 / OIL_DROPS;
+
+function dropOil(root, barrel) {
+  const spill = { id: `${barrel.id}:${barrel.base.oilDropped}`, x: barrel.x, y: barrel.y, r: Math.sqrt(OIL_DROP_AREA), drops: 1 };
+  // Radius squared measures area, so merging conserves oil volume.
+  for (let i = 0; i < root.oil.length;) {
+    const other = root.oil[i];
+    if (Math.hypot(spill.x - other.x, spill.y - other.y) > spill.r + other.r) { i++; continue; }
+    const a = spill.r ** 2, b = other.r ** 2;
+    spill.x = (spill.x * a + other.x * b) / (a + b);
+    spill.y = (spill.y * a + other.y * b) / (a + b);
+    spill.r = Math.sqrt(a + b);
+    spill.drops += other.drops ?? b / OIL_DROP_AREA;
+    root.oil.splice(i, 1);
+    i = 0;
+  }
+  root.oil.push(spill);
+}
+
+function stepOil(root, dt) {
+  const barrels = [];
+  const add = (pens, position) => {
+    for (let i = 0; i + 1 < pens.length; i++) {
+      const base = pens[i];
+      if (base?.barrelPart !== 'base' || pens[i + 1]?.barrelPart !== 'top' || !base.barrelId) continue;
+      const damage = Math.min(100, (base.crash || 0) + (pens[i + 1].crash || 0));
+      if (damage > 0) barrels.push({ id: base.barrelId, base, damage, ...position(i) });
+      i++;
+    }
+  };
+  for (const s of root.stacks) {
+    ensure(s);
+    add(s.pen, (i) => boxPos(s, i));
+  }
+  for (const t of root.trucks) {
+    if (!t.carried) continue;
+    add(t.carriedPen || [], (i) => {
+      const o = t.carriedOffs?.[i] || { x: 0, y: 0 };
+      return toWorld(t.fl, FL.carryX + o.x, o.y);
+    });
+  }
+  if (!barrels.length) return;
+  root.oil ||= [];
+  for (const barrel of barrels) {
+    const base = barrel.base;
+    base.oilDropped ??= 0;
+    if (base.oilDropped >= OIL_DROPS) continue;
+    base.oilFraction = (base.oilFraction || 0) + barrel.damage * dt / 10;
+    while (base.oilFraction >= 1 - 1e-9 && base.oilDropped < OIL_DROPS) {
+      base.oilFraction = Math.max(0, base.oilFraction - 1);
+      base.oilDropped++;
+      dropOil(root, barrel);
+    }
+    if (base.oilDropped === OIL_DROPS) base.oilFraction = 0;
   }
 }
 
@@ -951,7 +1057,14 @@ function stepTruck(g, input, dt) {
   const forked = g.hard ? forkedStack(g) : null;
   const forkedY = forked ? toLocal(f, boxPos(forked, relH(g, forked)).x, boxPos(forked, relH(g, forked)).y).y : 0;
   const prevA = f.a;
-  drive(f, input, dt, g.H);
+  const frontGrip = axleOilGrip(g, FL.frontWheelX), rearGrip = axleOilGrip(g, -FL.L);
+  const th = input.thr ?? (input.up ? 1 : 0) - (input.down ? 1 : 0);
+  const str = input.str ?? (input.right ? 1 : 0) - (input.left ? 1 : 0);
+  const affected = frontGrip.grip < 1 || rearGrip.grip < 1;
+  drive(f, affected
+    ? { ...input, thr: th * (0.35 + frontGrip.grip * 0.65), str: str * rearGrip.grip }
+    : input, dt, g.H);
+  oilDrift(f, rearGrip, dt);
   skidStep(f, dt);
   if (f.speed !== 0) g.started = true; // the level timer starts when a truck first moves
   const driven = { x: f.x, y: f.y };
@@ -979,7 +1092,7 @@ function stepTruck(g, input, dt) {
     g.scrape = 0;
   }
 
-  g.slip = Math.max(tireSlip(g, input, dt), (g.slip || 0) - SLIP_DECAY * dt);
+  g.slip = Math.max(tireSlip(g, input, dt), 1 - frontGrip.grip, 1 - rearGrip.grip, (g.slip || 0) - SLIP_DECAY * dt);
   if (g.lifting >= 0) syncLifted(g.root, g.truck);
 
   g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
@@ -1043,7 +1156,8 @@ export function stackInZone(g) {
 function forkedStack(g) {
   const S = stackInZone(g);
   if (S) ensure(S);
-  return S && relH(g, S) >= 0 && S.layers.length > relH(g, S) ? S : null;
+  const k = S ? relH(g, S) : -1;
+  return S && k >= 0 && S.layers.length > k && S.pen[k]?.barrelPart !== 'top' ? S : null;
 }
 
 // Moves the boxes from index `k` up of the stack on `from`'s forks onto `to`'s forks (k > 0 splits the stack), keeping their
@@ -1102,6 +1216,7 @@ const atCarryPoint = (g, o) => {
 function stackOnMyTines(g) {
   for (const o of otherTrucks(g)) {
     if (!o.carried || wideBox(o.carriedPen) || o.H > g.H + 1 || g.H >= o.H + o.carried.length || ghostBetween(g, g.truck.id, o.truck.id)) continue;
+    if (o.carriedPen[Math.max(g.H, o.H) - o.H]?.barrelPart === 'top') continue;
     if (atCarryPoint(o, g)) return o;
   }
   return null;
@@ -1111,7 +1226,7 @@ function tinesUnderMyStack(g) {
   for (const o of otherTrucks(g)) {
     if (wideBox(g.carriedPen) || wideBox(o.carriedPen) || ghostBetween(g, g.truck.id, o.truck.id) || !atCarryPoint(g, o)) continue;
     if (!o.carried && o.H <= g.H) return o;
-    if (o.carried && o.H + o.carried.length <= g.H && o.carried.length + g.carried.length <= MAX_LAYERS && !topOpen(o.carriedPen)) return o;
+    if (o.carried && o.H + o.carried.length <= g.H && o.carried.length + g.carried.length <= MAX_LAYERS && !blocksStacking(o.carriedPen)) return o;
   }
   return null;
 }
@@ -1276,7 +1391,7 @@ export function forkDown(g) {
   const cnt = S ? S.layers.length : 0;
   const cp = toWorld(g.fl, FL.carryX, 0);
   const n = cnt + (S ? stackZ(g, S) : zAt(g, cp.x, cp.y)); // resting height: on the belt that is one level up
-  const minH = cnt + g.carried.length <= MAX_LAYERS && !(S && (topOpen(S.pen) || wideBox(S.pen) !== wideBox(g.carriedPen))) ? n : n + 1;
+  const minH = cnt + g.carried.length <= MAX_LAYERS && !(S && (blocksStacking(S.pen) || wideBox(S.pen) !== wideBox(g.carriedPen))) ? n : n + 1;
   if (g.H > minH) g.H = Math.max(minH, g.H - 1);
   // Reaching the resting height puts the boxes down.
   if (g.H === n && minH === n) {
@@ -1330,13 +1445,18 @@ export function isSolved(g) {
 // Half extents (world x, y) of a drop point; a wide zone (`wide`, `hx`/`hy` set by the level) is 1×2 tiles plus margin.
 export const zoneExt = (z) => ({ x: z.hx ?? 0.6, y: z.hy ?? 0.6 });
 
-const stackFillsZone = (s, z) =>
-  Math.abs(s.x - z.x) < 0.5 &&
-  Math.abs(s.y - z.y) < 0.5 &&
-  s.layers.length === z.count &&
-  s.layers.every((c) => c === z.color) &&
-  !!z.wide === wideBox(s.pen) &&
-  (!z.wide || Math.abs(Math.sin((s.a || 0) - (z.a || 0))) < 0.4);
+const stackFillsZone = (s, z) => {
+  const barrel = z.color === BARREL_COLOR;
+  const matchesLoad = barrel
+    ? z.count === 1 && s.layers.length === 2 && s.layers.every((c) => c === BARREL_COLOR) &&
+      s.pen?.[0]?.barrelPart === 'base' && s.pen?.[1]?.barrelPart === 'top'
+    : s.layers.length === z.count && s.layers.every((c) => c === z.color);
+  return Math.abs(s.x - z.x) < 0.5 &&
+    Math.abs(s.y - z.y) < 0.5 &&
+    matchesLoad &&
+    !!z.wide === wideBox(s.pen) &&
+    (!z.wide || Math.abs(Math.sin((s.a || 0) - (z.a || 0))) < 0.4);
+};
 
 // A completed drop point holds a stack with crooked boxes (squareness points lost).
 export function zoneWonky(g, z) {

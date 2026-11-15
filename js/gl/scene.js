@@ -1,8 +1,8 @@
-import { COLORS } from '../level.js';
+import { BARREL_COLOR, COLORS, ZONE_COLORS } from '../level.js';
 import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
-import { decalsEnabled, floorDecals, overheadDecals } from '../decals.js';
+import { decalsEnabled, floorDecals, overheadDecals, oilDropMark } from '../decals.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
 import { zoneDone, zoneExt, zoneLabelPos, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf } from '../game.js';
@@ -246,7 +246,7 @@ function addFloor(sm, tm, g, mode) {
   }
   for (const r of rampDecals(g)) addRampDecal(tm, r);
   for (const a of g.areas) {
-    const c = parseColor(COLORS[a.color]);
+    const c = parseColor(ZONE_COLORS[a.color]);
     tm.poly([[a.x - 0.3, a.y - 0.3], [a.x + a.w + 0.3, a.y - 0.3], [a.x + a.w + 0.3, a.y + a.h + 0.3], [a.x - 0.3, a.y + a.h + 0.3]], 0, [c[0], c[1], c[2], 0.12]);
   }
 }
@@ -313,7 +313,7 @@ function floorText(tm, str, cx, cy, u, t, z, color) {
 
 function addMarks(tm, g, mode) {
   for (const z of g.zones) {
-    const done = zoneDone(g, z), e = zoneExt(z), c = parseColor(COLORS[z.color]);
+    const done = zoneDone(g, z), e = zoneExt(z), c = parseColor(ZONE_COLORS[z.color]);
     if (mode === 'ov' && !done) {
       const txt = `×${z.count}`;
       const lp = zoneLabelPos(g, z);
@@ -322,6 +322,10 @@ function addMarks(tm, g, mode) {
     }
     tm.poly([[z.x - e.x, z.y - e.y], [z.x + e.x, z.y - e.y], [z.x + e.x, z.y + e.y], [z.x - e.x, z.y + e.y]], 0, [c[0], c[1], c[2], done ? 0.8 : 0.47]);
     tm.frame(z.x - e.x, z.y - e.y, z.x + e.x, z.y + e.y, 0.07, 0, c);
+    if (z.color === BARREL_COLOR && decalsEnabled()) {
+      const mark = oilDropMark(z.x, z.y);
+      tm.poly(mark.pts, 0.01, mark.fill);
+    }
   }
   const ready = isSolved(g);
   const { hx, hy, at } = parkingCorners(g);
@@ -424,6 +428,10 @@ function addDisco(om, g, eye) {
 // Per-frame meshes: { opaque, trans, lights } for the game state `g` seen from `eye` ([x, y]).
 export function dynamicMeshes(g, mode, eye) {
   const om = new Mesh(), tm = new Mesh();
+  for (const oil of g.oil || []) {
+    tm.disc(oil.x, oil.y, 0.008, oil.r, 'rgba(12,22,22,0.72)', 20);
+    tm.disc(oil.x - oil.r * 0.22, oil.y - oil.r * 0.12, 0.009, oil.r * 0.38, 'rgba(180,205,190,0.22)', 12);
+  }
   for (const st0 of g.stacks) {
     const st = fallView(g, st0);
     const ghost = st.ghost?.includes(g.truck.id);

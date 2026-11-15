@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { generateLevel, parseSeed, isReachable } from '../js/level.js';
+import { BARREL_COLOR, generateLevel, parseSeed, isReachable } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
@@ -38,7 +38,11 @@ for (let n = 1; n <= 40; n++) {
   const l = generateLevel(n);
   const boxes = l.stacks.flatMap((s) => s.layers);
   const zoneBoxes = l.zones.reduce((a, z) => a + z.count, 0);
-  assert.equal(boxes.length, zoneBoxes, `level ${n} box count`);
+  const barrels = l.stacks.filter((s) => Number.isInteger(s.barrelAt));
+  assert.equal(boxes.length - barrels.length, zoneBoxes, `level ${n} box/barrel unit count`);
+  assert.equal(l.zones.filter((z) => z.color === BARREL_COLOR).length, barrels.length, `level ${n} one barrel zone per barrel`);
+  assert.ok(l.zones.filter((z) => z.color === BARREL_COLOR).every((z) => z.count === 1), `level ${n} barrel zones count barrels`);
+  assert.ok(barrels.every((s) => s.barrelAt + 2 === s.layers.length), `level ${n} barrels are never covered by boxes`);
   for (const s of l.stacks) {
     assert.ok(s.layers.length >= 1 && s.layers.length <= 5);
     assert.ok(s.x > 1 && s.x < l.w - 1 && s.y > 1 && s.y < l.h - 1);

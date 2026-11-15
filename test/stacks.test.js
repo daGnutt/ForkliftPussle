@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { generateLevel, parseSeed, isReachable } from '../js/level.js';
+import { generateLevel, parseSeed, isReachable, BARREL_COLOR } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
@@ -344,8 +344,6 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('wide boxes ok');
 }
 
-console.log('stacks tests passed');
-
 // Honking jump-scares nearby stacks (and the one on the forks): boxes hop, shift and turn a little but never leave their stack.
 {
   const g = newGame(1);
@@ -386,3 +384,155 @@ console.log('stacks tests passed');
   assert.equal(h.carried.length, 3, 'still carrying all boxes');
   console.log('horn-jolt ok');
 }
+
+// Oil barrels occupy two box levels on one pallet and leak a finite supply of merging drops.
+{
+  const lvl = generateLevel(3);
+  const layoutBarrel = lvl.stacks.find((s) => Number.isInteger(s.barrelAt));
+  assert.ok(layoutBarrel, 'level 3 introduces a barrel');
+  assert.equal(layoutBarrel.layers[layoutBarrel.barrelAt], BARREL_COLOR, 'barrel has its own box type');
+  assert.equal(layoutBarrel.layers[layoutBarrel.barrelAt + 1], BARREL_COLOR, 'barrel occupies two layers of its own type');
+  assert.deepEqual(lvl.zones.filter((z) => z.color === BARREL_COLOR).map((z) => z.count), [1], 'each two-layer barrel has a one-barrel zone');
+  assert.ok(lvl.stacks.filter((s) => Number.isInteger(s.barrelAt)).length <= 4, 'barrel count is capped at four');
+  assert.ok(generateLevel(12).stacks.filter((s) => Number.isInteger(s.barrelAt)).length > 1, 'later levels can spawn multiple barrels');
+
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [wonkyStack({ x: 10, y: 5, layers: [BARREL_COLOR, BARREL_COLOR], barrelAt: 0 })];
+  faceStack(g, 0);
+  forkUp(g);
+  assert.deepEqual(g.carried, [BARREL_COLOR, BARREL_COLOR], 'forking at the pallet lifts the whole barrel');
+  const upper = newGame(1);
+  flatWorld(upper);
+  upper.stacks = [wonkyStack({ x: 10, y: 5, layers: [BARREL_COLOR, BARREL_COLOR], barrelAt: 0 })];
+  faceStack(upper, 0);
+  upper.H = 1;
+  forkUp(upper);
+  assert.equal(upper.carried, null, 'the upper half cannot be lifted separately');
+  const zone = newGame(1);
+  zone.zones = [{ x: 10, y: 5, color: BARREL_COLOR, count: 1 }];
+  zone.stacks = [wonkyStack({ x: 10, y: 5, layers: [BARREL_COLOR, BARREL_COLOR], barrelAt: 0 })];
+  assert.ok(zoneDone(zone, zone.zones[0]), 'a two-height barrel counts as one item in its zone');
+  zone.stacks = [wonkyStack({ x: 10, y: 5, layers: [BARREL_COLOR, BARREL_COLOR, 0], barrelAt: 0 })];
+  assert.ok(!zoneDone(zone, zone.zones[0]), 'barrels with a box stacked above do not fit their zone');
+
+  const noStack = newGame(1);
+  flatWorld(noStack);
+  noStack.stacks = [wonkyStack({ x: 10, y: 5, layers: [BARREL_COLOR, BARREL_COLOR], barrelAt: 0 })];
+  noStack.carried = [0];
+  noStack.carriedRots = [0];
+  noStack.carriedPen = [{ crash: 0, sq: 0, deco: 0 }];
+  noStack.carriedOffs = [{ x: 0, y: 0 }];
+  noStack.H = 3;
+  faceStack(noStack, 0);
+  forkDown(noStack);
+  assert.deepEqual(noStack.stacks[0].layers, [BARREL_COLOR, BARREL_COLOR], 'boxes cannot be set down on a barrel');
+  assert.deepEqual(noStack.carried, [0], 'the box remains carried above a barrel');
+  const honked = newGame(1);
+  flatWorld(honked);
+  honked.stacks = [wonkyStack({ x: 7, y: 5, layers: [BARREL_COLOR, BARREL_COLOR], barrelAt: 0 })];
+  honked.fl.x = 5; honked.fl.y = 5; honked.fl.a = 0;
+  update(honked, { horn: true }, 1 / 120);
+  assert.deepEqual(honked.stacks[0].offs[1], honked.stacks[0].offs[0], 'a horn cannot separate barrel halves');
+  assert.equal(honked.stacks[0].rots[1], honked.stacks[0].rots[0], 'barrel halves turn together');
+
+  const hit = newGame(1);
+  flatWorld(hit);
+  hit.stacks = [wonkyStack({ x: 10, y: 5, layers: [BARREL_COLOR, BARREL_COLOR], barrelAt: 0 })];
+  hit.fl.x = 7; hit.fl.y = 5; hit.fl.a = 0; hit.fl.speed = 2;
+  for (let i = 0; i < 180; i++) update(hit, { up: true }, 1 / 120);
+  hit.fl.speed = 0;
+  for (let i = 0; i < 1200 && !hit.oil.length; i++) update(hit, NONE, 1 / 120);
+  assert.equal(hit.oil.length, 1, 'damaging the barrel spills oil');
+  assert.ok(hit.oil[0].r < 0.2, 'the first oil puddle starts small instead of making a large splat');
+  assert.ok(hit.stacks[0].pen.some((p) => p.crash > 0), 'the barrel was damaged');
+
+  const leak = (damage) => {
+    const h = newGame(1);
+    flatWorld(h);
+    h.fl.x = 2; h.fl.y = 2; h.fl.speed = 0;
+    h.stacks = [wonkyStack({ x: 10, y: 5, layers: [BARREL_COLOR, BARREL_COLOR], barrelAt: 0 })];
+    h.stacks[0].pen[0].crash = damage;
+    return h;
+  };
+  const intact = leak(0);
+  run(intact, NONE, 12);
+  assert.equal(intact.oil.length, 0, 'undamaged barrels do not leak');
+  const lightLeak = leak(1);
+  run(lightLeak, NONE, 9);
+  assert.equal(lightLeak.oil.length, 0, 'one damage point takes ten seconds to emit a drop');
+  run(lightLeak, NONE, 1);
+  assert.equal(lightLeak.oil[0].drops, 1, 'one damage point emits one drop per ten seconds');
+  const heavyLeak = leak(50);
+  run(heavyLeak, NONE, 10);
+  assert.equal(heavyLeak.stacks[0].pen[0].oilDropped, 50, 'a barrel holds fifty drops');
+  assert.equal(heavyLeak.oil.length, 1, 'nearby drops join into one spill');
+  assert.equal(heavyLeak.oil[0].drops, 50);
+  assert.ok(Math.abs(heavyLeak.oil[0].r - 1.15) < 1e-9, 'fifty drops have the original spill area');
+  run(heavyLeak, NONE, 10);
+  assert.equal(heavyLeak.oil[0].drops, 50, 'an empty barrel stops leaking');
+  const movingLeak = leak(5);
+  run(movingLeak, NONE, 2);
+  const firstPuddle = movingLeak.oil[0], firstRadius = firstPuddle.r;
+  movingLeak.stacks[0].x += 0.8;
+  run(movingLeak, NONE, 2);
+  assert.equal(movingLeak.oil.length, 2, 'moving a leaking barrel leaves another small puddle behind');
+  assert.equal(firstPuddle.r, firstRadius, 'the old puddle stays at its last size');
+  assert.equal(movingLeak.oil[1].drops, 1, 'the new puddle starts with one drop');
+  movingLeak.stacks[0].x -= 0.6;
+  run(movingLeak, NONE, 2);
+  assert.equal(movingLeak.oil.length, 2, 'a nearby new drop merges with an existing puddle');
+  assert.equal(movingLeak.oil.reduce((n, o) => n + o.drops, 0), 3, 'merging conserves drops');
+
+  const slowMove = leak(5);
+  for (let i = 0; i < 8; i++) {
+    slowMove.stacks[0].x += 0.1;
+    run(slowMove, NONE, 1);
+  }
+  assert.equal(slowMove.oil[0].drops, 4, 'slow movement emits drops at the same rate');
+  assert.ok(slowMove.oil[0].x < slowMove.stacks[0].x, 'merged drops stay behind rather than following the barrel');
+  const combined = leak(5);
+  combined.stacks[0].pen[1].crash = 5;
+  run(combined, NONE, 1);
+  assert.equal(combined.oil[0].drops, 1, 'damage on both barrel halves contributes to the drop rate');
+  const shared = leak(50);
+  run(shared, NONE, 10);
+  const otherBarrel = wonkyStack({ x: 11.2, y: 5, layers: [BARREL_COLOR, BARREL_COLOR], barrelAt: 0 });
+  otherBarrel.pen[0].crash = 10;
+  shared.stacks.push(otherBarrel);
+  run(shared, NONE, 1);
+  assert.equal(shared.oil.length, 1, 'nearby drops from different barrels merge');
+  assert.equal(shared.oil[0].drops, 51, 'both barrels contribute oil');
+
+  const carriedLeak = newGame(1);
+  flatWorld(carriedLeak);
+  carriedLeak.stacks = [wonkyStack({ x: 10, y: 5, layers: [BARREL_COLOR, BARREL_COLOR], barrelAt: 0 })];
+  faceStack(carriedLeak, 0);
+  carriedLeak.stacks[0].pen[0].crash = 5;
+  forkUp(carriedLeak);
+  run(carriedLeak, NONE, 2);
+  assert.equal(carriedLeak.oil.length, 1, 'a carried damaged barrel leaks beneath itself');
+  carriedLeak.fl.x += 0.8;
+  run(carriedLeak, NONE, 2);
+  assert.equal(carriedLeak.oil.length, 2, 'carrying the leaking barrel leaves a trail');
+
+  const turn = (oil) => {
+    const h = newGame(1);
+    flatWorld(h);
+    h.fl.x = 10; h.fl.y = 10; h.fl.a = 0; h.fl.speed = 2;
+    if (oil) {
+      for (const side of [-1, 1]) {
+        const p = toWorld(h.fl, -FL.L, side * (FL.halfW - 0.08));
+        h.oil.push({ id: `test:${side}`, x: p.x, y: p.y, r: 0.12 });
+      }
+    }
+    update(h, { right: true }, 0.2);
+    return { angle: h.fl.a, spin: h.fl.spin || 0, slip: h.slip };
+  };
+  const clean = turn(false), slick = turn(true);
+  assert.ok(Math.abs(slick.spin) > Math.abs(clean.spin), 'oil on a rear tire can spin the truck');
+  assert.ok(slick.slip > 0, 'oil makes the tyres slip');
+  console.log('oil barrels ok');
+}
+
+console.log('stacks tests passed');

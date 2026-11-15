@@ -49,6 +49,42 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, spli
   else if (cam.z < z0 && !skipBottom) flat(z0, 0.5, false);
 }
 
+function addCylinder(faces, cam, x, y, r, z0, z1, color, n = 16) {
+  const pts = Array.from({ length: n }, (_, i) => {
+    const a = i * Math.PI * 2 / n;
+    return [x + Math.cos(a) * r, y + Math.sin(a) * r];
+  });
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+    const nx = dy / len, ny = -dx / len;
+    if ((cam.x - a[0]) * nx + (cam.y - a[1]) * ny <= 0) continue;
+    faces.push({ quad: [[a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1], [a[0], a[1], z1]],
+      mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2, mz: (z0 + z1) / 2, color, shade: 0.75 + 0.25 * Math.abs(dx / len) });
+  }
+  if (cam.z > z1) for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % n];
+    faces.push({ quad: [[x, y, z1], [a[0], a[1], z1], [b[0], b[1], z1], [b[0], b[1], z1]],
+      mx: (x + a[0] + b[0]) / 3, my: (y + a[1] + b[1]) / 3, mz: z1, color, shade: 1 });
+  }
+}
+
+function addBarrelDecals(faces, cam, x, y, z0, r, rot) {
+  const mark = [[0, 0.12], [0.055, 0.035], [0.065, -0.015], [0, -0.12], [-0.065, -0.015], [-0.055, 0.035]];
+  const ink = '#20292b', n = 16, radius = r * Math.cos(Math.PI / n) + 0.003;
+  for (let i = 0; i < 4; i++) {
+    const a = rot + Math.PI / n + i * Math.PI / 2, nx = Math.cos(a), ny = Math.sin(a);
+    if ((cam.x - x) * nx + (cam.y - y) * ny <= 0) continue;
+    const tx = -ny, ty = nx, z = z0 + 0.52;
+    const pts = mark.map(([u, v]) => [x + nx * radius + tx * u, y + ny * radius + ty * u, z + v]);
+    const mid = [x + nx * radius, y + ny * radius, z];
+    for (let j = 0; j < pts.length; j++) {
+      const a = pts[j], b = pts[(j + 1) % pts.length];
+      faces.push({ quad: [mid, a, b, b], mx: (mid[0] + a[0] + b[0]) / 3, my: (mid[1] + a[1] + b[1]) / 3,
+        mz: (mid[2] + a[2] + b[2]) / 3, color: ink, shade: 1 });
+    }
+  }
+}
+
 const PAL_RUNNERS = [[0, 0.12], [-0.47, 0.03], [0.47, 0.03]]; // [lateral offset, half width], as in gl/models.js
 const PAL_SLATS = [-0.42, -0.21, 0, 0.21, 0.42];
 
@@ -56,6 +92,7 @@ const PAL_SLATS = [-0.42, -0.21, 0, 0.21, 0.42];
 // Boxes from index `from` up are drawn `extra` levels higher (a stack still being lowered).
 function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, extra = 0, pens = []) {
   layers.forEach((col, i) => {
+    if (pens[i]?.barrelPart === 'top') return;
     const x = x0 + (offs[i]?.x || 0), y = y0 + (offs[i]?.y || 0);
     const z = (level + i + (i >= from ? extra : 0)) * (BOX_H + PAL), r = rots[i] ?? 0;
     const cr = Math.cos(r), sr = Math.sin(r), hy = pens[i]?.wide ? 1 : 0.5, slots = hy > 0.5 ? [-0.5, 0.5] : [0]; // a wide box rests on two pallets
@@ -65,6 +102,14 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
       for (const u of PAL_SLATS) addPrism(faces, cam, x + cr * u, y + sr * u, r, 0.075, hy, z + PAL - 0.03, z + PAL, PALLET_COLOR, false, 0, 0, false, true);
     } else addPrism(faces, cam, x, y, r, 0.5, hy, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
     const first = faces.length;
+    if (pens[i]?.barrelPart === 'base') {
+      const top = z + 2 * (BOX_H + PAL);
+      addCylinder(faces, cam, x, y, 0.38, z + PAL, top, COLORS[col]);
+      if (decalsEnabled()) addBarrelDecals(faces, cam, x, y, z + PAL, 0.38, r);
+      for (const h of [0.52, 1.48]) addCylinder(faces, cam, x, y, 0.395, z + PAL + h * BOX_H, z + PAL + h * BOX_H + 0.035, '#a8afb0');
+      addCylinder(faces, cam, x, y, 0.35, top, top + 0.008, '#20292b');
+      return;
+    }
     addPrism(faces, cam, x, y, r, 0.5, hy, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? boxDeco(pens[i], col, i) : 0);
     if (pens[i]?.open) addPrism(faces, cam, x, y, r, 0.4, 0.4, z + PAL + BOX_H, z + PAL + BOX_H + 0.01, '#1b1b1b', false, 0, 0, false, true);
     const dent = pens[i]?.dent;
@@ -73,6 +118,21 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
 }
 
 const OVERHEAD_R = 20; // fixtures further away are tiny and fogged
+
+function addOil(faces, cam, g) {
+  for (const spill of g.oil || []) {
+    if (Math.hypot(spill.x - cam.x, spill.y - cam.y) - spill.r > MAX_DIST) continue;
+    const pts = Array.from({ length: 16 }, (_, i) => {
+      const a = i * Math.PI / 8;
+      return [spill.x + Math.cos(a) * spill.r, spill.y + Math.sin(a) * spill.r * 0.72];
+    });
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      faces.push({ quad: [[spill.x, spill.y, 0.008], [a[0], a[1], 0.008], [b[0], b[1], 0.008], [b[0], b[1], 0.008]],
+        mx: (spill.x + a[0] + b[0]) / 3, my: (spill.y + a[1] + b[1]) / 3, mz: 0.008, color: '#172322', shade: 1 });
+    }
+  }
+}
 
 // Ceiling fixtures as prisms so walls and boxes occlude them correctly.
 function addOverhead(faces, cam, g) {
@@ -223,6 +283,7 @@ export function buildFaces(g, cam) {
   for (const r of truckRoofs(g)) addPrism(faces, cam, (r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, 0, (r.x1 - r.x0) / 2, (r.y1 - r.y0) / 2, TRUCK_H - 0.03, TRUCK_H, truckPaint(r.color), false, 1);
   const lw = g.lowWalls?.[0];
   if (lw) addPrism(faces, cam, lw.x + lw.w / 2, lw.y + lw.h / 2, 0, lw.w / 2, lw.h / 2, 0, BOX_H + PAL, '#1c1e22', false, 1, 0, true, true); // the raised belt; its top is painted with the floor marks
+  addOil(faces, cam, g);
   for (const st0 of g.stacks) { const st = fallView(g, st0); addStack(faces, cam, st.x, st.y, st.rots || [], st.layers, stackZ(g, st), st.offs, st.dropFrom ?? 0,
       dropLift(g, st), st.pen); }
   if (g.carried) {

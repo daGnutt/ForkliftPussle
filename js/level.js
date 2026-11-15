@@ -1,8 +1,10 @@
 import { pointRectDist } from './geom.js';
 import { FL } from './forklift.js';
 
-export const COLORS = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#9e9e9e'];
+export const COLORS = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#9e9e9e', '#39484b'];
 export const WIDE_COLOR = 5; // gray: only wide boxes and their zones; the generator's colours are 0..4
+export const BARREL_COLOR = 6; // dark blue-gray: only oil barrels and their zones
+export const ZONE_COLORS = COLORS.map((color, i) => (i === BARREL_COLOR ? '#bfd5d8' : color));
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -277,6 +279,72 @@ function markWide(n, attempt, seed, lvl) {
   return lvl;
 }
 
+// From level 3, convert up to four matching pairs to barrels, moving each pair to the top of its stack.
+function markOilBarrel(n, seed, lvl) {
+  if (n < 3) return lvl;
+  const maxBarrels = Math.min(4, 1 + Math.floor((n - 3) / 2));
+  const rnd = mulberry32(n * 15485863 + Math.imul(seed, 32452843));
+  const candidates = [];
+  for (let si = 0; si < lvl.stacks.length; si++) {
+    const s = lvl.stacks[si];
+    if (s.wide || s.open) continue;
+    for (let i = 0; i + 1 < s.layers.length; i++) {
+      if (s.layers[i] === s.layers[i + 1] && s.layers[i] < WIDE_COLOR) candidates.push({ si, i, color: s.layers[i] });
+    }
+  }
+  if (!candidates.length) return lvl;
+  const walls = lvl.walls, doors = lvl.doors || [], bays = lvl.bays || [];
+  const free = (r, areas) => pointRectDist(lvl.start.x, lvl.start.y, r) >= 3.2 &&
+    !walls.some((o) => rectGap(o, r) < 1.5) && !doors.some((o) => rectGap(o, r) < 1.0) &&
+    !areas.some((o) => rectGap(o, r) < 1.5) && !bays.some((o) => rectGap(o, r) < 1.5);
+  let target = Math.min(maxBarrels, candidates.length), area = null;
+  const spacing = 1.35;
+  while (target > 0 && !area) {
+    const w = 1.2 + (target - 1) * spacing;
+    for (let t = 0; t < 300 && !area; t++) {
+      const r = { x: 0.6 + rnd() * (lvl.w - 1.2 - w), y: 0.6 + rnd() * (lvl.h - 2.4), w, h: 1.2 };
+      if (free(r, lvl.areas)) area = r;
+    }
+    if (!area) target--;
+  }
+  if (!area) return lvl;
+  const barrelArea = { color: BARREL_COLOR, ...area };
+  let working = { ...lvl, areas: [...lvl.areas, barrelArea] };
+  const usedStacks = new Set();
+  const first = Math.floor(rnd() * candidates.length);
+  let placed = 0;
+  for (let k = 0; k < candidates.length && placed < target; k++) {
+    const { si, i, color } = candidates[(first + k) % candidates.length];
+    if (usedStacks.has(si)) continue;
+    const zones = working.zones.map((z) => ({ ...z }));
+    const donor = zones.find((z) => z.color === color && z.count >= 2);
+    if (!donor) continue;
+    donor.count -= 2;
+    const nextZones = zones.filter((z) => z.count > 0);
+    const openTops = working.stacks.filter((s) => s.open && s.layers.at(-1) === color).length;
+    if (openTops > nextZones.filter((z) => z.color === color).length) continue;
+    const areas = working.areas.filter((a) => a.color !== color || nextZones.some((z) => z.color === color));
+    const stacks = working.stacks.map((s) => ({ ...s, layers: [...s.layers] }));
+    const pair = stacks[si].layers.splice(i, 2);
+    stacks[si].layers.push(...pair.map(() => BARREL_COLOR));
+    stacks[si].barrelAt = stacks[si].layers.length - 2;
+    const candidate = {
+      ...working,
+      stacks,
+      zones: [...nextZones, { x: area.x + 0.6 + placed * spacing, y: area.y + 0.6, color: BARREL_COLOR, count: 1 }],
+      areas,
+    };
+    if (isReachable(candidate)) {
+      working = candidate;
+      usedStacks.add(si);
+      placed++;
+    }
+  }
+  if (!placed) return lvl;
+  working.areas = working.areas.map((a) => a.color === BARREL_COLOR ? { ...a, w: 1.2 + (placed - 1) * spacing } : a);
+  return isReachable(working) ? working : lvl;
+}
+
 function tryGenerate(n, attempt, seed = 0) {
   const rnd = mulberry32(n * 7919 + attempt * 104729 + 17 + Math.imul(seed, 2654435761));
   const { w, h, maxH, colors, total, dividers } = levelParams(n);
@@ -392,7 +460,7 @@ function tryGenerate(n, attempt, seed = 0) {
 
   const base = { n, w, h, walls, doors, zones, areas, bays, stacks, start, charger };
   if (!isReachable(base)) return null;
-  return markWide(n, attempt, seed, base);
+  return markOilBarrel(n, seed, markWide(n, attempt, seed, base));
 }
 
 // Integer seeds are used as-is; any other text is hashed. Empty/0 = the default layouts.

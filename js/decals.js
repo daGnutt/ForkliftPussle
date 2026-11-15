@@ -1,5 +1,5 @@
 // Factory fluff: deterministic decals (tire marks, oil stains, yellow floor markings, wall signs).
-// Pure data, no drawing, so both renderers share it. Purely cosmetic; never touches game state.
+// Pure data, no drawing, so all renderers can share it. Purely cosmetic; never touches game state.
 
 const CELL = 4; // floor decals live in CELL×CELL tile cells
 
@@ -271,6 +271,12 @@ export function boxDecalShapes(kind) {
   }
   if (kind === 4) return DO_NOT_STACK;
   return [];
+}
+
+export function oilDropMark(x, y, scale = 1) {
+  const shape = [[0, -0.27], [0.12, -0.06], [0.16, 0.06], [0.14, 0.16], [0.08, 0.23],
+    [0, 0.27], [-0.08, 0.23], [-0.14, 0.16], [-0.16, 0.06], [-0.12, -0.06]];
+  return { pts: shape.map(([u, v]) => [x + u * scale, y + v * scale]), fill: '#39484b' };
 }
 
 // "Do not stack" label: red rounded frame, crossed-out pair of stacked cubes and the words in a stroke font.
