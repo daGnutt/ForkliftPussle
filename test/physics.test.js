@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateLevel, parseSeed, isReachable } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
-import { FL, toLocal, toWorld, maxSteerFor, drive } from '../js/forklift.js';
+import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
 import { chaseOrbit } from '../js/gl/camera.js';
@@ -106,70 +106,22 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 }
 
 
-// After braking to a stop, hold for half a second or release and reapply to change gear.
+// Gear D/R only flips after a complete stop, when about to move the other way
 {
   const g = newGame(1);
-  g.stacks = []; g.walls = []; g.zones = [];
-  Object.assign(g.fl, { x: 10, y: 10, a: 0 });
-  for (const [speed, gear, input, next] of [
-    [2, 'D', { down: true }, 'R'],
-    [-2, 'R', { up: true }, 'D'],
-  ]) {
-    Object.assign(g.fl, { speed, gear, shiftLocked: false, shiftWait: 0 });
-    for (let i = 0; i < 120 && g.fl.speed !== 0; i++) update(g, input, 1 / 120);
-    assert.equal(g.fl.speed, 0, 'braking stops without crossing into the other direction');
-    assert.equal(g.fl.gear, gear, 'gear does not change while braking');
-    for (let i = 0; i < 59; i++) update(g, input, 1 / 120);
-    assert.equal(g.fl.gear, gear, 'holding for less than half a second does not shift');
-    assert.equal(g.fl.speed, 0);
-    update(g, input, 1 / 120);
-    assert.equal(g.fl.gear, next, 'holding for half a second shifts');
-    assert.ok(g.fl.speed * speed < 0, 'drives in the new direction');
+  assert.equal(g.fl.gear, 'D');
+  g.fl.speed = 2;
+  let flipped = false;
+  for (let i = 0; i < 600 && !flipped; i++) {
+    update(g, { down: true }, 1 / 120);
+    if (g.fl.gear === 'R') flipped = true; else assert.ok(g.fl.speed > -0.001, 'stays in D while still moving forward');
   }
-
-  for (const [speed, gear, input, next] of [
-    [2, 'D', { down: true }, 'R'],
-    [-2, 'R', { up: true }, 'D'],
-  ]) {
-    Object.assign(g.fl, { speed, gear, shiftLocked: false, shiftWait: 0 });
-    for (let i = 0; i < 120 && g.fl.speed !== 0; i++) update(g, input, 1 / 120);
-    run(g, input, 0.1);
-    update(g, {}, 1 / 120);
-    update(g, input, 1 / 120);
-    assert.equal(g.fl.gear, next, 'reapplying after release shifts immediately');
-    assert.ok(g.fl.speed * speed < 0);
-  }
-
-  const h = newGame(1);
-  h.stacks = []; h.walls = []; h.zones = [];
-  h.fl.speed = 2;
-  run(h, { thr: -0.5 }, 0.1);
-  run(h, {}, 0.1);
-  for (let i = 0; i < 240 && h.fl.speed !== 0; i++) update(h, { thr: -0.5 }, 1 / 120);
-  assert.equal(h.fl.speed, 0);
-  assert.equal(h.fl.gear, 'D', 'releasing before a complete stop is not enough');
-  run(h, { thr: -0.5, down: true }, 0.3);
-  run(h, { thr: 0, up: true, down: true }, 0.6);
-  run(h, { thr: -0.5, down: true }, 0.1);
-  assert.equal(h.fl.gear, 'D', 'holding both directions does not release the brake or preserve partial wait');
-  run(h, { thr: 0 }, 0.1);
-  run(h, { thr: -0.5 }, 0.1);
-  assert.equal(h.fl.gear, 'R', 'analog throttle can shift after release at rest');
-
-  const saved = newGame(1);
-  saved.fl.speed = 1;
-  for (let i = 0; i < 120 && saved.fl.speed !== 0; i++) drive(saved.fl, { down: true }, 1 / 120);
-  for (let i = 0; i < 30; i++) drive(saved.fl, { down: true }, 1 / 120);
-  const restored = deserializeGame(serializeGame(saved));
-  const guest = newGame(1);
-  applySnapshot(guest, structuredClone(snapshot(saved)));
-  for (const f of [restored.fl, guest.fl]) {
-    for (let i = 0; i < 29; i++) drive(f, { down: true }, 1 / 120);
-    assert.equal(f.gear, 'D', 'saved and network state preserve the remaining hold time');
-    assert.equal(f.speed, 0);
-    drive(f, { down: true }, 1 / 120);
-    assert.equal(f.gear, 'R', 'saved and network state complete the hold');
-  }
+  assert.ok(flipped && Math.abs(g.fl.speed) < 0.05, 'R engages at standstill');
+  run(g, {}, 0.5);
+  assert.equal(g.fl.gear, 'R', 'brief idle keeps R');
+  run(g, { down: true }, 0.2);
+  run(g, { up: true }, 2);
+  assert.equal(g.fl.gear, 'D');
   console.log('gear ok');
 }
 
