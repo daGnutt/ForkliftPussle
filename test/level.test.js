@@ -69,6 +69,59 @@ for (let n = 1; n <= 40; n++) {
   }
 }
 
+// Wide pallets need an aligned corridor to back out, not just a reachable nearby cell.
+{
+  const zone = { x: 8, y: 8, wide: true, a: 0 };
+  const wall = (x) => ({ x, y: 7, w: 0.5, h: 2 });
+  const lvl = { w: 16, h: 16, start: { x: 2, y: 2 }, stacks: [], zones: [zone], walls: [] };
+  assert.ok(isReachable(lvl), 'open approach');
+  lvl.walls = [wall(5), wall(11)];
+  assert.ok(!isReachable(lvl), 'walls block both aligned approaches despite nearby reachable floor');
+  lvl.walls.pop();
+  assert.ok(isReachable(lvl), 'one unobstructed approach is enough');
+  lvl.zones.push({ x: 11, y: 8 });
+  assert.ok(!isReachable(lvl), 'an already-filled neighbouring drop point blocks the other approach');
+  lvl.zones.pop();
+  lvl.walls = [];
+  zone.x = 2;
+  lvl.walls.push(wall(5));
+  assert.ok(!isReachable(lvl), 'map edge blocks the other approach');
+  zone.x = 8;
+  zone.a = Math.PI / 2;
+  assert.ok(isReachable(lvl), 'rotated pallet uses the perpendicular approach');
+  lvl.stacks.push({ x: 8, y: 8, wide: true, a: 0 });
+  lvl.walls = [wall(5), wall(11)];
+  assert.ok(!isReachable(lvl), 'wide starting stacks also need an aligned pickup corridor');
+}
+
+// Level 28: on hard mode each wide drop can be released and reversed out of,
+// even with every other drop point already filled.
+{
+  const layout = generateLevel(28);
+  const wide = layout.zones.filter((z) => z.wide);
+  assert.ok(wide.length, 'level 28 retains wide drop points');
+  for (const z of wide) {
+    const canDrop = (heading) => {
+      const g = newGame(28, 0, true);
+      g.stacks = layout.zones.map((q) => wonkyStack({
+        x: q.x, y: q.y, layers: Array(q.count).fill(q.color), wide: q.wide, a: q.a || 0,
+      }));
+      const f = g.fl;
+      f.a = heading;
+      f.x = z.x - FL.carryX * Math.cos(heading);
+      f.y = z.y - FL.carryX * Math.sin(heading);
+      if (forkUp(g) === 'blocked' || !g.carried) return false;
+      forkDown(g);
+      if (g.carried || !zoneDone(g, z)) return false;
+      const x = f.x, y = f.y;
+      for (let i = 0; i < 240 && Math.hypot(f.x - x, f.y - y) < 1.2; i++) update(g, { down: true }, 1 / 120);
+      return Math.hypot(f.x - x, f.y - y) >= 1.2 && zoneDone(g, z) &&
+        Math.abs((f.x - x) * Math.sin(heading) - (f.y - y) * Math.cos(heading)) < 0.1;
+    };
+    assert.ok(canDrop(z.a) || canDrop(z.a + Math.PI), 'hard-mode wide drop and straight reverse are possible');
+  }
+}
+
 
 // seeds: deterministic, differ from default, 0 = default
 {
@@ -78,6 +131,13 @@ for (let n = 1; n <= 40; n++) {
   assert.equal(parseSeed('42'), 42);
   assert.equal(parseSeed('abc'), parseSeed('abc'));
   assert.equal(newGame(2, 7).seed, 7);
+  for (const n of [3, 10, 20, 28, 40]) for (const seed of [-7, 42, 101]) {
+    const layout = generateLevel(n, seed);
+    assert.ok(isReachable(layout), `level ${n}, seed ${seed} satisfies clearance checks`);
+    const wideBoxes = layout.stacks.filter((s) => s.wide).reduce((sum, s) => sum + s.layers.length, 0);
+    const wideTargets = layout.zones.filter((z) => z.wide).reduce((sum, z) => sum + z.count, 0);
+    assert.equal(wideBoxes, wideTargets, `level ${n}, seed ${seed} wide boxes match targets`);
+  }
 }
 
 

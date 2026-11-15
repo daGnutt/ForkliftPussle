@@ -1,4 +1,5 @@
 import { pointRectDist } from './geom.js';
+import { FL } from './forklift.js';
 
 export const COLORS = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#9e9e9e'];
 export const WIDE_COLOR = 5; // gray: only wide boxes and their zones; the generator's colours are 0..4
@@ -116,6 +117,30 @@ function buildRooms(rnd, w, h, count, start) {
 // True when every stack and zone has a reachable cell within REACH. Position reachability only: ignores turning radius.
 const GRID = 0.25, CLEAR = 0.8, REACH = 2.0;
 
+// A wide pallet must be approached along its short axis. Reserve a straight
+// corridor long enough to set it down and reverse until both tines are clear.
+function wideApproaches(lvl, p, obstacles) {
+  const vertical = Math.abs(Math.sin(p.a || 0)) > 0.5;
+  const withdraw = FL.tineX1 + 0.5 + 0.15;
+  const far = withdraw - FL.back + 0.15, half = 1.1;
+  return [-1, 1].flatMap((side) => {
+    const lo = side < 0 ? -far : -0.65, hi = side < 0 ? 0.65 : far;
+    const r = vertical
+      ? { x: p.x - half, y: p.y + lo, w: 2 * half, h: hi - lo }
+      : { x: p.x + lo, y: p.y - half, w: hi - lo, h: 2 * half };
+    if (r.x < 0 || r.y < 0 || r.x + r.w > lvl.w || r.y + r.h > lvl.h ||
+        [...lvl.walls, ...obstacles].some((o) => rectGap(r, o) === 0)) return [];
+    return [{ x: p.x + (vertical ? 0 : side * withdraw), y: p.y + (vertical ? side * withdraw : 0) }];
+  });
+}
+
+function zoneObstacle(z) {
+  const vertical = z.wide && Math.abs(Math.sin(z.a || 0)) > 0.5;
+  const hx = z.wide ? (vertical ? 1 : 0.5) : 0.5;
+  const hy = z.wide ? (vertical ? 0.5 : 1) : 0.5;
+  return { x: z.x - hx, y: z.y - hy, w: 2 * hx, h: 2 * hy };
+}
+
 export function isReachable(lvl) {
   const { w, h, walls, start, stacks, zones } = lvl;
   const cols = Math.ceil(w / GRID), rows = Math.ceil(h / GRID);
@@ -153,7 +178,12 @@ export function isReachable(lvl) {
     }
     return false;
   };
-  return stacks.every(near) && zones.every(near);
+  const reachableApproach = (p, obstacles) => wideApproaches(lvl, p, obstacles).some(({ x, y }) => {
+    const i = Math.floor(x / GRID), j = Math.floor(y / GRID);
+    return i >= 0 && j >= 0 && i < cols && j < rows && seen[j * cols + i];
+  });
+  return stacks.every((s) => near(s) && (!s.wide || reachableApproach(s, []))) &&
+    zones.every((z) => near(z) && (!z.wide || reachableApproach(z, zones.filter((o) => o !== z).map(zoneObstacle))));
 }
 
 // From level 2 some stacks get an open-top box (`stack.open`: its top box). One per stack at most, and never more of a colour than that
@@ -198,20 +228,23 @@ function tryWide(lvl, rnd, want) {
   if (!picked.length) return null;
   const za = rnd() < 0.5 ? 0 : Math.PI / 2, sa = rnd() < 0.5 ? 0 : Math.PI / 2;
   const ex = za ? WIDE_ZONE_LONG : WIDE_ZONE_SHORT, ey = za ? WIDE_ZONE_SHORT : WIDE_ZONE_LONG;
-  const cols = Math.min(picked.length, 3), rows = Math.ceil(picked.length / cols), px = 2 * ex + 0.4, py = 2 * ey + 0.4;
+  const cols = Math.min(picked.length, za ? 3 : 2), rows = Math.ceil(picked.length / cols), px = 2 * ex + 0.4, py = 2 * ey + 0.4;
   const free = (r, areas, bays) => pointRectDist(start.x, start.y, r) >= 3.2 && !walls.some((o) => rectGap(o, r) < 1.5) &&
     !areas.some((o) => rectGap(o, r) < 1.5) && !bays.some((o) => rectGap(o, r) < 1.5) && !doors.some((o) => rectGap(o, r) < 1.0);
   const keep = (ar) => zones.some((q) => !picked.includes(q) && q.color === ar.color && q.x >= ar.x && q.x <= ar.x + ar.w && q.y >= ar.y && q.y <= ar.y + ar.h);
   const oldAreas = lvl.areas.filter((ar) => keep(ar));
   const aw = (cols - 1) * px + 2 * ex, ah = (rows - 1) * py + 2 * ey;
   let area = null;
+  const wideZones = (r) => picked.map((z, k) => ({ ...z, color: WIDE_COLOR, x: r.x + ex + (k % cols) * px, y: r.y + ey + Math.floor(k / cols) * py, wide: true, hx: ex, hy: ey, a: za }));
+  const otherZones = zones.filter((z) => !picked.includes(z));
   for (let t = 0; t < 300 && !area; t++) {
     const r = { x: 0.5 + rnd() * (w - 1 - aw), y: 0.5 + rnd() * (h - 1 - ah), w: aw, h: ah };
-    if (free(r, oldAreas, lvl.bays)) area = r;
+    if (!free(r, oldAreas, lvl.bays)) continue;
+    const candidates = wideZones(r), allZones = [...otherZones, ...candidates];
+    if (candidates.every((z) => wideApproaches(lvl, z, allZones.filter((o) => o !== z).map(zoneObstacle)).length)) area = r;
   }
   if (!area) return null;
-  const wz = picked.map((z, k) => ({ ...z, color: WIDE_COLOR, x: area.x + ex + (k % cols) * px, y: area.y + ey + Math.floor(k / cols) * py, wide: true, hx: ex, hy: ey, a: za }));
-  zones = [...zones.filter((z) => !picked.includes(z)), ...wz];
+  zones = [...otherZones, ...wideZones(area)];
   const areas = [...oldAreas, { color: WIDE_COLOR, ...area }];
   let left = picked.reduce((n, z) => n + z.count, 0);
   const bays = [...lvl.bays];
@@ -221,7 +254,7 @@ function tryWide(lvl, rnd, want) {
     let br = null;
     for (let t = 0; t < 300 && !br; t++) {
       const r = { x: 1.3 + rnd() * (w - 2.6 - 2), y: 1.3 + rnd() * (h - 2.6 - 2), w: 2, h: 2 };
-      if (free(r, areas, bays)) br = r;
+      if (free(r, areas, bays) && wideApproaches(lvl, { x: r.x + 1, y: r.y + 1, a: sa }, []).length) br = r;
     }
     if (!br) return null;
     bays.push(br);

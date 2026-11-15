@@ -3,6 +3,7 @@ import { newEndless, endlessSnapshot, restoreEndless } from './endless.js';
 import { MAX_H, MAX_LAYERS } from './forklift.js';
 
 const SAVE_VERSION = 1;
+const LEVEL_LAYOUT_VERSION = 2;
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const num = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -16,7 +17,7 @@ const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carrie
 export function serializeGame(g, seedText = '') {
   const state = {};
   for (const k of DYNAMIC) state[k] = clone(g[k]);
-  return { version: SAVE_VERSION, level: g.level, seed: g.seed, seedText, hard: g.hard, state };
+  return { version: SAVE_VERSION, layoutVersion: LEVEL_LAYOUT_VERSION, level: g.level, seed: g.seed, seedText, hard: g.hard, state };
 }
 
 function checkState(s) {
@@ -35,6 +36,9 @@ export function deserializeGame(data) {
   if (!data || data.version !== SAVE_VERSION || !data.state) throw new Error('Unknown save format');
   const { level, seed, hard, state: s } = data;
   if (!Number.isInteger(level) || level < 1 || !num(seed)) throw new Error('Bad level or seed');
+  if (data.layoutVersion !== LEVEL_LAYOUT_VERSION && !(data.layoutVersion === undefined && level < 3)) {
+    throw new Error('Saved level layout is no longer compatible');
+  }
   const g = newGame(level, seed, !!hard);
   checkState(s);
   const boxes = (stacks, carried) => stacks.reduce((n, st) => n + st.layers.length, 0) + (carried ? carried.length : 0);
