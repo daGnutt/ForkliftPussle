@@ -911,8 +911,10 @@ function drawPartyBadge(ctx, g, party, width) {
 // Small compass under the fork gauge (hidden while north is up, except in the chase camera): the needle points to north (world -y) as seen from the current camera.
 const wrapAngle = (a) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
 // Small endless-mode panel: how long the truck at each incoming bay has been waiting to be unloaded.
-function drawDockWaits(ctx, g, width) {
-  const x = width - 138, y = 290, rh = 16, bw = 130;
+// Touch landscape: top left (the right-hand controls cover the area under the compass); otherwise under the compass.
+function drawDockWaits(ctx, g, width, touchLand) {
+  const rh = 16, bw = 130;
+  const x = touchLand ? 8 : width - 138, y = touchLand ? 8 : 290;
   ctx.fillStyle = 'rgba(0,0,0,0.45)';
   ctx.fillRect(x, y, bw, DOCKS * rh + 8);
   ctx.font = '12px sans-serif';
@@ -1185,7 +1187,7 @@ export function draw(ctx, g, view) {
   const gauged = view.shared ? g.trucks.map((_, i) => i).filter((i) => !g.trucks[i].gone) : [g.self];
   gauged.forEach((i, k) => drawForkGauge(ctx, i === g.self ? g : truckView(g, i), width - 70 - k * GAUGE_W, 70));
   drawCompass(ctx, g, view, width);
-  if (g.endless) drawDockWaits(ctx, g, width);
+  if (g.endless) drawDockWaits(ctx, g, width, view.touch && width > height);
 
   if (view.fullscreen && view.flashAt != null && ready) drawReadyFlash(ctx, width, height, (now - view.flashAt) / 1000);
   if (g.status === 'play' && !g.started && !view.startHidden && !view.paused && !view.menuOpen) drawStartBoard(ctx, g, view, width, height);
