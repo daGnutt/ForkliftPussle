@@ -24,6 +24,7 @@ const ROLL = 1.4;
 const MAX_FWD = 4;
 export const MAX_REV = 2.5;
 const STEER_RATE = 2.0;
+const SHIFT_HOLD = 0.5;
 
 // Raised forks make the forklift top-heavy: top speed and acceleration taper
 // off linearly with fork level H (0..MAX_H), down to MIN_SPEED_FACTOR at full height.
@@ -61,7 +62,7 @@ export const TRUCK_COLORS = [
 export const truckColor = (i) => TRUCK_COLORS[i] || TRUCK_COLORS[0];
 
 export function makeForklift(x, y, a) {
-  return { x, y, a, speed: 0, steer: 0, brake: false, gear: 'D', shiftLocked: false, roll: 0 };
+  return { x, y, a, speed: 0, steer: 0, brake: false, gear: 'D', shiftLocked: false, shiftWait: 0, roll: 0 };
 }
 
 export function toWorld(f, lx, ly) {
@@ -88,6 +89,10 @@ export function drive(f, inp, dt, h = 0) {
   const brakeHeld = th * dir < 0 || (dir === 1 ? inp.down : inp.up);
   if (f.brake) f.shiftLocked = true;
   if (f.speed === 0 && !brakeHeld) f.shiftLocked = false;
+  if (f.shiftLocked && f.speed === 0 && th * dir < 0) {
+    f.shiftWait = (f.shiftWait || 0) + dt;
+    if (f.shiftWait >= SHIFT_HOLD) f.shiftLocked = false;
+  } else f.shiftWait = 0;
   if (f.speed === 0 && th * dir < 0 && !f.shiftLocked) f.gear = dir === 1 ? 'R' : 'D';
   const overCap = f.speed > capFwd || f.speed < -capRev;
   if (overCap) {
