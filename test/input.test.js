@@ -96,3 +96,43 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   assert.ok(g.trucks[3].gone && !g.trucks[2].gone && local.players === 2, 'unplugging removes the truck');
 }
 console.log('input tests passed');
+
+// Keyboard schemes: WASD drives, Q/E work the forks, comma/period look; arrows always work
+{
+  const listeners = {};
+  globalThis.window = { addEventListener: (t, f) => { (listeners[t] ??= []).push(f); } };
+  const { createInput: mk } = await import('../js/input.js?keys');
+  const calls = [];
+  const inp = mk({ up: () => calls.push('up'), down: () => calls.push('down') });
+  const key = (type, code) => listeners[type].forEach((f) => f({ code, repeat: false, preventDefault() {}, target: null }));
+  key('keydown', 'KeyW');
+  assert.ok(!inp.state().up, 'W does not drive in the arrows scheme');
+  assert.ok(inp.state().lookL, 'W looks left in the arrows scheme');
+  key('keyup', 'KeyW');
+  inp.setScheme('wasd');
+  key('keydown', 'KeyW'); key('keydown', 'KeyD');
+  let s = inp.state();
+  assert.ok(s.up && s.right && !s.lookL, 'W/D drive and steer in the WASD scheme');
+  key('keyup', 'KeyW'); key('keyup', 'KeyD');
+  key('keydown', 'KeyQ'); key('keydown', 'KeyE');
+  assert.deepEqual(calls, ['up', 'down'], 'Q raises and E lowers the forks');
+  key('keydown', 'Comma');
+  assert.ok(inp.state().lookL, 'comma looks left');
+  key('keydown', 'ArrowUp');
+  assert.ok(inp.state().up, 'arrow keys still drive');
+  globalThis.window = stub();
+}
+
+// First run: the first drive key picks the scheme
+for (const [code, want] of [['KeyS', 'wasd'], ['ArrowLeft', 'arrows']]) {
+  const listeners = {};
+  globalThis.window = { addEventListener: (t, f) => { (listeners[t] ??= []).push(f); } };
+  const { createInput: mk } = await import('../js/input.js?detect' + code);
+  let picked = null;
+  const inp = mk({ schemeDetected: (n) => { picked = n; inp.setScheme(n); } });
+  inp.setAutoDetect(true);
+  const key = (c) => listeners.keydown.forEach((f) => f({ code: c, repeat: false, preventDefault() {}, target: null }));
+  key(code); key('KeyW');
+  assert.equal(picked, want, `${code} selects ${want}`);
+  globalThis.window = stub();
+}

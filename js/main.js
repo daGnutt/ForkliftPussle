@@ -233,6 +233,7 @@ const toggleCab = (slot) => {
 const local = createLocal(toggleCab);
 const startBtn = document.getElementById('startBtn');
 const input = createInput({
+  schemeDetected: (name) => { keySel.value = name; localStorage.setItem('forklift-keys', name); applyKeys(); },
   anyKey: startAudio,
   fullscreen: toggleFullscreen,
   toggleChase,
@@ -280,12 +281,12 @@ if (isTouch) canvas.addEventListener('pointerdown', (e) => {
   else nextLevel();
 });
 
-// Look around in the 3D views: drag the canvas or hold Q/W. The big view's camera swings around the forklift (overview,
+// Look around in the 3D views: drag the canvas or hold ,/. (or Q/W). The big view's camera swings around the forklift (overview,
 // view.orbit { yaw, tilt }) or turns on the spot (cabin, view.look { yaw, pitch }); driving springs it back.
 const CHASE_TILT_EASE = 0.8; // 1/s: how fast the moving chase camera returns to its default height
-const CHASE_TURN = Math.PI / 4; // a Q/W press swings the chase camera this far around the forklift
+const CHASE_TURN = Math.PI / 4; // a ,/. press swings the chase camera this far around the forklift
 const ORBIT_HOME = 0.35, ORBIT_TILT_MAX = 1.3, LOOK_PITCH_MAX = 0.7, LOOK_SPEED = 2;
-// Flat overview: a Q/W press springs the camera a quarter turn (o.goal = target yaw) instead of turning continuously.
+// Flat overview: a ,/. press springs the camera a quarter turn (o.goal = target yaw) instead of turning continuously.
 function quarterTurn(dir) {
   if (view.chase) { view.chaseGoal = (view.chaseGoal || 0) - dir * CHASE_TURN; lookState(); return; }
   const o = lookState(), q = Math.PI / 2;
@@ -442,19 +443,19 @@ let splashOn = true;
 // Each step is done when its action has happened (also if it happened earlier, so
 // early presses are credited), but every step stays visible for at least MIN_MS.
 const TUTORIAL = [
-  { done: 'drive', html: isTouch
+  { done: 'drive', get html() { return isTouch
     ? 'Use the <b>Forward</b>/<b>Back</b> buttons to drive and <b>◀/▶</b> to steer (the rear wheels steer, so the tail swings out!). Release the button to engine-brake.'
-    : 'Use <b>↑/↓</b> to drive and <b>←/→</b> to steer (the rear wheels steer, so the tail swings out!). Release the throttle to engine-brake.' },
-  { done: 'fork', html: isTouch
+    : `Use <b>${wasd() ? 'W/S' : '↑/↓'}</b> to drive and <b>${wasd() ? 'A/D' : '←/→'}</b> to steer (the rear wheels steer, so the tail swings out!). Release the throttle to engine-brake.`; } },
+  { done: 'fork', get html() { return isTouch
     ? 'Tap <b>Fork ▲</b> to raise the forks and <b>Fork ▼</b> to lower them. Drive the forks in under a stack to lift it.'
-    : 'Press <b>A</b> to raise the forks and <b>Z</b> to lower them. Drive the forks in under a stack to lift it.' },
+    : `Press <b>${wasd() ? 'Q' : 'A'}</b> to raise the forks and <b>${wasd() ? 'E' : 'Z'}</b> to lower them. Drive the forks in under a stack to lift it.`; } },
   { done: 'zone', html: isTouch
     ? 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Restart if you get stuck.'
     : 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Game → Restart level if you get stuck.' },
   { done: 'cab', html: 'For a more immersive experience, press <b>Tab</b> or <b>M</b> to switch to the cab view (and again to return to the overview).' },
-  { done: 'info', html: isTouch
+  { done: 'info', get html() { return isTouch
     ? 'Hold two fingers on the canvas to <b>honk</b>. Open <b>Menu</b> → <b>Info</b> for scoring and more tips.'
-    : 'Extras: <b>C</b> chase camera, <b>W</b>/<b>Q</b> rotate the camera (or drag it), hold <b>H</b> to honk, <b>F</b> full screen. Press <b>P</b> / <b>Esc</b> for the menu → <b>Info</b> for scoring and more tips.',
+    : 'Extras: <b>C</b> chase camera, <b>,</b>/<b>.</b> rotate the camera (or drag it), hold <b>H</b> to honk, <b>F</b> full screen. Press <b>P</b> / <b>Esc</b> for the menu → <b>Info</b> for scoring and more tips.'; },
     extra: () => (theme().dark
       ? ' Prefer a brighter scene? Switch <b>Colour mode</b> to <b>Light</b> under Visuals.'
       : ' Try <b>Dark</b> colour mode under Visuals for headlights, ambient lights and disco lights.') },
@@ -865,6 +866,16 @@ bareOpt.addEventListener('change', () => {
   setBareForks(bareOpt.checked);
   localStorage.setItem('forklift-bare-forks', bareOpt.checked ? '1' : '0');
 });
+const keySel = document.getElementById('keySel');
+if (isTouch) document.getElementById('keyLabel').hidden = true;
+const applyKeys = () => { input.setScheme(keySel.value); document.body.classList.toggle('keys-wasd', keySel.value === 'wasd'); };
+const savedKeys = localStorage.getItem('forklift-keys');
+keySel.value = savedKeys === 'wasd' ? 'wasd' : 'arrows';
+applyKeys();
+// First run (nothing saved): the first drive key pressed (arrows or W/S/D) picks the scheme.
+if (!savedKeys && !isTouch) input.setAutoDetect(true);
+keySel.addEventListener('change', () => { input.setAutoDetect(false); localStorage.setItem('forklift-keys', keySel.value); applyKeys(); });
+const wasd = () => keySel.value === 'wasd';
 const touchSel = document.getElementById('touchSel');
 const touchPad = document.getElementById('touch');
 if (isTouch) document.getElementById('touchLabel').hidden = false;

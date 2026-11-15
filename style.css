@@ -174,3 +174,9 @@ table.keys td:first-child { white-space: nowrap; } table.keys b { color: var(--a
 #zoomBar:hover { opacity: 1; } #zoomBar input { width: 110px; }
 #zoomBar.hide { display: none; }
 @media (pointer: coarse) { #zoomBar { display: none; } }
+
+/* Keyboard scheme hints (body.keys-wasd is set from the menu) */
+.k-wasd { display: none; }
+body.keys-wasd .k-wasd { display: inline; }
+body.keys-wasd tr.k-wasd { display: table-row; }
+body.keys-wasd .k-arrows { display: none; }
