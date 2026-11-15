@@ -106,69 +106,52 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 }
 
 
-// After braking to a stop, hold for half a second or release and reapply to change gear.
+// Braking to a stop requires releasing and reapplying the opposite input before changing gear.
 {
   const g = newGame(1);
   g.stacks = []; g.walls = []; g.zones = [];
   Object.assign(g.fl, { x: 10, y: 10, a: 0 });
-  for (const [speed, gear, input, next] of [
-    [2, 'D', { down: true }, 'R'],
-    [-2, 'R', { up: true }, 'D'],
-  ]) {
-    Object.assign(g.fl, { speed, gear, shiftLocked: false, shiftWait: 0 });
-    for (let i = 0; i < 120 && g.fl.speed !== 0; i++) update(g, input, 1 / 120);
-    assert.equal(g.fl.speed, 0, 'braking stops without crossing into the other direction');
-    assert.equal(g.fl.gear, gear, 'gear does not change while braking');
-    for (let i = 0; i < 59; i++) update(g, input, 1 / 120);
-    assert.equal(g.fl.gear, gear, 'holding for less than half a second does not shift');
-    assert.equal(g.fl.speed, 0);
-    update(g, input, 1 / 120);
-    assert.equal(g.fl.gear, next, 'holding for half a second shifts');
-    assert.ok(g.fl.speed * speed < 0, 'drives in the new direction');
-  }
-
-  for (const [speed, gear, input, next] of [
-    [2, 'D', { down: true }, 'R'],
-    [-2, 'R', { up: true }, 'D'],
-  ]) {
-    Object.assign(g.fl, { speed, gear, shiftLocked: false, shiftWait: 0 });
-    for (let i = 0; i < 120 && g.fl.speed !== 0; i++) update(g, input, 1 / 120);
-    run(g, input, 0.1);
-    update(g, {}, 1 / 120);
-    update(g, input, 1 / 120);
-    assert.equal(g.fl.gear, next, 'reapplying after release shifts immediately');
-    assert.ok(g.fl.speed * speed < 0);
-  }
+  g.fl.speed = 2;
+  run(g, { down: true }, 2);
+  assert.equal(g.fl.speed, 0, 'braking stops without crossing into reverse');
+  assert.equal(g.fl.gear, 'D', 'holding the brake never switches gear');
+  run(g, {}, 0.1);
+  run(g, { down: true }, 0.5);
+  assert.equal(g.fl.gear, 'R');
+  assert.ok(g.fl.speed < 0, 'reapplying reverse drives backwards');
+  run(g, { up: true }, 2);
+  assert.equal(g.fl.speed, 0, 'forward input brakes reverse motion to a stop');
+  assert.equal(g.fl.gear, 'R', 'holding the brake leaves reverse engaged');
+  run(g, {}, 0.1);
+  run(g, { up: true }, 0.1);
+  assert.equal(g.fl.gear, 'D');
+  assert.ok(g.fl.speed > 0, 'reapplying forward drives forwards');
 
   const h = newGame(1);
   h.stacks = []; h.walls = []; h.zones = [];
   h.fl.speed = 2;
   run(h, { thr: -0.5 }, 0.1);
   run(h, {}, 0.1);
-  for (let i = 0; i < 240 && h.fl.speed !== 0; i++) update(h, { thr: -0.5 }, 1 / 120);
+  run(h, { thr: -0.5 }, 2);
   assert.equal(h.fl.speed, 0);
   assert.equal(h.fl.gear, 'D', 'releasing before a complete stop is not enough');
-  run(h, { thr: -0.5, down: true }, 0.3);
-  run(h, { thr: 0, up: true, down: true }, 0.6);
+  run(h, { thr: 0, up: true, down: true }, 0.1);
   run(h, { thr: -0.5, down: true }, 0.1);
-  assert.equal(h.fl.gear, 'D', 'holding both directions does not release the brake or preserve partial wait');
+  assert.equal(h.fl.gear, 'D', 'holding both directions does not release the brake');
   run(h, { thr: 0 }, 0.1);
   run(h, { thr: -0.5 }, 0.1);
   assert.equal(h.fl.gear, 'R', 'analog throttle can shift after release at rest');
 
   const saved = newGame(1);
   saved.fl.speed = 1;
-  for (let i = 0; i < 120 && saved.fl.speed !== 0; i++) drive(saved.fl, { down: true }, 1 / 120);
-  for (let i = 0; i < 30; i++) drive(saved.fl, { down: true }, 1 / 120);
+  for (let i = 0; i < 120; i++) drive(saved.fl, { down: true }, 1 / 120);
   const restored = deserializeGame(serializeGame(saved));
   const guest = newGame(1);
   applySnapshot(guest, structuredClone(snapshot(saved)));
   for (const f of [restored.fl, guest.fl]) {
-    for (let i = 0; i < 29; i++) drive(f, { down: true }, 1 / 120);
-    assert.equal(f.gear, 'D', 'saved and network state preserve the remaining hold time');
-    assert.equal(f.speed, 0);
     drive(f, { down: true }, 1 / 120);
-    assert.equal(f.gear, 'R', 'saved and network state complete the hold');
+    assert.equal(f.gear, 'D', 'saved and network state preserve the brake-release requirement');
+    assert.equal(f.speed, 0);
   }
   console.log('gear ok');
 }
