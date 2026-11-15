@@ -1,7 +1,7 @@
 import { COLORS } from '../level.js';
 import { theme } from '../theme.js';
 import { FL, toWorld } from '../forklift.js';
-import { zoneDone, otherTrucks, isGhost } from '../game.js';
+import { zoneDone, zoneExt, otherTrucks, isGhost } from '../game.js';
 import { parseColor } from './mesh.js';
 import { BOX_H, PAL } from './models.js';
 
@@ -48,6 +48,13 @@ const wheelPoints = (f) => {
 // Hit height: `z` of a popup is in box heights.
 const hitZ = (z) => PAL + Math.max(0, z - 0.5) * BOX_H;
 
+export function shouldSpawnSetdownDust(p, zones) {
+  return !zones.some((z) => {
+    const e = zoneExt(z);
+    return Math.abs(p.x - z.x) <= e.x && Math.abs(p.y - z.y) <= e.y;
+  });
+}
+
 function watchTruck(s, t, dt) {
   const f = t.fl, id = t.truck.id, c = t.contact;
   const was = s.bonks.get(id);
@@ -80,7 +87,9 @@ function watchTruck(s, t, dt) {
   s.carried.set(id, has);
   if (had && !has) {
     const p = toWorld(f, FL.carryX, 0);
-    for (let i = 0; i < 7; i++) puff(s, p.x, p.y, 0.05, { size: 0.1, grow: 0.5, spread: 2.2, col: [0.76, 0.7, 0.62], a0: 0.4, life: 0.8 });
+    if (shouldSpawnSetdownDust(p, t.zones)) {
+      for (let i = 0; i < 7; i++) puff(s, p.x, p.y, 0.05, { size: 0.1, grow: 0.5, spread: 2.2, col: [0.76, 0.7, 0.62], a0: 0.4, life: 0.8 });
+    }
   }
 }
 

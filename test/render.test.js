@@ -18,8 +18,44 @@ import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
+import { addParticles, shouldSpawnSetdownDust } from '../js/gl/particles.js';
+import { Mesh } from '../js/gl/mesh.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
+
+// Set-down dust is suppressed when its landing point is inside any drop zone.
+{
+  const zones = [{ x: 5, y: 6, color: 3, count: 4, hx: 0.6, hy: 0.4 }];
+  assert.equal(shouldSpawnSetdownDust({ x: 5, y: 6 }, zones), false, 'a zone suppresses dust regardless of its required contents');
+  assert.equal(shouldSpawnSetdownDust({ x: 5.6, y: 6 }, zones), false, 'the zone boundary counts as inside');
+  assert.equal(shouldSpawnSetdownDust({ x: 5.61, y: 6 }, zones), true, 'a landing point outside the zone still gets dust even if the stack overlaps its edge');
+  assert.equal(shouldSpawnSetdownDust({ x: 5, y: 6 }, []), true, 'without zones, dust is unchanged');
+}
+
+// Releasing a stack exercises the particle watcher for both local and other trucks without WebGL.
+{
+  for (const other of [false, true]) {
+    for (const onZone of [false, true]) {
+      const g = newGame(1);
+      const t = other ? truckView(g, addTruck(g, 'Other')) : g;
+      Object.assign(t.fl, { x: 8, y: 8, a: 0 });
+      g.ghostPairs = [];
+      const p = toWorld(t.fl, FL.carryX, 0), eye = [p.x, p.y - 3, 3];
+      g.stacks = [wonkyStack({ x: p.x, y: p.y, layers: [0], a: 0 })];
+      g.zones = [{ x: p.x + (onZone ? 0 : 2), y: p.y, color: 1, count: 2 }];
+      forkUp(t);
+      assert.ok(t.carried, 'picked up the test stack');
+      const om = new Mesh(), tm = new Mesh();
+      addParticles(om, tm, g, eye);
+      g.clock += 1 / 120;
+      addParticles(om, tm, g, eye);
+      while (t.carried) forkDown(t);
+      g.clock += 1 / 120;
+      addParticles(om, tm, g, eye);
+      assert.equal(tm.count, onZone ? 0 : 7 * 6, `${other ? 'other' : 'local'} truck emits seven dust quads only off-zone`);
+    }
+  }
+}
 
 // A released stack is drawn lowering (dropFrom) until the forks reach the floor.
 {
