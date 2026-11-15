@@ -29,6 +29,8 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Open-top box** | Box with an open lid and a "do not stack" sign; nothing can be put on it, so it is only ever the top box (`pen.open`, `stack.open` in layouts) | `topOpen`, `newPen`, `boxDecalShapes(4)` |
 | **Wide box** | Always gray; 1×2 box (long side across the forks) on two pallets; lifted only with both tines under it and heading within ~27° of its local x axis, stacks only with other wide boxes; worth 200 and only fits a wide zone (`pen.wide`, `stack.wide` in layouts) | `wideBox`, `halfY`, `boxPoints`, `markWide` |
 | **Wide zone** | 1×2 drop point for a stack of 1–3 wide boxes, grouped with the other wide zones in the one gray area (`zone.wide`, `hx`/`hy` half extents, `a`) | `zoneExt`, `tryWide` |
+| **Oil barrel** | A rigid, two-box-high load of its own type (`BARREL_COLOR`) that cannot be stacked on; one barrel counts as one item in its dedicated zone (`pen.barrelPart`) | `markOilBarrel`, `BARREL_COLOR`, `barrelPart` |
+| **Oil slick** | Persistent floor puddle formed by merging nearby oil drops; each barrel holds 50 drops and leaks one per damage point per ten seconds. Affects drive and steering tires independently, allowing rear-axle drift | `g.oil`, `dropOil`, `wheelOilGrip`, `axleOilGrip`, `stepOil` |
 | **Carried stack** | The boxes currently on the forks | `g.carried` |
 | **Wonky / crooked stack** | Boxes turned/offset from each other | `wonkyStack`, `rots`, `offs` |
 | **Colour** | Box/zone colour (index into the palette) | `COLORS`, `COLOR_NAMES` |
@@ -42,7 +44,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Drop point / drop-off** | Target spot for one stack of an exact colour and box count | `g.zones` |
 | **Zone label** | Floating `×count` marker on a drop point | `zoneLabelItems` |
 | **Drop-off area** | Tinted region holding all drop points of one colour | `g.areas` |
-| **Done zone** | Drop point holding exactly `count` boxes of its colour | `zoneDone` |
+| **Done zone** | Drop point holding exactly `count` items of its colour (barrels count as one item despite being two heights) | `zoneDone` |
 | **Parking spot** | Where the forklift starts and must finish; turns green when ready, shows heading arrow | `g.parking`, `isParked` |
 | **Endless mode** | Level-less mode (menu → Game, `?endless`): no win, ends when every incoming dock is still occupied as the next truck arrives, or by hand with menu → Game → End endless run | `newEndless`, `g.endless`, `status:'over'` |
 | **Incoming truck / dock** | Grey truck (honks once on arrival) standing in one of six bays (three on each of the west and east walls; the southernmost are filled first, alternating sides, each has a permanent flat ramp decal on the warehouse side, truck or not, marked with its bay number 1-6; a small **bay wait panel** under the compass shows each truck's waiting time), carrying 2×3 stacks of random height and colour (messier over time). It leaves once unloaded; if all docks are still occupied when the next truck is due the game is over | `g.endless.docks`, `DOCKS`, `DOCK_COLOR` |

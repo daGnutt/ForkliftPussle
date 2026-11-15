@@ -1,7 +1,7 @@
-import { COLORS } from '../level.js';
+import { BARREL_COLOR, ZONE_COLORS } from '../level.js';
 import { truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays } from '../endless.js';
 import { theme } from '../theme.js';
-import { decalsEnabled, floorDecals } from '../decals.js';
+import { decalsEnabled, floorDecals, oilDropMark } from '../decals.js';
 import { FL } from '../forklift.js';
 import { reverseLight } from '../revlight.js';
 import { zoneDone, zoneExt, isSolved, isParked } from '../game.js';
@@ -73,7 +73,11 @@ export function drawFloorMarks(ctx, g, cam) {
   for (const z of g.zones) {
     const done = zoneDone(g, z), e = zoneExt(z);
     floorPoly(ctx, cam, [[z.x - e.x, z.y - e.y], [z.x + e.x, z.y - e.y], [z.x + e.x, z.y + e.y], [z.x - e.x, z.y + e.y]],
-      COLORS[z.color] + (done ? 'cc' : '77'), COLORS[z.color]);
+      ZONE_COLORS[z.color] + (done ? 'cc' : '77'), ZONE_COLORS[z.color]);
+    if (z.color === BARREL_COLOR && decalsEnabled()) {
+      const mark = oilDropMark(z.x, z.y);
+      floorPoly(ctx, cam, mark.pts, mark.fill, mark.fill);
+    }
   }
   const ready = isSolved(g);
   floorPoly(ctx, cam, parkingCorners(g),

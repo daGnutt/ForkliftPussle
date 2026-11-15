@@ -1,4 +1,4 @@
-import { COLORS } from './level.js';
+import { BARREL_COLOR, COLORS, ZONE_COLORS } from './level.js';
 import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, dockWaits, dockNumber, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
@@ -11,7 +11,7 @@ import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
-import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes } from './decals.js';
+import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark } from './decals.js';
 import { liftedHf, carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
@@ -60,6 +60,20 @@ function extrudeSides(ctx, edges, ex, ey, ang, col, stroke, lw) {
   }
 }
 
+function drawOilDrop(ctx, x, y, s = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.beginPath();
+  ctx.moveTo(0, -0.15);
+  ctx.bezierCurveTo(0.055, -0.06, 0.11, 0.01, 0.1, 0.065);
+  ctx.bezierCurveTo(0.085, 0.15, -0.085, 0.15, -0.1, 0.065);
+  ctx.bezierCurveTo(-0.11, 0.01, -0.055, -0.06, 0, -0.15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 const PX = 0.06, PY = -0.1; // screen shift per unit of height
 
 // Draws a stack whose bottom box is at height z0 above the floor: top box
@@ -80,7 +94,64 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
   }
   const cx = x + (offs[n - 1]?.x || 0) + (z0 + n - 1) * PX, cy = y + (offs[n - 1]?.y || 0) + (z0 + n - 1) * PY;
   for (let i = 0; i < n; i++) {
+    if (pens[i]?.barrelPart === 'top') continue;
     at(x + (offs[i]?.x || 0) + (z0 + i) * PX, y + (offs[i]?.y || 0) + (z0 + i) * PY, i, () => {
+      if (pens[i]?.barrelPart === 'base') {
+        const col = COLORS[layers[i]];
+      const rx = 0.38, ry = 0.34, segments = 32;
+      const ringPoint = (angle, height) => [Math.cos(angle) * rx + height * PX, Math.sin(angle) * ry + height * PY];
+      const face = (angle0, angle1, lower, upper, fill, shade = 0) => {
+        const mid = (angle0 + angle1) / 2;
+        if (Math.cos(mid) * -PX + Math.sin(mid) * -PY <= 0) return;
+        const points = [ringPoint(angle0, upper), ringPoint(angle1, upper), ringPoint(angle1, lower), ringPoint(angle0, lower)];
+        ctx.beginPath();
+        points.forEach(([px, py], k) => (k ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+        ctx.closePath();
+        ctx.fillStyle = fill;
+        ctx.fill();
+        if (shade) {
+          ctx.fillStyle = `rgba(0,0,0,${shade})`;
+          ctx.fill();
+        }
+      };
+      for (let k = 0; k < segments; k++) {
+        const a0 = k * 2 * Math.PI / segments, a1 = (k + 1) * 2 * Math.PI / segments;
+        face(a0, a1, 0, 2, col, 0.12 + 0.12 * (1 - Math.cos((a0 + a1) / 2)));
+      }
+      for (const h of [0.55, 1.45]) {
+        for (let k = 0; k < segments; k++) {
+          const a0 = k * 2 * Math.PI / segments, a1 = (k + 1) * 2 * Math.PI / segments;
+          face(a0, a1, h - 0.045, h + 0.045, '#a8afb0', 0.12);
+        }
+      }
+      if (decalsEnabled()) {
+        const angle = Math.atan2(-PY, -PX);
+        const mark = [[0, 0.12], [0.055, 0.035], [0.065, -0.015], [0, -0.12], [-0.065, -0.015], [-0.055, 0.035]];
+        ctx.fillStyle = '#20292b';
+        ctx.beginPath();
+        mark.forEach(([u, v], k) => {
+          const [px, py] = ringPoint(angle + u / rx, 1 + v);
+          k ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+        });
+        ctx.closePath();
+        ctx.fill();
+      }
+        ctx.save();
+        ctx.translate(2 * PX, 2 * PY);
+      ctx.fillStyle = col;
+        ctx.beginPath(); ctx.ellipse(0, 0, 0.38, 0.34, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#a8afb0'; ctx.lineWidth = 0.045; ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, 0, 0.28, 0.24, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 0.045, 0, Math.PI * 2); ctx.fillStyle = '#a8afb0'; ctx.fill();
+        if (decalsEnabled()) {
+          ctx.fillStyle = '#20292b';
+          drawOilDrop(ctx, 0, 0, 0.65);
+          drawOilDrop(ctx, -0.19, 0.07, 0.28);
+          drawOilDrop(ctx, 0.19, 0.07, 0.28);
+        }
+        ctx.restore();
+        return;
+      }
       const col = COLORS[layers[i]];
       const hy = halfY(pens[i]), sh = 2 * hy; // a wide box is 1 × 2
       const a = rots[i] || 0, ca = Math.cos(a), sa = Math.sin(a);
@@ -374,7 +445,7 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   ctx.fillStyle = theme().floor;
   ctx.fillRect(0, 0, w, h);
   for (const z of g.zones) {
-    ctx.fillStyle = COLORS[z.color];
+    ctx.fillStyle = ZONE_COLORS[z.color];
     ctx.globalAlpha = zoneDone(g, z) ? 1 : 0.5;
     const e = zoneExt(z);
     ctx.fillRect((z.x - e.x) * s, (z.y - e.y) * s, 2 * e.x * s, 2 * e.y * s);
@@ -452,6 +523,13 @@ function drawFloor(ctx, g, vis, pxPerTile) {
 // vis (optional world AABB {x0,y0,x1,y1}): only things touching it are drawn (partial render for the small windows).
 function drawWorld(ctx, g, vis, pxPerTile = 0) {
   drawFloor(ctx, g, vis, pxPerTile);
+  for (const oil of g.oil || []) {
+    if (!visSeen(vis, oil.x - oil.r, oil.y - oil.r, oil.r * 2, oil.r * 2)) continue;
+    ctx.fillStyle = 'rgba(12,22,22,0.72)';
+    ctx.beginPath(); ctx.ellipse(oil.x, oil.y, oil.r, oil.r * 0.72, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(180,205,190,0.22)';
+    ctx.beginPath(); ctx.ellipse(oil.x - oil.r * 0.22, oil.y - oil.r * 0.12, oil.r * 0.38, oil.r * 0.09, -0.3, 0, Math.PI * 2); ctx.fill();
+  }
   if (discoOn()) drawDiscoSpots(ctx, g, vis);
   drawWorldObjects(ctx, g, vis);
 }
@@ -504,7 +582,7 @@ function paintFloor(ctx, g, vis) {
   }
   for (const a of g.areas) {
     if (!seen(a.x - 0.3, a.y - 0.3, a.w + 0.6, a.h + 0.6)) continue;
-    ctx.fillStyle = COLORS[a.color];
+    ctx.fillStyle = ZONE_COLORS[a.color];
     ctx.globalAlpha = 0.12;
     ctx.fillRect(a.x - 0.3, a.y - 0.3, a.w + 0.6, a.h + 0.6);
     ctx.globalAlpha = 1;
@@ -556,15 +634,23 @@ function drawWorldObjects(ctx, g, vis) {
     const e = zoneExt(z);
     if (!seen(z.x - e.x, z.y - e.y - 0.6, 2 * e.x, 2 * e.y + 1.2)) continue;
     const done = zoneDone(g, z);
-    ctx.fillStyle = COLORS[z.color];
+    ctx.fillStyle = ZONE_COLORS[z.color];
     ctx.globalAlpha = done ? 0.75 : 0.4;
     ctx.fillRect(z.x - e.x, z.y - e.y, 2 * e.x, 2 * e.y);
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = COLORS[z.color];
+    ctx.strokeStyle = ZONE_COLORS[z.color];
     ctx.lineWidth = 0.1;
     ctx.setLineDash(done ? [] : [0.2, 0.15]);
     ctx.strokeRect(z.x - e.x, z.y - e.y, 2 * e.x, 2 * e.y);
     ctx.setLineDash([]);
+    if (z.color === BARREL_COLOR && decalsEnabled()) {
+      const mark = oilDropMark(z.x, z.y);
+      ctx.fillStyle = mark.fill;
+      ctx.beginPath();
+      mark.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.fill();
+    }
     if (done) continue;
     ctx.font = 'bold 0.5px sans-serif';
     ctx.textAlign = 'center';

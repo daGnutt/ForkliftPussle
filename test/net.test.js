@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { generateLevel, parseSeed, isReachable } from '../js/level.js';
+import { generateLevel, parseSeed, isReachable, BARREL_COLOR } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
@@ -113,6 +113,25 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   forkUp(g);
   assert.equal(g.carried, null);
   assert.equal(g.H, 1);
+
+  // a receiver cannot take only the upper box from a carried barrel
+  {
+    const barrelGame = newGame(1);
+    addTruck(barrelGame, 'Barrel carrier');
+    barrelGame.ghostPairs = [];
+    const barrelStack = wonkyStack({ x: 10, y: 10, layers: [BARREL_COLOR, BARREL_COLOR], barrelAt: 0 });
+    barrelGame.stacks = [barrelStack];
+    const carrier = barrelGame.trucks[1], receiver = barrelGame.trucks[0];
+    Object.assign(carrier.fl, { x: barrelStack.x - FL.carryX, y: barrelStack.y, a: 0, speed: 0 });
+    forkUp(truckView(barrelGame, 1));
+    assert.equal(carrier.carried.length, 2);
+    const carryPoint = toWorld(carrier.fl, FL.carryX, 0);
+    Object.assign(receiver.fl, { x: carryPoint.x + FL.carryX, y: carryPoint.y, a: Math.PI, speed: 0 });
+    receiver.H = 2;
+    forkUp(barrelGame);
+    assert.equal(receiver.carried, null, 'the top half remains with the carrier');
+    assert.equal(carrier.carried.length, 2, 'the barrel stays intact');
+  }
 
   // split: truck 0 puts its tines inside a carried stack and takes only the boxes from that level up; then puts them back on top
   {

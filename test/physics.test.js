@@ -52,6 +52,42 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(g2.fl.steer, FL.maxSteer, 'raised forks keep full lock at rest');
 }
 
+// Front wheels drive; rear steering tires on oil reduce steering grip and can kick the forklift into a drift.
+{
+  const onAxle = (x, sides = [-1, 1]) => {
+    const g = newGame(1);
+    g.stacks = [];
+    Object.assign(g.fl, { x: 7, y: 6, a: 0, speed: 2 });
+    if (x != null) {
+      g.oil = sides.flatMap((side) => {
+        const p = toWorld(g.fl, x, side * (FL.halfW - 0.08));
+        return Array.from({ length: 3 }, (_, i) => ({ id: `test:${side}:${i}`, x: p.x + i * 0.18, y: p.y, r: 0.08 }));
+      });
+    }
+    return g;
+  };
+  const drive = (x, input, sides, dt = 0.2) => {
+    const g = onAxle(x, sides);
+    run(g, input, dt);
+    return g;
+  };
+  const clean = drive(null, { up: true });
+  const frontOil = drive(FL.frontWheelX, { up: true });
+  const rearOil = drive(-FL.L, { up: true });
+  assert.ok(frontOil.fl.speed < clean.fl.speed, 'oil on the front drive tire reduces acceleration');
+  assert.ok(Math.abs(rearOil.fl.speed - clean.fl.speed) < 0.02, 'oil on the rear steering tire does not reduce drive traction');
+
+  const dryTurn = drive(null, { up: true, right: true });
+  const drySteer = drive(null, { str: 0.1 }, undefined, 0.1);
+  const wetRearSteer = drive(-FL.L, { str: 0.1 }, [1], 0.1);
+  const wetRearTurn = drive(-FL.L, { up: true, right: true }, [1]);
+  assert.ok(Math.abs(wetRearSteer.fl.steer) < Math.abs(drySteer.fl.steer), 'oil on a rear tire reduces steering response');
+  assert.ok(wetRearTurn.slip > dryTurn.slip, 'rear tire slip is reported');
+  assert.ok(Math.abs(wetRearTurn.fl.spin) > 0.05, 'uneven rear grip can spin the forklift');
+  assert.ok(Math.abs(wetRearTurn.fl.sy) > 0.02, 'rear tire slip creates a sideways drift');
+}
+
+
 // Wall collision + engine braking.
 {
   const g = newGame(1);

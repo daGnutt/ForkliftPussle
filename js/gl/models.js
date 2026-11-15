@@ -21,6 +21,21 @@ export const HEAD_X = FL.front + 0.02, TAIL_X = FL.back - 0.03;
 const RUNNERS = [[0, 0.12], [-0.47, 0.03], [0.47, 0.03]];
 const SLATS = [-0.42, -0.21, 0, 0.21, 0.42];
 
+function addBarrelDecals(m, x, y, z0, r, rot) {
+  const ink = '#20292b', n = 16;
+  const mark = [[0, 0.12], [0.055, 0.035], [0.065, -0.015], [0, -0.12], [-0.065, -0.015], [-0.055, 0.035]];
+  const radius = r * Math.cos(Math.PI / n) + 0.003;
+  for (let i = 0; i < 4; i++) {
+    const a = rot + Math.PI / n + i * Math.PI / 2, nx = Math.cos(a), ny = Math.sin(a);
+    const tx = -ny, ty = nx, z = z0 + 0.52;
+    const pts = mark.map(([u, v]) => [x + nx * radius + tx * u, y + ny * radius + ty * u, z + v]);
+    const mid = [x + nx * radius, y + ny * radius, z];
+    for (let j = 0; j < pts.length; j++) m.tri(mid, pts[j], pts[(j + 1) % pts.length], [nx, ny, 0], ink);
+  }
+  const top = mark.map(([u, v]) => [x + u * Math.cos(rot) - v * Math.sin(rot), y + u * Math.sin(rot) + v * Math.cos(rot)]);
+  m.poly(top, z0 + 1.11, ink);
+}
+
 // Pallet with box on top: three runners, five deck slats, a taped cardboard box with a lid.
 // `dent`/`deco` decals go to the transparent mesh `tm` (drawn after, blended over the box top).
 function addBox(m, tm, x, y, r, z, col, pen, level) {
@@ -32,6 +47,14 @@ function addBox(m, tm, x, y, r, z, col, pen, level) {
   const base = parseColor(COLORS[col]);
   const body = dented ? shade(base, 0.82) : base;
   const z0 = z + PAL, z1 = z0 + BOX_H;
+  if (pen?.barrelPart === 'base') {
+    const top = z + 2 * (BOX_H + PAL);
+    m.cylinder(x, y, z0, top, 0.38, body, 16, r);
+    for (const h of [0.52, 1.48]) m.cylinder(x, y, z0 + h * BOX_H, z0 + h * BOX_H + 0.035, 0.395, '#a8afb0', 16, r);
+    m.disc(x, y, top + 0.008, 0.13, '#a8afb0', 12);
+    if (decalsEnabled()) addBarrelDecals(m, x, y, z0, 0.38, r);
+    return;
+  }
   m.cuboid(x, y, r, 0.5, hy, z0, z1, body, { bottom: false });
   if (pen?.open) m.cuboid(x, y, r, 0.4, 0.4, z1, z1 + 0.012, shade(body, 0.2), { bottom: false });
   else {
@@ -62,6 +85,7 @@ function addBox(m, tm, x, y, r, z, col, pen, level) {
 // Boxes from index `from` up are drawn `extra` levels higher (a stack still being lowered).
 export function addStack(m, tm, x0, y0, rots, layers, level, offs = [], from = 0, extra = 0, pens = []) {
   layers.forEach((col, i) => {
+    if (pens[i]?.barrelPart === 'top') return;
     const x = x0 + (offs[i]?.x || 0), y = y0 + (offs[i]?.y || 0);
     const z = (level + i + (i >= from ? extra : 0)) * (BOX_H + PAL);
     addBox(m, tm, x, y, rots[i] ?? 0, z, col, pens[i], i);
