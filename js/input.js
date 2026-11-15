@@ -56,10 +56,10 @@ export function createInput(handlers) {
   // Touches are re-evaluated from the full list of live touches on every event, so a lost end/cancel
   // (common in installed PWAs: system gestures, edge swipes) or a finger sliding between buttons can't leave
   // a key stuck or dead. A touch that started on a button keeps controlling whichever button is under it.
-  // Virtual joystick (#stick, shown by the "joystick" touch scheme): the offset from its centre becomes arrow-key state.
+  // Virtual joystick (#stick, shown by the "joystick" touch scheme): the offset from its centre becomes arrow-key state plus analog thr/str (dead zone rescaled to 0..1).
   const stickEl = document.getElementById('stick');
   const knob = stickEl?.querySelector('.knob');
-  const stick = { up: false, down: false, left: false, right: false };
+  const stick = { up: false, down: false, left: false, right: false, thr: 0, str: 0 };
   let stickId = null; // touch identifier or pointer id (mouse/pen)
   let stickByTouch = false;
   const stickRect = () => { const r = stickEl?.getBoundingClientRect(); return r && r.width > 0 ? r : null; };
@@ -73,11 +73,13 @@ export function createInput(handlers) {
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     stickEl.classList.add('on');
     const T = 0.3;
+    const ax = (v) => Math.round(Math.sign(v) * Math.max(0, (Math.abs(v) - T) / (1 - T)) * 20) / 20 || 0;
+    stick.thr = ax(-dy / R); stick.str = ax(dx / R);
     stick.left = dx / R < -T; stick.right = dx / R > T; stick.up = dy / R < -T; stick.down = dy / R > T;
   };
   const stickRelease = () => {
     stickId = null; stickByTouch = false;
-    stick.up = stick.down = stick.left = stick.right = false;
+    stick.up = stick.down = stick.left = stick.right = false; stick.thr = stick.str = 0;
     if (knob) knob.style.transform = '';
     stickEl?.classList.remove('on');
   };
@@ -188,12 +190,12 @@ export function createInput(handlers) {
     clear: () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); buttons.forEach((b) => b.classList.remove('on')); },
     state: () => {
       pollPad();
-      const kUp = down.has('ArrowUp') || stick.up, kDown = down.has('ArrowDown') || stick.down;
-      const kLeft = down.has('ArrowLeft') || stick.left, kRight = down.has('ArrowRight') || stick.right;
+      const kUp = down.has('ArrowUp'), kDown = down.has('ArrowDown');
+      const kLeft = down.has('ArrowLeft'), kRight = down.has('ArrowRight');
       const kThr = (kUp ? 1 : 0) - (kDown ? 1 : 0), kStr = (kRight ? 1 : 0) - (kLeft ? 1 : 0);
       return {
-        thr: kThr || pad.thr,
-        str: kStr || pad.str,
+        thr: kThr || stick.thr || pad.thr,
+        str: kStr || stick.str || pad.str,
         up: down.has('ArrowUp') || stick.up || pad.up,
         down: down.has('ArrowDown') || stick.down || pad.down,
         left: down.has('ArrowLeft') || stick.left || pad.left,

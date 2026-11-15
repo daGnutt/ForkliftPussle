@@ -136,3 +136,30 @@ for (const [code, want] of [['KeyS', 'wasd'], ['ArrowLeft', 'arrows']]) {
   assert.equal(picked, want, `${code} selects ${want}`);
   globalThis.window = stub();
 }
+
+// Touch joystick: analog throttle/steering from the knob offset (dead zone 0.3 rescaled)
+{
+  const listeners = {};
+  const stickEl = {
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
+    querySelector: () => ({ style: {} }), classList: { add() {}, remove() {} },
+    addEventListener(t, f) { (listeners[t] ??= []).push(f); },
+  };
+  globalThis.document = { querySelectorAll: () => [], getElementById: (id) => (id === 'stick' ? stickEl : null), addEventListener() {} };
+  globalThis.window = { addEventListener() {} };
+  const { createInput: mk } = await import('../js/input.js?stick');
+  const inp = mk({});
+  const ev = (type, x, y) => listeners[type].forEach((f) => f({ pointerType: 'mouse', pointerId: 1, clientX: x, clientY: y, preventDefault() {} }));
+  ev('pointerdown', 50, 50);
+  ev('pointermove', 50 + 25, 50); // dx/R = 0.5
+  let s = inp.state();
+  assert.ok(Math.abs(s.str - 0.2 / 0.7) < 0.03 && s.thr === 0, 'half deflection steers partially');
+  ev('pointermove', 50, 50 - 50); // full forward
+  s = inp.state();
+  assert.equal(s.thr, 1);
+  ev('pointermove', 50, 50 + 10); // inside the dead zone
+  assert.equal(inp.state().thr, 0);
+  ev('pointerup', 0, 0);
+  globalThis.document = stub();
+  globalThis.window = stub();
+}
