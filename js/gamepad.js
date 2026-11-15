@@ -12,9 +12,9 @@ const trig = (gp, i) => { const v = gp.buttons[i]?.value || (gp.buttons[i]?.pres
 
 // thr: right trigger minus left trigger; str: left stick X with the dead zone rescaled so it starts from 0 (both -1..1).
 export function padAxes(gp) {
-  const lx = gp.axes[0] ?? 0, forward = trig(gp, 7), reverse = trig(gp, 6);
+  const lx = gp.axes[0] ?? 0;
   return {
-    thr: forward - reverse, up: forward > 0, down: reverse > 0,
+    thr: trig(gp, 7) - trig(gp, 6),
     str: Math.abs(lx) > STICK_DEAD ? Math.sign(lx) * (Math.abs(lx) - STICK_DEAD) / (1 - STICK_DEAD) : 0,
   };
 }

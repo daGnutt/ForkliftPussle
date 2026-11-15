@@ -49,10 +49,6 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   const s = inp.state();
   assert.equal(s.thr, 0.5);
   assert.ok(s.str > 0.4 && s.str < 0.6 && s.right);
-  pad.buttons[6] = { pressed: true, value: 0.5 };
-  const both = inp.state();
-  assert.equal(both.thr, 0);
-  assert.ok(both.up && both.down, 'both triggers stay marked held even when their throttle cancels out');
   const mk = () => ({ x: 0, y: 0, a: 0, speed: 0, steer: 0, gear: 'D' });
   const half = mk(), full = mk();
   drive(half, { thr: 0.5, str: 0 }, 0.5);

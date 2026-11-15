@@ -36,8 +36,8 @@ export function createLocal(onCab = null) {
         const t = g.trucks[p.slot];
         const edge = (i) => cur[i] && !p.prev[i];
         if (t && !t.gone) {
-          const { thr, str, up, down } = padAxes(gp);
-          t.input = { thr, str, up, down, left: str < 0, right: str > 0, horn: cur[2] };
+          const { thr, str } = padAxes(gp);
+          t.input = { thr, str, up: thr > 0, down: thr < 0, left: str < 0, right: str > 0, horn: cur[2] };
           const v = truckView(g, p.slot);
           if (edge(3)) onCab?.(p.slot);
           if (edge(0) || edge(5)) forkUp(v);
