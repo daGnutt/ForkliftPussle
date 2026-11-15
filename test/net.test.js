@@ -373,8 +373,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   run(g, { down: true }, 0.3);
   run(g, {}, 4);
   assert.ok(Math.abs(g.fl.speed) < 0.05);
-  assert.equal(g.fl.gear, 'D', 'idling in R for >1 s switches to D');
-  console.log('idle reverse to D ok');
+  assert.equal(g.fl.gear, 'R', 'idling does not change gear');
+  console.log('idle reverse stays in R ok');
 }
 
 {

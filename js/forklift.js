@@ -45,9 +45,6 @@ function steerSpeedFactor(speed) {
   return 1 - (1 - MIN_STEER_SPEED_FACTOR) * s;
 }
 
-const idleR = new WeakMap(); // per-forklift idle time in R (kept out of the serialised state)
-const IDLE_TO_D = 3; // s idling in gear R before it switches to D
-
 export function maxSteerFor(speed) {
   return FL.maxSteer * steerSpeedFactor(speed);
 }
@@ -64,7 +61,7 @@ export const TRUCK_COLORS = [
 export const truckColor = (i) => TRUCK_COLORS[i] || TRUCK_COLORS[0];
 
 export function makeForklift(x, y, a) {
-  return { x, y, a, speed: 0, steer: 0, brake: false, gear: 'D', roll: 0 };
+  return { x, y, a, speed: 0, steer: 0, brake: false, gear: 'D', shiftLocked: false, roll: 0 };
 }
 
 export function toWorld(f, lx, ly) {
@@ -87,6 +84,11 @@ export function drive(f, inp, dt, h = 0) {
   const capFwd = MAX_FWD * hsf, capRev = MAX_REV * hsf;
   const th = inp.thr ?? (inp.up ? 1 : 0) - (inp.down ? 1 : 0); // inp.thr/inp.str: optional analog -1..1 (gamepad)
   f.brake = th * f.speed < 0; // throttle opposing the motion: brake lights
+  const dir = f.gear === 'R' ? -1 : 1;
+  const brakeHeld = th * dir < 0 || (dir === 1 ? inp.down : inp.up);
+  if (f.brake) f.shiftLocked = true;
+  if (f.speed === 0 && !brakeHeld) f.shiftLocked = false;
+  if (f.speed === 0 && th * dir < 0 && !f.shiftLocked) f.gear = dir === 1 ? 'R' : 'D';
   const overCap = f.speed > capFwd || f.speed < -capRev;
   if (overCap) {
     // Raising the forks past the current speed's cap bleeds speed off like releasing
@@ -95,20 +97,12 @@ export function drive(f, inp, dt, h = 0) {
     else f.speed = Math.min(-capRev, f.speed + ROLL * dt);
   } else if (th !== 0) {
     const against = f.speed * th < 0;
-    f.speed += th * (against ? ACC * 2 : ACC) * hsf * dt;
+    if (against) f.speed = approachZero(f.speed, Math.abs(th) * ACC * 2 * hsf * dt);
+    else if (!(f.shiftLocked && f.speed === 0 && th * dir < 0)) f.speed += th * ACC * hsf * dt;
   } else {
     f.speed = approachZero(f.speed, ROLL * dt);
   }
   f.speed -= f.speed * 0.1 * dt;
-  // The gear only flips once the truck has stopped and is about to move the other way.
-  if (f.gear === 'D' && th < 0 && f.speed <= 0) f.gear = 'R';
-  else if (f.gear === 'R' && th > 0 && f.speed >= 0) f.gear = 'D';
-  // Idling in R (stopped, no throttle) for IDLE_TO_D seconds drops back to D to silence the beeper.
-  if (f.gear === 'R' && th === 0 && Math.abs(f.speed) < 0.05) {
-    const t = (idleR.get(f) || 0) + dt;
-    idleR.set(f, t);
-    if (t > IDLE_TO_D) f.gear = 'D';
-  } else idleR.delete(f);
 
   const steerCap = maxSteerFor(f.speed);
   const target = (inp.str ?? (inp.right ? 1 : 0) - (inp.left ? 1 : 0)) * steerCap;

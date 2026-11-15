@@ -562,7 +562,7 @@ export function setEngine(speed, throttle, reversing = false, id = 0, vol = 1) {
     engine = startEngine();
     engines.set(id, engine);
   }
-  setBeeper(reversing && beepOn, t, id, vol);
+  setBeeper(reversing && speed < 0 && beepOn, t, id, vol);
   if (!engineOn) return;
   const v = Math.min(1, Math.abs(speed) / 4);
   const pitch = (55 + v * 80 + (throttle ? 6 : 0)) * (1 + 0.04 * id);

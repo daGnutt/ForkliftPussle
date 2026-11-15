@@ -157,9 +157,7 @@ export function createInput(handlers) {
     const b = (i) => !!gp.buttons[i]?.pressed;
     const rx = gp.axes[2] ?? 0;
     // analog: trigger travel is the throttle/brake, left stick X the steering
-    ({ thr: pad.thr, str: pad.str } = padAxes(gp));
-    pad.up = pad.thr > 0;
-    pad.down = pad.thr < 0;
+    ({ thr: pad.thr, str: pad.str, up: pad.up, down: pad.down } = padAxes(gp));
     pad.left = pad.str < 0;
     pad.right = pad.str > 0;
     pad.lookL = rx < -DEAD;
