@@ -157,6 +157,9 @@ for (const [code, want] of [['KeyS', 'wasd'], ['ArrowLeft', 'arrows']]) {
   ev('pointermove', 50, 50 - 50); // full forward
   s = inp.state();
   assert.equal(s.thr, 1);
+  ev('pointermove', 100, 0); // corner: both axes full at once
+  s = inp.state();
+  assert.ok(s.thr === 1 && s.str === 1, 'the square corner gives full throttle and full steering');
   ev('pointermove', 50, 50 + 10); // inside the dead zone
   assert.equal(inp.state().thr, 0);
   ev('pointerup', 0, 0);

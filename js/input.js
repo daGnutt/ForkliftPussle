@@ -68,8 +68,7 @@ export function createInput(handlers) {
     const r = stickRect(); if (!r) return;
     const R = r.width / 2;
     let dx = x - (r.left + R), dy = y - (r.top + R);
-    const len = Math.hypot(dx, dy);
-    if (len > R) { dx *= R / len; dy *= R / len; }
+    dx = Math.max(-R, Math.min(R, dx)); dy = Math.max(-R, Math.min(R, dy)); // square pad: each axis reaches full on its own
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     stickEl.classList.add('on');
     const T = 0.3;
