@@ -3,6 +3,7 @@ import { rectPoly, sat, overlapArea } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
+import { makeHatch, makeBot, stepBot } from './bot.js';
 
 const FORKLIFT_MASS = 6;
 const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
@@ -525,6 +526,8 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
     started: false,
     clock: 0,
   };
+  g.hatch = makeHatch(g);
+  g.bot = makeBot(g);
   bindTrucks(g);
   markSpawnStacks(g, 0);
   return g;
@@ -886,6 +889,7 @@ export function update(g, input, dt) {
   if (root.hits) root.hits = root.hits.filter((h) => root.clock - h.t < hitLife(h));
   root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self ? input : t.input, dt); });
   stepOil(root, dt);
+  stepBot(root, dt, OIL_DROP_AREA);
   updateGhosts(root);
   if (root.status === 'play' && root.started) root.time += dt; // the level timer runs from the first move until solved
   scorePopups(root);

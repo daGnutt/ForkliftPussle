@@ -520,6 +520,42 @@ function drawFloor(ctx, g, vis, pxPerTile) {
   ctx.drawImage(floorCache.cv, 0, 0, floorCache.cv.width / floorCache.px, floorCache.cv.height / floorCache.px);
 }
 
+// Cleaning bot hatch (in the wall) and the bot itself: a small white M-O-style body, dark visor with a blue eye, side treads
+// and a spinning brush in front that scrubs while it cleans.
+function drawBot(ctx, g, vis) {
+  const h = g.hatch;
+  if (!h) return;
+  ctx.save();
+  ctx.translate(h.x, h.y); ctx.rotate(h.a - Math.PI / 2);
+  ctx.fillStyle = '#2b2f33'; ctx.fillRect(-0.45, -0.12, 0.9, 0.12);
+  ctx.fillStyle = '#e8c52e'; ctx.fillRect(-0.45, -0.12, 0.9, 0.025);
+  ctx.restore();
+  const b = g.bot;
+  if (!b || b.show <= 0 || !visSeen(vis, b.x - 0.5, b.y - 0.5, 1, 1)) return;
+  const t = g.clock || 0;
+  ctx.save();
+  ctx.translate(b.x, b.y); ctx.rotate(b.a); ctx.scale(b.show, b.show);
+  ctx.fillStyle = '#4a4d52';
+  ctx.fillRect(-0.2, -0.3, 0.4, 0.1); ctx.fillRect(-0.2, 0.2, 0.4, 0.1);
+  ctx.fillStyle = '#f2f2ee';
+  ctx.beginPath(); ctx.roundRect(-0.22, -0.2, 0.44, 0.4, 0.1); ctx.fill();
+  ctx.fillStyle = '#c93a2b'; ctx.fillRect(-0.2, -0.04, 0.12, 0.08);
+  ctx.fillStyle = '#20262c';
+  ctx.beginPath(); ctx.ellipse(0.1, 0, 0.1, 0.15, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = b.scared ? '#ff6a4a' : '#4ec3ff';
+  ctx.beginPath(); ctx.arc(0.12, 0, 0.05, 0, Math.PI * 2); ctx.fill();
+  ctx.translate(0.3, 0);
+  // The roller spins about the bot's forward (x) axis: seen from above, its bristles sweep across the width.
+  ctx.strokeStyle = '#e8c52e'; ctx.lineWidth = 0.04; ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let k = 0; k < 4; k++) {
+    const y = 0.12 * Math.sin((b.cleaning ? t * 18 : 0) + k * Math.PI / 2);
+    ctx.moveTo(-0.07, y); ctx.lineTo(0.07, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
 // vis (optional world AABB {x0,y0,x1,y1}): only things touching it are drawn (partial render for the small windows).
 function drawWorld(ctx, g, vis, pxPerTile = 0) {
   drawFloor(ctx, g, vis, pxPerTile);
@@ -530,6 +566,7 @@ function drawWorld(ctx, g, vis, pxPerTile = 0) {
     ctx.fillStyle = 'rgba(180,205,190,0.22)';
     ctx.beginPath(); ctx.ellipse(oil.x - oil.r * 0.22, oil.y - oil.r * 0.12, oil.r * 0.38, oil.r * 0.09, -0.3, 0, Math.PI * 2); ctx.fill();
   }
+  drawBot(ctx, g, vis);
   if (discoOn()) drawDiscoSpots(ctx, g, vis);
   drawWorldObjects(ctx, g, vis);
 }

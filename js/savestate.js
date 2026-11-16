@@ -13,12 +13,12 @@ const okOff = (o) => !!o && num(o.x) && num(o.y);
 const okPen = (p) => !!p && num(p.crash) && num(p.sq) &&
   (p.oilDropped === undefined || Number.isInteger(p.oilDropped) && p.oilDropped >= 0 && p.oilDropped <= 50) &&
   (p.oilFraction === undefined || num(p.oilFraction) && p.oilFraction >= 0 && p.oilFraction < 1);
-const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'oil', 'bonks', 'H', 'hf', 'status', 'time', 'started', 'clock'];
+const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'oil', 'bot', 'bonks', 'H', 'hf', 'status', 'time', 'started', 'clock'];
 
 // Plain-JSON snapshot of a level in progress; the static layout is regenerated from (level, seed, hard).
 export function serializeGame(g, seedText = '') {
   const state = {};
-  for (const k of DYNAMIC) state[k] = clone(g[k]);
+  for (const k of DYNAMIC) if (g[k] !== undefined) state[k] = clone(g[k]);
   return { version: SAVE_VERSION, layoutVersion: LEVEL_LAYOUT_VERSION, level: g.level, seed: g.seed, seedText, hard: g.hard, state };
 }
 
@@ -87,7 +87,7 @@ const ENDLESS_VERSION = 1;
 // Snapshot of an endless game in progress (the static layout is rebuilt by newEndless).
 export function serializeEndless(g) {
   const state = {};
-  for (const k of DYNAMIC) state[k] = clone(g[k]);
+  for (const k of DYNAMIC) if (g[k] !== undefined) state[k] = clone(g[k]);
   return { version: ENDLESS_VERSION, seed: g.seed, hard: g.hard, state, endless: clone(endlessSnapshot(g)) };
 }
 
