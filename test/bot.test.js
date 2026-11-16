@@ -173,6 +173,10 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   for (let i = 0; i < 6 * 120; i++) update(g, { up: true }, 1 / 120);
   assert.ok(g.stacks[0].touched, 'the forklift hit the stack');
   assert.ok(!g.stacks[1].touched, 'a stack that was left alone is untouched');
+  g.stacks[0].touched = false;
+  g.fl.x = g.stacks[0].x - 2; g.fl.a = 0;
+  run(g, { horn: true }, 0.1);
+  assert.ok(g.stacks[0].touched, 'a honk nudge touches the stacks in range');
 }
 
 // A wall splits the room: with a forklift in the only gap the bot waits (away from it) and gets through once the gap is free;

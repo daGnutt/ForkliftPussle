@@ -938,6 +938,7 @@ function hornWave(root, t) {
     const d = Math.hypot(s.x - o.x, s.y - o.y);
     if (d >= WAVE_RADIUS) return;
     s.jolt = root.clock;
+    s.touched = true; // the honk nudge counts as a touch: the inspector comes round again
     ensure(s);
     s.x += WIGGLE_BOTTOM * noise(n, seed + 4); s.y += WIGGLE_BOTTOM * noise(n, seed + 5);
     const da = WIGGLE_BOTTOM * noise(n, seed + 6);
