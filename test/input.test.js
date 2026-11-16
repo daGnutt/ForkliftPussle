@@ -96,3 +96,91 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   assert.ok(g.trucks[3].gone && !g.trucks[2].gone && local.players === 2, 'unplugging removes the truck');
 }
 console.log('input tests passed');
+
+// Keyboard schemes: WASD drives, Q/E work the forks, comma/period look; arrows always work
+{
+  const listeners = {};
+  globalThis.window = { addEventListener: (t, f) => { (listeners[t] ??= []).push(f); } };
+  const { createInput: mk } = await import('../js/input.js?keys');
+  const calls = [];
+  const inp = mk({ up: () => calls.push('up'), down: () => calls.push('down') });
+  const key = (type, code) => listeners[type].forEach((f) => f({ code, repeat: false, preventDefault() {}, target: null }));
+  key('keydown', 'KeyW');
+  assert.ok(!inp.state().up, 'W does not drive in the arrows scheme');
+  assert.ok(inp.state().lookL, 'W looks left in the arrows scheme');
+  key('keyup', 'KeyW');
+  inp.setScheme('wasd');
+  key('keydown', 'KeyW'); key('keydown', 'KeyD');
+  let s = inp.state();
+  assert.ok(s.up && s.right && !s.lookL, 'W/D drive and steer in the WASD scheme');
+  key('keyup', 'KeyW'); key('keyup', 'KeyD');
+  key('keydown', 'KeyE'); key('keydown', 'KeyQ');
+  assert.deepEqual(calls, ['up', 'down'], 'E raises and Q lowers the forks');
+  key('keydown', 'Comma');
+  assert.ok(inp.state().lookL, 'comma looks left');
+  key('keydown', 'ArrowUp');
+  assert.ok(inp.state().up, 'arrow keys still drive');
+  globalThis.window = stub();
+}
+
+// First run: the first drive key picks the scheme
+for (const [code, want] of [['KeyS', 'wasd'], ['ArrowLeft', 'arrows']]) {
+  const listeners = {};
+  globalThis.window = { addEventListener: (t, f) => { (listeners[t] ??= []).push(f); } };
+  const { createInput: mk } = await import('../js/input.js?detect' + code);
+  let picked = null;
+  const inp = mk({ schemeDetected: (n) => { picked = n; inp.setScheme(n); } });
+  inp.setAutoDetect(true);
+  const key = (c) => listeners.keydown.forEach((f) => f({ code: c, repeat: false, preventDefault() {}, target: null }));
+  key(code); key('KeyW');
+  assert.equal(picked, want, `${code} selects ${want}`);
+  globalThis.window = stub();
+}
+
+// Touch joystick: analog throttle/steering from the knob offset (dead zone 0.12 rescaled)
+{
+  const listeners = {};
+  const stickEl = {
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
+    querySelector: () => ({ style: {} }), classList: { add() {}, remove() {} },
+    addEventListener(t, f) { (listeners[t] ??= []).push(f); },
+  };
+  globalThis.document = { querySelectorAll: () => [], getElementById: (id) => (id === 'stick' ? stickEl : null), addEventListener() {} };
+  globalThis.window = { addEventListener() {} };
+  const { createInput: mk } = await import('../js/input.js?stick');
+  const inp = mk({});
+  const ev = (type, x, y) => listeners[type].forEach((f) => f({ pointerType: 'mouse', pointerId: 1, clientX: x, clientY: y, preventDefault() {} }));
+  ev('pointerdown', 50, 50);
+  ev('pointermove', 50 + 25, 50); // dx/R = 0.5
+  let s = inp.state();
+  assert.ok(Math.abs(s.str - 0.38 / 0.88) < 0.03 && s.thr === 0, 'half deflection steers partially');
+  ev('pointermove', 50, 50 - 50); // full forward
+  s = inp.state();
+  assert.equal(s.thr, 1);
+  ev('pointermove', 100, 0); // corner: both axes full at once
+  s = inp.state();
+  assert.ok(s.thr === 1 && s.str === 1, 'the square corner gives full throttle and full steering');
+  ev('pointermove', 50, 50 + 4); // inside the dead zone
+  assert.equal(inp.state().thr, 0);
+  ev('pointerup', 0, 0);
+  globalThis.document = stub();
+  globalThis.window = stub();
+}
+
+// Joystick scheme: letting go of the stick brakes
+{
+  const stickEl = {
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
+    querySelector: () => ({ style: {} }), classList: { add() {}, remove() {} }, addEventListener() {},
+  };
+  globalThis.document = { querySelectorAll: () => [], getElementById: (id) => (id === 'stick' ? stickEl : null), addEventListener() {} };
+  const { createInput: mk } = await import('../js/input.js?brake');
+  assert.equal(mk({}).state().brake, true, 'untouched visible stick brakes');
+  globalThis.document = stub();
+  assert.equal(mk({}).state().brake, false, 'no stick (other schemes): coast as before');
+  const f = { x: 0, y: 0, a: 0, speed: 3, steer: 0, brake: false, gear: 'D', roll: 0 };
+  const g2 = { ...f };
+  drive(f, { thr: 0, str: 0, brake: true }, 0.5);
+  drive(g2, { thr: 0, str: 0 }, 0.5);
+  assert.ok(f.speed < g2.speed && f.brake, 'braking slows faster than coasting and lights the brake lamps');
+}

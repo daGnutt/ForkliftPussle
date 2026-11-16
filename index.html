@@ -61,6 +61,7 @@
         <label title="Glitter balls and coloured lights (dark mode only)"><input type="checkbox" id="discoOpt"> Disco lights <small>(dark mode only)</small></label>
         <label id="autoFsLabel" title="Enter full screen when starting and when leaving this menu"><input type="checkbox" id="autoFsOpt"> Auto full-screen</label>
         <label id="touchLabel" class="row" hidden title="Layout of the on-screen controls"><span>Touch controls</span> <select id="touchSel"><option value="classic">Buttons (classic)</option><option value="rotated">Buttons (forks left, drive right)</option><option value="joystick">Joystick + fork buttons</option></select></label>
+        <label id="keyLabel" class="row" title="Keyboard layout: the arrow keys always work too"><span>Keyboard</span> <select id="keySel"><option value="arrows">Arrows + A/Z forks</option><option value="wasd">WASD + E/Q forks</option></select></label>
         <button type="button" id="menuFullscreen" class="sec">Toggle full screen</button>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
       </div>
@@ -98,13 +99,14 @@
         <h3>Info &amp; scoring</h3>
         <table class="keys">
           <tr><th>Key</th><th>Action</th></tr>
-          <tr><td><b>↑</b>/<b>↓</b></td><td>Drive forward / back</td></tr>
-          <tr><td><b>←</b>/<b>→</b></td><td>Steer (rear wheels steer, so the tail swings out)</td></tr>
-          <tr><td><b>A</b>/<b>Z</b></td><td>Forks up / down</td></tr>
+          <tr><td><b>↑</b>/<b>↓</b><span class="k-wasd"> or <b>W</b>/<b>S</b></span></td><td>Drive forward / back</td></tr>
+          <tr><td><b>←</b>/<b>→</b><span class="k-wasd"> or <b>A</b>/<b>D</b></span></td><td>Steer (rear wheels steer, so the tail swings out)</td></tr>
+          <tr class="k-arrows"><td><b>A</b>/<b>Z</b></td><td>Forks up / down</td></tr>
+          <tr class="k-wasd"><td><b>E</b>/<b>Q</b></td><td>Forks up / down (hold Q: lowest safe level)</td></tr>
           <tr><td><b>Enter</b></td><td>Next level after winning</td></tr>
           <tr><td><b>Tab</b>/<b>M</b></td><td>Swap overview and cab view</td></tr>
           <tr><td><b>C</b></td><td>Third-person chase camera (or double-click the overview)</td></tr>
-          <tr><td><b>W</b>/<b>Q</b></td><td>Rotate the camera (or drag it)</td></tr>
+          <tr><td><b>,</b>/<b>.</b><span class="k-arrows"> or <b>W</b>/<b>Q</b></span></td><td>Rotate the camera (or drag it)</td></tr>
           <tr><td><b>H</b></td><td>Hold to honk (touch: two fingers on the canvas)</td></tr>
           <tr><td><b>F</b></td><td>Full screen</td></tr>
           <tr><td><b>P</b>/<b>Esc</b></td><td>Menu</td></tr>
@@ -162,8 +164,8 @@
     <div class="pad right"><button data-key="KeyZ">Fork<br>▼</button><button data-key="KeyA">Fork<br>▲</button><button data-key="ArrowDown">Back<br>▼</button><button data-key="ArrowUp">Forward<br>▲</button></div>
   </div>
   <footer>
-    <b>↑/↓</b> drive &nbsp; <b>←/→</b> steer (rear wheels steer!) &nbsp;
-    <b>A</b> forks up &nbsp; <b>Z</b> forks down &nbsp; <b>Esc</b>/<b>P</b> menu (pause) &nbsp;  <b>W</b>/<b>Q</b> look around &nbsp; <b>M</b>/<b>Tab</b> overview/cab view &nbsp; <b>F</b> full screen
+    <b>↑/↓</b><span class="k-wasd">/<b>W/S</b></span> drive &nbsp; <b>←/→</b><span class="k-wasd">/<b>A/D</b></span> steer (rear wheels steer!) &nbsp;
+    <span class="k-arrows"><b>A</b> forks up &nbsp; <b>Z</b> forks down &nbsp;</span><span class="k-wasd"><b>E</b> forks up &nbsp; <b>Q</b> forks down &nbsp;</span> <b>Esc</b>/<b>P</b> menu (pause) &nbsp;  <b>,</b>/<b>.</b> look around &nbsp; <b>M</b>/<b>Tab</b> overview/cab view &nbsp; <b>F</b> full screen
   </footer>
   <script type="module" src="js/main.js"></script>
   <script>if ('serviceWorker' in navigator) addEventListener('load', async () => {

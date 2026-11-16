@@ -96,6 +96,10 @@ export function drive(f, inp, dt, h = 0) {
   } else if (th !== 0) {
     const against = f.speed * th < 0;
     f.speed += th * (against ? ACC * 2 : ACC) * hsf * dt;
+  } else if (inp.brake) {
+    // Joystick let go: actively brake (brake lights on) instead of coasting.
+    f.brake = Math.abs(f.speed) > 0.05;
+    f.speed = approachZero(f.speed, ACC * 2 * hsf * dt);
   } else {
     f.speed = approachZero(f.speed, ROLL * dt);
   }
