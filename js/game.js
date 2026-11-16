@@ -1479,6 +1479,17 @@ export function zonePoints(g, z) {
   return { n: S.layers.length, base, total: base - Math.round(crash) - Math.round(square), crash: Math.round(crash), square: Math.round(square) };
 }
 
+// Stacks the inspector judged "could be better": photographed (in `inspector.seen`) and still crooked. Each `{x, y, h}` (h = boxes high).
+export function flaggedStacks(g) {
+  const out = [];
+  for (const z of g.zones) {
+    if (!g.inspector?.seen.includes(`${z.x},${z.y},${z.color}`)) continue;
+    const s = g.stacks.find((q) => stackFillsZone(q, z));
+    if (s && (refreshSquare(s), s.pen.some((p) => p.sq > 0))) out.push({ x: s.x, y: s.y, h: s.layers.length });
+  }
+  return out;
+}
+
 export function zoneDone(g, z) {
   return g.stacks.some((s) => stackFillsZone(s, z));
 }

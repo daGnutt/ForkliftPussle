@@ -6,7 +6,7 @@ import { drawBotDebugWorld } from './debug.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
-import { labelRows, hitRows, honkers, drawHonk } from './pov/overlay.js';
+import { labelRows, hitRows, honkers, drawHonk, drawFlag } from './pov/overlay.js';
 import { chaseTiles as chaseTilesFor, chaseRig, clearChaseTilt, CHASE_TILT, CHASE_TILES, CHASE_DEFAULT, headTurn } from './gl/camera.js';
 import { beginGlFrame } from './gl/renderer.js';
 import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
@@ -14,7 +14,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark } from './decals.js';
-import { liftedHf, carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale } from './game.js';
+import { liftedHf, carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -463,6 +463,7 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
     ctx.fillStyle = COLORS[st.layers[st.layers.length - 1]];
     ctx.fillRect(st.x * s - dot / 2, st.y * s - dot / 2, dot, dot);
   }
+  for (const f of flaggedStacks(g)) drawFlag(ctx, f.x * s, f.y * s - dot / 2 - Math.max(5, s * 1.1), Math.max(10, s * 2.2), g.clock); // the inspector's "!" on the minimap
   for (const t of [...otherTrucksShown(g), g]) {
     if (!t.carried?.length) continue;
     const p = toWorld(t.fl, FL.carryX, 0);
@@ -627,6 +628,7 @@ function drawWorld(ctx, g, vis, pxPerTile = 0) {
   drawBot(ctx, g, vis);
   if (discoOn()) drawDiscoSpots(ctx, g, vis);
   drawWorldObjects(ctx, g, vis);
+  for (const f of flaggedStacks(g)) drawFlag(ctx, f.x + (f.h + 0.6) * PX, f.y + (f.h + 0.6) * PY - 0.3, 0.9, g.clock); // the inspector's hovering "!"
 }
 
 const visSeen = (vis, x, y, w, h) => !vis || (x + w >= vis.x0 && x <= vis.x1 && y + h >= vis.y0 && y <= vis.y1);

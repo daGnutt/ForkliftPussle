@@ -68,7 +68,8 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
     const cx = o.x * -fy + o.y * fx, cz = d + o.x * fx + o.y * fy; // box centre in the camera frame: x to the right, z forward
     if (pen?.barrelPart === 'base') { drawBarrel(ctx, P, col, cx, cz, y0, y0 + 2, poly, line); continue; }
     const phi = (photo.rots?.[i] ?? view) - view, sn = Math.sin(phi), cs = Math.cos(phi), y1 = y0 + 1;
-    const cor = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]].map(([u, v]) => [cx + u * sn + v * cs, cz + u * cs - v * sn]);
+    const hy = pen?.wide ? 1 : 0.5; // a double-wide box is two tiles across its local y axis
+    const cor = [[-0.5, -hy], [0.5, -hy], [0.5, hy], [-0.5, hy]].map(([u, v]) => [cx + u * sn + v * cs, cz + u * cs - v * sn]);
     if (y0 > CAM_H) poly(cor.map(([x, z]) => P(x, y0, z)), shade(col, 0.6)); // underside, seen from below
     for (let k = 0; k < 4; k++) {
       const [ax, az] = cor[k], [bx, bz] = cor[(k + 1) % 4], ex = bx - ax, ez = bz - az, nx = -ez, nz = ex; // outward normal for this winding

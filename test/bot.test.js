@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { newGame, update, zoneDone } from '../js/game.js';
+import { newGame, update, zoneDone, zoneWonky, flaggedStacks } from '../js/game.js';
 import { BOT_R, CLEAN_SECS, truckGap } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { run, NONE } from './common.js';
@@ -133,6 +133,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   Object.assign(g.fl, spots.sort((a, b) => b.d - a.d)[0]);
   const done = g.zones.filter((z) => zoneDone(g, z));
   assert.ok(done.length >= 1, 'drop points are done');
+  assert.equal(flaggedStacks(g).length, 0, 'nothing is flagged before the inspector has looked');
   let t = 0, flashes = 0, prev = 0;
   while (g.inspector.seen.length < done.length && t < 120) {
     update(g, NONE, 1 / 120); t += 1 / 120;
@@ -142,6 +143,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(g.inspector.seen.length, done.length, 'all completed drop points were photographed');
   assert.equal(flashes, done.length, 'one photo each');
   assert.ok(g.photo && g.photo.n === done.length && typeof g.photo.ok === 'boolean' && g.photo.layers.length > 0, 'each photo leaves a snapshot for the popup');
+  assert.equal(flaggedStacks(g).length, done.filter((z) => zoneWonky(g, z)).length, 'every inspected crooked stack is flagged with a "!"');
   assert.ok(g.inspector.roll !== 0, 'the wheels turned while driving');
   assert.ok(g.hits.length === 0 || g.hits.every((h) => h.check === 'perfect' || h.check === 'warn'), 'verdict labels');
   run(g, NONE, 60);
