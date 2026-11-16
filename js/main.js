@@ -448,7 +448,7 @@ const TUTORIAL = [
     : `Use <b>${wasd() ? 'W/S' : '↑/↓'}</b> to drive and <b>${wasd() ? 'A/D' : '←/→'}</b> to steer (the rear wheels steer, so the tail swings out!). Release the throttle to engine-brake.`; } },
   { done: 'fork', get html() { return isTouch
     ? 'Tap <b>Fork ▲</b> to raise the forks and <b>Fork ▼</b> to lower them. Drive the forks in under a stack to lift it.'
-    : `Press <b>${wasd() ? 'Q' : 'A'}</b> to raise the forks and <b>${wasd() ? 'E' : 'Z'}</b> to lower them. Drive the forks in under a stack to lift it.`; } },
+    : `Press <b>${wasd() ? 'E' : 'A'}</b> to raise the forks and <b>${wasd() ? 'Q' : 'Z'}</b> to lower them. Drive the forks in under a stack to lift it.`; } },
   { done: 'zone', html: isTouch
     ? 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Restart if you get stuck.'
     : 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Game → Restart level if you get stuck.' },

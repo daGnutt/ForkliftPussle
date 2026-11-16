@@ -8,7 +8,7 @@ const HOLD_MS = 400; // holding the lower key this long drops the forks to the l
 // Comma/Period rotate the camera in both schemes (W/Q still do in the arrows scheme); the arrow keys always work.
 const SCHEMES = {
   arrows: { Comma: 'KeyW', Period: 'KeyQ' },
-  wasd: { KeyW: 'ArrowUp', KeyS: 'ArrowDown', KeyA: 'ArrowLeft', KeyD: 'ArrowRight', KeyQ: 'KeyA', KeyE: 'KeyZ', Comma: 'KeyW', Period: 'KeyQ' },
+  wasd: { KeyW: 'ArrowUp', KeyS: 'ArrowDown', KeyA: 'ArrowLeft', KeyD: 'ArrowRight', KeyE: 'KeyA', KeyQ: 'KeyZ', Comma: 'KeyW', Period: 'KeyQ' },
 };
 
 export function createInput(handlers) {
