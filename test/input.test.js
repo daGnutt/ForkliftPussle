@@ -107,7 +107,7 @@ console.log('input tests passed');
   const key = (type, code) => listeners[type].forEach((f) => f({ code, repeat: false, preventDefault() {}, target: null }));
   key('keydown', 'KeyW');
   assert.ok(!inp.state().up, 'W does not drive in the arrows scheme');
-  assert.ok(inp.state().lookL, 'W looks left in the arrows scheme');
+  assert.ok(!inp.state().lookL, 'W no longer looks left in the arrows scheme');
   key('keyup', 'KeyW');
   inp.setScheme('wasd');
   key('keydown', 'KeyW'); key('keydown', 'KeyD');

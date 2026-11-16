@@ -5,9 +5,9 @@ const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'K
 const HOLD_MS = 400; // holding the lower key this long drops the forks to the lowest safe level
 
 // Keyboard schemes: physical keys are translated to the canonical (arrows + A/Z) codes the rest of this file uses.
-// Comma/Period rotate the camera in both schemes (W/Q still do in the arrows scheme); the arrow keys only drive in the arrows scheme (unmapped in wasd).
+// Comma/Period rotate the camera in both schemes; the arrow keys only drive in the arrows scheme (unmapped in wasd).
 const SCHEMES = {
-  arrows: { Comma: 'KeyW', Period: 'KeyQ' },
+  arrows: { KeyW: null, KeyQ: null, Comma: 'KeyW', Period: 'KeyQ' },
   wasd: { ArrowUp: null, ArrowDown: null, ArrowLeft: null, ArrowRight: null, KeyW: 'ArrowUp', KeyS: 'ArrowDown', KeyA: 'ArrowLeft', KeyD: 'ArrowRight', KeyE: 'KeyA', KeyQ: 'KeyZ', Comma: 'KeyW', Period: 'KeyQ' },
 };
 
