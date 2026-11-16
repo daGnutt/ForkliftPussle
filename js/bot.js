@@ -64,14 +64,31 @@ function rectDist(x, y, w) {
 // Circles approximating each forklift (and its carried stack): { x, y, r }.
 // A forklift rolling faster than MOVING_SPEED (tiles/s) counts as moving; only moving ones scare a bot.
 const MOVING_SPEED = 0.15;
+const circlesOf = (t) => {
+  const out = [];
+  for (const [x, r] of [[-1.7, 0.6], [-1.1, 0.6], [-0.5, 0.6], [0.1, 0.6], [0.9, 0.35], [1.4, 0.35]]) out.push({ ...toWorld(t.fl, x, 0), r });
+  if (t.carried) out.push({ ...toWorld(t.fl, FL.carryX, 0), r: 0.75 });
+  return out;
+};
 export function truckCircles(g, movingOnly = false) {
   const out = [];
   for (const t of g.trucks) {
     if (t.gone || (movingOnly && Math.abs(t.fl.speed) <= MOVING_SPEED)) continue;
-    for (const [x, r] of [[-1.7, 0.6], [-1.1, 0.6], [-0.5, 0.6], [0.1, 0.6], [0.9, 0.35], [1.4, 0.35]]) out.push({ ...toWorld(t.fl, x, 0), r });
-    if (t.carried) out.push({ ...toWorld(t.fl, FL.carryX, 0), r: 0.75 });
+    out.push(...circlesOf(t));
   }
   return out;
+}
+
+// Smallest gap between the bot and a forklift that is moving towards it (stationary ones and ones driving away are no threat).
+function approachGap(g, p) {
+  let best = Infinity;
+  for (const t of g.trucks) {
+    if (t.gone || Math.abs(t.fl.speed) <= MOVING_SPEED) continue;
+    const vx = Math.cos(t.fl.a) * t.fl.speed, vy = Math.sin(t.fl.a) * t.fl.speed;
+    if (vx * (p.x - t.fl.x) + vy * (p.y - t.fl.y) <= 0) continue;
+    for (const c of circlesOf(t)) best = Math.min(best, Math.hypot(p.x - c.x, p.y - c.y) - c.r - BOT_R);
+  }
+  return best;
 }
 
 // Smallest gap between the bot and any forklift.
@@ -391,24 +408,35 @@ export function stepInspector(g, dt, done, wonky = () => false) {
   bot.roll = ((bot.roll || 0) + ((bot.x - x) * Math.cos(bot.a) + (bot.y - y) * Math.sin(bot.a)) / WHEEL_R) % (Math.PI * 2);
 }
 
+const pathLength = (from, path) => path.reduce((n, w, i) => n + Math.hypot(w.x - (i ? path[i - 1].x : from.x), w.y - (i ? path[i - 1].y : from.y)), 0);
+
+// True when the bot is about to run into something on its way (it only notices an obstacle once it is right in front of it).
+function blockedAhead(g, bot) {
+  if (!bot.path.length) return false;
+  const pts = [], w0 = bot.path[0], w1 = bot.path[1];
+  for (let k = 1; k <= 3; k++) pts.push({ x: bot.x + (w0.x - bot.x) * k / 3, y: bot.y + (w0.y - bot.y) * k / 3 });
+  if (w1) pts.push(w1);
+  const trucks = truckCircles(g);
+  return pts.some((q) => trucks.some((c) => Math.hypot(q.x - c.x, q.y - c.y) < c.r + BOT_R * 0.9)
+    || g.stacks.some((st) => Math.hypot(q.x - st.x, q.y - st.y) < STACK_R + BOT_R * 0.9));
+}
+
+// Inspector targeting: pick the nearest reachable pending drop point, pathfind to it and go. Obstacles that appear on the route are ignored until
+// the bot actually meets one (then it picks a target afresh); a forklift driving towards it makes it run away first, then it picks afresh.
 function inspectorStep(g, dt, done, wonky) {
   const bot = g.inspector;
   if (!bot || !g.hatch) return;
   const home = botHome(g.hatch);
   const todo = pendingZones(g, done);
   bot.flash = Math.max(0, bot.flash - dt / FLASH_SECS);
-  let target = null, bs = Infinity;
-  for (const z of preferLive(g, bot, todo, zoneKey)) {
-    const sc = Math.hypot(z.x - bot.x, z.y - bot.y) - farWeight(g, bot, FAR_WEIGHT) * farFromTrucks(g, z);
-    if (sc < bs) { bs = sc; target = z; }
-  }
+  if (bot.target && !todo.some((z) => zoneKey(z) === bot.target)) { bot.target = null; bot.shooting = 0; bot.path = []; }
   if (bot.mode === 'hidden') {
-    if (!target) return;
+    if (!todo.length) return;
     bot.mode = 'out';
   }
-  if (bot.target !== (target && zoneKey(target))) { bot.target = target && zoneKey(target); bot.shooting = 0; bot.repath = 0; }
-  bot.idle = target ? 0 : (bot.idle || 0) + dt; // loiters a while after the last drop point before heading home
-  bot.scared = truckGap(g, bot, true) < (bot.scared ? CALM : SCARE);
+  bot.idle = todo.length ? 0 : (bot.idle || 0) + dt; // loiters a while after the last drop point before heading home
+  const wasScared = bot.scared;
+  bot.scared = approachGap(g, bot) < (wasScared ? CALM : SCARE);
   if (bot.scared) bot.spookedUntil = g.clock + SPOOK_SECS;
   let speed = INSPECT_SPEED;
   bot.repath -= dt;
@@ -416,31 +444,46 @@ function inspectorStep(g, dt, done, wonky) {
   if (bot.scared) {
     speed = FLEE_SPEED; bot.shooting = 0;
     if (bot.repath <= 0 || bot.fleePath !== true) { bot.path = fleePlan(g, bot); bot.fleePath = true; bot.repath = 0.25; }
+    bot.target = null; // targeting restarts once it is safe
   } else {
-    if (bot.fleePath) bot.repath = 0;
-    bot.fleePath = false;
-    const loitering = !target && bot.idle < LOITER_SECS;
-    if (loitering) { bot.path = []; bot.repath = 0; bot.waiting = false; }
-    bot.goal = loitering ? null : { x: (target ?? home).x, y: (target ?? home).y };
-    if (!loitering && routeObstructed(g, bot)) bot.repath = 0;
-    if (!loitering && bot.repath <= 0) {
-      const goal = target ?? home;
-      const ring = target ? PHOTO_DIST : 0;
-      // the inspector prefers a spot diagonal to the stack (at a corner), so its photo shows two sides of it
-      const st = target && g.stacks.find((q) => Math.hypot(q.x - target.x, q.y - target.y) < 0.5), turn = (st?.rots?.[0] ?? st?.a ?? 0) + Math.PI / 4;
-      const corner = (x, y) => (st ? Math.abs(Math.atan2(Math.sin(2 * (Math.atan2(y - goal.y, x - goal.x) - turn)), Math.cos(2 * (Math.atan2(y - goal.y, x - goal.x) - turn)))) / 2 * CORNER_WEIGHT : 0);
-      bot.path = goalPlan(g, bot, target && zoneKey(target), (x, y, c) => Math.abs(Math.hypot(x - goal.x, y - goal.y) - ring) * 10 + corner(x, y) + c * 0.02,
-        (e) => (target ? Math.hypot(e.x - goal.x, e.y - goal.y) < PHOTO_DIST + 0.45 : Math.hypot(e.x - goal.x, e.y - goal.y) < 0.5));
-      bot.repath = bot.waiting || !bot.path.length ? REPLAN : KEEP_ROUTE;
+    if (bot.fleePath || wasScared) { bot.fleePath = false; bot.path = []; bot.target = null; bot.repath = 0; }
+    if (bot.target && blockedAhead(g, bot)) { bot.target = null; bot.path = []; bot.shooting = 0; bot.repath = 0; } // met the obstacle: pick again
+    if (!bot.target && todo.length && bot.repath <= 0) {
+      const grid = buildGrid(g, 0.45);
+      let best = null;
+      for (const z of todo) {
+        const st = g.stacks.find((q) => Math.hypot(q.x - z.x, q.y - z.y) < 0.5), turn = (st?.rots?.[0] ?? st?.a ?? 0) + Math.PI / 4;
+        // the inspector prefers a spot diagonal to the stack (at a corner), so its photo shows two sides of it
+        const corner = (x, y) => (st ? Math.abs(Math.atan2(Math.sin(2 * (Math.atan2(y - z.y, x - z.x) - turn)), Math.cos(2 * (Math.atan2(y - z.y, x - z.x) - turn)))) / 2 * CORNER_WEIGHT : 0);
+        const path = plan(grid, bot, 80, (x, y, c) => Math.abs(Math.hypot(x - z.x, y - z.y) - PHOTO_DIST) * 10 + corner(x, y) + c * 0.02);
+        const end = path.length ? path[path.length - 1] : bot;
+        if (Math.hypot(end.x - z.x, end.y - z.y) >= PHOTO_DIST + 0.45) continue; // unreachable
+        const len = pathLength(bot, path);
+        if (!best || len < best.len) best = { z, path, len };
+      }
+      if (best) { bot.target = zoneKey(best.z); bot.path = best.path; bot.shooting = 0; }
+      bot.repath = REPLAN; // when nothing is reachable, look again shortly
+    }
+    const target = bot.target && todo.find((z) => zoneKey(z) === bot.target);
+    if (target) bot.goal = { x: target.x, y: target.y };
+    else if (!todo.length && bot.idle >= LOITER_SECS) {
+      bot.goal = { x: home.x, y: home.y };
+      if (blockedAhead(g, bot)) { bot.path = []; bot.repath = 0; }
+      if (!bot.path.length && bot.repath <= 0 && Math.hypot(home.x - bot.x, home.y - bot.y) > 0.15) {
+        bot.path = plan(buildGrid(g, 0.45), bot, 80, (x, y, c) => Math.hypot(x - home.x, y - home.y) * 10 + c * 0.02);
+        bot.repath = REPLAN;
+      }
     }
   }
   followPath(bot, speed * dt, dt);
   pushOut(g, bot);
 
   if (!bot.scared) {
+    const target = bot.target && todo.find((z) => zoneKey(z) === bot.target);
     if (target) {
       const d = Math.hypot(target.x - bot.x, target.y - bot.y);
-      if (!bot.path.length && d < PHOTO_DIST + 0.5) {
+      if (!bot.path.length && d >= PHOTO_DIST + 0.5) { bot.target = null; bot.shooting = 0; bot.repath = 0; } // route ended short of the drop point: pick again
+      else if (!bot.path.length) {
         const st = g.stacks.find((q) => Math.hypot(q.x - target.x, q.y - target.y) < 0.5);
         bot.aim = { x: target.x, y: target.y, h: st ? st.layers.length : 1 };
         let da = Math.atan2(target.y - bot.y, target.x - bot.x) - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
@@ -454,7 +497,7 @@ function inspectorStep(g, dt, done, wonky) {
           (g.hits ||= []).push({ x: bot.x, y: bot.y, z: 0.5, t: g.clock, owner: null, check: wonky(target) ? 'warn' : 'perfect' }); // verdict floats up from the bot
         }
       }
-    } else if (bot.idle >= LOITER_SECS && Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
+    } else if (!todo.length && bot.idle >= LOITER_SECS && Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
       bot.x = home.x; bot.y = home.y;
       bot.show = Math.max(0, bot.show - dt / SHOW_SECS);
       if (bot.show === 0) bot.mode = 'hidden';
