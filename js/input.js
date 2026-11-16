@@ -126,6 +126,7 @@ export function createInput(handlers) {
   };
   for (const type of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) window.addEventListener(type, syncTouches, { passive: false, capture: true });
   window.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return; // leave browser shortcuts (Alt+D, Ctrl+W…) alone
     if (e.code === 'Tab' && e.target !== document.body) return;
     if (GAME_KEYS.has(e.code)) e.preventDefault();
     if (e.repeat) return;
