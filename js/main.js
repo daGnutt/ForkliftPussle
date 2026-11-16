@@ -12,7 +12,7 @@ import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, t
 import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
-import { showPhoto } from './photo.js';
+import { showPhoto, dodgePhoto } from './photo.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { setBareForks, bareForksEnabled } from './gl/models.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
@@ -1185,6 +1185,7 @@ function frame(now) {
   view.fullscreen = !!document.fullscreenElement;
   game.debugBots = !!debug;
   draw(ctx, game, view);
+  dodgePhoto();
   if (debug) {
     const t3 = performance.now();
     debug.frame(now, steps, t1 - t0, t3 - t2);

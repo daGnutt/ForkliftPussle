@@ -201,5 +201,5 @@ body.keys-wasd .k-arrows { display: none; }
 #schemePicker small { display: block; margin-top: 12px; opacity: .8; }
 
 /* Inspector snapshot popup (js/photo.js): at most 25% of the screen (45vw x 45vh bounds, 4:3) */
-#photo { position: fixed; right: 16px; top: 16px; z-index: 6; width: min(45vw, 60vh); height: auto; aspect-ratio: 4 / 3; border-radius: 3px; box-shadow: 0 6px 24px rgba(0,0,0,.6); pointer-events: none; transform: rotate(2deg); transition: opacity .4s; }
+#photo { position: fixed; right: 16px; top: 16px; z-index: 6; width: min(45vw, 60vh); height: auto; aspect-ratio: 4 / 3; border-radius: 3px; box-shadow: 0 6px 24px rgba(0,0,0,.6); pointer-events: none; transform: rotate(2deg); transition: opacity .4s, transform .35s ease; } /* js/photo.js dodgePhoto slides it to a free corner */
 #photo.hide { display: none; } #photo.fade { opacity: 0; }

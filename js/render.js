@@ -9,6 +9,7 @@ import { drawPov } from './pov.js';
 import { labelRows, hitRows, honkers, drawHonk, drawFlag } from './pov/overlay.js';
 import { chaseTiles as chaseTilesFor, chaseRig, clearChaseTilt, CHASE_TILT, CHASE_TILES, CHASE_DEFAULT, headTurn } from './gl/camera.js';
 import { beginGlFrame } from './gl/renderer.js';
+import { clearTruckSpot, setTruckSpot } from './photo.js';
 import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
@@ -415,6 +416,7 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
     if (zoomed) ctx.restore();
     return cam;
   }
+  setTruckSpot(ox + g.fl.x * s, oy + g.fl.y * s, 2 * s);
   ctx.setTransform(s * view.dpr, 0, 0, s * view.dpr, ox * view.dpr, oy * view.dpr);
   drawWorld(ctx, g, null, s * view.dpr);
   if (g.debugBots) drawBotDebugWorld(ctx, g, view.dpr);
@@ -1208,6 +1210,7 @@ function cabTiles(width, height, n) {
 
 export function draw(ctx, g, view) {
   const { width, height } = view;
+  clearTruckSpot();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (!beginGlFrame(ctx, theme().bg)) {
     ctx.fillStyle = theme().bg;

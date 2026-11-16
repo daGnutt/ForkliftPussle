@@ -97,7 +97,28 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 14; ctx.strokeRect(0, 0, w, h); // polaroid border
 }
 
-let timer = 0, fade = 0;
+let timer = 0, fade = 0, spot = null, corner = 0;
+
+// The renderers report where the player's forklift is on the canvas (CSS px, with a radius); no report (cab views) means nothing to dodge.
+export const clearTruckSpot = () => { spot = null; };
+export const setTruckSpot = (x, y, r) => { spot = { x, y, r }; };
+
+// Keeps the popup off the forklift: it slides to another screen corner (right-top, left-top, right-bottom, left-bottom) while the forklift is under it.
+export function dodgePhoto() {
+  const el = typeof document !== 'undefined' && document.getElementById('photo');
+  if (!el || el.classList.contains('hide')) return;
+  const c = document.getElementById('game')?.getBoundingClientRect() || { left: 0, top: 0 };
+  const vw = innerWidth, vh = innerHeight, w = el.offsetWidth, h = el.offsetHeight, m = 16;
+  const rect = (k) => { const x = k & 1 ? m : vw - w - m, y = k & 2 ? vh - h - m : m; return { x, y, dx: x - (vw - w - m), dy: y - m }; };
+  const hit = (k) => { // forklift circle (plus margin) against the corner's rectangle
+    if (!spot) return false;
+    const r = rect(k), px = spot.x + c.left, py = spot.y + c.top, rr = spot.r + 24;
+    return Math.hypot(px - Math.max(r.x, Math.min(px, r.x + w)), py - Math.max(r.y, Math.min(py, r.y + h))) < rr;
+  };
+  if (hit(corner)) corner = [0, 1, 2, 3].find((k) => !hit(k)) ?? corner;
+  const r = rect(corner);
+  el.style.transform = `translate(${r.dx}px, ${r.dy}px) rotate(2deg)`;
+}
 export function showPhoto(photo) {
   const el = typeof document !== 'undefined' && document.getElementById('photo');
   if (!el) return;
