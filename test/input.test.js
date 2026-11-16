@@ -97,7 +97,7 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
 }
 console.log('input tests passed');
 
-// Keyboard schemes: WASD drives, Q/E work the forks, comma/period look; arrows always work
+// Keyboard schemes: WASD drives, Q/E work the forks, comma/period look; arrows only drive in the arrows scheme
 {
   const listeners = {};
   globalThis.window = { addEventListener: (t, f) => { (listeners[t] ??= []).push(f); } };
@@ -119,7 +119,11 @@ console.log('input tests passed');
   key('keydown', 'Comma');
   assert.ok(inp.state().lookL, 'comma looks left');
   key('keydown', 'ArrowUp');
-  assert.ok(inp.state().up, 'arrow keys still drive');
+  assert.ok(!inp.state().up, 'arrow keys do not drive in the WASD scheme');
+  key('keyup', 'ArrowUp');
+  inp.setScheme('arrows');
+  key('keydown', 'ArrowUp');
+  assert.ok(inp.state().up, 'arrow keys drive in the arrows scheme');
   globalThis.window = stub();
 }
 
