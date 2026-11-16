@@ -715,6 +715,7 @@ function resolve(g) {
         let m = null, from = 0;
         for (const t of sh.targets(s)) { m = sat(sh.poly, t.poly); if (m) { from = t.from; break; } }
         if (!m) continue;
+        s.touched = true; // any contact with a forklift sends the inspector round again (see pendingZones)
         ensure(s);
         const ws = 1 / ((s.layers.length - from) * boxMass(s));
         if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && relH(g, s) > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? relH(g, s) : s.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: s.rots });
@@ -1485,6 +1486,7 @@ export function flaggedStacks(g) {
   for (const z of g.zones) {
     if (!g.inspector?.seen.includes(`${z.x},${z.y},${z.color}`)) continue;
     const s = g.stacks.find((q) => stackFillsZone(q, z));
+    if (s?.touched) continue;
     if (s && g.inspector.sigs?.[`${z.x},${z.y},${z.color}`] !== undefined && g.inspector.sigs[`${z.x},${z.y},${z.color}`] !== stackSig(s)) continue; // touched since the photo
     if (s && (refreshSquare(s), s.pen.some((p) => p.sq > 0))) out.push({ x: s.x, y: s.y, h: s.layers.length });
   }

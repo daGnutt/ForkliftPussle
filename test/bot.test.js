@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { newGame, update, zoneDone, zoneWonky, flaggedStacks } from '../js/game.js';
 import { BOT_R, CLEAN_SECS, truckGap } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
-import { run, NONE } from './common.js';
+import { run, NONE, flatWorld } from './common.js';
 
 const hasBarrel = (g) => g.stacks.some((s) => s.layers.includes(6));
 const botGame = () => {
@@ -150,7 +150,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(flaggedStacks(g).length, done.filter((z) => zoneWonky(g, z)).length, 'every inspected crooked stack is flagged with a "!"');
   if (g.stacks.length) { // touching a photographed stack clears its flag and sends the inspector back
     const st = g.stacks[0];
-    st.rots[0] += 0.2;
+    st.touched = true; // a bare touch, nothing moved
     update(g, NONE, 1 / 120);
     assert.ok(g.inspector.seen.length < done.length, 'a nudged stack is inspected again');
     assert.ok(!flaggedStacks(g).some((f) => f.x === st.x && f.y === st.y), 'its warning sign is gone');
@@ -162,6 +162,17 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   const g3 = newGame(1, 0);
   g3.inspector.seen = ['1,2,0'];
   assert.deepEqual(deserializeGame(JSON.parse(JSON.stringify(serializeGame(g3)))).inspector.seen, ['1,2,0'], 'the inspector is saved');
+}
+
+// Driving into a stack marks it touched (which sends the inspector round again); a stack left alone is not.
+{
+  const g = newGame(1, 0);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], pen: [], rots: [] }, { x: 3, y: 12, layers: [1], pen: [], rots: [] }];
+  g.fl.x = 5; g.fl.y = 5; g.fl.a = 0; g.H = 3;
+  for (let i = 0; i < 6 * 120; i++) update(g, { up: true }, 1 / 120);
+  assert.ok(g.stacks[0].touched, 'the forklift hit the stack');
+  assert.ok(!g.stacks[1].touched, 'a stack that was left alone is untouched');
 }
 
 // A wall splits the room: with a forklift in the only gap the bot waits (away from it) and gets through once the gap is free;
