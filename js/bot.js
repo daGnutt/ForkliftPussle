@@ -346,16 +346,18 @@ export function stepBot(g, dt, dropArea) {
 }
 
 // ---- Inspection bot ----
-const PHOTO_DIST = 1.4, SHOOT_SECS = 1.8, FLASH_SECS = 0.35;
+const PHOTO_DIST = 1.4, BOX_SECS = 1.2, INSPECT_SPEED = 1.0, LOITER_SECS = 4, FLASH_SECS = 0.35;
 // Laser scan of the stack being inspected, or null: `lens` the beam's origin (in front of the bot), `aim` the stack, `h` its height in boxes,
 // `u` scan progress 0..1, `sx, sy` the beam's current target on the floor, `z` its height in boxes (0..h) and `sheet` the offset of the scan sheet.
 export function scanBeam(b) {
   if (!b || !b.aim || b.show <= 0 || b.shooting <= 0) return null;
-  const u = Math.min(1, b.shooting / SHOOT_SECS), dx = b.aim.x - b.x, dy = b.aim.y - b.y, d = Math.hypot(dx, dy) || 1;
-  const fx = dx / d, fy = dy / d, sw = 0.5 * Math.sin(u * Math.PI * 4), depth = 0.45 * Math.sin(u * Math.PI * 2);
+  const n = Math.max(1, b.aim.h), u = Math.min(1, b.shooting / (n * BOX_SECS)), dx = b.aim.x - b.x, dy = b.aim.y - b.y, d = Math.hypot(dx, dy) || 1;
+  // the scan climbs one box at a time (w 0..1 within box i), bottom to top
+  const i = Math.min(n - 1, Math.floor(b.shooting / BOX_SECS)), w = Math.min(1, b.shooting / BOX_SECS - i);
+  const fx = dx / d, fy = dy / d, sw = 0.5 * Math.sin(w * Math.PI * 2), depth = 0.45 * Math.sin(w * Math.PI);
   return {
     lens: { x: b.x + Math.cos(b.a) * 0.3, y: b.y + Math.sin(b.a) * 0.3 }, aim: b.aim, h: b.aim.h, u, fx, fy,
-    sx: b.aim.x - fy * sw + fx * depth, sy: b.aim.y + fx * sw + fy * depth, z: b.aim.h * (0.5 + 0.5 * Math.sin(u * Math.PI * 6)), sheet: depth,
+    sx: b.aim.x - fy * sw + fx * depth, sy: b.aim.y + fx * sw + fy * depth, z: i + 0.5 + 0.35 * Math.sin(w * Math.PI * 2), sheet: depth,
   };
 }
 
@@ -397,9 +399,10 @@ function inspectorStep(g, dt, done, wonky) {
     bot.mode = 'out';
   }
   if (bot.target !== (target && zoneKey(target))) { bot.target = target && zoneKey(target); bot.shooting = 0; bot.repath = 0; }
+  bot.idle = target ? 0 : (bot.idle || 0) + dt; // loiters a while after the last drop point before heading home
   bot.scared = truckGap(g, bot, true) < (bot.scared ? CALM : SCARE);
   if (bot.scared) bot.spookedUntil = g.clock + SPOOK_SECS;
-  let speed = SPEED;
+  let speed = INSPECT_SPEED;
   bot.repath -= dt;
   bot.goal = null;
   if (bot.scared) {
@@ -408,9 +411,11 @@ function inspectorStep(g, dt, done, wonky) {
   } else {
     if (bot.fleePath) bot.repath = 0;
     bot.fleePath = false;
-    bot.goal = { x: (target ?? home).x, y: (target ?? home).y };
-    if (routeObstructed(g, bot)) bot.repath = 0;
-    if (bot.repath <= 0) {
+    const loitering = !target && bot.idle < LOITER_SECS;
+    if (loitering) { bot.path = []; bot.repath = 0; bot.waiting = false; }
+    bot.goal = loitering ? null : { x: (target ?? home).x, y: (target ?? home).y };
+    if (!loitering && routeObstructed(g, bot)) bot.repath = 0;
+    if (!loitering && bot.repath <= 0) {
       const goal = target ?? home;
       const ring = target ? PHOTO_DIST : 0;
       bot.path = goalPlan(g, bot, target && zoneKey(target), (x, y, c) => Math.abs(Math.hypot(x - goal.x, y - goal.y) - ring) * 10 + c * 0.02,
@@ -430,12 +435,12 @@ function inspectorStep(g, dt, done, wonky) {
         let da = Math.atan2(target.y - bot.y, target.x - bot.x) - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
         bot.a += da * Math.min(1, TURN * dt);
         if (Math.abs(da) < 0.15) bot.shooting += dt;
-        if (bot.shooting >= SHOOT_SECS) {
+        if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
           bot.seen.push(zoneKey(target)); bot.shooting = 0; bot.flash = 1; bot.target = null; bot.repath = 0;
           (g.hits ||= []).push({ x: bot.x, y: bot.y, z: 0.5, t: g.clock, owner: null, check: wonky(target) ? 'warn' : 'perfect' }); // verdict floats up from the bot
         }
       }
-    } else if (Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
+    } else if (bot.idle >= LOITER_SECS && Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
       bot.x = home.x; bot.y = home.y;
       bot.show = Math.max(0, bot.show - dt / SHOW_SECS);
       if (bot.show === 0) bot.mode = 'hidden';
