@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { newGame, update } from '../js/game.js';
+import { newGame, update, zoneDone } from '../js/game.js';
 import { BOT_R, CLEAN_SECS, truckGap } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { run, NONE } from './common.js';
@@ -14,7 +14,7 @@ const botGame = () => {
 const mid = (g) => ({ x: g.w / 2, y: g.h / 2 });
 const clearOf = (g, p) => { g.fl.x = p.x < g.w / 2 ? g.w - 1 : 1; g.fl.y = p.y < g.h / 2 ? g.h - 1 : 1; };
 
-assert.ok(!newGame(1, 0).hatch && !newGame(1, 0).bot, 'levels without barrels have no bot');
+assert.ok(newGame(1, 0).hatch && !newGame(1, 0).bot && newGame(1, 0).inspector, 'levels without barrels have no cleaning bot, but an inspector');
 assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is deterministic');
 
 // The bot stays hidden while there is no oil.
@@ -67,9 +67,12 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   let t = 0;
   while (!g.bot.cleaning && t++ < 120 * 60) update(g, NONE, 1 / 120);
   assert.ok(g.bot.cleaning);
-  g.fl.x = g.bot.x - 2; g.fl.y = g.bot.y; g.fl.a = 0;
+  g.fl.x = g.bot.x - 1.5; g.fl.y = g.bot.y; g.fl.a = 0;
   run(g, NONE, 0.2);
-  assert.ok(g.bot.scared && !g.bot.cleaning, 'a close forklift scares the bot off the spill');
+  assert.ok(!g.bot.scared && g.bot.cleaning, 'a standing forklift does not scare the bot');
+  g.fl.x = g.bot.x - 2.5;
+  run(g, { up: true }, 0.6);
+  assert.ok(g.bot.scared && !g.bot.cleaning, 'a close moving forklift scares the bot off the spill');
   g.fl.x += 0.8;
   run(g, { up: true }, 1);
   let min = Infinity;
@@ -115,6 +118,99 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   const g2 = deserializeGame(JSON.parse(JSON.stringify(serializeGame(g))));
   assert.equal(g2.bot.show, g.bot.show);
   assert.equal(g2.bot.x, g.bot.x);
+}
+
+// The inspector photographs each completed drop point once, in turn, then returns to the hatch.
+{
+  const g = newGame(1, 0);
+  g.stacks = [];
+  const zs = g.zones.slice(0, 2);
+  assert.equal(zs.length, 2);
+  run(g, NONE, 2);
+  assert.equal(g.inspector.show, 0, 'nothing is inspected while no drop point is done');
+  g.stacks = zs.map((z) => ({ x: z.x, y: z.y, layers: Array(z.count).fill(z.color), pen: [], rots: [] }));
+  const spots = [[1, 1], [g.w - 1, 1], [1, g.h - 1], [g.w - 1, g.h - 1]].map(([x, y]) => ({ x, y, d: Math.min(Math.hypot(x - g.hatch.x, y - g.hatch.y), ...g.zones.map((z) => Math.hypot(x - z.x, y - z.y))) }));
+  Object.assign(g.fl, spots.sort((a, b) => b.d - a.d)[0]);
+  const done = g.zones.filter((z) => zoneDone(g, z));
+  assert.ok(done.length >= 1, 'drop points are done');
+  let t = 0, flashes = 0, prev = 0;
+  while (g.inspector.seen.length < done.length && t < 120) {
+    update(g, NONE, 1 / 120); t += 1 / 120;
+    if (g.inspector.flash > prev) flashes++;
+    prev = g.inspector.flash;
+  }
+  assert.equal(g.inspector.seen.length, done.length, 'all completed drop points were photographed');
+  assert.equal(flashes, done.length, 'one photo each');
+  assert.ok(g.inspector.roll !== 0, 'the wheels turned while driving');
+  assert.ok(g.hits.length === 0 || g.hits.every((h) => h.check === 'perfect' || h.check === 'warn'), 'verdict labels');
+  run(g, NONE, 60);
+  assert.equal(g.inspector.mode, 'hidden', 'it goes back into the hatch');
+  const g3 = newGame(1, 0);
+  g3.inspector.seen = ['1,2,0'];
+  assert.deepEqual(deserializeGame(JSON.parse(JSON.stringify(serializeGame(g3)))).inspector.seen, ['1,2,0'], 'the inspector is saved');
+}
+
+// A wall splits the room: with a forklift in the only gap the bot waits (away from it) and gets through once the gap is free;
+// with a second gap it takes the detour.
+{
+  const room = (gapsOf) => {
+    const g = botGame();
+    g.stacks = [];
+    g.walls = g.walls.slice(0, 4);
+    const mx = g.w / 2;
+    const wall = (x, y, w, h) => g.walls.push({ x, y, w, h, poly: [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }] });
+    let y0 = 0;
+    for (const [a, b] of gapsOf(g.h)) { if (a > y0) wall(mx - 0.1, y0, 0.2, a - y0); y0 = b; }
+    wall(mx - 0.1, y0, 0.2, g.h - y0);
+    const far = g.hatch.x < mx ? g.w - 2 : 2;
+    g.oil = [{ id: 't', x: far, y: g.h / 2, r: 0.163, drops: 1 }];
+    return { g, mx, farSide: (x) => (far > mx ? x > mx + 0.5 : x < mx - 0.5) };
+  };
+  {
+    const { g, mx, farSide } = room((h) => [[h / 2 - 0.9, h / 2 + 0.9]]);
+    // The forklift stands in the gap, nose through it.
+    g.fl.x = mx - 1.0; g.fl.y = g.h / 2; g.fl.a = 0;
+    let crossed = false, waited = false;
+    for (let i = 0; i < 120 * 25; i++) {
+      g.fl.x = mx - 1.0; g.fl.y = g.h / 2; g.fl.a = 0;
+      update(g, NONE, 1 / 120);
+      if (g.bot.show > 0 && farSide(g.bot.x)) crossed = true;
+      if (g.bot.waiting) waited = true;
+    }
+    assert.ok(waited && !crossed && g.oil.length, 'the bot waits while the only way is blocked');
+    assert.ok(truckGap(g, g.bot) > -BOT_R * 0.5, 'and is not run over');
+    g.fl.x = g.bot.x; g.fl.y = g.h - 1;
+    let t = 0;
+    while (g.oil.length && t++ < 120 * 90) update(g, NONE, 1 / 120);
+    assert.ok(!g.oil.length, 'it gets through and cleans once the way is free');
+  }
+  {
+    const { g, mx } = room((h) => [[1.2, 3.2], [h - 3.2, h - 1.2]]);
+    let t = 0;
+    while (g.oil.length && t++ < 120 * 90) {
+      g.fl.x = mx - 1.0; g.fl.y = 2.2; g.fl.a = 0; g.fl.speed = 0; // blocks the upper gap
+      update(g, NONE, 1 / 120);
+    }
+    assert.ok(!g.oil.length, 'the bot finds the other gap');
+  }
+}
+
+// A bot that had to flee from a forklift afterwards favours spills far from forklifts over nearby ones.
+{
+  const pick = (spooked) => {
+    const g = botGame();
+    clearOf(g, g.hatch);
+    g.stacks = [];
+    g.fl.x = 1; g.fl.y = 6; g.fl.a = 0;
+    // the 'far' spill is a slightly bigger puddle (cleaned later), so only the forklift distance can make a bot prefer it
+    g.oil = [{ id: 'near', x: 3, y: 6, r: 0.2, drops: 1 }, { id: 'far', x: 8, y: 6, r: 0.2, drops: 1.25 }];
+    Object.assign(g.bot, { mode: 'out', show: 1, x: 5.5, y: 6 });
+    if (spooked) g.bot.spookedUntil = g.clock + 10;
+    update(g, NONE, 1 / 120);
+    return g.bot.goal && g.oil.find((o) => o.x === g.bot.goal.x && o.y === g.bot.goal.y)?.id;
+  };
+  assert.equal(pick(false), 'near', 'a calm bot takes the nearby spill');
+  assert.equal(pick(true), 'far', 'a spooked bot goes for the one far from the forklift');
 }
 
 console.log('bot tests passed');

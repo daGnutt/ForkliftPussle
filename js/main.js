@@ -23,7 +23,7 @@ import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
 import { pickScheme } from './schemepicker.js';
-import { startAudio, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -113,6 +113,28 @@ function watchPops() {
   }
 }
 const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8);
+// The maintenance bots talk in droidspeak, triggered by state changes (first sight of a game is silent): hello on emerging, bye on going home,
+// alarm when a forklift scares them, mumble while mopping, a scanning trill, and the inspector's verdict (perfect / warn).
+let botGame = null, botPrev = new Map(), botSaid = new WeakSet();
+function watchBots() {
+  if (botGame !== game) { botGame = game; botPrev = new Map(); botSaid = new WeakSet(); }
+  const first = (b, key) => { const p = botPrev.get(key); botPrev.set(key, { show: b.show > 0, scared: !!b.scared, shoot: (b.shooting || 0) > 0, clean: !!b.cleaning }); return p; };
+  for (const [key, b, pitch] of [['clean', game.bot, 0.8], ['insp', game.inspector, 1.25]]) {
+    if (!b) continue;
+    const p = first(b, key), vol = hearVol(b.x, b.y);
+    if (!p) continue;
+    if (b.show > 0 && !p.show) playDroid('hello', vol, pitch);
+    else if (b.show <= 0 && p.show) playDroid('bye', vol, pitch);
+    if (b.scared && !p.scared) playDroid('alarm', vol, pitch);
+    if ((b.shooting || 0) > 0 && !p.shoot) playDroid('scan', vol, pitch);
+    if (b.cleaning && !p.clean) playDroid('mumble', vol, pitch);
+  }
+  for (const h of game.hits || []) {
+    if (!h.check || botSaid.has(h)) continue;
+    botSaid.add(h);
+    playDroid(h.check === 'warn' ? 'warn' : 'perfect', hearVol(h.x, h.y), 1.25);
+  }
+}
 // Delivery trucks honk (see `lorryHonks`): once before an incoming truck opens its gate, twice before a full one closes its gate (heard by distance).
 const truckHonks = new Map(), truckNags = new Map();
 function honkTrucks() {
@@ -1131,6 +1153,7 @@ function frame(now) {
     return { id: t.id, on: !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : hearVol(t.fl.x, t.fl.y) };
   }));
   honkTrucks();
+  watchBots();
   const done = doneSet();
   const fresh = [...done].filter((z) => !doneZones.has(z));
   if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();
@@ -1158,6 +1181,7 @@ function frame(now) {
   if (game.bonks !== bonkCount) { if (game.bonks > bonkCount) playBonk(game.bonkPower); bonkCount = game.bonks; }
   const t2 = performance.now();
   view.fullscreen = !!document.fullscreenElement;
+  game.debugBots = !!debug;
   draw(ctx, game, view);
   if (debug) {
     const t3 = performance.now();

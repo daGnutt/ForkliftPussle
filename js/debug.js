@@ -1,6 +1,63 @@
 import { zoneDone, score, maxScore } from './game.js';
 import { unloadRate, interval, DOCKS } from './endless.js';
 
+import { truckCircles, BOT_R } from './bot.js';
+
+// Debug overlay of the maintenance bots' intentions: the planned route (line + waypoint dots, red while fleeing), the goal, the bot's mode and
+// the forklift circles it steers around. `proj(x, y)` maps floor coordinates to the current canvas units ([sx, sy], or null when not visible); `unit` scales sizes.
+export function drawBotDebug(ctx, g, proj, unit = 1) {
+  const bots = [[g.bot, '#ffb84a', 'cleaner'], [g.inspector, '#4ad8ff', 'inspector']].filter(([b]) => b && b.mode === 'out');
+  if (!bots.length) return;
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.font = `${11 * unit}px monospace`; ctx.textBaseline = 'bottom'; ctx.textAlign = 'left';
+  const ring = (x, y, r, color, w) => {
+    const c = proj(x, y), e = proj(x + r, y);
+    if (!c || !e) return;
+    ctx.strokeStyle = color; ctx.lineWidth = w * unit;
+    ctx.beginPath(); ctx.arc(c[0], c[1], Math.max(1, Math.hypot(e[0] - c[0], e[1] - c[1])), 0, Math.PI * 2); ctx.stroke();
+  };
+  for (const c of truckCircles(g)) ring(c.x, c.y, c.r, 'rgba(255,70,70,0.45)', 1);
+  for (const [b, color, name] of bots) {
+    const fleeing = !!b.scared, col = fleeing ? '#ff4a4a' : b.waiting ? '#ffe14a' : color;
+    const pts = [b, ...b.path].map((p) => proj(p.x, p.y));
+    if (b.goal) {
+      const a = proj(b.x, b.y), t = proj(b.goal.x, b.goal.y);
+      if (a && t) {
+        ctx.setLineDash([4 * unit, 4 * unit]); ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = unit;
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(t[0], t[1]); ctx.stroke(); ctx.setLineDash([]);
+        ring(b.goal.x, b.goal.y, 0.15, '#fff', 2); ring(b.goal.x, b.goal.y, 0.05, '#fff', 2);
+      }
+    }
+    ctx.strokeStyle = col; ctx.lineWidth = 2 * unit;
+    ctx.beginPath();
+    let pen = false;
+    for (const p of pts) { if (!p) { pen = false; continue; } if (pen) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); pen = true; }
+    ctx.stroke();
+    ctx.fillStyle = col;
+    pts.forEach((p, i) => { if (p && i) { ctx.beginPath(); ctx.arc(p[0], p[1], (i === pts.length - 1 ? 4 : 2.2) * unit, 0, Math.PI * 2); ctx.fill(); } });
+    ring(b.x, b.y, BOT_R, col, 1.5);
+    const at = proj(b.x, b.y);
+    if (at) {
+      const state = [fleeing ? 'FLEEING' : b.waiting ? `WAITING ${(b.waitT || 0).toFixed(1)}s` : b.path.length ? 'driving' : 'at goal', `path ${b.path.length}`,
+        ...(b.skip && Object.values(b.skip).some((t) => t > g.clock) ? ['skipping'] : [])].join(' · ');
+      const text = `${name}: ${state}`, x = at[0] + 12 * unit, y = at[1] - 10 * unit;
+      ctx.lineWidth = 3 * unit; ctx.strokeStyle = '#000'; ctx.strokeText(text, x, y);
+      ctx.fillStyle = col; ctx.fillText(text, x, y);
+    }
+  }
+  ctx.restore();
+}
+
+// 2D overview: the canvas currently carries the world transform, so project through it and draw in device pixels.
+export function drawBotDebugWorld(ctx, g, dpr) {
+  const m = ctx.getTransform();
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  drawBotDebug(ctx, g, (x, y) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f], dpr);
+  ctx.restore();
+}
+
 export const debugEnabled = (search) => new URLSearchParams(search).has('debug');
 
 const WINDOW = 120;

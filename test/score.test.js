@@ -225,7 +225,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   };
   const g = drop(12, Math.PI / 4);
   const pts = zonePoints(g, g.zones[0]);
-  const scores = (h) => h.hits.map((x) => x.score);
+  const scores = (h) => h.hits.filter((x) => !x.check).map((x) => x.score); // ignore the inspector's verdict popups
   assert.equal(pts.square, g.stacks[0].pen[0].sq + g.stacks[0].pen[1].sq);
   assert.ok(pts.square > 0 && pts.crash === 0 && g.hitCount === 0, 'wonky, not a crash');
   assert.deepEqual(scores(g), [{ total: 200 }, { wonky: -pts.square }], 'separate stack and wonkiness popups, no damage row');

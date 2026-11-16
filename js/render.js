@@ -1,6 +1,8 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from './level.js';
 import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, dockWaits, dockNumber, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
+import { scanBeam, WHEEL_R } from './bot.js';
+import { drawBotDebugWorld } from './debug.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
@@ -415,6 +417,7 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
   }
   ctx.setTransform(s * view.dpr, 0, 0, s * view.dpr, ox * view.dpr, oy * view.dpr);
   drawWorld(ctx, g, null, s * view.dpr);
+  if (g.debugBots) drawBotDebugWorld(ctx, g, view.dpr);
   for (const h of g.hits || []) {
     const k = (g.clock - h.t) / hitLife(h);
     ctx.globalAlpha = Math.max(0, 1 - k * k);
@@ -520,9 +523,62 @@ function drawFloor(ctx, g, vis, pxPerTile) {
   ctx.drawImage(floorCache.cv, 0, 0, floorCache.cv.width / floorCache.px, floorCache.cv.height / floorCache.px);
 }
 
+// Inspection bot (Enabot Ebo style): a white egg with a black visor band across the front, two ring eyes and a camera lens that glows
+// red while it laser-scans a stack: the beam sweeps over the stack and a scan sheet runs back and forth across it.
+function drawInspector(ctx, g, vis) {
+  const b = g.inspector;
+  if (!b || b.show <= 0 || !visSeen(vis, b.x - 0.5, b.y - 0.5, 1, 1)) return;
+  const sc = scanBeam(b);
+  if (sc) {
+    const hz = sc.h * 0.5, ox = hz * PX, oy = hz * PY;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,60,60,0.35)'; ctx.lineWidth = 0.12;
+    ctx.beginPath(); ctx.moveTo(sc.lens.x, sc.lens.y); ctx.lineTo(sc.sx + ox, sc.sy + oy); ctx.stroke();
+    ctx.strokeStyle = '#ff3b3b'; ctx.lineWidth = 0.03; ctx.stroke();
+    // The scan sheet across the stack.
+    const cx = sc.aim.x + sc.fx * sc.sheet + ox, cy = sc.aim.y + sc.fy * sc.sheet + oy;
+    ctx.strokeStyle = 'rgba(255,90,90,0.9)'; ctx.lineWidth = 0.035;
+    ctx.beginPath(); ctx.moveTo(cx + sc.fy * 0.6, cy - sc.fx * 0.6); ctx.lineTo(cx - sc.fy * 0.6, cy + sc.fx * 0.6); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.save();
+  ctx.translate(b.x, b.y); ctx.rotate(b.a); ctx.scale(b.show, b.show);
+  ctx.fillStyle = '#1d2024';
+  ctx.beginPath(); ctx.roundRect(-0.16, -0.3, 0.32, 0.1, 0.04); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(-0.16, 0.2, 0.32, 0.1, 0.04); ctx.fill();
+  // Tread ribs slide along the wheels as it drives.
+  ctx.strokeStyle = '#5a6068'; ctx.lineWidth = 0.014;
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const x = (((b.roll || 0) * WHEEL_R + i * 0.07) % 0.35 + 0.35) % 0.35 - 0.175;
+    if (Math.abs(x) < 0.15) for (const [y0, y1] of [[-0.29, -0.21], [0.21, 0.29]]) { ctx.moveTo(x, y0); ctx.lineTo(x, y1); }
+  }
+  ctx.stroke();
+  ctx.fillStyle = '#f6f6f4';
+  ctx.beginPath(); ctx.ellipse(-0.01, 0, 0.27, 0.23, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#d9dcdf';
+  ctx.beginPath(); ctx.ellipse(-0.1, 0, 0.14, 0.17, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#111317';
+  ctx.beginPath(); ctx.ellipse(0.14, 0, 0.12, 0.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.014;
+  for (const v of [-0.085, 0.085]) { ctx.beginPath(); ctx.arc(0.17, v, 0.04, 0.5, Math.PI * 2 - 0.5); ctx.stroke(); }
+  ctx.fillStyle = sc ? '#ff3b3b' : b.scared ? '#ff6a4a' : '#2a3a52';
+  ctx.beginPath(); ctx.arc(0.2, 0, 0.032, 0, Math.PI * 2); ctx.fill();
+  if (sc) { ctx.fillStyle = 'rgba(255,60,60,0.35)'; ctx.beginPath(); ctx.arc(0.2, 0, 0.06, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = b.scared ? '#ff6a4a' : '#7fe8ff';
+  ctx.beginPath(); ctx.arc(0.1, -0.15, 0.012, 0, Math.PI * 2); ctx.fill();
+  if (b.flash > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${b.flash})`;
+    ctx.beginPath(); ctx.arc(0.2, 0, 0.1 + 0.4 * (1 - b.flash), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
 // Cleaning bot hatch (in the wall) and the bot itself: a small white M-O-style body, dark visor with a blue eye, side treads
 // and a spinning brush in front that scrubs while it cleans.
 function drawBot(ctx, g, vis) {
+  drawInspector(ctx, g, vis);
   const h = g.hatch;
   if (!h) return;
   ctx.save();

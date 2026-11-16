@@ -4,6 +4,7 @@ import { label, labelRows, hitRows, honkers, drawHonk, pinHonk } from '../pov/ov
 import { povCamera, overviewCamera, chaseCamera, groundFootprint, blendCameras } from './camera.js';
 import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';
+import { drawBotDebug } from '../debug.js';
 import { clipPoint } from './mat.js';
 
 // Screen-space glue between the WebGL scene and the 2D game canvas: view entry points and the text overlays
@@ -29,6 +30,9 @@ function lineClear(g, x0, y0, x1, y1) {
   return true;
 }
 
+// Floor-level projector for the debug overlay (null for points behind the camera).
+const floorProj = (proj) => (x, y) => { const p = proj(x, y, 0.06); return p && p[2] > 0.1 ? [p[0], p[1]] : null; };
+
 // Cabin view into the css-px box (x, y, w, h). Returns false if WebGL is unavailable.
 export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
   if (!glAvailable()) return false;
@@ -45,6 +49,7 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
     if (!p || p[2] < 0.3 || p[2] > 60) continue;
     label(ctx, `×${z.count}`, p[0], p[1], Math.max(8, Math.min(48, (0.5 / p[2]) * (w / 2))), COLORS[z.color]);
   }
+  if (g.debugBots) drawBotDebug(ctx, g, floorProj(proj));
   for (const hh of g.hits || []) {
     const k = (g.clock - hh.t) / hitLife(hh);
     const p = proj(hh.x, hh.y, hh.z * (BOX_H + PAL) + 0.3 + k * 0.8);
@@ -109,6 +114,7 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = n
   ctx.beginPath();
   ctx.rect(rx, ry, rw, rh);
   ctx.clip();
+  if (g.debugBots) drawBotDebug(ctx, g, floorProj(proj));
   for (const h of g.hits || []) {
     const k = (g.clock - h.t) / hitLife(h);
     const p = proj(h.x, h.y, h.z * (BOX_H + PAL) + 0.4 + k * 1.2);

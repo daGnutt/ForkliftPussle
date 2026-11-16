@@ -3,7 +3,7 @@ import { rectPoly, sat, overlapArea } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
-import { makeHatch, makeBot, stepBot } from './bot.js';
+import { makeHatch, makeBot, makeInspector, stepBot, stepInspector } from './bot.js';
 
 const FORKLIFT_MASS = 6;
 const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
@@ -376,7 +376,7 @@ function settle(g, S) {
 
 export const HIT_LIFE = 1.2; // seconds a damage popup lives
 export const SCORE_LIFE = 2.2; // finished-stack score popups stay longer so they can be read
-export const hitLife = (h) => (h.score ? SCORE_LIFE : HIT_LIFE);
+export const hitLife = (h) => (h.score || h.check ? SCORE_LIFE : HIT_LIFE); // `check`: the inspection bot's "inspected" label
 const HIT_MERGE = 0.6; // further damage to the same stack within this time adds to its popup
 
 // Applies crash points and records the actual loss as a floating popup (x, y, z in box heights).
@@ -528,6 +528,7 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
   };
   g.hatch = makeHatch(g);
   g.bot = makeBot(g);
+  g.inspector = makeInspector(g);
   bindTrucks(g);
   markSpawnStacks(g, 0);
   return g;
@@ -890,6 +891,7 @@ export function update(g, input, dt) {
   root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self ? input : t.input, dt); });
   stepOil(root, dt);
   stepBot(root, dt, OIL_DROP_AREA);
+  stepInspector(root, dt, root.zones.filter((z) => zoneDone(root, z)), (z) => zoneWonky(root, z));
   updateGhosts(root);
   if (root.status === 'play' && root.started) root.time += dt; // the level timer runs from the first move until solved
   scorePopups(root);

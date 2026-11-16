@@ -32,7 +32,8 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Oil barrel** | A rigid, two-box-high load of its own type (`BARREL_COLOR`) that cannot be stacked on; one barrel counts as one item in its dedicated zone (`pen.barrelPart`) | `markOilBarrel`, `BARREL_COLOR`, `barrelPart` |
 | **Oil slick** | Persistent floor puddle formed by merging nearby oil drops; each barrel holds 50 drops and leaks one per damage point per ten seconds. Affects drive and steering tires independently, allowing rear-axle drift | `g.oil`, `dropOil`, `wheelOilGrip`, `axleOilGrip`, `stepOil` |
 | **Cleaning bot** | Small (about a quarter forklift) M-O-style robot that emerges from the **bot hatch** when there is oil, mops each drop in 5 s and flees from nearby forklifts | `g.bot`, `js/bot.js` |
-| **Bot hatch** | Predetermined door in an outer wall (barrel levels only) where the cleaning bot comes out and goes home | `g.hatch`, `makeHatch` |
+| **Inspection bot** | Ebo-style white egg with a black visor, ring eyes and a lens; drives out of the bot hatch to every completed drop point, laser-scans it, flashes and floats a ⚠ Warning (wonky stack) or ✔ Perfect label up from itself, then goes home; flees from forklifts | `g.inspector`, `stepInspector` |
+| **Bot hatch** | Predetermined door in an outer wall (every level) where the bots come out and go home | `g.hatch`, `makeHatch` |
 | **Carried stack** | The boxes currently on the forks | `g.carried` |
 | **Wonky / crooked stack** | Boxes turned/offset from each other | `wonkyStack`, `rots`, `offs` |
 | **Colour** | Box/zone colour (index into the palette) | `COLORS`, `COLOR_NAMES` |

@@ -13,7 +13,7 @@ const okOff = (o) => !!o && num(o.x) && num(o.y);
 const okPen = (p) => !!p && num(p.crash) && num(p.sq) &&
   (p.oilDropped === undefined || Number.isInteger(p.oilDropped) && p.oilDropped >= 0 && p.oilDropped <= 50) &&
   (p.oilFraction === undefined || num(p.oilFraction) && p.oilFraction >= 0 && p.oilFraction < 1);
-const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'oil', 'bot', 'bonks', 'H', 'hf', 'status', 'time', 'started', 'clock'];
+const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'oil', 'bot', 'inspector', 'bonks', 'H', 'hf', 'status', 'time', 'started', 'clock'];
 
 // Plain-JSON snapshot of a level in progress; the static layout is regenerated from (level, seed, hard).
 export function serializeGame(g, seedText = '') {

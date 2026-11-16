@@ -122,6 +122,13 @@ function addBot(faces, cam, g) {
   const h = g.hatch;
   if (!h || Math.hypot(h.x - cam.x, h.y - cam.y) > MAX_DIST) return;
   addPrism(faces, cam, h.x + h.nx * 0.03, h.y + h.ny * 0.03, h.a, 0.03, 0.45, 0, 0.55, '#2b2f33');
+  const q = g.inspector;
+  if (q && q.show > 0) {
+    const k = q.show, at = (u, v) => [q.x + (u * Math.cos(q.a) - v * Math.sin(q.a)) * k, q.y + (u * Math.sin(q.a) + v * Math.cos(q.a)) * k];
+    for (const v of [-0.25, 0.25]) addPrism(faces, cam, ...at(0, v), q.a, 0.2 * k, 0.05 * k, 0, 0.12 * k, '#4a4d52');
+    addPrism(faces, cam, q.x, q.y, q.a, 0.22 * k, 0.2 * k, 0.1 * k, 0.45 * k, '#f6f6f4');
+    addPrism(faces, cam, ...at(0.24, 0), q.a, 0.06 * k, 0.1 * k, 0.2 * k, 0.4 * k, q.flash > 0 ? '#ffffff' : '#111317');
+  }
   const b = g.bot;
   if (!b || b.show <= 0) return;
   const k = b.show, at = (u, v) => [b.x + (u * Math.cos(b.a) - v * Math.sin(b.a)) * k, b.y + (u * Math.sin(b.a) + v * Math.cos(b.a)) * k];

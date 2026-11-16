@@ -96,7 +96,7 @@ function watchTruck(s, t, dt) {
 function watchHits(s, g) {
   const r = g.root, n = r.hitCount || 0;
   if (n > s.hitCount) {
-    const h = (r.hits || []).filter((q) => !q.score).sort((a, b) => b.t - a.t)[0];
+    const h = (r.hits || []).filter((q) => !q.score && !q.check).sort((a, b) => b.t - a.t)[0];
     if (h) {
       const z = hitZ(h.z), amount = Math.min(1, 0.3 + (h.pts || 1) / 8);
       for (let i = 0; i < 4 + Math.round(amount * 6); i++) puff(s, h.x + rnd(-0.3, 0.3), h.y + rnd(-0.3, 0.3), z + rnd(-0.1, 0.2), { size: 0.12, grow: 0.5, col: [0.42, 0.4, 0.38], a0: 0.5, life: 1.3 });
