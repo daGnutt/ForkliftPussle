@@ -22,20 +22,35 @@ export function projector(photo, w = W, h = H) {
 
 export function drawPhoto(ctx, photo, w = W, h = H) {
   const P = projector(photo, w, h), d = Math.max(1.1, photo.dist || 1.4), n = photo.layers.length;
-  const wall = ctx.createLinearGradient(0, 0, 0, h);
-  wall.addColorStop(0, '#20262b'); wall.addColorStop(0.7, '#5b666d'); wall.addColorStop(1, '#8d979c');
-  ctx.fillStyle = wall; ctx.fillRect(0, 0, w, h);
   const horizon = P(0, 0, 40)[1]; // floor meets the far wall
-  ctx.fillStyle = '#6d6a62'; ctx.fillRect(0, Math.min(h, horizon + 8), w, h);
-  const poly = (pts, fill) => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 2; ctx.stroke(); };
+  const hy = Math.max(0, Math.min(h, horizon)), top = Math.max(0, hy - h * 0.45);
+  ctx.fillStyle = '#b9a27a'; ctx.fillRect(0, 0, w, h); // warm warehouse wall
+  const ceil = ctx.createLinearGradient(0, 0, 0, top + 1);
+  ceil.addColorStop(0, '#1b2330'); ceil.addColorStop(1, '#3a4658');
+  ctx.fillStyle = ceil; ctx.fillRect(0, 0, w, top);
+  ctx.fillStyle = '#fff8d6'; // ceiling lights
+  for (let i = 0; i < 4; i++) ctx.fillRect(w * (0.1 + i * 0.24), top * 0.35, w * 0.14, Math.max(3, top * 0.12));
+  ctx.fillStyle = 'rgba(0,0,0,.12)';
+  for (let x = 0; x < w; x += 40) ctx.fillRect(x, top, 2, hy - top); // wall panel seams
+  const floor = ctx.createLinearGradient(0, hy, 0, h);
+  floor.addColorStop(0, '#6f6a60'); floor.addColorStop(1, '#a8a296');
+  ctx.fillStyle = floor; ctx.fillRect(0, hy, w, h - hy);
+  ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; // floor tiles, 1 tile apart
+  for (let k = -6; k <= 6; k++) { const a = P(k, 0, 1), b = P(k, 0, 40); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+  const poly = (pts, fill) => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = '#111'; ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.stroke(); };
   for (let i = n - 1; i >= 0; i--) { // top first: lower boxes' fronts never overlap those above
     const col = COLORS[photo.layers[i]] ?? '#9e9e9e', y0 = i, y1 = i + 1, z0 = d - 0.5, z1 = d + 0.5;
-    if (y0 > CAM_H) poly([P(-0.5, y0, z0), P(0.5, y0, z0), P(0.5, y0, z1), P(-0.5, y0, z1)], shade(col, 0.55)); // underside, seen from below
-    poly([P(-0.5, y0, z0), P(0.5, y0, z0), P(0.5, y1, z0), P(-0.5, y1, z0)], shade(col, 1));
+    if (y0 > CAM_H) poly([P(-0.5, y0, z0), P(0.5, y0, z0), P(0.5, y0, z1), P(-0.5, y0, z1)], shade(col, 0.6)); // underside, seen from below
+    poly([P(-0.5, y0, z0), P(0.5, y0, z0), P(0.5, y1, z0), P(-0.5, y1, z0)], shade(col, 1.1));
+    const m = (u, v) => P(-0.5 + u, y0 + v, z0); // box-face coordinates, 0..1
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3; // tape cross and inner frame
+    for (const [a, b] of [[[0.5, 0], [0.5, 1]], [[0, 0.5], [1, 0.5]], [[0.12, 0.12], [0.88, 0.12]], [[0.88, 0.12], [0.88, 0.88]], [[0.88, 0.88], [0.12, 0.88]], [[0.12, 0.88], [0.12, 0.12]]]) {
+      const s = m(...a), e = m(...b); ctx.beginPath(); ctx.moveTo(s[0], s[1]); ctx.lineTo(e[0], e[1]); ctx.stroke();
+    }
   }
-  // flash: hot centre, dark vignette
-  const g = ctx.createRadialGradient(w / 2, h / 2, h * 0.1, w / 2, h / 2, h * 0.85);
-  g.addColorStop(0, 'rgba(255,255,255,.35)'); g.addColorStop(0.5, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.6)');
+  // flash: hot centre, light vignette
+  const g = ctx.createRadialGradient(w / 2, h / 2, h * 0.2, w / 2, h / 2, h * 0.95);
+  g.addColorStop(0, 'rgba(255,255,255,.25)'); g.addColorStop(0.6, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)');
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
   // verdict printed on the photo
   const text = photo.ok ? 'GOOD JOB' : 'COULD BE BETTER', col = photo.ok ? '#43a047' : '#e53935';
