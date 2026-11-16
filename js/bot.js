@@ -86,7 +86,7 @@ function buildGrid(g, margin) {
     const m = BOT_R + 0.05;
     stamp(w.x - m, w.y - m, w.x + w.w + m, w.y + w.h + m, (x, y) => rectDist(x, y, w) < m);
   }
-  for (const s of g.stacks) circle(s, 0.75 + BOT_R);
+  for (const s of g.stacks) circle(s, STACK_R + BOT_R);
   for (const c of truckCircles(g)) circle(c, c.r + BOT_R + margin);
   return { nx, ny, blocked };
 }
@@ -146,20 +146,25 @@ function plan(grid, from, maxCost, score) {
 
 const spillDrops = (sp, dropArea) => sp.drops ?? sp.r * sp.r / dropArea;
 
-function nearestSpill(g, bot) {
-  let best = null, bd = Infinity;
+// Small drops first (they are quick to finish), then the nearest one.
+function pickSpill(g, bot, dropArea) {
+  let best = null, bs = Infinity;
   for (const sp of g.oil || []) {
-    const d = Math.hypot(sp.x - bot.x, sp.y - bot.y);
-    if (d < bd) { bd = d; best = sp; }
+    const sc = Math.round(spillDrops(sp, dropArea) * 4) * 100 + Math.hypot(sp.x - bot.x, sp.y - bot.y);
+    if (sc < bs) { bs = sc; best = sp; }
   }
   return best;
 }
+
+// Oil under a stack can't be driven to: the bot stops at the edge and reaches in with its brush arms.
+const STACK_R = 0.75, REACH = 1.45;
+const underStack = (g, p) => g.stacks.some((s) => Math.hypot(s.x - p.x, s.y - p.y) < STACK_R);
 
 export function stepBot(g, dt, dropArea) {
   const bot = g.bot;
   if (!bot || !g.hatch) return;
   const home = botHome(g.hatch);
-  const spill = nearestSpill(g, bot);
+  const spill = pickSpill(g, bot, dropArea);
   const gap = truckGap(g, bot);
 
   if (bot.mode === 'hidden') {
@@ -213,7 +218,7 @@ export function stepBot(g, dt, dropArea) {
   // The grid is coarse: finish the last few centimetres in a straight line.
   if (!bot.path.length && goal && move > 0) {
     const d = Math.hypot(goal.x - bot.x, goal.y - bot.y);
-    if (d > 1e-6 && d < 0.5 && truckGap(g, goal) > 0) {
+    if (d > 1e-6 && d < 0.5 && truckGap(g, goal) > 0 && !underStack(g, goal)) {
       const step = Math.min(move, Math.max(0, d - goal.r * 0.5));
       bot.a = Math.atan2(goal.y - bot.y, goal.x - bot.x);
       bot.x += (goal.x - bot.x) / d * step; bot.y += (goal.y - bot.y) / d * step;
@@ -228,8 +233,10 @@ export function stepBot(g, dt, dropArea) {
 
   if (!bot.scared && goal) {
     const d = Math.hypot(goal.x - bot.x, goal.y - bot.y);
-    if (spill && d <= goal.r + 0.12) {
+    const reaching = spill && !bot.path.length && d <= REACH && underStack(g, spill);
+    if (spill && (d <= goal.r + 0.12 || reaching)) {
       bot.cleaning = true;
+      if (reaching) bot.a = Math.atan2(goal.y - bot.y, goal.x - bot.x);
       const drops = spillDrops(spill, dropArea) - dt / CLEAN_SECS;
       if (drops <= 1e-9) g.oil.splice(g.oil.indexOf(spill), 1);
       else { spill.drops = drops; spill.r = Math.sqrt(drops * dropArea); }

@@ -77,6 +77,22 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.ok(min > -BOT_R * 0.5, `the bot is not run over (${min.toFixed(2)})`);
 }
 
+// Small drops are cleaned before big puddles, and oil under a barrel is reached from beside it.
+{
+  const g = botGame();
+  const s = g.stacks.find((q) => q.layers.includes(6));
+  g.oil = [{ id: 'big', x: g.w / 2, y: g.h / 2, r: 0.6, drops: 12 }, { id: 'under', x: s.x, y: s.y, r: 0.2, drops: 1.5 }];
+  clearOf(g, g.hatch);
+  let first = null, t = 0;
+  while (g.oil.some((o) => o.id === 'under') && t++ < 120 * 90) {
+    update(g, NONE, 1 / 120);
+    if (first === null && g.bot.cleaning) first = g.oil.find((o) => o.drops < (o.id === 'big' ? 12 : 1.5))?.id;
+  }
+  assert.equal(first, 'under', 'the small drop is cleaned first');
+  assert.ok(!g.oil.some((o) => o.id === 'under'), 'oil under a barrel gets cleaned');
+  assert.ok(g.stacks.every((q) => Math.hypot(g.bot.x - q.x, g.bot.y - q.y) > 0.5), 'without driving into the barrel');
+}
+
 // It drives around stacks and walls on the way to the spill.
 {
   const g = botGame();
