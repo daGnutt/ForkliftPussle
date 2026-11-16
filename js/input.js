@@ -5,18 +5,16 @@ const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'K
 const HOLD_MS = 400; // holding the lower key this long drops the forks to the lowest safe level
 
 // Keyboard schemes: physical keys are translated to the canonical (arrows + A/Z) codes the rest of this file uses.
-// Comma/Period rotate the camera in both schemes (W/Q still do in the arrows scheme); the arrow keys always work.
+// Comma/Period rotate the camera in both schemes; the arrow keys only drive in the arrows scheme (unmapped in wasd).
 const SCHEMES = {
-  arrows: { Comma: 'KeyW', Period: 'KeyQ' },
-  wasd: { KeyW: 'ArrowUp', KeyS: 'ArrowDown', KeyA: 'ArrowLeft', KeyD: 'ArrowRight', KeyE: 'KeyA', KeyQ: 'KeyZ', Comma: 'KeyW', Period: 'KeyQ' },
+  arrows: { KeyW: null, KeyQ: null, Comma: 'KeyW', Period: 'KeyQ' },
+  wasd: { ArrowUp: null, ArrowDown: null, ArrowLeft: null, ArrowRight: null, KeyW: 'ArrowUp', KeyS: 'ArrowDown', KeyA: 'ArrowLeft', KeyD: 'ArrowRight', KeyE: 'KeyA', KeyQ: 'KeyZ', Comma: 'KeyW', Period: 'KeyQ' },
 };
 
 export function createInput(handlers) {
   const down = new Set();
   let scheme = SCHEMES.arrows;
-  let detect = false; // first run: the first drive key pressed picks the scheme
-  const DETECT = { ArrowUp: 'arrows', ArrowDown: 'arrows', ArrowLeft: 'arrows', ArrowRight: 'arrows', KeyW: 'wasd', KeyS: 'wasd', KeyD: 'wasd' };
-  const keyOf = (code) => scheme[code] ?? code;
+  const keyOf = (code) => (code in scheme ? scheme[code] : code);
   let zPress = 0;
   function press(code) {
     down.add(code);
@@ -131,7 +129,6 @@ export function createInput(handlers) {
     if (e.code === 'Tab' && e.target !== document.body) return;
     if (GAME_KEYS.has(e.code)) e.preventDefault();
     if (e.repeat) return;
-    if (detect && DETECT[e.code] && !handlers.blocked?.()) { detect = false; handlers.schemeDetected?.(DETECT[e.code]); }
     press(keyOf(e.code));
   });
   window.addEventListener('keyup', (e) => down.delete(keyOf(e.code)));
@@ -183,7 +180,6 @@ export function createInput(handlers) {
     if (b(1) || b(4)) down.add('KeyZ'); else if (was[1] || was[4]) down.delete('KeyZ');
   }
   return {
-    setAutoDetect: (on) => { detect = on; },
     setScheme: (name) => { scheme = SCHEMES[name] ?? SCHEMES.arrows; down.clear(); },
     setLocalMode: (on) => { localMode = on; },
     clear: () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); buttons.forEach((b) => b.classList.remove('on')); },

@@ -115,7 +115,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 |------|---------|---------|
 | **Overview** | Top-down (tilted) view of the level; default | `drawWorld`, `drawOverview3d` |
 | **Cabin view / POV** | First-person view from the driver's seat | `drawPov`, `drawPov3d` |
-| **Orbit / look** | Drag or `,`/`.` (W/Q in the arrows scheme) in the GL views: swings the overview around the forklift (`view.orbit`) or turns the cab camera (`view.look`); driving springs it back (`view.snap`), except the chase camera, which is left where it was put (Q/W swing `view.camP` 45° around the truck via `chaseOrbit`, `view.chaseGoal`); its tilt (height) slowly eases back to `CHASE_TILT` while it moves) | `view.orbit`, `view.look` |
+| **Orbit / look** | Drag or `,`/`.` in the GL views: swings the overview around the forklift (`view.orbit`) or turns the cab camera (`view.look`); driving springs it back (`view.snap`), except the chase camera, which is left where it was put (Q/W swing `view.camP` 45° around the truck via `chaseOrbit`, `view.chaseGoal`); its tilt (height) slowly eases back to `CHASE_TILT` while it moves) | `view.orbit`, `view.look` |
 | **Big view** | Which of overview/cabin fills the screen | `view.povBig` |
 | **Compass** | Small needle (shown only when north is not up; always in the chase camera) under the fork gauge pointing north (world up) as seen from the current camera | `drawCompass` |
 | **Chase camera** | Third-person GL overview camera behind the forklift (`view.camP` is its floor position: it translates as little as possible, only to stay within a maximum distance of the truck, and pitches/yaws to keep the truck centred, so reversing causes no swing; while moving it slowly drifts behind (forwards) or in front (reverse) of the truck; drag/Q/W orbit it around the middle of the tines, driving springs it back; a wall hiding more than half the forklift makes it orbit upwards (`view.chaseLift`) (C / menu / double tap on the canvas); the minimap outlines its tilted floor footprint instead of a rectangle | `view.chase`, `chaseCamera`, `groundFootprint` |
@@ -140,6 +140,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Start board** | Level + local/global best shown until the truck first moves, the canvas is touched/clicked, or 10 s have passed | `drawStartBoard` |
 | **Level complete overlay** | End-of-level breakdown with top lists | `render.js` |
 | **Splash** | Title screen: Start, Start endless, options | `#splash` |
+| **Scheme picker** | First-run popup on the splash to choose keyboard scheme / touch layout | `#schemePicker`, `schemepicker.js` |
 | **Menu / pause menu** | Esc/P menu with pages: main, sound, display, game, info, state | `#menu` |
 | **Report link** | Main-menu entry "Report a bug / request a feature" opening the GitHub issues page in a new tab | `#menu a.nav` |
 | **Zoom slider** | Desktop-only on-screen camera zoom slider in the bottom-right of the main view (sets the chase camera's zoom, same value as Camera zoom in the menu, while in the chase camera, and the overview's own zoom otherwise) | `#zoomBar` |
