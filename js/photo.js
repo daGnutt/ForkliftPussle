@@ -75,7 +75,7 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
       const [ax, az] = cor[k], [bx, bz] = cor[(k + 1) % 4], ex = bx - ax, ez = bz - az, nx = -ez, nz = ex; // outward normal for this winding
       if (nx * ax + nz * az >= 0) continue; // faces away from the camera
       const nl = Math.hypot(nx, nz);
-      poly([P(ax, y0, az), P(bx, y0, bz), P(bx, y1, bz), P(ax, y1, az)], shade(col, 0.8 + 0.35 * (-nz / nl)));
+      poly([P(ax, y0, az), P(bx, y0, bz), P(bx, y1, bz), P(ax, y1, az)], shade(col, 0.8 + 0.25 * (-nz / nl) + 0.2 * (nx / nl)));
       const m = (u, v) => P(ax + ex * u, y0 + v, az + ez * u);
       for (const [p, q] of [[[0.5, 0], [0.5, 1]], [[0, 0.5], [1, 0.5]], [[0.12, 0.12], [0.88, 0.12]], [[0.88, 0.12], [0.88, 0.88]], [[0.88, 0.88], [0.12, 0.88]], [[0.12, 0.88], [0.12, 0.12]]]) line(m(...p), m(...q), 'rgba(255,255,255,.55)', 3);
     }

@@ -628,7 +628,7 @@ function drawWorld(ctx, g, vis, pxPerTile = 0) {
   drawBot(ctx, g, vis);
   if (discoOn()) drawDiscoSpots(ctx, g, vis);
   drawWorldObjects(ctx, g, vis);
-  for (const f of flaggedStacks(g)) drawFlag(ctx, f.x + (f.h + 0.6) * PX, f.y + (f.h + 0.6) * PY - 0.3, 0.9, g.clock); // the inspector's hovering "!"
+  for (const f of flaggedStacks(g)) drawFlag(ctx, f.x + (f.h + 0.6) * PX, f.y + (f.h + 0.6) * PY - 0.3, 0.9, g.clock, 0.03); // the inspector's hovering "!"
 }
 
 const visSeen = (vis, x, y, w, h) => !vis || (x + w >= vis.x0 && x <= vis.x1 && y + h >= vis.y0 && y <= vis.y1);

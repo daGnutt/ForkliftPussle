@@ -19,12 +19,12 @@ export function label(ctx, text, sx, sy, size, color) {
 }
 
 // The inspector's hovering warning sign (⚠) over a stack it found wanting: a bobbing amber triangle.
-export function drawFlag(ctx, sx, sy, size, clock) {
+export function drawFlag(ctx, sx, sy, size, clock, minLine = 1.5) {
   const y = sy + Math.sin(clock * 4) * size * 0.12, r = size * 0.58;
   ctx.beginPath();
   ctx.moveTo(sx, y - r); ctx.lineTo(sx + r * 1.05, y + r * 0.8); ctx.lineTo(sx - r * 1.05, y + r * 0.8); ctx.closePath();
   ctx.fillStyle = '#ffc107'; ctx.fill();
-  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1.5, size / 8); ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(minLine, size / 14); ctx.lineJoin = 'round'; ctx.stroke();
   ctx.font = `bold ${size * 0.75}px sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#111';

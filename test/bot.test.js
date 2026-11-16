@@ -137,7 +137,11 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   let t = 0, flashes = 0, prev = 0;
   while (g.inspector.seen.length < done.length && t < 120) {
     update(g, NONE, 1 / 120); t += 1 / 120;
-    if (g.inspector.flash > prev) flashes++;
+    if (g.inspector.flash > prev) {
+      flashes++;
+      const dv = Math.atan2(Math.sin(2 * (g.photo.view - (g.photo.rots[0] ?? 0) - Math.PI / 4)), Math.cos(2 * (g.photo.view - (g.photo.rots[0] ?? 0) - Math.PI / 4))) / 2;
+      assert.ok(Math.abs(dv) < 0.5, 'photographed from a corner, so two sides of the stack show');
+    }
     prev = g.inspector.flash;
   }
   assert.equal(g.inspector.seen.length, done.length, 'all completed drop points were photographed');

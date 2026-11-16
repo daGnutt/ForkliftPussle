@@ -346,7 +346,7 @@ export function stepBot(g, dt, dropArea) {
 }
 
 // ---- Inspection bot ----
-const PHOTO_DIST = 1.4, BOX_SECS = 1.2, INSPECT_SPEED = 1.0, LOITER_SECS = 4, FLASH_SECS = 0.35;
+const CORNER_WEIGHT = 12, PHOTO_DIST = 1.4, BOX_SECS = 1.2, INSPECT_SPEED = 1.0, LOITER_SECS = 4, FLASH_SECS = 0.35;
 // Laser scan of the stack being inspected, or null: `lens` the beam's origin (in front of the bot), `aim` the stack, `h` its height in boxes,
 // `u` scan progress 0..1, `sx, sy` the beam's current target on the floor, `z` its height in boxes (0..h) and `sheet` the offset of the scan sheet.
 export function scanBeam(b) {
@@ -423,7 +423,10 @@ function inspectorStep(g, dt, done, wonky) {
     if (!loitering && bot.repath <= 0) {
       const goal = target ?? home;
       const ring = target ? PHOTO_DIST : 0;
-      bot.path = goalPlan(g, bot, target && zoneKey(target), (x, y, c) => Math.abs(Math.hypot(x - goal.x, y - goal.y) - ring) * 10 + c * 0.02,
+      // the inspector prefers a spot diagonal to the stack (at a corner), so its photo shows two sides of it
+      const st = target && g.stacks.find((q) => Math.hypot(q.x - target.x, q.y - target.y) < 0.5), turn = (st?.rots?.[0] ?? st?.a ?? 0) + Math.PI / 4;
+      const corner = (x, y) => (st ? Math.abs(Math.atan2(Math.sin(2 * (Math.atan2(y - goal.y, x - goal.x) - turn)), Math.cos(2 * (Math.atan2(y - goal.y, x - goal.x) - turn)))) / 2 * CORNER_WEIGHT : 0);
+      bot.path = goalPlan(g, bot, target && zoneKey(target), (x, y, c) => Math.abs(Math.hypot(x - goal.x, y - goal.y) - ring) * 10 + corner(x, y) + c * 0.02,
         (e) => (target ? Math.hypot(e.x - goal.x, e.y - goal.y) < PHOTO_DIST + 0.45 : Math.hypot(e.x - goal.x, e.y - goal.y) < 0.5));
       bot.repath = bot.waiting || !bot.path.length ? REPLAN : KEEP_ROUTE;
     }
