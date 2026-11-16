@@ -179,6 +179,45 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.ok(g.stacks[0].touched, 'a honk nudge touches the stacks in range');
 }
 
+// Inspector targeting: nearest reachable drop point; threats are only forklifts driving towards it; route obstacles are ignored until met.
+{
+  const setup = () => {
+    const g = newGame(1, 0);
+    g.stacks = g.zones.slice(0, 2).map((z) => ({ x: z.x, y: z.y, layers: Array(z.count).fill(z.color), pen: [], rots: [] }));
+    Object.assign(g.fl, { x: 1, y: 1 });
+    return g;
+  };
+  const g = setup(), [z0, z1] = g.zones.slice(0, 2), ins = g.inspector;
+  const near = z1; // put the bot beside the second drop point
+  Object.assign(ins, { x: near.x + 2.5, y: near.y, mode: 'out', show: 1 });
+  update(g, NONE, 1 / 120);
+  const keyOf = (z) => `${z.x},${z.y},${z.color}`;
+  const nearer = Math.hypot(z0.x - ins.x, z0.y - ins.y) < Math.hypot(z1.x - ins.x, z1.y - ins.y) ? z0 : z1;
+  assert.equal(ins.target, keyOf(nearer), 'it goes for the closest reachable drop point');
+  const before = ins.path.length, tgt = ins.target, mid = ins.path[Math.floor(before / 2)];
+  if (before > 8) { // a parked forklift appears far along the route: ignored until the bot meets it
+    Object.assign(g.fl, { x: mid.x, y: mid.y, speed: 0 });
+    update(g, NONE, 1 / 120);
+    assert.equal(ins.target, tgt, 'an obstacle on the route is ignored until it is met');
+    assert.ok(ins.path.length >= before - 2, 'the route is kept');
+  }
+  const g2 = setup(), i2 = g2.inspector;
+  Object.assign(i2, { x: 6, y: 6, mode: 'out', show: 1 });
+  Object.assign(g2.fl, { x: 4.5, y: 6, a: 0, speed: 2 });
+  update(g2, NONE, 1 / 120);
+  assert.ok(i2.scared, 'a forklift driving towards it scares it');
+  const g3 = setup(), i3 = g3.inspector;
+  Object.assign(i3, { x: 6, y: 6, mode: 'out', show: 1 });
+  Object.assign(g3.fl, { x: 4.5, y: 6, a: Math.PI, speed: 2 });
+  update(g3, NONE, 1 / 120);
+  assert.ok(!i3.scared, 'a forklift driving away is ignored');
+  const g4 = setup(), i4 = g4.inspector;
+  Object.assign(i4, { x: 6, y: 6, mode: 'out', show: 1 });
+  Object.assign(g4.fl, { x: 4.5, y: 6, a: 0, speed: 0 });
+  update(g4, NONE, 1 / 120);
+  assert.ok(!i4.scared, 'a stationary forklift is ignored');
+}
+
 // A wall splits the room: with a forklift in the only gap the bot waits (away from it) and gets through once the gap is free;
 // with a second gap it takes the detour.
 {
