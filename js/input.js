@@ -71,7 +71,7 @@ export function createInput(handlers) {
     dx = Math.max(-R, Math.min(R, dx)); dy = Math.max(-R, Math.min(R, dy)); // square pad: each axis reaches full on its own
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     stickEl.classList.add('on');
-    const T = 0.3;
+    const T = 0.12;
     const ax = (v) => Math.round(Math.sign(v) * Math.max(0, (Math.abs(v) - T) / (1 - T)) * 20) / 20 || 0;
     stick.thr = ax(-dy / R); stick.str = ax(dx / R);
     stick.left = dx / R < -T; stick.right = dx / R > T; stick.up = dy / R < -T; stick.down = dy / R > T;

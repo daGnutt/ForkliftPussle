@@ -137,7 +137,7 @@ for (const [code, want] of [['KeyS', 'wasd'], ['ArrowLeft', 'arrows']]) {
   globalThis.window = stub();
 }
 
-// Touch joystick: analog throttle/steering from the knob offset (dead zone 0.3 rescaled)
+// Touch joystick: analog throttle/steering from the knob offset (dead zone 0.12 rescaled)
 {
   const listeners = {};
   const stickEl = {
@@ -153,14 +153,14 @@ for (const [code, want] of [['KeyS', 'wasd'], ['ArrowLeft', 'arrows']]) {
   ev('pointerdown', 50, 50);
   ev('pointermove', 50 + 25, 50); // dx/R = 0.5
   let s = inp.state();
-  assert.ok(Math.abs(s.str - 0.2 / 0.7) < 0.03 && s.thr === 0, 'half deflection steers partially');
+  assert.ok(Math.abs(s.str - 0.38 / 0.88) < 0.03 && s.thr === 0, 'half deflection steers partially');
   ev('pointermove', 50, 50 - 50); // full forward
   s = inp.state();
   assert.equal(s.thr, 1);
   ev('pointermove', 100, 0); // corner: both axes full at once
   s = inp.state();
   assert.ok(s.thr === 1 && s.str === 1, 'the square corner gives full throttle and full steering');
-  ev('pointermove', 50, 50 + 10); // inside the dead zone
+  ev('pointermove', 50, 50 + 4); // inside the dead zone
   assert.equal(inp.state().thr, 0);
   ev('pointerup', 0, 0);
   globalThis.document = stub();
