@@ -1,6 +1,6 @@
 import { lorryHonks } from '../endless.js';
 import { COLORS } from '../level.js';
-import { hitLife, zoneDone } from '../game.js';
+import { hitLife, zoneDone, flaggedStacks } from '../game.js';
 import { truckColor } from '../forklift.js';
 import { toCam, BOX_H, PAL, MAX_DIST } from './camera.js';
 
@@ -16,6 +16,19 @@ export function label(ctx, text, sx, sy, size, color) {
   ctx.strokeText(text, sx, sy);
   ctx.fillStyle = color;
   ctx.fillText(text, sx, sy);
+}
+
+// The inspector's hovering warning sign (⚠) over a stack it found wanting: a bobbing amber triangle.
+export function drawFlag(ctx, sx, sy, size, clock, minLine = 1.5) {
+  const y = sy + Math.sin(clock * 4) * size * 0.12, r = size * 0.58;
+  ctx.beginPath();
+  ctx.moveTo(sx, y - r); ctx.lineTo(sx + r * 1.05, y + r * 0.8); ctx.lineTo(sx - r * 1.05, y + r * 0.8); ctx.closePath();
+  ctx.fillStyle = '#ffc107'; ctx.fill();
+  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(minLine, size / 14); ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.font = `bold ${size * 0.75}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#111';
+  ctx.fillText('!', sx, y + r * 0.28);
 }
 
 export const DAMAGE_COLOR = '#ff5252', WONKY_COLOR = '#ffb74d', POINTS_COLOR = '#a5d6a7';
@@ -113,6 +126,11 @@ export function drawHits(ctx, g, cam, rect) {
     labelRows(ctx, hitRows(h), sx, sy, Math.max(10, Math.min(60, (0.45 / fw) * cam.f)));
   }
   ctx.globalAlpha = 1;
+  for (const f of flaggedStacks(g)) {
+    const [fw, rt] = toCam(cam, f.x, f.y, 0);
+    if (fw <= 0.3 || fw > MAX_DIST) continue;
+    drawFlag(ctx, cam.cx + (rt / fw) * cam.f, cam.cy - ((f.h * (BOX_H + PAL) + 0.6 - cam.z) / fw) * cam.f, Math.max(12, Math.min(70, (0.5 / fw) * cam.f)), g.clock);
+  }
   for (const t of honkers(g)) {
     const [fw, rt] = toCam(cam, t.fl.x, t.fl.y, 0);
     if (fw <= 0.3) {

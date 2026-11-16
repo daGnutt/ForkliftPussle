@@ -3,7 +3,7 @@ import { rectPoly, sat, overlapArea } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
-import { makeHatch, makeBot, makeInspector, stepBot, stepInspector } from './bot.js';
+import { makeHatch, makeBot, makeInspector, stepBot, stepInspector, stackSig } from './bot.js';
 
 const FORKLIFT_MASS = 6;
 const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
@@ -715,6 +715,7 @@ function resolve(g) {
         let m = null, from = 0;
         for (const t of sh.targets(s)) { m = sat(sh.poly, t.poly); if (m) { from = t.from; break; } }
         if (!m) continue;
+        s.touched = true; // any contact with a forklift sends the inspector round again (see pendingZones)
         ensure(s);
         const ws = 1 / ((s.layers.length - from) * boxMass(s));
         if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && relH(g, s) > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? relH(g, s) : s.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: s.rots });
@@ -937,6 +938,7 @@ function hornWave(root, t) {
     const d = Math.hypot(s.x - o.x, s.y - o.y);
     if (d >= WAVE_RADIUS) return;
     s.jolt = root.clock;
+    s.touched = true; // the honk nudge counts as a touch: the inspector comes round again
     ensure(s);
     s.x += WIGGLE_BOTTOM * noise(n, seed + 4); s.y += WIGGLE_BOTTOM * noise(n, seed + 5);
     const da = WIGGLE_BOTTOM * noise(n, seed + 6);
@@ -1477,6 +1479,19 @@ export function zonePoints(g, z) {
   const crash = S.pen.reduce((n, p) => n + p.crash, 0), square = S.pen.reduce((n, p) => n + p.sq, 0);
   const base = S.pen.reduce((n, p) => n + boxPoints(p), 0);
   return { n: S.layers.length, base, total: base - Math.round(crash) - Math.round(square), crash: Math.round(crash), square: Math.round(square) };
+}
+
+// Stacks the inspector judged "could be better": photographed (in `inspector.seen`) and still crooked. Each `{x, y, h}` (h = boxes high).
+export function flaggedStacks(g) {
+  const out = [];
+  for (const z of g.zones) {
+    if (!g.inspector?.seen.includes(`${z.x},${z.y},${z.color}`)) continue;
+    const s = g.stacks.find((q) => stackFillsZone(q, z));
+    if (s?.touched) continue;
+    if (s && g.inspector.sigs?.[`${z.x},${z.y},${z.color}`] !== undefined && g.inspector.sigs[`${z.x},${z.y},${z.color}`] !== stackSig(s)) continue; // touched since the photo
+    if (s && (refreshSquare(s), s.pen.some((p) => p.sq > 0))) out.push({ x: s.x, y: s.y, h: s.layers.length });
+  }
+  return out;
 }
 
 export function zoneDone(g, z) {
