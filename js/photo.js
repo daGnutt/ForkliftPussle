@@ -22,7 +22,7 @@ export function projector(photo, w = W, h = H) {
 
 // An oil drum: a cylinder two boxes tall with bands and a yellow hazard stripe, so it never reads as a crate.
 function drawBarrel(ctx, P, col, cx, cz, y0, y1, poly, line) {
-  const R = 0.38, N = 28, ang = (k) => (k * 2 * Math.PI) / N, pt = (k, y) => P(cx + Math.cos(ang(k)) * R, y, cz + Math.sin(ang(k)) * R);
+  const R = 0.47, N = 28, ang = (k) => (k * 2 * Math.PI) / N, pt = (k, y) => P(cx + Math.cos(ang(k)) * R, y, cz + Math.sin(ang(k)) * R);
   if (y0 > CAM_H) poly(Array.from({ length: N }, (_, k) => pt(k, y0)), shade(col, 0.5), 3);
   for (let k = 0; k < N; k++) {
     const mid = ang(k + 0.5), nx = Math.cos(mid), nz = Math.sin(mid);
