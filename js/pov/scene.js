@@ -128,7 +128,8 @@ function addBot(faces, cam, g) {
   for (const v of [-0.25, 0.25]) addPrism(faces, cam, ...at(0, v), b.a, 0.2 * k, 0.05 * k, 0, 0.12 * k, '#4a4d52');
   addPrism(faces, cam, b.x, b.y, b.a, 0.22 * k, 0.2 * k, 0.1 * k, 0.4 * k, '#f2f2ee');
   addPrism(faces, cam, ...at(0.2, 0), b.a, 0.04 * k, 0.15 * k, 0.2 * k, 0.36 * k, '#20262c');
-  addPrism(faces, cam, ...at(0.3, 0), b.a, 0.12 * k, 0.025 * k, 0.05 * k, 0.1 * k, '#e8c52e');
+  for (const v of [-0.17, 0.17]) addPrism(faces, cam, ...at(0.28, v), b.a, 0.08 * k, 0.02 * k, 0.1 * k, 0.14 * k, '#4a4d52');
+  addPrism(faces, cam, ...at(0.36, 0), b.a, 0.05 * k, 0.17 * k, 0.07 * k, 0.17 * k, '#e8c52e');
 }
 
 const OVERHEAD_R = 20; // fixtures further away are tiny and fogged

@@ -544,13 +544,15 @@ function drawBot(ctx, g, vis) {
   ctx.beginPath(); ctx.ellipse(0.1, 0, 0.1, 0.15, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = b.scared ? '#ff6a4a' : '#4ec3ff';
   ctx.beginPath(); ctx.arc(0.12, 0, 0.05, 0, Math.PI * 2); ctx.fill();
-  ctx.translate(0.3, 0);
-  // The roller spins about the bot's forward (x) axis: seen from above, its bristles sweep across the width.
-  ctx.strokeStyle = '#e8c52e'; ctx.lineWidth = 0.04; ctx.lineCap = 'round';
+  // Two arms hold a roller across the front; it spins about its long axis, so seen from above its bristles sweep forward and back.
+  ctx.fillStyle = '#4a4d52';
+  ctx.fillRect(0.2, -0.19, 0.16, 0.04); ctx.fillRect(0.2, 0.15, 0.16, 0.04);
+  ctx.fillStyle = '#3a3d42'; ctx.fillRect(0.31, -0.17, 0.1, 0.34);
+  ctx.strokeStyle = '#e8c52e'; ctx.lineWidth = 0.03; ctx.lineCap = 'round';
   ctx.beginPath();
   for (let k = 0; k < 4; k++) {
-    const y = 0.12 * Math.sin((b.cleaning ? t * 18 : 0) + k * Math.PI / 2);
-    ctx.moveTo(-0.07, y); ctx.lineTo(0.07, y);
+    const x = 0.36 + 0.04 * Math.sin((b.cleaning ? t * 18 : 0) + k * Math.PI / 2);
+    ctx.moveTo(x, -0.16); ctx.lineTo(x, 0.16);
   }
   ctx.stroke();
   ctx.restore();

@@ -438,8 +438,9 @@ function addBot(om, g) {
   om.cuboid(b.x, b.y, b.a, 0.22 * k, 0.2 * k, 0.1 * k, 0.4 * k, '#f2f2ee');
   om.cuboid(...at(0.2, 0), b.a, 0.04 * k, 0.15 * k, 0.2 * k, 0.36 * k, '#20262c');
   om.cuboid(...at(0.245, 0), b.a, 0.005 * k, 0.06 * k, 0.25 * k, 0.31 * k, b.scared ? '#ff6a4a' : '#4ec3ff', { emissive: true });
-  // Square roller whose axis is the bot's forward (x) axis; `wheel` has its axis along local y, hence the quarter turn.
-  om.wheel(...at(0.3, 0), 0.12 * k, b.a + Math.PI / 2, 0.07 * k, 0.12 * k, '#e8c52e', 4, b.cleaning ? (g.clock || 0) * 18 : 0);
+  // Two arms hold a square roller across the front; `wheel` has its axis along local y, which is the roller's long axis.
+  for (const v of [-0.17, 0.17]) om.cuboid(...at(0.28, v), b.a, 0.08 * k, 0.02 * k, 0.1 * k, 0.14 * k, '#4a4d52');
+  om.wheel(...at(0.36, 0), 0.12 * k, b.a, 0.05 * k, 0.17 * k, '#e8c52e', 4, b.cleaning ? (g.clock || 0) * 18 : 0);
 }
 
 // Per-frame meshes: { opaque, trans, lights } for the game state `g` seen from `eye` ([x, y]).
