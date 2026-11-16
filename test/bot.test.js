@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { newGame, update, zoneDone } from '../js/game.js';
+import { newGame, update, zoneDone, zoneWonky, flaggedStacks } from '../js/game.js';
 import { BOT_R, CLEAN_SECS, truckGap } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
-import { run, NONE } from './common.js';
+import { run, NONE, flatWorld } from './common.js';
 
 const hasBarrel = (g) => g.stacks.some((s) => s.layers.includes(6));
 const botGame = () => {
@@ -133,14 +133,28 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   Object.assign(g.fl, spots.sort((a, b) => b.d - a.d)[0]);
   const done = g.zones.filter((z) => zoneDone(g, z));
   assert.ok(done.length >= 1, 'drop points are done');
+  assert.equal(flaggedStacks(g).length, 0, 'nothing is flagged before the inspector has looked');
   let t = 0, flashes = 0, prev = 0;
   while (g.inspector.seen.length < done.length && t < 120) {
     update(g, NONE, 1 / 120); t += 1 / 120;
-    if (g.inspector.flash > prev) flashes++;
+    if (g.inspector.flash > prev) {
+      flashes++;
+      const dv = Math.atan2(Math.sin(2 * (g.photo.view - (g.photo.rots[0] ?? 0) - Math.PI / 4)), Math.cos(2 * (g.photo.view - (g.photo.rots[0] ?? 0) - Math.PI / 4))) / 2;
+      assert.ok(Math.abs(dv) < 0.5, 'photographed from a corner, so two sides of the stack show');
+    }
     prev = g.inspector.flash;
   }
   assert.equal(g.inspector.seen.length, done.length, 'all completed drop points were photographed');
   assert.equal(flashes, done.length, 'one photo each');
+  assert.ok(g.photo && g.photo.n === done.length && typeof g.photo.ok === 'boolean' && g.photo.layers.length > 0, 'each photo leaves a snapshot for the popup');
+  assert.equal(flaggedStacks(g).length, done.filter((z) => zoneWonky(g, z)).length, 'every inspected crooked stack is flagged with a "!"');
+  if (g.stacks.length) { // touching a photographed stack clears its flag and sends the inspector back
+    const st = g.stacks[0];
+    st.touched = true; // a bare touch, nothing moved
+    update(g, NONE, 1 / 120);
+    assert.ok(g.inspector.seen.length < done.length, 'a nudged stack is inspected again');
+    assert.ok(!flaggedStacks(g).some((f) => f.x === st.x && f.y === st.y), 'its warning sign is gone');
+  }
   assert.ok(g.inspector.roll !== 0, 'the wheels turned while driving');
   assert.ok(g.hits.length === 0 || g.hits.every((h) => h.check === 'perfect' || h.check === 'warn'), 'verdict labels');
   run(g, NONE, 60);
@@ -148,6 +162,21 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   const g3 = newGame(1, 0);
   g3.inspector.seen = ['1,2,0'];
   assert.deepEqual(deserializeGame(JSON.parse(JSON.stringify(serializeGame(g3)))).inspector.seen, ['1,2,0'], 'the inspector is saved');
+}
+
+// Driving into a stack marks it touched (which sends the inspector round again); a stack left alone is not.
+{
+  const g = newGame(1, 0);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], pen: [], rots: [] }, { x: 3, y: 12, layers: [1], pen: [], rots: [] }];
+  g.fl.x = 5; g.fl.y = 5; g.fl.a = 0; g.H = 3;
+  for (let i = 0; i < 6 * 120; i++) update(g, { up: true }, 1 / 120);
+  assert.ok(g.stacks[0].touched, 'the forklift hit the stack');
+  assert.ok(!g.stacks[1].touched, 'a stack that was left alone is untouched');
+  g.stacks[0].touched = false;
+  g.fl.x = g.stacks[0].x - 2; g.fl.a = 0;
+  run(g, { horn: true }, 0.1);
+  assert.ok(g.stacks[0].touched, 'a honk nudge touches the stacks in range');
 }
 
 // A wall splits the room: with a forklift in the only gap the bot waits (away from it) and gets through once the gap is free;

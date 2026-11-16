@@ -12,6 +12,7 @@ import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, t
 import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
+import { showPhoto } from './photo.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { setBareForks, bareForksEnabled } from './gl/models.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
@@ -129,6 +130,7 @@ function watchBots() {
     if ((b.shooting || 0) > 0 && !p.shoot) playDroid('scan', vol, pitch);
     if (b.cleaning && !p.clean) playDroid('mumble', vol, pitch);
   }
+  if (game.photo && !botSaid.has(game.photo)) { botSaid.add(game.photo); if (botPrev.has('insp')) showPhoto(game.photo); }
   for (const h of game.hits || []) {
     if (!h.check || botSaid.has(h)) continue;
     botSaid.add(h);

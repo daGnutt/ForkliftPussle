@@ -346,18 +346,23 @@ export function stepBot(g, dt, dropArea) {
 }
 
 // ---- Inspection bot ----
-const PHOTO_DIST = 1.4, SHOOT_SECS = 1.8, FLASH_SECS = 0.35;
+const CORNER_WEIGHT = 12, PHOTO_DIST = 1.4, BOX_SECS = 1.2, INSPECT_SPEED = 1.0, LOITER_SECS = 4, FLASH_SECS = 0.35;
 // Laser scan of the stack being inspected, or null: `lens` the beam's origin (in front of the bot), `aim` the stack, `h` its height in boxes,
 // `u` scan progress 0..1, `sx, sy` the beam's current target on the floor, `z` its height in boxes (0..h) and `sheet` the offset of the scan sheet.
 export function scanBeam(b) {
   if (!b || !b.aim || b.show <= 0 || b.shooting <= 0) return null;
-  const u = Math.min(1, b.shooting / SHOOT_SECS), dx = b.aim.x - b.x, dy = b.aim.y - b.y, d = Math.hypot(dx, dy) || 1;
-  const fx = dx / d, fy = dy / d, sw = 0.5 * Math.sin(u * Math.PI * 4), depth = 0.45 * Math.sin(u * Math.PI * 2);
+  const n = Math.max(1, b.aim.h), u = Math.min(1, b.shooting / (n * BOX_SECS)), dx = b.aim.x - b.x, dy = b.aim.y - b.y, d = Math.hypot(dx, dy) || 1;
+  // the scan climbs one box at a time (w 0..1 within box i), bottom to top
+  const i = Math.min(n - 1, Math.floor(b.shooting / BOX_SECS)), w = Math.min(1, b.shooting / BOX_SECS - i);
+  const fx = dx / d, fy = dy / d, sw = 0.5 * Math.sin(w * Math.PI * 2), depth = 0.45 * Math.sin(w * Math.PI);
   return {
     lens: { x: b.x + Math.cos(b.a) * 0.3, y: b.y + Math.sin(b.a) * 0.3 }, aim: b.aim, h: b.aim.h, u, fx, fy,
-    sx: b.aim.x - fy * sw + fx * depth, sy: b.aim.y + fx * sw + fy * depth, z: b.aim.h * (0.5 + 0.5 * Math.sin(u * Math.PI * 6)), sheet: depth,
+    sx: b.aim.x - fy * sw + fx * depth, sy: b.aim.y + fx * sw + fy * depth, z: i + 0.5 + 0.35 * Math.sin(w * Math.PI * 2), sheet: depth,
   };
 }
+
+// Fingerprint of a floor stack's exact arrangement: any nudge changes it.
+export const stackSig = (s) => (s ? [s.x, s.y, ...s.layers, ...(s.rots || []), ...(s.offs || []).flatMap((o) => [o.x, o.y])].map((v) => (typeof v === 'number' ? Math.round(v * 1000) : v)).join(',') : '');
 
 export const zoneKey = (z) => `${z.x},${z.y},${z.color}`;
 
@@ -366,7 +371,12 @@ export function pendingZones(g, done) {
   const insp = g.inspector;
   if (!insp) return [];
   const doneKeys = new Set(done.map(zoneKey));
-  insp.seen = insp.seen.filter((k) => doneKeys.has(k)); // a drop point that was undone is inspected again once it is completed anew
+  // a stack that was touched since its photo (nudged, straightened, re-placed) is inspected again
+  const changed = new Set(done.filter((z) => {
+    const q = g.stacks.find((o) => Math.hypot(o.x - z.x, o.y - z.y) < 0.5);
+    return q?.touched || (insp.sigs?.[zoneKey(z)] !== undefined && insp.sigs[zoneKey(z)] !== stackSig(q));
+  }).map(zoneKey));
+  insp.seen = insp.seen.filter((k) => doneKeys.has(k) && !changed.has(k)); // a drop point that was undone is inspected again once it is completed anew
   return done.filter((z) => !insp.seen.includes(zoneKey(z)));
 }
 
@@ -397,9 +407,10 @@ function inspectorStep(g, dt, done, wonky) {
     bot.mode = 'out';
   }
   if (bot.target !== (target && zoneKey(target))) { bot.target = target && zoneKey(target); bot.shooting = 0; bot.repath = 0; }
+  bot.idle = target ? 0 : (bot.idle || 0) + dt; // loiters a while after the last drop point before heading home
   bot.scared = truckGap(g, bot, true) < (bot.scared ? CALM : SCARE);
   if (bot.scared) bot.spookedUntil = g.clock + SPOOK_SECS;
-  let speed = SPEED;
+  let speed = INSPECT_SPEED;
   bot.repath -= dt;
   bot.goal = null;
   if (bot.scared) {
@@ -408,12 +419,17 @@ function inspectorStep(g, dt, done, wonky) {
   } else {
     if (bot.fleePath) bot.repath = 0;
     bot.fleePath = false;
-    bot.goal = { x: (target ?? home).x, y: (target ?? home).y };
-    if (routeObstructed(g, bot)) bot.repath = 0;
-    if (bot.repath <= 0) {
+    const loitering = !target && bot.idle < LOITER_SECS;
+    if (loitering) { bot.path = []; bot.repath = 0; bot.waiting = false; }
+    bot.goal = loitering ? null : { x: (target ?? home).x, y: (target ?? home).y };
+    if (!loitering && routeObstructed(g, bot)) bot.repath = 0;
+    if (!loitering && bot.repath <= 0) {
       const goal = target ?? home;
       const ring = target ? PHOTO_DIST : 0;
-      bot.path = goalPlan(g, bot, target && zoneKey(target), (x, y, c) => Math.abs(Math.hypot(x - goal.x, y - goal.y) - ring) * 10 + c * 0.02,
+      // the inspector prefers a spot diagonal to the stack (at a corner), so its photo shows two sides of it
+      const st = target && g.stacks.find((q) => Math.hypot(q.x - target.x, q.y - target.y) < 0.5), turn = (st?.rots?.[0] ?? st?.a ?? 0) + Math.PI / 4;
+      const corner = (x, y) => (st ? Math.abs(Math.atan2(Math.sin(2 * (Math.atan2(y - goal.y, x - goal.x) - turn)), Math.cos(2 * (Math.atan2(y - goal.y, x - goal.x) - turn)))) / 2 * CORNER_WEIGHT : 0);
+      bot.path = goalPlan(g, bot, target && zoneKey(target), (x, y, c) => Math.abs(Math.hypot(x - goal.x, y - goal.y) - ring) * 10 + corner(x, y) + c * 0.02,
         (e) => (target ? Math.hypot(e.x - goal.x, e.y - goal.y) < PHOTO_DIST + 0.45 : Math.hypot(e.x - goal.x, e.y - goal.y) < 0.5));
       bot.repath = bot.waiting || !bot.path.length ? REPLAN : KEEP_ROUTE;
     }
@@ -430,12 +446,15 @@ function inspectorStep(g, dt, done, wonky) {
         let da = Math.atan2(target.y - bot.y, target.x - bot.x) - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
         bot.a += da * Math.min(1, TURN * dt);
         if (Math.abs(da) < 0.15) bot.shooting += dt;
-        if (bot.shooting >= SHOOT_SECS) {
+        if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
+          g.photo = { n: (g.photo?.n || 0) + 1, ok: !wonky(target), layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [], pens: st?.pen ? st.pen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide })) : [], view: Math.atan2(target.y - bot.y, target.x - bot.x), dist: Math.hypot(target.x - bot.x, target.y - bot.y) }; // the snapshot shown as a popup (js/photo.js)
+          (bot.sigs ||= {})[zoneKey(target)] = stackSig(st);
+          if (st) st.touched = false;
           bot.seen.push(zoneKey(target)); bot.shooting = 0; bot.flash = 1; bot.target = null; bot.repath = 0;
           (g.hits ||= []).push({ x: bot.x, y: bot.y, z: 0.5, t: g.clock, owner: null, check: wonky(target) ? 'warn' : 'perfect' }); // verdict floats up from the bot
         }
       }
-    } else if (Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
+    } else if (bot.idle >= LOITER_SECS && Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
       bot.x = home.x; bot.y = home.y;
       bot.show = Math.max(0, bot.show - dt / SHOW_SECS);
       if (bot.show === 0) bot.mode = 'hidden';

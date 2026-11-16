@@ -1,6 +1,6 @@
 import { COLORS } from '../level.js';
-import { hitLife, zoneDone } from '../game.js';
-import { label, labelRows, hitRows, honkers, drawHonk, pinHonk } from '../pov/overlay.js';
+import { hitLife, zoneDone, flaggedStacks } from '../game.js';
+import { label, drawFlag, labelRows, hitRows, honkers, drawHonk, pinHonk } from '../pov/overlay.js';
 import { povCamera, overviewCamera, chaseCamera, groundFootprint, blendCameras } from './camera.js';
 import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';
@@ -58,6 +58,10 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
     labelRows(ctx, hitRows(hh), p[0], p[1], Math.max(10, Math.min(60, (0.45 / p[2]) * (w / 2))));
   }
   ctx.globalAlpha = 1;
+  for (const f of flaggedStacks(g)) {
+    const p = proj(f.x, f.y, f.h * (BOX_H + PAL) + 0.6);
+    if (p && p[2] > 0.3 && p[2] < 60) drawFlag(ctx, p[0], p[1], Math.max(12, Math.min(70, (0.5 / p[2]) * (w / 2))), g.clock);
+  }
   for (const t of honkers(g)) {
     const rect = { x, y, w, h }, p = proj(t.fl.x, t.fl.y, 1.8);
     if (p) {
@@ -123,6 +127,10 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = n
     labelRows(ctx, hitRows(h), p[0], p[1], 0.55 * s);
   }
   ctx.globalAlpha = 1;
+  for (const f of flaggedStacks(g)) {
+    const p = proj(f.x, f.y, f.h * (BOX_H + PAL) + 0.8);
+    if (p) drawFlag(ctx, p[0], p[1], 0.9 * s, g.clock);
+  }
   for (const t of honkers(g)) {
     const rect = { x: rx, y: ry, w: rw, h: rh }, p = proj(t.fl.x, t.fl.y, 1.8);
     if (p) {
