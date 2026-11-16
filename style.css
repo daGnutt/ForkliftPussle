@@ -180,3 +180,22 @@ table.keys td:first-child { white-space: nowrap; } table.keys b { color: var(--a
 body.keys-wasd .k-wasd { display: inline; }
 body.keys-wasd tr.k-wasd { display: table-row; }
 body.keys-wasd .k-arrows { display: none; }
+
+/* First-run control scheme picker (js/schemepicker.js) */
+#schemePicker { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.7); }
+#schemePicker .box { max-width: min(94vw, 760px); max-height: 94vh; overflow: auto; padding: 20px; border-radius: 10px; background: var(--bar); color: var(--fg); text-align: center; }
+#schemePicker h2 { margin: 0 0 12px; }
+#schemePicker .cards { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+#schemePicker button { flex: 1 1 200px; max-width: 230px; padding: 10px; font: inherit; color: inherit; background: rgba(128,128,128,.2); border: 2px solid rgba(128,128,128,.5); border-radius: 8px; cursor: pointer; }
+#schemePicker button:hover, #schemePicker button:focus-visible { border-color: #f9a825; outline: 0; }
+#schemePicker button span { display: block; margin-top: 6px; font-weight: bold; }
+#schemePicker svg { width: 100%; height: auto; }
+#schemePicker svg rect { fill: rgba(128,128,128,.35); stroke: currentColor; stroke-width: 1.5; }
+#schemePicker svg rect.hi { fill: #f9a825; }
+#schemePicker svg rect.scr { fill: rgba(0,0,0,.25); stroke-width: 1; }
+#schemePicker svg rect.stk { fill: rgba(128,128,128,.2); }
+#schemePicker svg circle.knob { fill: rgba(255,255,255,.6); stroke: currentColor; }
+#schemePicker svg text { fill: currentColor; font: bold 12px sans-serif; text-anchor: middle; }
+#schemePicker svg rect.hi + text { fill: #111; }
+#schemePicker svg text.cap { font-size: 10px; font-weight: normal; }
+#schemePicker small { display: block; margin-top: 12px; opacity: .8; }

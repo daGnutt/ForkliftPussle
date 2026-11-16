@@ -22,6 +22,7 @@ import { chaseDrift, chaseOrbit, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZo
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
+import { pickScheme } from './schemepicker.js';
 import { startAudio, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
@@ -233,7 +234,6 @@ const toggleCab = (slot) => {
 const local = createLocal(toggleCab);
 const startBtn = document.getElementById('startBtn');
 const input = createInput({
-  schemeDetected: (name) => { keySel.value = name; localStorage.setItem('forklift-keys', name); applyKeys(); },
   anyKey: startAudio,
   fullscreen: toggleFullscreen,
   toggleChase,
@@ -512,6 +512,14 @@ function checkTutorial() {
   const step = TUTORIAL[tutStep];
   if (step.done === 'info' ? tutDone.info || age > TUT_INFO_MS : tutDone[step.done] && age > TUT_MIN_MS) nextTutorial();
 }
+const keySel = document.getElementById('keySel');
+if (isTouch) document.getElementById('keyLabel').hidden = true;
+const applyKeys = () => { input.setScheme(keySel.value); document.body.classList.toggle('keys-wasd', keySel.value === 'wasd'); };
+const savedKeys = localStorage.getItem('forklift-keys');
+keySel.value = savedKeys === 'wasd' ? 'wasd' : 'arrows';
+applyKeys();
+keySel.addEventListener('change', () => { localStorage.setItem('forklift-keys', keySel.value); applyKeys(); });
+const wasd = () => keySel.value === 'wasd';
 let tutLastH = game.H;
 const tutorialOpt = document.getElementById('tutorialOpt');
 tutorialOpt.checked = tutStep >= 0;
@@ -866,16 +874,6 @@ bareOpt.addEventListener('change', () => {
   setBareForks(bareOpt.checked);
   localStorage.setItem('forklift-bare-forks', bareOpt.checked ? '1' : '0');
 });
-const keySel = document.getElementById('keySel');
-if (isTouch) document.getElementById('keyLabel').hidden = true;
-const applyKeys = () => { input.setScheme(keySel.value); document.body.classList.toggle('keys-wasd', keySel.value === 'wasd'); };
-const savedKeys = localStorage.getItem('forklift-keys');
-keySel.value = savedKeys === 'wasd' ? 'wasd' : 'arrows';
-applyKeys();
-// First run (nothing saved): the first drive key pressed (arrows or W/S/D) picks the scheme.
-if (!savedKeys && !isTouch) input.setAutoDetect(true);
-keySel.addEventListener('change', () => { input.setAutoDetect(false); localStorage.setItem('forklift-keys', keySel.value); applyKeys(); });
-const wasd = () => keySel.value === 'wasd';
 const touchSel = document.getElementById('touchSel');
 const touchPad = document.getElementById('touch');
 if (isTouch) document.getElementById('touchLabel').hidden = false;
@@ -886,11 +884,18 @@ if (isTouch) { const l = document.getElementById('autoFsLabel'); l.classList.add
   touchSel.value = [...touchSel.options].some((o) => o.value === saved) ? saved : 'classic';
   touchPad.dataset.scheme = touchSel.value;
 }
-touchSel.addEventListener('change', () => {
+const applyTouch = () => {
   touchPad.dataset.scheme = touchSel.value;
   localStorage.setItem('forklift-touch-scheme', touchSel.value);
   input.clear();
-});
+};
+touchSel.addEventListener('change', applyTouch);
+// First run on the splash: nothing saved yet, so ask which control scheme to use.
+if (!localStorage.getItem(isTouch ? 'forklift-touch-scheme' : 'forklift-keys') && !new URLSearchParams(location.search).has('skip')) {
+  pickScheme(isTouch ? 'touch' : 'keyboard').then((name) => {
+    if (isTouch) { touchSel.value = name; applyTouch(); } else { keySel.value = name; localStorage.setItem('forklift-keys', name); applyKeys(); }
+  });
+}
 musicOpt.addEventListener('change', () => setMusicMuted(!musicOpt.checked));
 document.getElementById('menuGoto').addEventListener('submit', (e) => {
   e.preventDefault();

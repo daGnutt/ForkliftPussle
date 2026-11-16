@@ -123,20 +123,6 @@ console.log('input tests passed');
   globalThis.window = stub();
 }
 
-// First run: the first drive key picks the scheme
-for (const [code, want] of [['KeyS', 'wasd'], ['ArrowLeft', 'arrows']]) {
-  const listeners = {};
-  globalThis.window = { addEventListener: (t, f) => { (listeners[t] ??= []).push(f); } };
-  const { createInput: mk } = await import('../js/input.js?detect' + code);
-  let picked = null;
-  const inp = mk({ schemeDetected: (n) => { picked = n; inp.setScheme(n); } });
-  inp.setAutoDetect(true);
-  const key = (c) => listeners.keydown.forEach((f) => f({ code: c, repeat: false, preventDefault() {}, target: null }));
-  key(code); key('KeyW');
-  assert.equal(picked, want, `${code} selects ${want}`);
-  globalThis.window = stub();
-}
-
 // Touch joystick: analog throttle/steering from the knob offset (dead zone 0.12 rescaled)
 {
   const listeners = {};
