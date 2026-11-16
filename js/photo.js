@@ -20,6 +20,27 @@ export function projector(photo, w = W, h = H) {
   };
 }
 
+// An oil drum: a cylinder two boxes tall with bands and a yellow hazard stripe, so it never reads as a crate.
+function drawBarrel(ctx, P, col, cx, cz, y0, y1, poly, line) {
+  const R = 0.38, N = 28, ang = (k) => (k * 2 * Math.PI) / N, pt = (k, y) => P(cx + Math.cos(ang(k)) * R, y, cz + Math.sin(ang(k)) * R);
+  if (y0 > CAM_H) poly(Array.from({ length: N }, (_, k) => pt(k, y0)), shade(col, 0.5), 3);
+  for (let k = 0; k < N; k++) {
+    const mid = ang(k + 0.5), nx = Math.cos(mid), nz = Math.sin(mid);
+    if (nx * (cx + nx * R) + nz * (cz + nz * R) >= 0) continue; // back half
+    const lit = 0.75 + 0.4 * -nz, band = (a, b, f) => poly([pt(k, a), pt(k + 1, a), pt(k + 1, b), pt(k, b)], f, 0);
+    band(y0, y1, shade(col, lit));
+    band(y0 + (y1 - y0) * 0.38, y0 + (y1 - y0) * 0.62, k % 2 ? shade('#fdd835', lit) : shade('#212121', lit)); // hazard stripe
+  }
+  for (const f of [0.06, 0.38, 0.62, 0.94]) {
+    const y = y0 + (y1 - y0) * f;
+    for (let k = 0; k < N; k++) { const mid = ang(k + 0.5); if (Math.cos(mid) * (cx + Math.cos(mid) * R) + Math.sin(mid) * (cz + Math.sin(mid) * R) < 0) line(pt(k, y), pt(k + 1, y), 'rgba(255,255,255,.5)', 2.5); }
+  }
+  const edge = (y) => { for (let k = 0; k < N; k++) { const mid = ang(k + 0.5); if (Math.cos(mid) * (cx + Math.cos(mid) * R) + Math.sin(mid) * (cz + Math.sin(mid) * R) < 0) line(pt(k, y), pt(k + 1, y), '#111', 4); } };
+  edge(y0); edge(y1);
+  const sl = pt(0, y0), sr = pt(N / 2, y0), tl = pt(0, y1), tr = pt(N / 2, y1);
+  line(sl, tl, '#111', 4); line(sr, tr, '#111', 4);
+}
+
 export function drawPhoto(ctx, photo, w = W, h = H) {
   const P = projector(photo, w, h), d = Math.max(1.1, photo.dist || 1.4), n = photo.layers.length;
   const horizon = P(0, 0, 40)[1]; // floor meets the far wall
@@ -37,15 +58,25 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
   ctx.fillStyle = floor; ctx.fillRect(0, hy, w, h - hy);
   ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; // floor tiles, 1 tile apart
   for (let k = -6; k <= 6; k++) { const a = P(k, 0, 1), b = P(k, 0, 40); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
-  const poly = (pts, fill) => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = '#111'; ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.stroke(); };
+  const poly = (pts, fill, line = 4) => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); if (line) { ctx.strokeStyle = '#111'; ctx.lineWidth = line; ctx.lineJoin = 'round'; ctx.stroke(); } };
+  const line = (a, b, style, wd) => { ctx.strokeStyle = style; ctx.lineWidth = wd; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); };
+  const view = photo.view || 0, fx = Math.cos(view), fy = Math.sin(view);
   for (let i = n - 1; i >= 0; i--) { // top first: lower boxes' fronts never overlap those above
-    const col = COLORS[photo.layers[i]] ?? '#9e9e9e', y0 = i, y1 = i + 1, z0 = d - 0.5, z1 = d + 0.5;
-    if (y0 > CAM_H) poly([P(-0.5, y0, z0), P(0.5, y0, z0), P(0.5, y0, z1), P(-0.5, y0, z1)], shade(col, 0.6)); // underside, seen from below
-    poly([P(-0.5, y0, z0), P(0.5, y0, z0), P(0.5, y1, z0), P(-0.5, y1, z0)], shade(col, 1.1));
-    const m = (u, v) => P(-0.5 + u, y0 + v, z0); // box-face coordinates, 0..1
-    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3; // tape cross and inner frame
-    for (const [a, b] of [[[0.5, 0], [0.5, 1]], [[0, 0.5], [1, 0.5]], [[0.12, 0.12], [0.88, 0.12]], [[0.88, 0.12], [0.88, 0.88]], [[0.88, 0.88], [0.12, 0.88]], [[0.12, 0.88], [0.12, 0.12]]]) {
-      const s = m(...a), e = m(...b); ctx.beginPath(); ctx.moveTo(s[0], s[1]); ctx.lineTo(e[0], e[1]); ctx.stroke();
+    const pen = photo.pens?.[i];
+    if (pen?.barrelPart === 'top') continue;
+    const col = COLORS[photo.layers[i]] ?? '#9e9e9e', y0 = i, o = photo.offs?.[i] || { x: 0, y: 0 };
+    const cx = o.x * -fy + o.y * fx, cz = d + o.x * fx + o.y * fy; // box centre in the camera frame: x to the right, z forward
+    if (pen?.barrelPart === 'base') { drawBarrel(ctx, P, col, cx, cz, y0, y0 + 2, poly, line); continue; }
+    const phi = (photo.rots?.[i] ?? view) - view, sn = Math.sin(phi), cs = Math.cos(phi), y1 = y0 + 1;
+    const cor = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]].map(([u, v]) => [cx + u * sn + v * cs, cz + u * cs - v * sn]);
+    if (y0 > CAM_H) poly(cor.map(([x, z]) => P(x, y0, z)), shade(col, 0.6)); // underside, seen from below
+    for (let k = 0; k < 4; k++) {
+      const [ax, az] = cor[k], [bx, bz] = cor[(k + 1) % 4], ex = bx - ax, ez = bz - az, nx = -ez, nz = ex; // outward normal for this winding
+      if (nx * ax + nz * az >= 0) continue; // faces away from the camera
+      const nl = Math.hypot(nx, nz);
+      poly([P(ax, y0, az), P(bx, y0, bz), P(bx, y1, bz), P(ax, y1, az)], shade(col, 0.8 + 0.35 * (-nz / nl)));
+      const m = (u, v) => P(ax + ex * u, y0 + v, az + ez * u);
+      for (const [p, q] of [[[0.5, 0], [0.5, 1]], [[0, 0.5], [1, 0.5]], [[0.12, 0.12], [0.88, 0.12]], [[0.88, 0.12], [0.88, 0.88]], [[0.88, 0.88], [0.12, 0.88]], [[0.12, 0.88], [0.12, 0.12]]]) line(m(...p), m(...q), 'rgba(255,255,255,.55)', 3);
     }
   }
   // flash: hot centre, light vignette
