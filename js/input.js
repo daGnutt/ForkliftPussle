@@ -1,11 +1,22 @@
 import { padAxes, standardPads } from './gamepad.js';
 
-const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyZ', 'KeyQ', 'KeyW', 'KeyM', 'KeyF', 'KeyC', 'Tab', 'KeyP', 'KeyH', 'Escape']);
+const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyZ', 'KeyQ', 'KeyW', 'KeyS', 'KeyD', 'KeyE', 'Comma', 'Period', 'KeyM', 'KeyF', 'KeyC', 'Tab', 'KeyP', 'KeyH', 'Escape']);
 
 const HOLD_MS = 400; // holding the lower key this long drops the forks to the lowest safe level
 
+// Keyboard schemes: physical keys are translated to the canonical (arrows + A/Z) codes the rest of this file uses.
+// Comma/Period rotate the camera in both schemes (W/Q still do in the arrows scheme); the arrow keys always work.
+const SCHEMES = {
+  arrows: { Comma: 'KeyW', Period: 'KeyQ' },
+  wasd: { KeyW: 'ArrowUp', KeyS: 'ArrowDown', KeyA: 'ArrowLeft', KeyD: 'ArrowRight', KeyE: 'KeyA', KeyQ: 'KeyZ', Comma: 'KeyW', Period: 'KeyQ' },
+};
+
 export function createInput(handlers) {
   const down = new Set();
+  let scheme = SCHEMES.arrows;
+  let detect = false; // first run: the first drive key pressed picks the scheme
+  const DETECT = { ArrowUp: 'arrows', ArrowDown: 'arrows', ArrowLeft: 'arrows', ArrowRight: 'arrows', KeyW: 'wasd', KeyS: 'wasd', KeyD: 'wasd' };
+  const keyOf = (code) => scheme[code] ?? code;
   let zPress = 0;
   function press(code) {
     down.add(code);
@@ -45,10 +56,10 @@ export function createInput(handlers) {
   // Touches are re-evaluated from the full list of live touches on every event, so a lost end/cancel
   // (common in installed PWAs: system gestures, edge swipes) or a finger sliding between buttons can't leave
   // a key stuck or dead. A touch that started on a button keeps controlling whichever button is under it.
-  // Virtual joystick (#stick, shown by the "joystick" touch scheme): the offset from its centre becomes arrow-key state.
+  // Virtual joystick (#stick, shown by the "joystick" touch scheme): the offset from its centre becomes arrow-key state plus analog thr/str (dead zone rescaled to 0..1).
   const stickEl = document.getElementById('stick');
   const knob = stickEl?.querySelector('.knob');
-  const stick = { up: false, down: false, left: false, right: false };
+  const stick = { up: false, down: false, left: false, right: false, thr: 0, str: 0 };
   let stickId = null; // touch identifier or pointer id (mouse/pen)
   let stickByTouch = false;
   const stickRect = () => { const r = stickEl?.getBoundingClientRect(); return r && r.width > 0 ? r : null; };
@@ -57,16 +68,17 @@ export function createInput(handlers) {
     const r = stickRect(); if (!r) return;
     const R = r.width / 2;
     let dx = x - (r.left + R), dy = y - (r.top + R);
-    const len = Math.hypot(dx, dy);
-    if (len > R) { dx *= R / len; dy *= R / len; }
+    dx = Math.max(-R, Math.min(R, dx)); dy = Math.max(-R, Math.min(R, dy)); // square pad: each axis reaches full on its own
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     stickEl.classList.add('on');
-    const T = 0.3;
+    const T = 0.12;
+    const ax = (v) => Math.round(Math.sign(v) * Math.max(0, (Math.abs(v) - T) / (1 - T)) * 20) / 20 || 0;
+    stick.thr = ax(-dy / R); stick.str = ax(dx / R);
     stick.left = dx / R < -T; stick.right = dx / R > T; stick.up = dy / R < -T; stick.down = dy / R > T;
   };
   const stickRelease = () => {
     stickId = null; stickByTouch = false;
-    stick.up = stick.down = stick.left = stick.right = false;
+    stick.up = stick.down = stick.left = stick.right = false; stick.thr = stick.str = 0;
     if (knob) knob.style.transform = '';
     stickEl?.classList.remove('on');
   };
@@ -119,9 +131,10 @@ export function createInput(handlers) {
     if (e.code === 'Tab' && e.target !== document.body) return;
     if (GAME_KEYS.has(e.code)) e.preventDefault();
     if (e.repeat) return;
-    press(e.code);
+    if (detect && DETECT[e.code] && !handlers.blocked?.()) { detect = false; handlers.schemeDetected?.(DETECT[e.code]); }
+    press(keyOf(e.code));
   });
-  window.addEventListener('keyup', (e) => down.delete(e.code));
+  window.addEventListener('keyup', (e) => down.delete(keyOf(e.code)));
   window.addEventListener('blur', () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); });
   // Gamepad (standard mapping), polled on every state() call. Held controls are merged into state(); buttons act on their press edge.
   // Drive: right trigger forward, left trigger back; steer: left stick X; fork up: A/RB; fork down: B/LB (hold: lowest safe level);
@@ -170,22 +183,25 @@ export function createInput(handlers) {
     if (b(1) || b(4)) down.add('KeyZ'); else if (was[1] || was[4]) down.delete('KeyZ');
   }
   return {
+    setAutoDetect: (on) => { detect = on; },
+    setScheme: (name) => { scheme = SCHEMES[name] ?? SCHEMES.arrows; down.clear(); },
     setLocalMode: (on) => { localMode = on; },
     clear: () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); buttons.forEach((b) => b.classList.remove('on')); },
     state: () => {
       pollPad();
-      const kUp = down.has('ArrowUp') || stick.up, kDown = down.has('ArrowDown') || stick.down;
-      const kLeft = down.has('ArrowLeft') || stick.left, kRight = down.has('ArrowRight') || stick.right;
+      const kUp = down.has('ArrowUp'), kDown = down.has('ArrowDown');
+      const kLeft = down.has('ArrowLeft'), kRight = down.has('ArrowRight');
       const kThr = (kUp ? 1 : 0) - (kDown ? 1 : 0), kStr = (kRight ? 1 : 0) - (kLeft ? 1 : 0);
       return {
-        thr: kThr || pad.thr,
-        str: kStr || pad.str,
+        thr: kThr || stick.thr || pad.thr,
+        str: kStr || stick.str || pad.str,
         up: down.has('ArrowUp') || stick.up || pad.up,
         down: down.has('ArrowDown') || stick.down || pad.down,
         left: down.has('ArrowLeft') || stick.left || pad.left,
         right: down.has('ArrowRight') || stick.right || pad.right,
         lookL: down.has('KeyW') || pad.lookL,
         lookR: down.has('KeyQ') || pad.lookR,
+        brake: !!stickRect() && stickId === null && !kThr && !pad.thr, // joystick scheme shown but untouched: brake
         horn: down.has('KeyH') || twoFingerHorn || pad.horn,
       };
     },
