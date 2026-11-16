@@ -146,11 +146,12 @@ function plan(grid, from, maxCost, score) {
 
 const spillDrops = (sp, dropArea) => sp.drops ?? sp.r * sp.r / dropArea;
 
-// Small drops first (they are quick to finish), then the nearest one.
+// Spills out in the open first, oil under a stack only once those are done; within each group small drops first
+// (they are quick to finish), then the nearest one.
 function pickSpill(g, bot, dropArea) {
   let best = null, bs = Infinity;
   for (const sp of g.oil || []) {
-    const sc = Math.round(spillDrops(sp, dropArea) * 4) * 100 + Math.hypot(sp.x - bot.x, sp.y - bot.y);
+    const sc = (underStack(g, sp) ? 1e6 : 0) + Math.round(spillDrops(sp, dropArea) * 4) * 100 + Math.hypot(sp.x - bot.x, sp.y - bot.y);
     if (sc < bs) { bs = sc; best = sp; }
   }
   return best;
