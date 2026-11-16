@@ -22,7 +22,8 @@ import { chaseDrift, chaseOrbit, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZo
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
-import { startAudio, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { pickScheme } from './schemepicker.js';
+import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -112,6 +113,28 @@ function watchPops() {
   }
 }
 const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8);
+// The maintenance bots talk in droidspeak, triggered by state changes (first sight of a game is silent): hello on emerging, bye on going home,
+// alarm when a forklift scares them, mumble while mopping, a scanning trill, and the inspector's verdict (perfect / warn).
+let botGame = null, botPrev = new Map(), botSaid = new WeakSet();
+function watchBots() {
+  if (botGame !== game) { botGame = game; botPrev = new Map(); botSaid = new WeakSet(); }
+  const first = (b, key) => { const p = botPrev.get(key); botPrev.set(key, { show: b.show > 0, scared: !!b.scared, shoot: (b.shooting || 0) > 0, clean: !!b.cleaning }); return p; };
+  for (const [key, b, pitch] of [['clean', game.bot, 0.8], ['insp', game.inspector, 1.25]]) {
+    if (!b) continue;
+    const p = first(b, key), vol = hearVol(b.x, b.y);
+    if (!p) continue;
+    if (b.show > 0 && !p.show) playDroid('hello', vol, pitch);
+    else if (b.show <= 0 && p.show) playDroid('bye', vol, pitch);
+    if (b.scared && !p.scared) playDroid('alarm', vol, pitch);
+    if ((b.shooting || 0) > 0 && !p.shoot) playDroid('scan', vol, pitch);
+    if (b.cleaning && !p.clean) playDroid('mumble', vol, pitch);
+  }
+  for (const h of game.hits || []) {
+    if (!h.check || botSaid.has(h)) continue;
+    botSaid.add(h);
+    playDroid(h.check === 'warn' ? 'warn' : 'perfect', hearVol(h.x, h.y), 1.25);
+  }
+}
 // Delivery trucks honk (see `lorryHonks`): once before an incoming truck opens its gate, twice before a full one closes its gate (heard by distance).
 const truckHonks = new Map(), truckNags = new Map();
 function honkTrucks() {
@@ -233,7 +256,6 @@ const toggleCab = (slot) => {
 const local = createLocal(toggleCab);
 const startBtn = document.getElementById('startBtn');
 const input = createInput({
-  schemeDetected: (name) => { keySel.value = name; localStorage.setItem('forklift-keys', name); applyKeys(); },
   anyKey: startAudio,
   fullscreen: toggleFullscreen,
   toggleChase,
@@ -512,6 +534,14 @@ function checkTutorial() {
   const step = TUTORIAL[tutStep];
   if (step.done === 'info' ? tutDone.info || age > TUT_INFO_MS : tutDone[step.done] && age > TUT_MIN_MS) nextTutorial();
 }
+const keySel = document.getElementById('keySel');
+if (isTouch) document.getElementById('keyLabel').hidden = true;
+const applyKeys = () => { input.setScheme(keySel.value); document.body.classList.toggle('keys-wasd', keySel.value === 'wasd'); };
+const savedKeys = localStorage.getItem('forklift-keys');
+keySel.value = savedKeys === 'wasd' ? 'wasd' : 'arrows';
+applyKeys();
+keySel.addEventListener('change', () => { localStorage.setItem('forklift-keys', keySel.value); applyKeys(); });
+const wasd = () => keySel.value === 'wasd';
 let tutLastH = game.H;
 const tutorialOpt = document.getElementById('tutorialOpt');
 tutorialOpt.checked = tutStep >= 0;
@@ -866,16 +896,6 @@ bareOpt.addEventListener('change', () => {
   setBareForks(bareOpt.checked);
   localStorage.setItem('forklift-bare-forks', bareOpt.checked ? '1' : '0');
 });
-const keySel = document.getElementById('keySel');
-if (isTouch) document.getElementById('keyLabel').hidden = true;
-const applyKeys = () => { input.setScheme(keySel.value); document.body.classList.toggle('keys-wasd', keySel.value === 'wasd'); };
-const savedKeys = localStorage.getItem('forklift-keys');
-keySel.value = savedKeys === 'wasd' ? 'wasd' : 'arrows';
-applyKeys();
-// First run (nothing saved): the first drive key pressed (arrows or W/S/D) picks the scheme.
-if (!savedKeys && !isTouch) input.setAutoDetect(true);
-keySel.addEventListener('change', () => { input.setAutoDetect(false); localStorage.setItem('forklift-keys', keySel.value); applyKeys(); });
-const wasd = () => keySel.value === 'wasd';
 const touchSel = document.getElementById('touchSel');
 const touchPad = document.getElementById('touch');
 if (isTouch) document.getElementById('touchLabel').hidden = false;
@@ -886,11 +906,18 @@ if (isTouch) { const l = document.getElementById('autoFsLabel'); l.classList.add
   touchSel.value = [...touchSel.options].some((o) => o.value === saved) ? saved : 'classic';
   touchPad.dataset.scheme = touchSel.value;
 }
-touchSel.addEventListener('change', () => {
+const applyTouch = () => {
   touchPad.dataset.scheme = touchSel.value;
   localStorage.setItem('forklift-touch-scheme', touchSel.value);
   input.clear();
-});
+};
+touchSel.addEventListener('change', applyTouch);
+// First run on the splash: nothing saved yet, so ask which control scheme to use.
+if (!localStorage.getItem(isTouch ? 'forklift-touch-scheme' : 'forklift-keys') && !new URLSearchParams(location.search).has('skip')) {
+  pickScheme(isTouch ? 'touch' : 'keyboard').then((name) => {
+    if (isTouch) { touchSel.value = name; applyTouch(); } else { keySel.value = name; localStorage.setItem('forklift-keys', name); applyKeys(); }
+  });
+}
 musicOpt.addEventListener('change', () => setMusicMuted(!musicOpt.checked));
 document.getElementById('menuGoto').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -1126,6 +1153,7 @@ function frame(now) {
     return { id: t.id, on: !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : hearVol(t.fl.x, t.fl.y) };
   }));
   honkTrucks();
+  watchBots();
   const done = doneSet();
   const fresh = [...done].filter((z) => !doneZones.has(z));
   if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();
@@ -1153,6 +1181,7 @@ function frame(now) {
   if (game.bonks !== bonkCount) { if (game.bonks > bonkCount) playBonk(game.bonkPower); bonkCount = game.bonks; }
   const t2 = performance.now();
   view.fullscreen = !!document.fullscreenElement;
+  game.debugBots = !!debug;
   draw(ctx, game, view);
   if (debug) {
     const t3 = performance.now();

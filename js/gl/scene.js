@@ -1,6 +1,7 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from '../level.js';
 import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
+import { scanBeam } from '../bot.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals, oilDropMark } from '../decals.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
@@ -425,6 +426,59 @@ function addDisco(om, g, eye) {
   }
 }
 
+// Inspection bot (see js/bot.js), Enabot Ebo style: white egg, black visor with two ring eyes and a lens; while scanning, a red laser
+// beam sweeps the stack and a translucent scan sheet runs across it.
+function addInspector(om, tm, g) {
+  const b = g.inspector;
+  if (!b || b.show <= 0) return;
+  const k = b.show, at = (u, v) => [b.x + (u * Math.cos(b.a) - v * Math.sin(b.a)) * k, b.y + (u * Math.sin(b.a) + v * Math.cos(b.a)) * k];
+  const sc = scanBeam(b), face = b.a + Math.PI / 2;
+  const spin = -(b.roll || 0); // rolling forward turns the wheel clockwise seen from its side
+  for (const v of [-0.25, 0.25]) {
+    om.wheel(...at(0, v), 0.12 * k, b.a, 0.12 * k, 0.05 * k, '#1d2024', 12, spin);
+    // A light hub mark on the outer face turns with the wheel.
+    const zc = 0.12 * k + 0.075 * k * Math.sin(spin);
+    om.cuboid(...at(0.075 * Math.cos(spin), v + Math.sign(v) * 0.052), b.a, 0.02 * k, 0.003 * k, zc - 0.02 * k, zc + 0.02 * k, '#8a929a');
+  }
+  om.cuboid(b.x, b.y, b.a, 0.24 * k, 0.2 * k, 0.1 * k, 0.45 * k, '#f6f6f4');
+  om.cuboid(...at(0.2, 0), b.a, 0.05 * k, 0.18 * k, 0.16 * k, 0.4 * k, '#111317');
+  for (const v of [-0.085, 0.085]) {
+    om.wheel(...at(0.255, v), 0.3 * k, face, 0.055 * k, 0.004 * k, '#ffffff', 14);
+    om.wheel(...at(0.257, v), 0.3 * k, face, 0.04 * k, 0.004 * k, '#111317', 14);
+  }
+  om.wheel(...at(0.26, 0), 0.24 * k, face, 0.03 * k, 0.006 * k, sc ? '#ff3b3b' : b.scared ? '#ff6a4a' : '#2a3a52', 12);
+  if (!sc) return;
+  const U = BOX_H + PAL, lens = [sc.lens.x, sc.lens.y, 0.24 * k], to = [sc.sx, sc.sy, 0.05 + sc.z * U];
+  const red = '#ff3030', w = 0.012, dirx = to[0] - lens[0], diry = to[1] - lens[1], dl = Math.hypot(dirx, diry) || 1, px = -diry / dl * w, py = dirx / dl * w;
+  for (const [a, c] of [[[px, py, 0], red], [[0, 0, w], red]]) {
+    om.quad([lens[0] - a[0], lens[1] - a[1], lens[2] - a[2]], [lens[0] + a[0], lens[1] + a[1], lens[2] + a[2]], [to[0] + a[0], to[1] + a[1], to[2] + a[2]], [to[0] - a[0], to[1] - a[1], to[2] - a[2]], [0, 0, 0], parseColor(c));
+  }
+  om.disc(to[0], to[1], to[2], 0.03, '#ff6060', 8);
+  const cx = sc.aim.x + sc.fx * sc.sheet, cy = sc.aim.y + sc.fy * sc.sheet, top = sc.h * U;
+  const e = [-sc.fy * 0.6, sc.fx * 0.6];
+  tm.quad([cx + e[0], cy + e[1], 0], [cx - e[0], cy - e[1], 0], [cx - e[0], cy - e[1], top], [cx + e[0], cy + e[1], top], [0, 0, 0], [1, 0.2, 0.2, 0.28]);
+  om.quad([cx + e[0], cy + e[1], top], [cx - e[0], cy - e[1], top], [cx - e[0], cy - e[1], top + 0.015], [cx + e[0], cy + e[1], top + 0.015], [0, 0, 0], [1, 0.35, 0.35, 1]);
+}
+
+// Cleaning bot hatch and bot (see js/bot.js).
+function addBot(om, tm, g) {
+  const h = g.hatch;
+  if (!h) return;
+  om.cuboid(h.x + h.nx * 0.03, h.y + h.ny * 0.03, h.a, 0.03, 0.45, 0, 0.55, '#2b2f33');
+  om.cuboid(h.x + h.nx * 0.065, h.y + h.ny * 0.065, h.a, 0.005, 0.45, 0.5, 0.55, '#e8c52e');
+  addInspector(om, tm, g);
+  const b = g.bot;
+  if (!b || b.show <= 0) return;
+  const k = b.show, at = (u, v) => [b.x + (u * Math.cos(b.a) - v * Math.sin(b.a)) * k, b.y + (u * Math.sin(b.a) + v * Math.cos(b.a)) * k];
+  for (const v of [-0.25, 0.25]) om.cuboid(...at(0, v), b.a, 0.2 * k, 0.05 * k, 0, 0.12 * k, '#4a4d52');
+  om.cuboid(b.x, b.y, b.a, 0.22 * k, 0.2 * k, 0.1 * k, 0.4 * k, '#f2f2ee');
+  om.cuboid(...at(0.2, 0), b.a, 0.04 * k, 0.15 * k, 0.2 * k, 0.36 * k, '#20262c');
+  om.cuboid(...at(0.245, 0), b.a, 0.005 * k, 0.06 * k, 0.25 * k, 0.31 * k, b.scared ? '#ff6a4a' : '#4ec3ff', { emissive: true });
+  // Two arms hold a square roller across the front; `wheel` has its axis along local y, which is the roller's long axis.
+  for (const v of [-0.17, 0.17]) om.cuboid(...at(0.28, v), b.a, 0.08 * k, 0.02 * k, 0.1 * k, 0.14 * k, '#4a4d52');
+  om.wheel(...at(0.36, 0), 0.12 * k, b.a, 0.05 * k, 0.17 * k, '#e8c52e', 4, b.cleaning ? (g.clock || 0) * 18 : 0);
+}
+
 // Per-frame meshes: { opaque, trans, lights } for the game state `g` seen from `eye` ([x, y]).
 export function dynamicMeshes(g, mode, eye) {
   const om = new Mesh(), tm = new Mesh();
@@ -432,6 +486,7 @@ export function dynamicMeshes(g, mode, eye) {
     tm.disc(oil.x, oil.y, 0.008, oil.r, 'rgba(12,22,22,0.72)', 20);
     tm.disc(oil.x - oil.r * 0.22, oil.y - oil.r * 0.12, 0.009, oil.r * 0.38, 'rgba(180,205,190,0.22)', 12);
   }
+  addBot(om, tm, g);
   for (const st0 of g.stacks) {
     const st = fallView(g, st0);
     const ghost = st.ghost?.includes(g.truck.id);

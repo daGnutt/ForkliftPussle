@@ -117,6 +117,28 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
   });
 }
 
+// Cleaning bot hatch and bot (see js/bot.js), as simple prisms.
+function addBot(faces, cam, g) {
+  const h = g.hatch;
+  if (!h || Math.hypot(h.x - cam.x, h.y - cam.y) > MAX_DIST) return;
+  addPrism(faces, cam, h.x + h.nx * 0.03, h.y + h.ny * 0.03, h.a, 0.03, 0.45, 0, 0.55, '#2b2f33');
+  const q = g.inspector;
+  if (q && q.show > 0) {
+    const k = q.show, at = (u, v) => [q.x + (u * Math.cos(q.a) - v * Math.sin(q.a)) * k, q.y + (u * Math.sin(q.a) + v * Math.cos(q.a)) * k];
+    for (const v of [-0.25, 0.25]) addPrism(faces, cam, ...at(0, v), q.a, 0.2 * k, 0.05 * k, 0, 0.12 * k, '#4a4d52');
+    addPrism(faces, cam, q.x, q.y, q.a, 0.22 * k, 0.2 * k, 0.1 * k, 0.45 * k, '#f6f6f4');
+    addPrism(faces, cam, ...at(0.24, 0), q.a, 0.06 * k, 0.1 * k, 0.2 * k, 0.4 * k, q.flash > 0 ? '#ffffff' : '#111317');
+  }
+  const b = g.bot;
+  if (!b || b.show <= 0) return;
+  const k = b.show, at = (u, v) => [b.x + (u * Math.cos(b.a) - v * Math.sin(b.a)) * k, b.y + (u * Math.sin(b.a) + v * Math.cos(b.a)) * k];
+  for (const v of [-0.25, 0.25]) addPrism(faces, cam, ...at(0, v), b.a, 0.2 * k, 0.05 * k, 0, 0.12 * k, '#4a4d52');
+  addPrism(faces, cam, b.x, b.y, b.a, 0.22 * k, 0.2 * k, 0.1 * k, 0.4 * k, '#f2f2ee');
+  addPrism(faces, cam, ...at(0.2, 0), b.a, 0.04 * k, 0.15 * k, 0.2 * k, 0.36 * k, '#20262c');
+  for (const v of [-0.17, 0.17]) addPrism(faces, cam, ...at(0.28, v), b.a, 0.08 * k, 0.02 * k, 0.1 * k, 0.14 * k, '#4a4d52');
+  addPrism(faces, cam, ...at(0.36, 0), b.a, 0.05 * k, 0.17 * k, 0.07 * k, 0.17 * k, '#e8c52e');
+}
+
 const OVERHEAD_R = 20; // fixtures further away are tiny and fogged
 
 function addOil(faces, cam, g) {
@@ -284,6 +306,7 @@ export function buildFaces(g, cam) {
   const lw = g.lowWalls?.[0];
   if (lw) addPrism(faces, cam, lw.x + lw.w / 2, lw.y + lw.h / 2, 0, lw.w / 2, lw.h / 2, 0, BOX_H + PAL, '#1c1e22', false, 1, 0, true, true); // the raised belt; its top is painted with the floor marks
   addOil(faces, cam, g);
+  addBot(faces, cam, g);
   for (const st0 of g.stacks) { const st = fallView(g, st0); addStack(faces, cam, st.x, st.y, st.rots || [], st.layers, stackZ(g, st), st.offs, st.dropFrom ?? 0,
       dropLift(g, st), st.pen); }
   if (g.carried) {

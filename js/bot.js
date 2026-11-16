@@ -1,0 +1,446 @@
+// Cleaning bot (inspired by M-O): lives behind a hatch in a wall on levels with oil barrels. Once there is oil it drives out,
+// paths to the nearest spill on a coarse grid (avoiding walls, stacks and forklifts), mops it up (one drop per CLEAN_SECS) and
+// runs away whenever a forklift comes close. With nothing left to clean it goes back into its hatch.
+// Pure data + DOM-free; `g.hatch` is static (regenerated per level), `g.bot` is dynamic (saved and synced).
+import { BARREL_COLOR } from './level.js';
+import { FL, toWorld } from './forklift.js';
+
+export const BOT_R = 0.3; // about a quarter of a forklift's footprint
+export const CLEAN_SECS = 5; // seconds per oil drop
+const CELL = 0.25, SPEED = 1.8, FLEE_SPEED = 3.2, SCARE = 1.3, CALM = 2.0, SHOW_SECS = 0.6, TURN = 8;
+const hash = (n) => { const t = Math.sin(n * 12.9898) * 43758.5453; return t - Math.floor(t); };
+
+// Predetermined hatch position on the outer walls: seeded, and clear of stacks, pillars and the start.
+export function makeHatch(g) {
+  if (!g.zones?.length && !g.stacks.some((s) => s.layers.includes(BARREL_COLOR))) return null;
+  const sides = [
+    (t) => ({ x: t * g.w, y: 0, nx: 0, ny: 1 }),
+    (t) => ({ x: g.w, y: t * g.h, nx: -1, ny: 0 }),
+    (t) => ({ x: t * g.w, y: g.h, nx: 0, ny: -1 }),
+    (t) => ({ x: 0, y: t * g.h, nx: 1, ny: 0 }),
+  ];
+  const cands = [];
+  for (let side = 0; side < 4; side++) for (let k = 1; k < 20; k++) cands.push({ ...sides[side](k / 20), side });
+  const base = (g.seed || 0) * 7 + g.level * 31;
+  // Clearance of the spot in front of the hatch to stacks, pillars, drop-off zones and the start; the hatch must also open into free floor.
+  const clearance = (h) => {
+    const p = { x: h.x + h.nx * 0.5, y: h.y + h.ny * 0.5 };
+    let c = Math.hypot(g.start.x - p.x, g.start.y - p.y) - 2;
+    for (const s of g.stacks) c = Math.min(c, Math.hypot(s.x - p.x, s.y - p.y) - 1);
+    for (const z of g.zones || []) c = Math.min(c, Math.hypot(z.x - p.x, z.y - p.y) - 0.7);
+    for (const w of g.walls.slice(4)) c = Math.min(c, rectDist(p.x, p.y, w) - 0.5);
+    return c;
+  };
+  const start = Math.floor(hash(base) * cands.length);
+  let best = null, bestC = -Infinity;
+  for (let i = 0; i < cands.length; i++) {
+    const h = cands[(start + i) % cands.length], c = clearance(h);
+    if (c >= 0.5) { best = h; break; }
+    if (c > bestC) { bestC = c; best = h; }
+  }
+  return { x: best.x, y: best.y, nx: best.nx, ny: best.ny, a: Math.atan2(best.ny, best.nx) };
+}
+
+export const botHome = (h) => ({ x: h.x + h.nx * (BOT_R + 0.1), y: h.y + h.ny * (BOT_R + 0.1) });
+
+export function makeBot(g) {
+  if (!g.hatch || !g.stacks.some((s) => s.layers.includes(BARREL_COLOR))) return null;
+  const home = botHome(g.hatch);
+  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', cleaning: false, scared: false, path: [], repath: 0, clean: 0 };
+}
+
+// The inspection bot: photographs every completed drop point once (`seen` holds the keys of inspected zones).
+export function makeInspector(g) {
+  if (!g.hatch) return null;
+  const home = botHome(g.hatch);
+  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', shooting: 0, flash: 0, roll: 0, scared: false, path: [], repath: 0, seen: [] };
+}
+
+function rectDist(x, y, w) {
+  const dx = Math.max(w.x - x, 0, x - (w.x + w.w)), dy = Math.max(w.y - y, 0, y - (w.y + w.h));
+  return Math.hypot(dx, dy);
+}
+
+// Circles approximating each forklift (and its carried stack): { x, y, r }.
+// A forklift rolling faster than MOVING_SPEED (tiles/s) counts as moving; only moving ones scare a bot.
+const MOVING_SPEED = 0.15;
+export function truckCircles(g, movingOnly = false) {
+  const out = [];
+  for (const t of g.trucks) {
+    if (t.gone || (movingOnly && Math.abs(t.fl.speed) <= MOVING_SPEED)) continue;
+    for (const [x, r] of [[-1.7, 0.6], [-1.1, 0.6], [-0.5, 0.6], [0.1, 0.6], [0.9, 0.35], [1.4, 0.35]]) out.push({ ...toWorld(t.fl, x, 0), r });
+    if (t.carried) out.push({ ...toWorld(t.fl, FL.carryX, 0), r: 0.75 });
+  }
+  return out;
+}
+
+// Smallest gap between the bot and any forklift.
+export function truckGap(g, p, movingOnly = false) {
+  let best = Infinity;
+  for (const c of truckCircles(g, movingOnly)) best = Math.min(best, Math.hypot(p.x - c.x, p.y - c.y) - c.r - BOT_R);
+  return best;
+}
+
+function buildGrid(g, margin) {
+  const nx = Math.ceil(g.w / CELL), ny = Math.ceil(g.h / CELL), blocked = new Uint8Array(nx * ny);
+  const stamp = (x0, y0, x1, y1, hit) => {
+    for (let j = Math.max(0, Math.floor(y0 / CELL)); j <= Math.min(ny - 1, Math.floor(y1 / CELL)); j++) {
+      for (let i = Math.max(0, Math.floor(x0 / CELL)); i <= Math.min(nx - 1, Math.floor(x1 / CELL)); i++) {
+        if (hit((i + 0.5) * CELL, (j + 0.5) * CELL)) blocked[j * nx + i] = 1;
+      }
+    }
+  };
+  const circle = (c, r) => stamp(c.x - r, c.y - r, c.x + r, c.y + r, (x, y) => Math.hypot(x - c.x, y - c.y) < r);
+  for (const w of g.walls) {
+    const m = BOT_R + 0.05;
+    stamp(w.x - m, w.y - m, w.x + w.w + m, w.y + w.h + m, (x, y) => rectDist(x, y, w) < m);
+  }
+  for (const s of g.stacks) circle(s, STACK_R + BOT_R);
+  for (const c of truckCircles(g)) circle(c, c.r + BOT_R + margin);
+  return { nx, ny, blocked };
+}
+
+const cellOf = (grid, p) => ({ i: Math.max(0, Math.min(grid.nx - 1, Math.floor(p.x / CELL))), j: Math.max(0, Math.min(grid.ny - 1, Math.floor(p.y / CELL))) });
+const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2]];
+
+// Dijkstra over free cells from `from`. `score(x, y, cost)` ranks cells (lower is better); the best cell within `maxCost` wins.
+// Returns the waypoint list (world coordinates) to that cell, or [].
+function plan(grid, from, maxCost, score) {
+  const { nx, ny, blocked } = grid, n = nx * ny;
+  const s = cellOf(grid, from), start = s.j * nx + s.i;
+  const cost = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1);
+  cost[start] = 0;
+  const open = [[0, start]]; // binary min-heap on cost
+  const push = (item) => {
+    let k = open.push(item) - 1;
+    while (k > 0 && open[(k - 1) >> 1][0] > item[0]) { open[k] = open[(k - 1) >> 1]; k = (k - 1) >> 1; }
+    open[k] = item;
+  };
+  const pop = () => {
+    const top = open[0], last = open.pop();
+    if (open.length) {
+      let k = 0;
+      for (;;) {
+        let c = 2 * k + 1;
+        if (c >= open.length) break;
+        if (c + 1 < open.length && open[c + 1][0] < open[c][0]) c++;
+        if (open[c][0] >= last[0]) break;
+        open[k] = open[c]; k = c;
+      }
+      open[k] = last;
+    }
+    return top;
+  };
+  let best = start, bestScore = Infinity;
+  while (open.length) {
+    const [c, id] = pop();
+    if (c > cost[id]) continue;
+    const i = id % nx, j = (id - i) / nx;
+    const sc = score((i + 0.5) * CELL, (j + 0.5) * CELL, c);
+    if (sc < bestScore) { bestScore = sc; best = id; }
+    for (const [di, dj, w] of NB) {
+      const ni = i + di, nj = j + dj;
+      if (ni < 0 || nj < 0 || ni >= nx || nj >= ny || blocked[nj * nx + ni]) continue;
+      if (di && dj && (blocked[j * nx + ni] || blocked[nj * nx + i])) continue;
+      const nc = c + w * CELL;
+      if (nc > maxCost || nc >= cost[nj * nx + ni]) continue;
+      cost[nj * nx + ni] = nc; prev[nj * nx + ni] = id;
+      push([nc, nj * nx + ni]);
+    }
+  }
+  const path = [];
+  for (let id = best; id !== start && id >= 0; id = prev[id]) path.push({ x: ((id % nx) + 0.5) * CELL, y: (Math.floor(id / nx) + 0.5) * CELL });
+  return path.reverse();
+}
+
+// How far (capped at 8 tiles) a point is from the nearest forklift; bots prefer goals far from the forklifts.
+const FAR_CAP = 8, FAR_WEIGHT = 2, CLEAN_FAR_WEIGHT = 6; // the cleaner weighs distance from forklifts well above its own travel distance
+// A bot that had to flee from a forklift keeps SPOOK_SECS of extra caution: its far-from-forklift preference is multiplied by SPOOK_MULT.
+const SPOOK_SECS = 25, SPOOK_MULT = 4;
+const farWeight = (g, bot, base) => base * (bot.spookedUntil > g.clock ? SPOOK_MULT : 1);
+function farFromTrucks(g, p) {
+  let d = FAR_CAP;
+  for (const c of truckCircles(g)) d = Math.min(d, Math.hypot(p.x - c.x, p.y - c.y) - c.r);
+  return Math.max(0, d);
+}
+
+const spillDrops = (sp, dropArea) => sp.drops ?? sp.r * sp.r / dropArea;
+
+// ---- Blocked routes ----
+// Targets the bot gave up on for a while (`bot.skip`: key -> g.clock until which it is ignored); used only if something else is left to do.
+const SKIP_SECS = 10, GIVE_UP_SECS = 3, REPLAN = 0.4, KEEP_ROUTE = 1e9; // KEEP_ROUTE: no periodic replanning (survives JSON, unlike Infinity)
+const skipped = (g, bot, key) => (bot.skip?.[key] ?? 0) > g.clock;
+function preferLive(g, bot, items, keyOf) {
+  const live = items.filter((o) => !skipped(g, bot, keyOf(o)));
+  return live.length ? live : items;
+}
+
+// True if one of the next waypoints now lies inside a parked forklift or a stack (something settled on the route).
+// Moving forklifts are ignored until they scare the bot.
+function routeObstructed(g, bot) {
+  if (!bot.path.length) return false;
+  const moving = new Set(truckCircles(g, true).map((c) => `${c.x},${c.y}`));
+  const trucks = truckCircles(g).filter((c) => !moving.has(`${c.x},${c.y}`));
+  for (const w of bot.path.slice(0, 8)) {
+    for (const c of trucks) if (Math.hypot(w.x - c.x, w.y - c.y) < c.r + BOT_R + 0.1) return true;
+    for (const s of g.stacks) if (Math.hypot(w.x - s.x, w.y - s.y) < STACK_R + BOT_R) return true;
+  }
+  return false;
+}
+
+// Where to wait while the way is blocked: a nearby free cell with room around it (away from forklifts, walls and boxes), so the bot
+// is not in anybody's way. Staying put is free, so it only moves when its spot is bad.
+function waitPlan(g, bot, grid) {
+  const trucks = truckCircles(g);
+  return plan(grid, bot, 6, (x, y, c) => {
+    let clear = 3;
+    for (const t of trucks) clear = Math.min(clear, Math.hypot(x - t.x, y - t.y) - t.r);
+    let room = 1.2;
+    for (const w of g.walls) room = Math.min(room, rectDist(x, y, w));
+    for (const s of g.stacks) room = Math.min(room, Math.hypot(x - s.x, y - s.y) - STACK_R);
+    return -Math.max(0, clear) * 3 - Math.max(0, room) * 2 + c * 0.6;
+  });
+}
+
+// Plans the way to a goal on the grid with forklifts as obstacles. `reached(end)` tells whether a route ending there gets the bot where it
+// wants to be; if not (forklifts or boxes block every way), the bot picks a waiting spot, replans every REPLAN seconds so it sets off as soon
+// as a way opens (the Dijkstra search finds a detour on its own), and gives the target up for a while after GIVE_UP_SECS of waiting.
+function goalPlan(g, bot, key, score, reached) {
+  const grid = buildGrid(g, 0.45);
+  const path = plan(grid, bot, 80, score);
+  const end = path.length ? path[path.length - 1] : bot;
+  if (reached(end)) { bot.waiting = false; bot.waitT = 0; return path; }
+  bot.waiting = true;
+  bot.waitT = (bot.waitT || 0) + REPLAN;
+  if (key != null && bot.waitT >= GIVE_UP_SECS) { (bot.skip ||= {})[key] = g.clock + SKIP_SECS; bot.waitT = 0; }
+  return waitPlan(g, bot, grid);
+}
+
+// Spills out in the open first, oil under a stack only once those are done; within each group small drops first
+// (they are quick to finish), then the nearest one.
+function pickSpill(g, bot, dropArea) {
+  let best = null, bs = Infinity;
+  for (const sp of preferLive(g, bot, g.oil || [], (o) => o.id)) {
+    const sc = (underStack(g, sp) ? 1e6 : 0) + Math.round(spillDrops(sp, dropArea) * 4) * 100 + Math.hypot(sp.x - bot.x, sp.y - bot.y) - (bot.spookedUntil > g.clock ? farWeight(g, bot, CLEAN_FAR_WEIGHT) * farFromTrucks(g, sp) : 0); // only a spooked cleaner goes for far-away spills
+    if (sc < bs) { bs = sc; best = sp; }
+  }
+  return best;
+}
+
+// Oil under a stack can't be driven to: the bot stops at the edge and reaches in with its brush arms.
+const STACK_R = 0.75, REACH = 1.45;
+const underStack = (g, p) => g.stacks.some((s) => Math.hypot(s.x - p.x, s.y - p.y) < STACK_R);
+
+// Moves along bot.path by `move` tiles, turning towards each waypoint; returns the unused distance.
+function followPath(bot, move, dt) {
+  while (bot.path.length && move > 0) {
+    const w = bot.path[0], d = Math.hypot(w.x - bot.x, w.y - bot.y);
+    if (d <= move) {
+      if (d > 1e-6) bot.a = Math.atan2(w.y - bot.y, w.x - bot.x);
+      bot.x = w.x; bot.y = w.y; move -= d; bot.path.shift();
+      continue;
+    }
+    const ang = Math.atan2(w.y - bot.y, w.x - bot.x);
+    let da = ang - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
+    bot.a += da * Math.min(1, TURN * dt);
+    bot.x += Math.cos(ang) * move; bot.y += Math.sin(ang) * move;
+    move = 0;
+  }
+  return move;
+}
+
+// Get pushed out of a forklift that reached the bot anyway (and off the other bot).
+function pushOut(g, bot) {
+  for (const c of truckCircles(g)) {
+    const d = Math.hypot(bot.x - c.x, bot.y - c.y), min = c.r + BOT_R * 0.8;
+    if (d < min && d > 1e-6) { bot.x = c.x + (bot.x - c.x) / d * min; bot.y = c.y + (bot.y - c.y) / d * min; }
+  }
+  for (const o of [g.bot, g.inspector]) {
+    if (!o || o === bot || o.show <= 0) continue;
+    const d = Math.hypot(bot.x - o.x, bot.y - o.y), min = BOT_R * 1.6;
+    if (d < min && d > 1e-6) { bot.x = o.x + (bot.x - o.x) / d * min; bot.y = o.y + (bot.y - o.y) / d * min; }
+  }
+}
+
+// Flee plan: the reachable cell furthest from every forklift.
+function fleePlan(g, bot) {
+  const trucks = truckCircles(g);
+  return plan(buildGrid(g, 0), bot, 7, (x, y, c) => {
+    let clear = Infinity;
+    for (const t of trucks) clear = Math.min(clear, Math.hypot(x - t.x, y - t.y) - t.r);
+    return -Math.min(clear, 4) * 3 + c * 0.2;
+  });
+}
+
+export function stepBot(g, dt, dropArea) {
+  const bot = g.bot;
+  if (!bot || !g.hatch) return;
+  const home = botHome(g.hatch);
+  const spill = pickSpill(g, bot, dropArea);
+  const gap = truckGap(g, bot, true);
+
+  if (bot.mode === 'hidden') {
+    if (!spill) return;
+    bot.mode = 'out';
+  }
+  bot.scared = gap < (bot.scared ? CALM : SCARE);
+  if (bot.scared) bot.spookedUntil = g.clock + SPOOK_SECS;
+  bot.cleaning = false;
+  let speed = SPEED;
+  let goal = null;
+
+  bot.repath -= dt;
+  bot.goal = null;
+  if (bot.scared) {
+    speed = FLEE_SPEED;
+    if (bot.repath <= 0 || bot.fleePath !== true) {
+      bot.path = fleePlan(g, bot);
+      bot.fleePath = true; bot.repath = 0.25;
+    }
+  } else {
+    if (bot.fleePath) bot.repath = 0;
+    bot.fleePath = false;
+    const key = spill?.id ?? 'home';
+    if (bot.planKey !== key) { bot.planKey = key; bot.repath = 0; }
+    goal = spill ? { x: spill.x, y: spill.y, r: Math.max(0.08, Math.sqrt(spillDrops(spill, dropArea) * dropArea) * 0.5) } : { ...home, r: 0.08 };
+    bot.goal = { x: goal.x, y: goal.y }; // shown by the debug overlay
+    if (routeObstructed(g, bot)) bot.repath = 0;
+    if (bot.repath <= 0) {
+      const covered = spill && underStack(g, spill);
+      bot.path = goalPlan(g, bot, spill?.id, (x, y) => Math.max(0, Math.hypot(x - goal.x, y - goal.y) - goal.r) * 10,
+        (e) => { const d = Math.hypot(e.x - goal.x, e.y - goal.y); return covered ? d <= REACH - 0.05 : d < goal.r + 0.5; });
+      bot.repath = bot.waiting || !bot.path.length ? REPLAN : KEEP_ROUTE; // a route is kept until something disturbs it
+    }
+  }
+
+  let move = followPath(bot, speed * dt, dt);
+  // The grid is coarse: finish the last few centimetres in a straight line.
+  if (!bot.path.length && goal && move > 0) {
+    const d = Math.hypot(goal.x - bot.x, goal.y - bot.y);
+    if (d > 1e-6 && d < 0.5 && truckGap(g, goal) > 0 && !underStack(g, goal)) {
+      const step = Math.min(move, Math.max(0, d - goal.r * 0.5));
+      bot.a = Math.atan2(goal.y - bot.y, goal.x - bot.x);
+      bot.x += (goal.x - bot.x) / d * step; bot.y += (goal.y - bot.y) / d * step;
+    }
+  }
+
+  pushOut(g, bot);
+
+  if (!bot.scared && goal) {
+    const d = Math.hypot(goal.x - bot.x, goal.y - bot.y);
+    const reaching = spill && !bot.path.length && d <= REACH && underStack(g, spill);
+    if (spill && (d <= goal.r + 0.12 || reaching)) {
+      bot.cleaning = true;
+      if (reaching) bot.a = Math.atan2(goal.y - bot.y, goal.x - bot.x);
+      const drops = spillDrops(spill, dropArea) - dt / CLEAN_SECS;
+      if (drops <= 1e-9) g.oil.splice(g.oil.indexOf(spill), 1);
+      else { spill.drops = drops; spill.r = Math.sqrt(drops * dropArea); }
+    } else if (!spill && Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
+      bot.x = home.x; bot.y = home.y;
+      bot.show = Math.max(0, bot.show - dt / SHOW_SECS);
+      if (bot.show === 0) bot.mode = 'hidden';
+      return;
+    }
+  }
+  bot.show = Math.min(1, bot.show + dt / SHOW_SECS);
+}
+
+// ---- Inspection bot ----
+const PHOTO_DIST = 1.4, SHOOT_SECS = 1.8, FLASH_SECS = 0.35;
+// Laser scan of the stack being inspected, or null: `lens` the beam's origin (in front of the bot), `aim` the stack, `h` its height in boxes,
+// `u` scan progress 0..1, `sx, sy` the beam's current target on the floor, `z` its height in boxes (0..h) and `sheet` the offset of the scan sheet.
+export function scanBeam(b) {
+  if (!b || !b.aim || b.show <= 0 || b.shooting <= 0) return null;
+  const u = Math.min(1, b.shooting / SHOOT_SECS), dx = b.aim.x - b.x, dy = b.aim.y - b.y, d = Math.hypot(dx, dy) || 1;
+  const fx = dx / d, fy = dy / d, sw = 0.5 * Math.sin(u * Math.PI * 4), depth = 0.45 * Math.sin(u * Math.PI * 2);
+  return {
+    lens: { x: b.x + Math.cos(b.a) * 0.3, y: b.y + Math.sin(b.a) * 0.3 }, aim: b.aim, h: b.aim.h, u, fx, fy,
+    sx: b.aim.x - fy * sw + fx * depth, sy: b.aim.y + fx * sw + fy * depth, z: b.aim.h * (0.5 + 0.5 * Math.sin(u * Math.PI * 6)), sheet: depth,
+  };
+}
+
+export const zoneKey = (z) => `${z.x},${z.y},${z.color}`;
+
+// Completed drop points that have not been photographed yet.
+export function pendingZones(g, done) {
+  const insp = g.inspector;
+  if (!insp) return [];
+  const doneKeys = new Set(done.map(zoneKey));
+  insp.seen = insp.seen.filter((k) => doneKeys.has(k)); // a drop point that was undone is inspected again once it is completed anew
+  return done.filter((z) => !insp.seen.includes(zoneKey(z)));
+}
+
+export const WHEEL_R = 0.12;
+
+// Steps the inspector and turns its wheels (`roll`, radians) by the distance it drove.
+export function stepInspector(g, dt, done, wonky = () => false) {
+  const bot = g.inspector;
+  if (!bot) return;
+  const x = bot.x, y = bot.y;
+  inspectorStep(g, dt, done, wonky);
+  bot.roll = ((bot.roll || 0) + ((bot.x - x) * Math.cos(bot.a) + (bot.y - y) * Math.sin(bot.a)) / WHEEL_R) % (Math.PI * 2);
+}
+
+function inspectorStep(g, dt, done, wonky) {
+  const bot = g.inspector;
+  if (!bot || !g.hatch) return;
+  const home = botHome(g.hatch);
+  const todo = pendingZones(g, done);
+  bot.flash = Math.max(0, bot.flash - dt / FLASH_SECS);
+  let target = null, bs = Infinity;
+  for (const z of preferLive(g, bot, todo, zoneKey)) {
+    const sc = Math.hypot(z.x - bot.x, z.y - bot.y) - farWeight(g, bot, FAR_WEIGHT) * farFromTrucks(g, z);
+    if (sc < bs) { bs = sc; target = z; }
+  }
+  if (bot.mode === 'hidden') {
+    if (!target) return;
+    bot.mode = 'out';
+  }
+  if (bot.target !== (target && zoneKey(target))) { bot.target = target && zoneKey(target); bot.shooting = 0; bot.repath = 0; }
+  bot.scared = truckGap(g, bot, true) < (bot.scared ? CALM : SCARE);
+  if (bot.scared) bot.spookedUntil = g.clock + SPOOK_SECS;
+  let speed = SPEED;
+  bot.repath -= dt;
+  bot.goal = null;
+  if (bot.scared) {
+    speed = FLEE_SPEED; bot.shooting = 0;
+    if (bot.repath <= 0 || bot.fleePath !== true) { bot.path = fleePlan(g, bot); bot.fleePath = true; bot.repath = 0.25; }
+  } else {
+    if (bot.fleePath) bot.repath = 0;
+    bot.fleePath = false;
+    bot.goal = { x: (target ?? home).x, y: (target ?? home).y };
+    if (routeObstructed(g, bot)) bot.repath = 0;
+    if (bot.repath <= 0) {
+      const goal = target ?? home;
+      const ring = target ? PHOTO_DIST : 0;
+      bot.path = goalPlan(g, bot, target && zoneKey(target), (x, y, c) => Math.abs(Math.hypot(x - goal.x, y - goal.y) - ring) * 10 + c * 0.02,
+        (e) => (target ? Math.hypot(e.x - goal.x, e.y - goal.y) < PHOTO_DIST + 0.45 : Math.hypot(e.x - goal.x, e.y - goal.y) < 0.5));
+      bot.repath = bot.waiting || !bot.path.length ? REPLAN : KEEP_ROUTE;
+    }
+  }
+  followPath(bot, speed * dt, dt);
+  pushOut(g, bot);
+
+  if (!bot.scared) {
+    if (target) {
+      const d = Math.hypot(target.x - bot.x, target.y - bot.y);
+      if (!bot.path.length && d < PHOTO_DIST + 0.5) {
+        const st = g.stacks.find((q) => Math.hypot(q.x - target.x, q.y - target.y) < 0.5);
+        bot.aim = { x: target.x, y: target.y, h: st ? st.layers.length : 1 };
+        let da = Math.atan2(target.y - bot.y, target.x - bot.x) - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
+        bot.a += da * Math.min(1, TURN * dt);
+        if (Math.abs(da) < 0.15) bot.shooting += dt;
+        if (bot.shooting >= SHOOT_SECS) {
+          bot.seen.push(zoneKey(target)); bot.shooting = 0; bot.flash = 1; bot.target = null; bot.repath = 0;
+          (g.hits ||= []).push({ x: bot.x, y: bot.y, z: 0.5, t: g.clock, owner: null, check: wonky(target) ? 'warn' : 'perfect' }); // verdict floats up from the bot
+        }
+      }
+    } else if (Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
+      bot.x = home.x; bot.y = home.y;
+      bot.show = Math.max(0, bot.show - dt / SHOW_SECS);
+      if (bot.show === 0) bot.mode = 'hidden';
+      return;
+    }
+  }
+  bot.show = Math.min(1, bot.show + dt / SHOW_SECS);
+}

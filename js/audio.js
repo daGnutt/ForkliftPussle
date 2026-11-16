@@ -530,6 +530,58 @@ export function playWonky() {
   });
 }
 
+// Droidspeak (R2-D2 style): a string of short chirps and whistles with fast pitch glides, vibrato and a nasal band-pass. `mood` shapes the
+// contour: 'hello' (bright, rising), 'bye' (falling), 'scan' (a rapid rising trill), 'perfect' (happy warble up), 'warn' (worried, falling and wobbly),
+// 'alarm' (short, frantic squeaks), 'mumble' (a few low chirps). `pitch` scales the voice (each bot has its own).
+const DROID_MOODS = {
+  hello: { n: [4, 6], dur: [0.05, 0.11], lo: 700, hi: 2400, bias: 0.35 },
+  bye: { n: [3, 5], dur: [0.06, 0.12], lo: 600, hi: 2000, bias: -0.4 },
+  perfect: { n: [5, 7], dur: [0.05, 0.1], lo: 900, hi: 2800, bias: 0.6 },
+  warn: { n: [3, 4], dur: [0.12, 0.2], lo: 500, hi: 1700, bias: -0.7 },
+  alarm: { n: [6, 9], dur: [0.035, 0.07], lo: 1400, hi: 3200, bias: 0 },
+  mumble: { n: [2, 3], dur: [0.06, 0.1], lo: 500, hi: 1100, bias: 0 },
+};
+const rand = (a, b) => a + Math.random() * (b - a);
+function droidChirp(t, dur, f0, f1, gain, wobble) {
+  const o = tone(sfxBus, f0, t, dur, { type: Math.random() < 0.3 ? 'square' : 'sine', gain, attack: 0.006, release: Math.min(0.05, dur * 0.4), cutoff: 4200 });
+  o.frequency.cancelScheduledValues(t);
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.85);
+  // Vibrato.
+  const lfo = ctx.createOscillator(), depth = ctx.createGain();
+  lfo.frequency.value = wobble ? rand(10, 16) : rand(24, 40);
+  depth.gain.value = (f0 + f1) / 2 * (wobble ? 0.07 : 0.025);
+  lfo.connect(depth); depth.connect(o.frequency);
+  lfo.start(t); lfo.stop(t + dur + 0.05);
+}
+export function playDroid(mood = 'hello', vol = 1, pitch = 1) {
+  if (!ctx || ctx.state !== 'running' || vol <= 0) return;
+  let t = ctx.currentTime;
+  const gain = 0.1 * vol;
+  if (mood === 'scan') {
+    // Rapid "beedeedeedee" trill that climbs over the length of the scan.
+    for (let i = 0; i < 24; i++) {
+      const f = pitch * (900 + i * 55 + (i % 2 ? 260 : 0));
+      droidChirp(t, 0.055, f, f * (i % 2 ? 0.92 : 1.08), gain * 0.8, false);
+      t += 0.075;
+    }
+    droidChirp(t, 0.18, pitch * 2300, pitch * 3000, gain, false);
+    return;
+  }
+  const m = DROID_MOODS[mood] ?? DROID_MOODS.hello;
+  const n = Math.round(rand(m.n[0], m.n[1]));
+  let f = pitch * rand(m.lo, m.hi) * (m.bias > 0 ? 0.6 : m.bias < 0 ? 1 : 0.9);
+  for (let i = 0; i < n; i++) {
+    const dur = rand(m.dur[0], m.dur[1]);
+    // Step the pitch with the mood's bias, jumping about randomly now and then.
+    let next = f * Math.pow(2, m.bias * rand(0.2, 0.9) + (Math.random() < 0.35 ? rand(-1, 1) : 0));
+    next = Math.max(pitch * m.lo * 0.7, Math.min(pitch * m.hi * 1.2, next));
+    droidChirp(t, dur, f, next, gain, mood === 'warn');
+    t += dur + (Math.random() < 0.25 ? rand(0.06, 0.12) : rand(0.01, 0.04));
+    f = next * (Math.random() < 0.3 ? rand(0.8, 1.25) : 1);
+  }
+}
+
 // Electric motor: a low, soft hum (triangle + sub sine) whose pitch and level follow the forklift speed.
 function startEngine() {
   const o = ctx.createOscillator();

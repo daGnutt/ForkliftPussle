@@ -68,7 +68,7 @@ export function zoneLabelItems(g, cam) {
 }
 
 // Rows of a popup: the red damage `−pts`, or a finished stack's score breakdown.
-export const hitRows = (h) => (h.score ? pointsRows(h.score) : [[{ text: `−${h.pts}`, color: DAMAGE_COLOR }]]);
+export const hitRows = (h) => (h.check ? [[h.check === 'warn' ? { text: '⚠ Warning', color: WONKY_COLOR } : { text: '✔ Perfect', color: '#7dff9b' }]] : h.score ? pointsRows(h.score) : [[{ text: `−${h.pts}`, color: DAMAGE_COLOR }]]);
 
 // Trucks whose horn is sounding, and their "HOOOONK" label (bobbing a little, at screen point (sx, sy)).
 // The text grows while the horn is held: HONK, an extra O every 0.5 s up to five, then *HOOOOONK* a second later.
