@@ -141,6 +141,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   }
   assert.equal(g.inspector.seen.length, done.length, 'all completed drop points were photographed');
   assert.equal(flashes, done.length, 'one photo each');
+  assert.ok(g.photo && g.photo.n === done.length && typeof g.photo.ok === 'boolean' && g.photo.layers.length > 0, 'each photo leaves a snapshot for the popup');
   assert.ok(g.inspector.roll !== 0, 'the wheels turned while driving');
   assert.ok(g.hits.length === 0 || g.hits.every((h) => h.check === 'perfect' || h.check === 'warn'), 'verdict labels');
   run(g, NONE, 60);
