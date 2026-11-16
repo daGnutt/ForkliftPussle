@@ -361,6 +361,9 @@ export function scanBeam(b) {
   };
 }
 
+// Fingerprint of a floor stack's exact arrangement: any nudge changes it.
+export const stackSig = (s) => (s ? [s.x, s.y, ...s.layers, ...(s.rots || []), ...(s.offs || []).flatMap((o) => [o.x, o.y])].map((v) => (typeof v === 'number' ? Math.round(v * 1000) : v)).join(',') : '');
+
 export const zoneKey = (z) => `${z.x},${z.y},${z.color}`;
 
 // Completed drop points that have not been photographed yet.
@@ -368,7 +371,9 @@ export function pendingZones(g, done) {
   const insp = g.inspector;
   if (!insp) return [];
   const doneKeys = new Set(done.map(zoneKey));
-  insp.seen = insp.seen.filter((k) => doneKeys.has(k)); // a drop point that was undone is inspected again once it is completed anew
+  // a stack that was touched since its photo (nudged, straightened, re-placed) is inspected again
+  const changed = new Set(done.filter((z) => insp.sigs?.[zoneKey(z)] !== undefined && insp.sigs[zoneKey(z)] !== stackSig(g.stacks.find((q) => Math.hypot(q.x - z.x, q.y - z.y) < 0.5))).map(zoneKey));
+  insp.seen = insp.seen.filter((k) => doneKeys.has(k) && !changed.has(k)); // a drop point that was undone is inspected again once it is completed anew
   return done.filter((z) => !insp.seen.includes(zoneKey(z)));
 }
 
@@ -437,6 +442,7 @@ function inspectorStep(g, dt, done, wonky) {
         if (Math.abs(da) < 0.15) bot.shooting += dt;
         if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
           g.photo = { n: (g.photo?.n || 0) + 1, ok: !wonky(target), layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [], pens: st?.pen ? st.pen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide })) : [], view: Math.atan2(target.y - bot.y, target.x - bot.x), dist: Math.hypot(target.x - bot.x, target.y - bot.y) }; // the snapshot shown as a popup (js/photo.js)
+          (bot.sigs ||= {})[zoneKey(target)] = stackSig(st);
           bot.seen.push(zoneKey(target)); bot.shooting = 0; bot.flash = 1; bot.target = null; bot.repath = 0;
           (g.hits ||= []).push({ x: bot.x, y: bot.y, z: 0.5, t: g.clock, owner: null, check: wonky(target) ? 'warn' : 'perfect' }); // verdict floats up from the bot
         }

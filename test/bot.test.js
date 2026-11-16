@@ -144,6 +144,13 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(flashes, done.length, 'one photo each');
   assert.ok(g.photo && g.photo.n === done.length && typeof g.photo.ok === 'boolean' && g.photo.layers.length > 0, 'each photo leaves a snapshot for the popup');
   assert.equal(flaggedStacks(g).length, done.filter((z) => zoneWonky(g, z)).length, 'every inspected crooked stack is flagged with a "!"');
+  if (g.stacks.length) { // touching a photographed stack clears its flag and sends the inspector back
+    const st = g.stacks[0];
+    st.rots[0] += 0.2;
+    update(g, NONE, 1 / 120);
+    assert.ok(g.inspector.seen.length < done.length, 'a nudged stack is inspected again');
+    assert.ok(!flaggedStacks(g).some((f) => f.x === st.x && f.y === st.y), 'its warning sign is gone');
+  }
   assert.ok(g.inspector.roll !== 0, 'the wheels turned while driving');
   assert.ok(g.hits.length === 0 || g.hits.every((h) => h.check === 'perfect' || h.check === 'warn'), 'verdict labels');
   run(g, NONE, 60);

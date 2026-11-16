@@ -18,17 +18,17 @@ export function label(ctx, text, sx, sy, size, color) {
   ctx.fillText(text, sx, sy);
 }
 
-// The inspector's hovering "!" over a stack it found wanting: a bobbing red disc.
+// The inspector's hovering warning sign (⚠) over a stack it found wanting: a bobbing amber triangle.
 export function drawFlag(ctx, sx, sy, size, clock) {
-  const y = sy + Math.sin(clock * 4) * size * 0.12;
-  ctx.fillStyle = '#e53935';
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = Math.max(1.5, size / 8);
-  ctx.beginPath(); ctx.arc(sx, y, size * 0.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.font = `bold ${size * 0.8}px sans-serif`;
+  const y = sy + Math.sin(clock * 4) * size * 0.12, r = size * 0.58;
+  ctx.beginPath();
+  ctx.moveTo(sx, y - r); ctx.lineTo(sx + r * 1.05, y + r * 0.8); ctx.lineTo(sx - r * 1.05, y + r * 0.8); ctx.closePath();
+  ctx.fillStyle = '#ffc107'; ctx.fill();
+  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1.5, size / 8); ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.font = `bold ${size * 0.75}px sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#fff';
-  ctx.fillText('!', sx, y + size * 0.03);
+  ctx.fillStyle = '#111';
+  ctx.fillText('!', sx, y + r * 0.28);
 }
 
 export const DAMAGE_COLOR = '#ff5252', WONKY_COLOR = '#ffb74d', POINTS_COLOR = '#a5d6a7';

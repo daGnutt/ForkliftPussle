@@ -3,7 +3,7 @@ import { rectPoly, sat, overlapArea } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
-import { makeHatch, makeBot, makeInspector, stepBot, stepInspector } from './bot.js';
+import { makeHatch, makeBot, makeInspector, stepBot, stepInspector, stackSig } from './bot.js';
 
 const FORKLIFT_MASS = 6;
 const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
@@ -1485,6 +1485,7 @@ export function flaggedStacks(g) {
   for (const z of g.zones) {
     if (!g.inspector?.seen.includes(`${z.x},${z.y},${z.color}`)) continue;
     const s = g.stacks.find((q) => stackFillsZone(q, z));
+    if (s && g.inspector.sigs?.[`${z.x},${z.y},${z.color}`] !== undefined && g.inspector.sigs[`${z.x},${z.y},${z.color}`] !== stackSig(s)) continue; // touched since the photo
     if (s && (refreshSquare(s), s.pen.some((p) => p.sq > 0))) out.push({ x: s.x, y: s.y, h: s.layers.length });
   }
   return out;
