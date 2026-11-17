@@ -170,7 +170,7 @@ export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], avoid = [],
 }
 
 // Several pictures can be on screen at once (at most MAX_POPUPS, the oldest goes first); each is its own canvas with its own timers.
-const MAX_POPUPS = 4;
+const MAX_POPUPS = 4, GALLERY_MAX = 30, GALLERY_SCALE = 0.5;
 const popups = [];
 const hidePopup = (p) => { clearTimeout(p.timer); clearTimeout(p.fade); p.el.remove(); const i = popups.indexOf(p); if (i >= 0) popups.splice(i, 1); };
 
@@ -194,6 +194,17 @@ const place = (q, p) => {
   q.el.style.transform = `translate(${p.x - (innerWidth - p.w - MARGIN)}px, ${p.y - MARGIN}px) rotate(2deg)`;
 };
 
+// The first spot (scanning the screen row by row) where a w x h picture clears the blocked rects and the placed pictures (the level is over, so gameplay may be covered), or null.
+function freeSpot(w, h, blocked, placed) {
+  const m = MARGIN, g = 8, sx = Math.max(12, w / 4), sy = Math.max(12, h / 4);
+  for (let y = m; y + h <= innerHeight - m; y += sy) for (let x = m; x + w <= innerWidth - m; x += sx) {
+    if (blocked.some((b) => x < b.right + g && x + w > b.left - g && y < b.bottom + g && y + h > b.top - g)) continue;
+    if (placed.some((b) => x < b.x + b.w + g && x + w > b.x - g && y < b.y + b.h + g && y + h > b.y - g)) continue;
+    return { x, y };
+  }
+  return null;
+}
+
 // Keeps the popups off the forklift, the visible touch controls and each other: each slides to a free screen corner and shrinks when none is free.
 export function dodgePhoto() {
   if (typeof document === 'undefined' || (!popups.length && !gallery)) return;
@@ -203,22 +214,24 @@ export function dodgePhoto() {
   const truck = spot && { x: spot.x + c.left, y: spot.y + c.top, r: spot.r };
   const placed = [];
   for (const q of popups) {
+    if (q.fixed) { placed.push(q.rect); continue; } // gallery pictures keep the spot they were given
     const w = q.el.offsetWidth / q.scale, h = q.el.offsetHeight / q.scale;
     const p = placePhoto({ vw: innerWidth, vh: innerHeight, w, h, corner: q.corner, blocked, avoid: placed, truck });
     place(q, p);
     placed.push(p);
   }
   const now = performance.now();
-  if (!gallery || now < gallery.nextAt || popups.length >= MAX_POPUPS) return;
+  if (!gallery || now < gallery.nextAt || popups.length >= GALLERY_MAX) return;
   const list = gallery.photos(), n = list.length;
   for (let i = 0; i < n; i++) {
     const idx = (gallery.next + i) % n, photo = list[idx];
     if (popups.some((q) => q.photo === photo)) continue;
-    const w = Math.min(innerWidth * 0.45, innerHeight * 0.6), h = (w * (H + stripHeight(photo))) / W;
-    const p = placePhoto({ vw: innerWidth, vh: innerHeight, w, h, blocked, avoid: placed, truck });
-    if (!p.fits) return; // no space yet: try again next frame
+    const w = Math.min(innerWidth * 0.45, innerHeight * 0.6) * GALLERY_SCALE, h = (w * (H + stripHeight(photo))) / W;
+    const p = freeSpot(w, h, blocked, placed);
+    if (!p) return; // no space yet: try again next frame
     gallery.next = idx + 1; gallery.nextAt = now + GALLERY_GAP;
-    place(showPhoto(photo, GALLERY_MS), p);
+    const q = showPhoto(photo, GALLERY_MS);
+    q.fixed = true; place(q, { ...p, scale: GALLERY_SCALE, w, h, corner: 0 });
     return;
   }
 }
@@ -228,7 +241,7 @@ export function showPhoto(photo, ms = SHOW_MS) {
   if (typeof document === 'undefined') return null;
   let q = popups.find((o) => o.photo === photo);
   if (!q) {
-    if (popups.length >= MAX_POPUPS) hidePopup(popups[0]);
+    if (popups.length >= (gallery ? GALLERY_MAX : MAX_POPUPS)) hidePopup(popups[0]);
     const el = document.createElement('canvas');
     el.className = 'photo'; el.setAttribute('aria-hidden', 'true');
     el.width = W; el.height = H + stripHeight(photo); el.style.aspectRatio = `${el.width} / ${el.height}`;
