@@ -135,7 +135,7 @@ function watchBots() {
     if (b.cleaning && !p.clean) playDroid('mumble', vol, pitch);
   }
   if (game.photo && !botSaid.has(game.photo)) { botSaid.add(game.photo); if (botPrev.has('insp') && game.status !== 'won') showPhoto(game.photo); } // after the level the gallery shows them
-  if (game.forkPhoto && !botSaid.has(game.forkPhoto)) { botSaid.add(game.forkPhoto); showPhoto(game.forkPhoto.photo); } // tines in a damaged stack: show the observer's last picture of it again
+  if (game.forkPhoto && !botSaid.has(game.forkPhoto)) { botSaid.add(game.forkPhoto); showPhoto(game.forkPhoto.photo, undefined, true); } // tines in a damaged stack: show the observer's last picture of it again
   for (const h of game.hits || []) {
     if (!h.check || botSaid.has(h)) continue;
     botSaid.add(h);
