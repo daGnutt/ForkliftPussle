@@ -345,6 +345,54 @@ function markOilBarrel(n, seed, lvl) {
   return isReachable(working) ? working : lvl;
 }
 
+const PITCH = 1.6, WALL_GAP = 0.5;
+
+// Grid used by n drop points: at most 3 columns (rows when the back wall is vertical: columns are then filled one after the other).
+function gridDims(n, horizontal) {
+  const cols = Math.min(n, 3), rows = Math.ceil(n / cols);
+  return horizontal ? { cols, rows } : { cols: Math.ceil(n / rows), rows };
+}
+
+// Lays a colour's drop points out on a grid in an area whose back is its nearest outer wall: the tallest fill the rows/columns furthest back
+// (ties keep their order).
+function fillArea(zs, area, w, h) {
+  const gaps = [area.x, w - area.x - area.w, area.y, h - area.y - area.h];
+  const back = gaps.indexOf(Math.min(...gaps));
+  const horizontal = back >= 2; // wall runs along x, so depth is measured in rows
+  const { cols, rows } = gridDims(zs.length, horizontal);
+  [...zs].sort((a, b) => b.count - a.count).forEach((z, i) => {
+    let col = horizontal ? i % cols : Math.floor(i / rows), row = horizontal ? Math.floor(i / cols) : i % rows;
+    if (back === 1) col = cols - 1 - col;
+    if (back === 3) row = rows - 1 - row;
+    z.x = area.x + 0.6 + col * PITCH;
+    z.y = area.y + 0.6 + row * PITCH;
+  });
+}
+
+// Barrel and wide swaps remove drop points from the colour areas; shrink each such area to its remaining drop points, push it flush against
+// its nearest outer wall (keeping its place along the wall) and lay the points out again, so they stand against the wall without gaps.
+function tidyAreas(lvl) {
+  const { w, h } = lvl;
+  const next = { ...lvl, zones: lvl.zones.map((z) => ({ ...z })), areas: lvl.areas.map((a) => ({ ...a })) };
+  for (const a of next.areas) {
+    if (a.color === WIDE_COLOR || a.color === BARREL_COLOR) continue;
+    const zs = next.zones.filter((z) => z.color === a.color);
+    const gaps = [a.x, w - a.x - a.w, a.y, h - a.y - a.h];
+    const back = gaps.indexOf(Math.min(...gaps));
+    const { cols, rows } = gridDims(zs.length, back >= 2);
+    const nw = (cols - 1) * PITCH + 1.2, nh = (rows - 1) * PITCH + 1.2;
+    const r = { x: a.x + (a.w - nw) / 2, y: a.y + (a.h - nh) / 2, w: nw, h: nh };
+    if (back === 0) r.x = WALL_GAP;
+    else if (back === 1) r.x = w - nw - WALL_GAP;
+    else if (back === 2) r.y = WALL_GAP;
+    else r.y = h - nh - WALL_GAP;
+    if (lvl.walls.some((o) => rectGap(o, r) < 1.5) || next.areas.some((o) => o !== a && rectGap(o, r) < 1.5)) continue;
+    Object.assign(a, r);
+    fillArea(zs, a, w, h);
+  }
+  return isReachable(next) ? next : lvl;
+}
+
 function tryGenerate(n, attempt, seed = 0) {
   const rnd = mulberry32(n * 7919 + attempt * 104729 + 17 + Math.imul(seed, 2654435761));
   const { w, h, maxH, colors, total, dividers } = levelParams(n);
@@ -396,8 +444,6 @@ function tryGenerate(n, attempt, seed = 0) {
   const areas = [];
 
   // One tidy block per colour: that colour's zones laid out on a grid.
-  const PITCH = 1.6;
-  const WALL_GAP = 0.5;
   for (let c = 0; c < colors; c++) {
     const zs = zones.filter((z) => z.color === c);
     const cols = Math.min(zs.length, 3), rows = Math.ceil(zs.length / cols);
@@ -425,17 +471,7 @@ function tryGenerate(n, attempt, seed = 0) {
     }
     if (!area) return null;
     areas.push(area);
-    // Back = the outer wall nearest the area; the tallest drop points fill the rows/columns furthest back (stable sort keeps ties in order).
-    const gaps = [area.x, w - area.x - aw, area.y, h - area.y - ah];
-    const back = gaps.indexOf(Math.min(...gaps));
-    const horizontal = back >= 2; // wall runs along x, so depth is measured in rows
-    [...zs].sort((a, b) => b.count - a.count).forEach((z, i) => {
-      let col = horizontal ? i % cols : Math.floor(i / rows), row = horizontal ? Math.floor(i / cols) : i % rows;
-      if (back === 1) col = cols - 1 - col;
-      if (back === 3) row = rows - 1 - row;
-      z.x = area.x + 0.6 + col * PITCH;
-      z.y = area.y + 0.6 + row * PITCH;
-    });
+    fillArea(zs, area, w, h);
   }
   // Start stacks are clustered into small groups (2-4) on a grid; each group gets a big yellow bay around it.
   const SP = 2.0, bays = [];
@@ -467,7 +503,7 @@ function tryGenerate(n, attempt, seed = 0) {
 
   const base = { n, w, h, walls, doors, zones, areas, bays, stacks, start, charger };
   if (!isReachable(base)) return null;
-  return markOilBarrel(n, seed, markWide(n, attempt, seed, base));
+  return tidyAreas(markOilBarrel(n, seed, markWide(n, attempt, seed, base)));
 }
 
 // Integer seeds are used as-is; any other text is hashed. Empty/0 = the default layouts.

@@ -44,6 +44,18 @@ for (let n = 1; n <= 2; n++) {
   }
 }
 
+// Colour areas are fitted to their drop points (barrel/wide swaps remove some), so a lone drop point stands against the wall with no empty area.
+for (let n = 1; n <= 40; n++) {
+  const l = generateLevel(n);
+  for (const a of l.areas.filter((o) => o.color < 5)) {
+    const zs = l.zones.filter((z) => z.color === a.color);
+    const minX = Math.min(...zs.map((z) => z.x)) - 0.6, maxX = Math.max(...zs.map((z) => z.x)) + 0.6;
+    const minY = Math.min(...zs.map((z) => z.y)) - 0.6, maxY = Math.max(...zs.map((z) => z.y)) + 0.6;
+    assert.ok(Math.abs(a.x - minX) < 1e-9 && Math.abs(a.w - (maxX - minX)) < 1e-9, `level ${n} area width fits its drop points`);
+    assert.ok(Math.abs(a.y - minY) < 1e-9 && Math.abs(a.h - (maxY - minY)) < 1e-9, `level ${n} area height fits its drop points`);
+  }
+}
+
 // Generator: counts match, nothing overlaps walls, deterministic.
 for (let n = 1; n <= 40; n++) {
   const l = generateLevel(n);
