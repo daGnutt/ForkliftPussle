@@ -218,7 +218,9 @@ function partyGameChanged() {
   mp.host.levelLoaded(game);
 }
 
-let autoFs = localStorage.getItem('forklift-auto-fullscreen') === '1';
+// Saved choice wins; with none, full screen is on for touch devices (the default is not written to storage).
+const savedFs = localStorage.getItem('forklift-auto-fullscreen');
+let autoFs = savedFs === null ? matchMedia('(pointer: coarse)').matches : savedFs === '1';
 function setFullscreen(on) {
   if (!autoFs) return;
   if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
