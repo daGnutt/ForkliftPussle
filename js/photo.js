@@ -153,7 +153,7 @@ export const addHudRect = (left, top, right, bottom) => { hud.push({ left, top, 
 export const setTruckSpot = (x, y, r) => { spot = { x, y, r }; };
 
 export const PHOTO_SCALES = [1, 0.75, 0.5];
-const MARGIN = 16, OLD_SCALE = 0.65, POPUP_SCALE = 0.75; // gameplay popups are smaller than the full size; old ones smaller still
+const MARGIN = 16, OLD_SCALE = 0.50, POPUP_SCALE = 0.50; // gameplay popups are smaller than the full size; old ones smaller still
 
 // Picks the screen corner (0 right-top, 1 left-top, 2 right-bottom, 3 left-bottom) and size factor for a popup of full size w x h: the current corner is kept while it is free, otherwise the first free one; if no corner is free at full size the popup shrinks (PHOTO_SCALES). `blocked` are screen rects to keep clear (touch controls) and `avoid` the rects of other popups (`{ x, y, w, h }`), `truck` the forklift circle.
 export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], avoid = [], truck = null, m = MARGIN }) {
