@@ -7,7 +7,7 @@ export const KEYBOARD = {
 const btn = (x, y, w, h, t, hi) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" class="${hi ? 'hi' : ''}"/><text x="${x + w / 2}" y="${y + h / 2 + 5}">${t}</text>`;
 const frame = (inner) => `<svg viewBox="0 0 160 100"><rect x="1" y="1" width="158" height="98" rx="8" class="scr"/>${inner}</svg>`;
 // Orange = fork buttons (⇧ up, ⇩ down), grey = drive/steer.
-const TOUCH = {
+export const TOUCH = {
   classic: { label: 'Buttons (classic)', svg: frame(btn(8, 40, 26, 54, '◀') + btn(38, 40, 26, 54, '▶') + btn(96, 52, 26, 20, '▲') + btn(126, 52, 26, 20, '⇧', 1) + btn(96, 76, 26, 20, '▼') + btn(126, 76, 26, 20, '⇩', 1)) },
   rotated: { label: 'Buttons (forks left, drive right)', svg: frame(btn(8, 40, 26, 54, '◀') + btn(38, 40, 26, 54, '▶') + btn(96, 52, 26, 20, '⇧', 1) + btn(96, 76, 26, 20, '⇩', 1) + btn(126, 52, 26, 20, '▲') + btn(126, 76, 26, 20, '▼')) },
   joystick: { label: 'Joystick + fork buttons', svg: frame(btn(8, 52, 26, 20, '⇧', 1) + btn(8, 76, 26, 20, '⇩', 1) + '<rect x="100" y="36" width="52" height="58" rx="8" class="stk"/><circle cx="126" cy="65" r="12" class="knob"/>') },

@@ -23,7 +23,8 @@ import { chaseDrift, chaseOrbit, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZo
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
-import { pickScheme, KEYBOARD } from './schemepicker.js';
+import { standardPads } from './gamepad.js';
+import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
 import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
@@ -538,6 +539,11 @@ function checkTutorial() {
 }
 const keySel = document.getElementById('keySel');
 if (isTouch) document.getElementById('keyLabel').hidden = true;
+// On touch devices the gamepad map only shows once a gamepad has been seen on this device.
+const padMap = document.getElementById('padMap');
+const padSeen = () => { localStorage.setItem('forklift-pad-seen', '1'); padMap.hidden = false; };
+padMap.hidden = isTouch && !localStorage.getItem('forklift-pad-seen');
+if (isTouch) { window.addEventListener('gamepadconnected', padSeen); if (standardPads().length) padSeen(); }
 const keyMap = document.getElementById('keyMap');
 keyMap.innerHTML = Object.entries(KEYBOARD).map(([name, o]) => `<div data-scheme="${name}" role="button" tabindex="0">${o.svg}<span>${o.label}</span></div>`).join('');
 if (isTouch) keyMap.hidden = true;
@@ -923,12 +929,22 @@ if (isTouch) { const l = document.getElementById('autoFsLabel'); l.classList.add
   touchSel.value = [...touchSel.options].some((o) => o.value === saved) ? saved : 'classic';
   touchPad.dataset.scheme = touchSel.value;
 }
+const touchMap = document.getElementById('touchMap');
+touchMap.innerHTML = Object.entries(TOUCH).map(([name, o]) => `<div data-scheme="${name}" role="button" tabindex="0">${o.svg}<span>${o.label}</span></div>`).join('');
+touchMap.hidden = !isTouch;
+const markTouch = () => { for (const d of touchMap.children) d.classList.toggle('on', d.dataset.scheme === touchSel.value); };
 const applyTouch = () => {
   touchPad.dataset.scheme = touchSel.value;
+  markTouch();
   localStorage.setItem('forklift-touch-scheme', touchSel.value);
   input.clear();
 };
 touchSel.addEventListener('change', applyTouch);
+touchMap.addEventListener('click', (e) => {
+  const d = e.target.closest('[data-scheme]');
+  if (d) { touchSel.value = d.dataset.scheme; touchSel.dispatchEvent(new Event('change')); }
+});
+markTouch();
 // First run on the splash: nothing saved yet, so ask which control scheme to use.
 if (!localStorage.getItem(isTouch ? 'forklift-touch-scheme' : 'forklift-keys') && !new URLSearchParams(location.search).has('skip')) {
   pickScheme(isTouch ? 'touch' : 'keyboard').then((name) => {

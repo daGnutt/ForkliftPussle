@@ -82,6 +82,9 @@ footer b { color: var(--accent); }
 #menu .keymap svg { width: 100%; height: auto; }
 #menu .keymap svg rect { fill: rgba(128,128,128,.35); stroke: currentColor; stroke-width: 1.5; }
 #menu .keymap svg rect.hi { fill: #f9a825; }
+#menu .keymap svg rect.scr { fill: none; }
+#menu .keymap svg rect.stk { fill: rgba(128,128,128,.2); }
+#menu .keymap svg circle.knob { fill: rgba(255,255,255,.6); stroke: currentColor; }
 #menu .keymap svg text { fill: currentColor; font: bold 12px sans-serif; text-anchor: middle; }
 #menu .keymap svg text.cap { font-size: 10px; font-weight: normal; }
 #menu .padmap { margin: 4px 0; text-align: center; }
