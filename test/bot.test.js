@@ -281,4 +281,18 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(pick(true), 'far', 'a spooked bot goes for the one far from the forklift');
 }
 
+// A damaged stack is never "perfect": the inspector's photo says so and lists the damage.
+{
+  const g = newGame(1, 0);
+  const z = g.zones[0];
+  g.stacks = [{ x: z.x, y: z.y, layers: Array(z.count).fill(z.color), rots: Array(z.count).fill(0), offs: Array(z.count).fill(0).map(() => ({ x: 0, y: 0 })), a: 0, pen: Array(z.count).fill(0).map(() => ({ crash: 0, sq: 0 })) }];
+  g.stacks[0].pen[0].crash = 12;
+  const spots = [[1, 1], [g.w - 1, 1], [1, g.h - 1], [g.w - 1, g.h - 1]].map(([x, y]) => ({ x, y, d: Math.min(Math.hypot(x - g.hatch.x, y - g.hatch.y), ...g.zones.map((q) => Math.hypot(x - q.x, y - q.y))) }));
+  Object.assign(g.fl, spots.sort((a, b) => b.d - a.d)[0]);
+  for (let t = 0; t < 120 && !g.photo; t += 1 / 120) update(g, NONE, 1 / 120);
+  assert.ok(g.photo, 'the stack was photographed');
+  assert.equal(g.photo.ok, false, 'damage means no GOOD JOB');
+  assert.equal(g.photo.pens[0].crash, 12);
+}
+
 console.log('bot tests passed');

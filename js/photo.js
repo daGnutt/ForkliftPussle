@@ -2,7 +2,7 @@ import { COLORS } from './level.js';
 import { TAPE_FILL } from './repair.js';
 
 // The inspector's snapshot, seen from its own vantage point: a camera ~0.3 tiles off the floor, tilted up so the whole stack fits.
-const W = 400, H = 300, STRIP = 81, CAM_H = 0.3, FOV = 1.8, SHOW_MS = 4500;
+const W = 400, H = 300, STRIP = 81, LINE = 26, CAM_H = 0.3, FOV = 1.8, SHOW_MS = 4500;
 
 const shade = (hex, k) => {
   const n = parseInt(hex.slice(1), 16);
@@ -44,6 +44,23 @@ function drawBarrel(ctx, P, col, cx, cz, y0, y1, poly, line) {
 
 const hurt = (pen) => (pen?.crash || 0) > 0;
 
+// What is wrong with the stack, one line per box (the lowest box is box 1): its damage points and whether it sits crooked.
+// A barrel pair counts as one box (damage of both halves).
+export function issues(photo) {
+  const out = [];
+  (photo.pens || []).forEach((pen, i) => {
+    if (pen?.barrelPart === 'top') return;
+    const pts = Math.round((pen?.crash || 0) + (pen?.barrelPart === 'base' ? photo.pens[i + 1]?.crash || 0 : 0)), bits = [];
+    if (pts > 0) bits.push(`has ${pts} pt damage`);
+    if ((pen?.sq || 0) > 0) bits.push('is wonky');
+    if (bits.length) out.push(`Box ${i + 1} ${bits.join(' and ')}`);
+  });
+  return out;
+}
+
+// Height of the caption strip: the verdict plus one line per issue.
+export const stripHeight = (photo) => STRIP + issues(photo).length * LINE;
+
 // Warning triangle with an exclamation mark, centred on screen point `c`, `r` px across.
 function drawDamage(ctx, c, r) {
   const [x, y] = c, t = [[x, y - r * 0.55], [x + r * 0.6, y + r * 0.45], [x - r * 0.6, y + r * 0.45]];
@@ -54,7 +71,7 @@ function drawDamage(ctx, c, r) {
 
 // Polaroid: the w x h picture plus a white caption strip below it (canvas height h + STRIP), the verdict is written on the strip.
 export function drawPhoto(ctx, photo, w = W, h = H) {
-  const sh = Math.round(h * STRIP / H);
+  const list = issues(photo), sh = Math.round(h * stripHeight(photo) / H), k = h / H;
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h + sh);
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.clip();
   const P = projector(photo, w, h), d = Math.max(1.1, photo.dist || 1.4), n = photo.layers.length;
@@ -112,10 +129,14 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 14; ctx.strokeRect(0, 0, w, h + sh); // polaroid border
   const text = photo.ok ? 'GOOD JOB' : 'COULD BE BETTER', col = photo.ok ? '#43a047' : '#e53935';
   ctx.save();
-  ctx.translate(w / 2, h + sh / 2 + 2); ctx.rotate(-0.04);
+  ctx.translate(w / 2, h + (STRIP * k) / 2 + 2); ctx.rotate(-0.04);
   ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.scale(Math.min(1, (w - 50) / ctx.measureText(text).width), 1);
   ctx.fillStyle = col; ctx.fillText(text, 0, 0);
+  ctx.restore();
+  ctx.save();
+  ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#b71c1c';
+  list.forEach((t, n) => ctx.fillText(t, w / 2, h + STRIP * k + (n + 0.5) * LINE * k - 6 * k, w - 50));
   ctx.restore();
 }
 
@@ -160,7 +181,7 @@ export function dodgePhoto() {
 export function showPhoto(photo) {
   const el = typeof document !== 'undefined' && document.getElementById('photo');
   if (!el) return;
-  el.width = W; el.height = H + STRIP;
+  el.width = W; el.height = H + stripHeight(photo); el.style.aspectRatio = `${el.width} / ${el.height}`;
   drawPhoto(el.getContext('2d'), photo);
   clearTimeout(timer); clearTimeout(fade);
   el.classList.remove('hide', 'fade');
