@@ -389,6 +389,7 @@ console.log('render tests passed');
   const bad = { ...photo, pens: [{ crash: 22.6, sq: 0 }, { crash: 0, sq: 0 }, { crash: 5, sq: 10 }, { crash: 0, sq: 15 }] };
   assert.deepEqual(issues(bad), ['Box 1 has 23 pt damage', 'Box 3 has 5 pt damage and is wonky', 'Box 4 is wonky'], 'issues are listed per box, lowest box is 1');
   assert.deepEqual(issues({ ...photo, pens: [{ crash: 0 }, { crash: 0 }] }), []);
+  assert.deepEqual(issues({ ...photo, pens: [{ crash: 30, wide: true, sq: 5 }, { crash: 20, barrelPart: 'base' }, { crash: 20, barrelPart: 'top' }] }), ['Box 1 is wonky'], 'damage on wide boxes and barrels is not listed (cannot be repaired), wonkiness is');
   assert.ok(stripHeight(bad) > stripHeight(photo), 'the caption strip grows with the list');
   console.log('damage symbol ok');
 }

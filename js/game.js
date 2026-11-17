@@ -3,7 +3,7 @@ import { rectPoly, sat, overlapArea } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
-import { makeStation, stepRepair } from './repair.js';
+import { makeStation, stepRepair, repairable } from './repair.js';
 import { makeHatch, makeBot, makeInspector, stepBot, stepInspector, stackSig, makePhoto } from './bot.js';
 
 const FORKLIFT_MASS = 6;
@@ -1524,7 +1524,7 @@ export function flaggedStacks(g) {
     const s = g.stacks.find((q) => stackFillsZone(q, z));
     if (s?.touched) continue;
     if (s && g.inspector.sigs?.[`${z.x},${z.y},${z.color}`] !== undefined && g.inspector.sigs[`${z.x},${z.y},${z.color}`] !== stackSig(s)) continue; // touched since the photo
-    if (s && (refreshSquare(s), s.pen.some((p) => p.sq > 0 || p.crash > 0))) out.push({ x: s.x, y: s.y, h: s.layers.length, key: `${z.x},${z.y},${z.color}` });
+    if (s && (refreshSquare(s), s.pen.some((p) => p.sq > 0 || (p.crash > 0 && repairable(p))))) out.push({ x: s.x, y: s.y, h: s.layers.length, key: `${z.x},${z.y},${z.color}` });
   }
   return out;
 }

@@ -1,5 +1,5 @@
 import { COLORS } from './level.js';
-import { TAPE_FILL } from './repair.js';
+import { TAPE_FILL, repairable } from './repair.js';
 
 // The inspector's snapshot, seen from its own vantage point: a camera ~0.3 tiles off the floor, tilted up so the whole stack fits.
 const W = 400, H = 300, STRIP = 81, LINE = 26, CAM_H = 0.3, FOV = 1.8, SHOW_MS = 4500;
@@ -50,7 +50,7 @@ export function issues(photo) {
   const out = [];
   (photo.pens || []).forEach((pen, i) => {
     if (pen?.barrelPart === 'top') return;
-    const pts = Math.round((pen?.crash || 0) + (pen?.barrelPart === 'base' ? photo.pens[i + 1]?.crash || 0 : 0)), bits = [];
+    const pts = repairable(pen) ? Math.round(pen?.crash || 0) : 0, bits = [];
     if (pts > 0) bits.push(`has ${pts} pt damage`);
     if ((pen?.sq || 0) > 0) bits.push('is wonky');
     if (bits.length) out.push(`Box ${i + 1} ${bits.join(' and ')}`);

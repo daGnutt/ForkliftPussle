@@ -2,6 +2,7 @@
 // paths to the nearest spill on a coarse grid (avoiding walls, stacks and forklifts), mops it up (one drop per CLEAN_SECS) and
 // runs away whenever a forklift comes close. With nothing left to clean it goes back into its hatch.
 // Pure data + DOM-free; `g.hatch` is static (regenerated per level), `g.bot` is dynamic (saved and synced).
+import { repairable } from './repair.js';
 import { BARREL_COLOR } from './level.js';
 import { FL, toWorld } from './forklift.js';
 
@@ -536,7 +537,7 @@ function inspectorStep(g, dt, done, wonky) {
         bot.aim = { x: target.x, y: target.y, h: st ? st.layers.length : 1 };
         if (Math.abs(turnTo(bot, Math.atan2(target.y - bot.y, target.x - bot.x), dt)) < 0.15) bot.shooting += dt;
         if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
-          g.photo = makePhoto(st, !wonky(target) && !st?.pen?.some((q) => q?.crash > 0), Math.atan2(target.y - bot.y, target.x - bot.x), Math.hypot(target.x - bot.x, target.y - bot.y), (g.photo?.n || 0) + 1, g.clock); // the snapshot shown as a popup (js/photo.js)
+          g.photo = makePhoto(st, !wonky(target) && !st?.pen?.some((q) => q?.crash > 0 && repairable(q)), Math.atan2(target.y - bot.y, target.x - bot.x), Math.hypot(target.x - bot.x, target.y - bot.y), (g.photo?.n || 0) + 1, g.clock); // the snapshot shown as a popup (js/photo.js)
           (bot.sigs ||= {})[zoneKey(target)] = stackSig(st);
           if (st) { st.touched = false; g.photo.at = { x: st.x, y: st.y }; g.photo.sig = stackSig(st); }
           if (st) (bot.photos ||= {})[zoneKey(target)] = g.photo; // kept per drop point: the flagged stack's own picture
