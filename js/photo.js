@@ -140,7 +140,7 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
   ctx.restore();
 }
 
-let timer = 0, fade = 0, spot = null, corner = 0;
+let spot = null;
 
 // The renderers report where the player's forklift is on the canvas (CSS px, with a radius); no report (cab views) means nothing to dodge.
 export const clearTruckSpot = () => { spot = null; };
@@ -149,12 +149,13 @@ export const setTruckSpot = (x, y, r) => { spot = { x, y, r }; };
 export const PHOTO_SCALES = [1, 0.75, 0.5];
 const MARGIN = 16;
 
-// Picks the screen corner (0 right-top, 1 left-top, 2 right-bottom, 3 left-bottom) and size factor for a popup of full size w x h: the current corner is kept while it is free, otherwise the first free one; if no corner is free at full size the popup shrinks (PHOTO_SCALES). `blocked` are screen rects to keep clear (touch controls), `truck` the forklift circle.
-export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], truck = null, m = MARGIN }) {
+// Picks the screen corner (0 right-top, 1 left-top, 2 right-bottom, 3 left-bottom) and size factor for a popup of full size w x h: the current corner is kept while it is free, otherwise the first free one; if no corner is free at full size the popup shrinks (PHOTO_SCALES). `blocked` are screen rects to keep clear (touch controls) and `avoid` the rects of other popups (`{ x, y, w, h }`), `truck` the forklift circle.
+export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], avoid = [], truck = null, m = MARGIN }) {
   const rect = (k, f) => { const rw = w * f, rh = h * f; return { x: k & 1 ? m : vw - rw - m, y: k & 2 ? vh - rh - m : m, w: rw, h: rh }; };
   const hit = (k, f) => {
     const r = rect(k, f);
     if (blocked.some((b) => r.x < b.right + 8 && r.x + r.w > b.left - 8 && r.y < b.bottom + 8 && r.y + r.h > b.top - 8)) return true;
+    if (avoid.some((b) => r.x < b.x + b.w + 8 && r.x + r.w > b.x - 8 && r.y < b.y + b.h + 8 && r.y + r.h > b.y - 8)) return true;
     return !!truck && Math.hypot(truck.x - Math.max(r.x, Math.min(truck.x, r.x + r.w)), truck.y - Math.max(r.y, Math.min(truck.y, r.y + r.h))) < truck.r + 24;
   };
   for (const f of PHOTO_SCALES) {
@@ -164,30 +165,45 @@ export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], truck = nul
   return { corner, scale: PHOTO_SCALES.at(-1), ...rect(corner, PHOTO_SCALES.at(-1)) };
 }
 
-let photoScale = 1;
-// Keeps the popup off the forklift and the visible touch controls: it slides to a free screen corner and shrinks when none is free.
+// Several pictures can be on screen at once (at most MAX_POPUPS, the oldest goes first); each is its own canvas with its own timers.
+const MAX_POPUPS = 4;
+const popups = [];
+const hidePopup = (p) => { clearTimeout(p.timer); clearTimeout(p.fade); p.el.remove(); const i = popups.indexOf(p); if (i >= 0) popups.splice(i, 1); };
+
+// Keeps the popups off the forklift, the visible touch controls and each other: each slides to a free screen corner and shrinks when none is free.
 export function dodgePhoto() {
-  const el = typeof document !== 'undefined' && document.getElementById('photo');
-  if (!el || el.classList.contains('hide')) return;
+  if (typeof document === 'undefined' || !popups.length) return;
   const c = document.getElementById('game')?.getBoundingClientRect() || { left: 0, top: 0 };
   const blocked = [...document.querySelectorAll('#touch button, #stick')].map((b) => b.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
-  const w = el.offsetWidth / photoScale, h = el.offsetHeight / photoScale;
   const truck = spot && { x: spot.x + c.left, y: spot.y + c.top, r: spot.r };
-  const p = placePhoto({ vw: innerWidth, vh: innerHeight, w, h, corner, blocked, truck });
-  corner = p.corner;
-  if (p.scale !== photoScale) { photoScale = p.scale; el.style.width = `calc(min(45vw, 60vh) * ${p.scale})`; }
-  el.style.transform = `translate(${p.x - (innerWidth - p.w - MARGIN)}px, ${p.y - MARGIN}px) rotate(2deg)`;
+  const placed = [];
+  for (const q of popups) {
+    const w = q.el.offsetWidth / q.scale, h = q.el.offsetHeight / q.scale;
+    const p = placePhoto({ vw: innerWidth, vh: innerHeight, w, h, corner: q.corner, blocked, avoid: placed, truck });
+    q.corner = p.corner;
+    placed.push(p);
+    if (p.scale !== q.scale) { q.scale = p.scale; q.el.style.width = `calc(min(45vw, 60vh) * ${p.scale})`; }
+    q.el.style.transform = `translate(${p.x - (innerWidth - p.w - MARGIN)}px, ${p.y - MARGIN}px) rotate(2deg)`;
+  }
 }
-// Tapping the popup (touch only, see style.css) hides it at once.
-if (typeof document !== 'undefined') document.getElementById('photo')?.addEventListener('pointerdown', (e) => { clearTimeout(timer); clearTimeout(fade); e.currentTarget.classList.add('hide'); });
 
+// Shows a picture (tapping it hides it, touch only, see style.css); showing the same picture again just keeps it up for another SHOW_MS.
 export function showPhoto(photo) {
-  const el = typeof document !== 'undefined' && document.getElementById('photo');
-  if (!el) return;
-  el.width = W; el.height = H + stripHeight(photo); el.style.aspectRatio = `${el.width} / ${el.height}`;
-  drawPhoto(el.getContext('2d'), photo);
-  clearTimeout(timer); clearTimeout(fade);
-  el.classList.remove('hide', 'fade');
-  fade = setTimeout(() => el.classList.add('fade'), SHOW_MS - 400);
-  timer = setTimeout(() => el.classList.add('hide'), SHOW_MS);
+  if (typeof document === 'undefined') return;
+  let q = popups.find((o) => o.photo === photo);
+  if (!q) {
+    if (popups.length >= MAX_POPUPS) hidePopup(popups[0]);
+    const el = document.createElement('canvas');
+    el.className = 'photo'; el.setAttribute('aria-hidden', 'true');
+    el.width = W; el.height = H + stripHeight(photo); el.style.aspectRatio = `${el.width} / ${el.height}`;
+    drawPhoto(el.getContext('2d'), photo);
+    document.body.append(el);
+    q = { el, photo, scale: 1, corner: 0, timer: 0, fade: 0 };
+    el.addEventListener('pointerdown', () => hidePopup(q));
+    popups.push(q);
+  }
+  clearTimeout(q.timer); clearTimeout(q.fade);
+  q.el.classList.remove('fade');
+  q.fade = setTimeout(() => q.el.classList.add('fade'), SHOW_MS - 400);
+  q.timer = setTimeout(() => hidePopup(q), SHOW_MS);
 }

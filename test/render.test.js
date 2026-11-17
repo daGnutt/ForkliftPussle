@@ -355,6 +355,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(placePhoto({ ...base, blocked: [] }).corner, 0, 'no touch controls: stays top right');
   const tight = placePhoto({ vw: 800, vh: 330, w: 500, h: 300, blocked: [btn(380, 100, 420, 200)] });
   assert.equal(tight.scale, 0.5, 'shrinks when no corner fits at full size');
+  const first = placePhoto({ vw: 1600, vh: 900, w: 360, h: 270 }), second = placePhoto({ vw: 1600, vh: 900, w: 360, h: 270, avoid: [first] });
+  assert.ok(first.corner === 0 && second.corner !== 0, 'a second popup takes another corner instead of covering the first');
   console.log('photo placement ok');
 }
 
