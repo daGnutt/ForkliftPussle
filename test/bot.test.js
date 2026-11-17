@@ -321,7 +321,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(endPhotos(g)[0], list[0], 'one stable object per picture');
 }
 
-// Going in and out of the hatch is square to the wall: standing still, facing out, while sliding.
+// Going in and out of the hatch is a straight line square to the wall: facing out, on the hatch's axis, while sliding.
 {
   const g = botGame(), h = g.hatch;
   g.stacks = []; clearOf(g, h);
@@ -332,7 +332,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
     if (g.bot.show > 0 && g.bot.show < 1) {
       sliding++;
       assert.ok(Math.abs(g.bot.a - h.a) < 0.06, 'faces out of the hatch while sliding');
-      assert.ok(Math.hypot(g.bot.x - (h.x + h.nx * (BOT_R + 0.1)), g.bot.y - (h.y + h.ny * (BOT_R + 0.1))) < 1e-6, 'stays at the hatch while sliding');
+      assert.ok(Math.abs((g.bot.x - h.x) * h.ny - (g.bot.y - h.y) * h.nx) < 1e-6, 'stays on the straight line out of the hatch while sliding');
     }
     assert.ok(t < 90, 'bot finishes and goes home');
   }

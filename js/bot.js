@@ -51,18 +51,28 @@ export function botDrawPos(b, h) {
   return h ? { x: b.x - h.nx * s, y: b.y - h.ny * s } : { x: b.x, y: b.y };
 }
 
-// A bot slides out of / into its hatch square to the wall: it first stands still facing out, and on the way home turns to face out before retracting.
-function emerge(g, bot, home, dt) {
-  bot.x = home.x; bot.y = home.y; bot.a = g.hatch.a;
+// A bot drives straight out of its hatch and straight back in (reversing, so it still faces out): `show` (0..1) is how far along that
+// line from `botHome` to `botLane` it is. It goes in and out via the lane point, where it turns to face out before backing in.
+export const LANE = 1.1; // distance of the lane point (the bot's goal when going home) from the wall
+const laneAt = (h, show) => { const d = (LANE - (BOT_R + 0.1)) * show + BOT_R + 0.1; return { x: h.x + h.nx * d, y: h.y + h.ny * d }; };
+export const botLane = (h) => laneAt(h, 1);
+function place(g, bot) { const p = laneAt(g.hatch, bot.show); bot.x = p.x; bot.y = p.y; bot.a = g.hatch.a; }
+function emerge(g, bot, dt) {
   bot.show = Math.min(1, bot.show + dt / SHOW_SECS);
+  place(g, bot);
 }
-function retract(g, bot, home, dt) {
-  bot.x = home.x; bot.y = home.y; bot.path = [];
-  let da = g.hatch.a - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
-  if (Math.abs(da) > 0.05) { bot.a += da * Math.min(1, TURN * dt); return; }
-  bot.a = g.hatch.a; bot.leaving = true;
+function retract(g, bot, dt) {
+  bot.path = [];
+  if (!bot.leaving) {
+    const lane = botLane(g.hatch);
+    bot.x = lane.x; bot.y = lane.y;
+    let da = g.hatch.a - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
+    if (Math.abs(da) > 0.05) { bot.a += da * Math.min(1, TURN * dt); return; }
+    bot.leaving = true;
+  }
   bot.show = Math.max(0, bot.show - dt / SHOW_SECS);
-  if (bot.show === 0) bot.mode = 'hidden';
+  place(g, bot);
+  if (bot.show === 0) { bot.mode = 'hidden'; bot.leaving = false; }
 }
 
 export function makeBot(g) {
@@ -314,7 +324,7 @@ function fleePlan(g, bot) {
 export function stepBot(g, dt, dropArea) {
   const bot = g.bot;
   if (!bot || !g.hatch) return;
-  const home = botHome(g.hatch);
+  const home = botLane(g.hatch);
   const spill = pickSpill(g, bot, dropArea);
   const gap = truckGap(g, bot, true);
 
@@ -322,7 +332,7 @@ export function stepBot(g, dt, dropArea) {
     if (!spill) return;
     bot.mode = 'out';
   }
-  if (bot.show < 1 && !bot.leaving) { emerge(g, bot, home, dt); return; }
+  if (bot.show < 1) { if (bot.leaving) retract(g, bot, dt); else emerge(g, bot, dt); return; }
   bot.scared = gap < (bot.scared ? CALM : SCARE);
   if (bot.scared) bot.spookedUntil = g.clock + SPOOK_SECS;
   bot.cleaning = false;
@@ -376,12 +386,10 @@ export function stepBot(g, dt, dropArea) {
       if (drops <= 1e-9) g.oil.splice(g.oil.indexOf(spill), 1);
       else { spill.drops = drops; spill.r = Math.sqrt(drops * dropArea); }
     } else if (!spill && Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
-      retract(g, bot, home, dt);
+      retract(g, bot, dt);
       return;
     }
   }
-  bot.leaving = false;
-  bot.show = Math.min(1, bot.show + dt / SHOW_SECS);
 }
 
 // ---- Inspection bot ----
@@ -461,7 +469,7 @@ function blockedAhead(g, bot) {
 function inspectorStep(g, dt, done, wonky) {
   const bot = g.inspector;
   if (!bot || !g.hatch) return;
-  const home = botHome(g.hatch);
+  const home = botLane(g.hatch);
   const todo = pendingZones(g, done);
   bot.flash = Math.max(0, bot.flash - dt / FLASH_SECS);
   if (bot.target && !todo.some((z) => zoneKey(z) === bot.target)) { bot.target = null; bot.shooting = 0; bot.path = []; }
@@ -469,7 +477,7 @@ function inspectorStep(g, dt, done, wonky) {
     if (!todo.length) return;
     bot.mode = 'out';
   }
-  if (bot.show < 1 && !bot.leaving) { emerge(g, bot, home, dt); return; }
+  if (bot.show < 1) { if (bot.leaving) retract(g, bot, dt); else emerge(g, bot, dt); return; }
   bot.idle = todo.length ? 0 : (bot.idle || 0) + dt; // loiters a while after the last drop point before heading home
   const wasScared = bot.scared;
   bot.scared = approachGap(g, bot) < (wasScared ? CALM : SCARE);
@@ -535,10 +543,8 @@ function inspectorStep(g, dt, done, wonky) {
         }
       }
     } else if (!todo.length && bot.idle >= LOITER_SECS && Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
-      retract(g, bot, home, dt);
+      retract(g, bot, dt);
       return;
     }
   }
-  bot.leaving = false;
-  bot.show = Math.min(1, bot.show + dt / SHOW_SECS);
 }
