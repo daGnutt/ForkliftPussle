@@ -1,4 +1,4 @@
-import { newGame, update, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges } from './game.js';
+import { newGame, update, endPhotos, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges } from './game.js';
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput } from './input.js';
 import { createLocal } from './local.js';
@@ -12,7 +12,7 @@ import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, t
 import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
-import { showPhoto, dodgePhoto } from './photo.js';
+import { showPhoto, dodgePhoto, startGallery, stopGallery } from './photo.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { setBareForks, bareForksEnabled } from './gl/models.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
@@ -117,6 +117,9 @@ function watchPops() {
 const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8);
 // The maintenance bots talk in droidspeak, triggered by state changes (first sight of a game is silent): hello on emerging, bye on going home,
 // alarm when a forklift scares them, mumble while mopping, a scanning trill, and the inspector's verdict (perfect / warn).
+let galleryGame = null;
+// The end-of-level results panel (centre band of the canvas) that the photo gallery keeps clear of.
+const resultsPanel = () => { const r = canvas.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2; return [{ left: cx - 360, right: cx + 360, top: cy - 110, bottom: cy + 430 }]; };
 let botGame = null, botPrev = new Map(), botSaid = new WeakSet();
 function watchBots() {
   if (botGame !== game) { botGame = game; botPrev = new Map(); botSaid = new WeakSet(); }
@@ -131,7 +134,7 @@ function watchBots() {
     if ((b.shooting || 0) > 0 && !p.shoot) playDroid('scan', vol, pitch);
     if (b.cleaning && !p.clean) playDroid('mumble', vol, pitch);
   }
-  if (game.photo && !botSaid.has(game.photo)) { botSaid.add(game.photo); if (botPrev.has('insp')) showPhoto(game.photo); }
+  if (game.photo && !botSaid.has(game.photo)) { botSaid.add(game.photo); if (botPrev.has('insp') && game.status !== 'won') showPhoto(game.photo); } // after the level the gallery shows them
   if (game.forkPhoto && !botSaid.has(game.forkPhoto)) { botSaid.add(game.forkPhoto); showPhoto(game.forkPhoto.photo); } // tines in a damaged stack: show the observer's last picture of it again
   for (const h of game.hits || []) {
     if (!h.check || botSaid.has(h)) continue;
@@ -1218,6 +1221,9 @@ function frame(now) {
   view.fullscreen = !!document.fullscreenElement;
   game.debugBots = !!debug;
   draw(ctx, game, view);
+  if (game.status === 'won' && !game.endless) {
+    if (galleryGame !== game) { galleryGame = game; startGallery(() => endPhotos(game), resultsPanel); }
+  } else if (galleryGame) { galleryGame = null; stopGallery(); }
   dodgePhoto();
   if (debug) {
     const t3 = performance.now();

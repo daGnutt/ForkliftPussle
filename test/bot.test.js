@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { newGame, update, zoneDone, zoneWonky, flaggedStacks } from '../js/game.js';
+import { newGame, update, zoneDone, zoneWonky, flaggedStacks, endPhotos } from '../js/game.js';
 import { BOT_R, CLEAN_SECS, truckGap } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { run, NONE, flatWorld } from './common.js';
@@ -298,6 +298,35 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   fresh.photo = g.photo;
   const back = deserializeGame(JSON.parse(JSON.stringify(serializeGame(fresh))));
   assert.deepEqual(back.photo, JSON.parse(JSON.stringify(g.photo)), 'the last picture survives save and load');
+}
+
+// End of level: every stack's picture with the points it contributed, longest-dormant stack first; the inspector speedruns once the level is won.
+{
+  const g = newGame(1, 0);
+  const [z0, z1] = g.zones;
+  g.stacks = [z0, z1].map((z, i) => ({ x: z.x, y: z.y, layers: Array(z.count).fill(z.color), rots: Array(z.count).fill(0), offs: Array(z.count).fill(0).map(() => ({ x: 0, y: 0 })), a: 0, pen: Array(z.count).fill(0).map((_, j) => ({ crash: i || j ? 0 : 10, sq: 0 })) }));
+  const mk = (t) => ({ n: 1, t, ok: true, layers: [0], pens: [{ crash: 0 }], at: { x: 0, y: 0 } });
+  g.inspector.photos = { [`${z0.x},${z0.y},${z0.color}`]: mk(50), [`${z1.x},${z1.y},${z1.color}`]: mk(20) };
+  const list = endPhotos(g);
+  assert.equal(list.length, 2);
+  assert.deepEqual(list.map((p) => p.t), [20, 50], 'the stack dormant longest comes first');
+  assert.equal(list[1].score.crash, 10);
+  assert.equal(list[1].score.total, list[1].score.base - 10, 'damage is deducted from the stack points');
+  assert.equal(endPhotos(g)[0], list[0], 'one stable object per picture');
+
+  const secs = (won) => {
+    const h = newGame(1, 0);
+    const z = h.zones[0];
+    h.stacks = [{ x: z.x, y: z.y, layers: Array(z.count).fill(z.color), rots: Array(z.count).fill(0), offs: Array(z.count).fill(0).map(() => ({ x: 0, y: 0 })), a: 0, pen: Array(z.count).fill(0).map(() => ({ crash: 0, sq: 0 })) }];
+    const spots = [[1, 1], [h.w - 1, 1], [1, h.h - 1], [h.w - 1, h.h - 1]].map(([x, y]) => ({ x, y, d: Math.min(Math.hypot(x - h.hatch.x, y - h.hatch.y), ...h.zones.map((q) => Math.hypot(x - q.x, y - q.y))) }));
+    Object.assign(h.fl, spots.sort((a, b) => b.d - a.d)[0]);
+    h.status = won ? 'won' : 'play';
+    let t = 0;
+    while (!h.photo && t < 200) { update(h, NONE, 1 / 120); t += 1 / 120; }
+    return t;
+  };
+  const slow = secs(false), fast = secs(true);
+  assert.ok(fast < slow / 3, `the inspector speedruns after the level is won (${fast.toFixed(1)} s vs ${slow.toFixed(1)} s)`);
 }
 
 console.log('bot tests passed');

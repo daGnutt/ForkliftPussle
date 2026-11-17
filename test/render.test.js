@@ -8,7 +8,7 @@ import { chaseOrbit } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
-import { placePhoto, drawPhoto, issues, stripHeight } from '../js/photo.js';
+import { placePhoto, drawPhoto, issues, stripHeight, scoreText } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
 import { setDiscoEnabled } from '../js/disco.js';
@@ -358,6 +358,13 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const first = placePhoto({ vw: 1600, vh: 900, w: 360, h: 270 }), second = placePhoto({ vw: 1600, vh: 900, w: 360, h: 270, avoid: [first] });
   assert.ok(first.corner === 0 && second.corner !== 0, 'a second popup takes another corner instead of covering the first');
   console.log('photo placement ok');
+}
+
+{ // gallery photos carry their points
+  assert.equal(scoreText({ base: 200, crash: 23, square: 15, total: 162 }), '200 − 23 damage − 15 wonky = 162 pts');
+  assert.equal(scoreText({ base: 100, crash: 0, square: 0, total: 100 }), '100 pts');
+  const p = { layers: [0], pens: [{ crash: 0 }] };
+  assert.equal(stripHeight({ ...p, score: { base: 100, crash: 0, square: 0, total: 100 } }), stripHeight(p) + 26, 'the points take one more caption line');
 }
 
 console.log('render tests passed');

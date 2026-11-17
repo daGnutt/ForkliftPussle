@@ -59,7 +59,10 @@ export function issues(photo) {
 }
 
 // Height of the caption strip: the verdict plus one line per issue.
-export const stripHeight = (photo) => STRIP + issues(photo).length * LINE;
+export const stripHeight = (photo) => STRIP + (issues(photo).length + (photo.score ? 1 : 0)) * LINE;
+
+// The points the stack contributed (end-of-level gallery): "100 − 23 damage − 15 wonky = 62 pts".
+export const scoreText = (sc) => `${sc.base}${sc.crash ? ` − ${sc.crash} damage` : ''}${sc.square ? ` − ${sc.square} wonky` : ''}${sc.crash || sc.square ? ` = ${sc.total}` : ''} pts`;
 
 // Warning triangle with an exclamation mark, centred on screen point `c`, `r` px across.
 function drawDamage(ctx, c, r) {
@@ -137,6 +140,7 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
   ctx.save();
   ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#b71c1c';
   list.forEach((t, n) => ctx.fillText(t, w / 2, h + STRIP * k + (n + 0.5) * LINE * k - 6 * k, w - 50));
+  if (photo.score) { ctx.fillStyle = photo.score.total < photo.score.base ? '#e65100' : '#1b5e20'; ctx.fillText(scoreText(photo.score), w / 2, h + STRIP * k + (list.length + 0.5) * LINE * k - 6 * k, w - 50); }
   ctx.restore();
 }
 
@@ -160,9 +164,9 @@ export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], avoid = [],
   };
   for (const f of PHOTO_SCALES) {
     const k = hit(corner, f) ? [0, 1, 2, 3].find((c) => !hit(c, f)) : corner;
-    if (k !== undefined) return { corner: k, scale: f, ...rect(k, f) };
+    if (k !== undefined) return { corner: k, scale: f, fits: true, ...rect(k, f) };
   }
-  return { corner, scale: PHOTO_SCALES.at(-1), ...rect(corner, PHOTO_SCALES.at(-1)) };
+  return { corner, fits: false, scale: PHOTO_SCALES.at(-1), ...rect(corner, PHOTO_SCALES.at(-1)) };
 }
 
 // Several pictures can be on screen at once (at most MAX_POPUPS, the oldest goes first); each is its own canvas with its own timers.
@@ -170,26 +174,58 @@ const MAX_POPUPS = 4;
 const popups = [];
 const hidePopup = (p) => { clearTimeout(p.timer); clearTimeout(p.fade); p.el.remove(); const i = popups.indexOf(p); if (i >= 0) popups.splice(i, 1); };
 
+// End-of-level gallery: the pictures (a function returning them, ordered longest-dormant stack first, with stable objects; more can turn up while it runs) pop in whenever a corner is free and rotate through
+// the list, each staying GALLERY_MS. `keepClear()` gives screen rects (`{ left, top, right, bottom }`) the popups must stay off (the results panel).
+const GALLERY_MS = 6000, GALLERY_GAP = 500;
+let gallery = null;
+export function startGallery(photos, keepClear = () => []) {
+  stopGallery();
+  gallery = { photos, next: 0, nextAt: 0, keepClear };
+}
+export function stopGallery() {
+  if (!gallery) return;
+  gallery = null;
+  [...popups].forEach(hidePopup);
+}
+
+const place = (q, p) => {
+  q.corner = p.corner; q.rect = p;
+  if (p.scale !== q.scale) { q.scale = p.scale; q.el.style.width = `calc(min(45vw, 60vh) * ${p.scale})`; }
+  q.el.style.transform = `translate(${p.x - (innerWidth - p.w - MARGIN)}px, ${p.y - MARGIN}px) rotate(2deg)`;
+};
+
 // Keeps the popups off the forklift, the visible touch controls and each other: each slides to a free screen corner and shrinks when none is free.
 export function dodgePhoto() {
-  if (typeof document === 'undefined' || !popups.length) return;
+  if (typeof document === 'undefined' || (!popups.length && !gallery)) return;
   const c = document.getElementById('game')?.getBoundingClientRect() || { left: 0, top: 0 };
   const blocked = [...document.querySelectorAll('#touch button, #stick')].map((b) => b.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+  if (gallery) blocked.push(...gallery.keepClear());
   const truck = spot && { x: spot.x + c.left, y: spot.y + c.top, r: spot.r };
   const placed = [];
   for (const q of popups) {
     const w = q.el.offsetWidth / q.scale, h = q.el.offsetHeight / q.scale;
     const p = placePhoto({ vw: innerWidth, vh: innerHeight, w, h, corner: q.corner, blocked, avoid: placed, truck });
-    q.corner = p.corner;
+    place(q, p);
     placed.push(p);
-    if (p.scale !== q.scale) { q.scale = p.scale; q.el.style.width = `calc(min(45vw, 60vh) * ${p.scale})`; }
-    q.el.style.transform = `translate(${p.x - (innerWidth - p.w - MARGIN)}px, ${p.y - MARGIN}px) rotate(2deg)`;
+  }
+  const now = performance.now();
+  if (!gallery || now < gallery.nextAt || popups.length >= MAX_POPUPS) return;
+  const list = gallery.photos(), n = list.length;
+  for (let i = 0; i < n; i++) {
+    const idx = (gallery.next + i) % n, photo = list[idx];
+    if (popups.some((q) => q.photo === photo)) continue;
+    const w = Math.min(innerWidth * 0.45, innerHeight * 0.6), h = (w * (H + stripHeight(photo))) / W;
+    const p = placePhoto({ vw: innerWidth, vh: innerHeight, w, h, blocked, avoid: placed, truck });
+    if (!p.fits) return; // no space yet: try again next frame
+    gallery.next = idx + 1; gallery.nextAt = now + GALLERY_GAP;
+    place(showPhoto(photo, GALLERY_MS), p);
+    return;
   }
 }
 
-// Shows a picture (tapping it hides it, touch only, see style.css); showing the same picture again just keeps it up for another SHOW_MS.
-export function showPhoto(photo) {
-  if (typeof document === 'undefined') return;
+// Shows a picture for `ms` (tapping it hides it, touch only, see style.css); showing the same picture again just keeps it up for another `ms`. Returns the popup.
+export function showPhoto(photo, ms = SHOW_MS) {
+  if (typeof document === 'undefined') return null;
   let q = popups.find((o) => o.photo === photo);
   if (!q) {
     if (popups.length >= MAX_POPUPS) hidePopup(popups[0]);
@@ -204,6 +240,7 @@ export function showPhoto(photo) {
   }
   clearTimeout(q.timer); clearTimeout(q.fade);
   q.el.classList.remove('fade');
-  q.fade = setTimeout(() => q.el.classList.add('fade'), SHOW_MS - 400);
-  q.timer = setTimeout(() => hidePopup(q), SHOW_MS);
+  q.fade = setTimeout(() => q.el.classList.add('fade'), ms - 400);
+  q.timer = setTimeout(() => hidePopup(q), ms);
+  return q;
 }
