@@ -382,6 +382,8 @@ console.log('render tests passed');
   };
   assert.equal(symbols(photo), 1, 'one symbol, on the damaged box only');
   assert.equal(symbols({ ...photo, pens: photo.pens.map((q) => ({ ...q, crash: 0 })) }), 0, 'no symbol without damage');
+  assert.equal(symbols({ ...photo, pens: [{ crash: 0 }, { crash: 10, wide: true }] }), 0, 'no symbol on a damaged wide box');
+  assert.equal(symbols({ ...photo, pens: [{ crash: 10, barrelPart: 'base' }, { crash: 10, barrelPart: 'top' }] }), 0, 'no symbol on a damaged barrel');
   let tapes = 0, stroke = '';
   const spy = new Proxy({}, { get: (t, k) => (k === 'measureText' ? () => ({ width: 10 }) : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : k === 'stroke' ? () => { if (stroke === TAPE_FILL) tapes++; } : () => {}), set: (t, k, v) => { if (k === 'strokeStyle') stroke = v; return true; } });
   drawPhoto(spy, { ...photo, pens: [{ crash: 0, tape: 2 }, { crash: 0 }] });
@@ -389,6 +391,7 @@ console.log('render tests passed');
   const bad = { ...photo, pens: [{ crash: 22.6, sq: 0 }, { crash: 0, sq: 0 }, { crash: 5, sq: 10 }, { crash: 0, sq: 15 }] };
   assert.deepEqual(issues(bad), ['Box 1 has 23 pt damage', 'Box 3 has 5 pt damage and is wonky', 'Box 4 is wonky'], 'issues are listed per box, lowest box is 1');
   assert.deepEqual(issues({ ...photo, pens: [{ crash: 0 }, { crash: 0 }] }), []);
+  assert.deepEqual(issues({ ...photo, pens: [{ crash: 30, wide: true, sq: 5 }, { crash: 20, barrelPart: 'base' }, { crash: 20, barrelPart: 'top' }] }), ['Box 1 is wonky'], 'damage on wide boxes and barrels is not listed (cannot be repaired), wonkiness is');
   assert.ok(stripHeight(bad) > stripHeight(photo), 'the caption strip grows with the list');
   console.log('damage symbol ok');
 }

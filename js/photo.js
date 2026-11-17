@@ -1,5 +1,5 @@
 import { COLORS } from './level.js';
-import { TAPE_FILL } from './repair.js';
+import { TAPE_FILL, repairable } from './repair.js';
 
 // The inspector's snapshot, seen from its own vantage point: a camera ~0.3 tiles off the floor, tilted up so the whole stack fits.
 const W = 400, H = 300, STRIP = 81, LINE = 26, CAM_H = 0.3, FOV = 1.8, SHOW_MS = 4500;
@@ -42,7 +42,7 @@ function drawBarrel(ctx, P, col, cx, cz, y0, y1, poly, line) {
   line(sl, tl, '#111', 4); line(sr, tr, '#111', 4);
 }
 
-const hurt = (pen) => (pen?.crash || 0) > 0;
+const hurt = (pen) => (pen?.crash || 0) > 0 && repairable(pen); // no damage symbol on what can't be repaired
 
 // What is wrong with the stack, one line per box (the lowest box is box 1): its damage points and whether it sits crooked.
 // A barrel pair counts as one box (damage of both halves).
@@ -50,7 +50,7 @@ export function issues(photo) {
   const out = [];
   (photo.pens || []).forEach((pen, i) => {
     if (pen?.barrelPart === 'top') return;
-    const pts = Math.round((pen?.crash || 0) + (pen?.barrelPart === 'base' ? photo.pens[i + 1]?.crash || 0 : 0)), bits = [];
+    const pts = repairable(pen) ? Math.round(pen?.crash || 0) : 0, bits = [];
     if (pts > 0) bits.push(`has ${pts} pt damage`);
     if ((pen?.sq || 0) > 0) bits.push('is wonky');
     if (bits.length) out.push(`Box ${i + 1} ${bits.join(' and ')}`);
@@ -103,7 +103,6 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
     const cx = o.x * -fy + o.y * fx, cz = d + o.x * fx + o.y * fy; // box centre in the camera frame: x to the right, z forward
     if (pen?.barrelPart === 'base') {
       drawBarrel(ctx, P, col, cx, cz, y0, y0 + 2, poly, line);
-      if (hurt(pen) || hurt(photo.pens?.[i + 1])) drawDamage(ctx, P(cx, y0 + 1, cz - 0.47), Math.abs(P(0.4, 0, cz)[0] - P(-0.4, 0, cz)[0]));
       continue;
     }
     const phi = (photo.rots?.[i] ?? view) - view, sn = Math.sin(phi), cs = Math.cos(phi), y1 = y0 + 1;

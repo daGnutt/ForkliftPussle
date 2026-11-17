@@ -27,6 +27,9 @@ export const boxOnPad = (g) => g.stacks.find((s) => s.layers.length === 1 && s.p
 // `fls`: the forklift frames of all trucks in play.
 export const truckNearPad = (r, fls) => fls.some((f) => [-1.9, -1.4, -0.9, -0.4, 0, 0.35].some((u) => { const q = toWorld(f, u, 0); return Math.hypot(q.x - r.x, q.y - r.y) < PAUSE_DIST; }));
 
+// Only plain 1×1 boxes can be repaired at the station; barrels and wide boxes keep their damage, so the inspector ignores it.
+export const repairable = (pen) => !pen?.wide && !pen?.barrelPart;
+
 export const tapeCount = (pen) => (pen.fix > 0 ? Math.min(MAX_TAPE, 1 + Math.floor(pen.fix / TAPE_EVERY)) : 0);
 
 export function stepRepair(g, dt, fls) {
