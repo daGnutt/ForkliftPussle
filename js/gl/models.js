@@ -2,6 +2,7 @@ import { COLORS } from '../level.js';
 import { theme } from '../theme.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
 import { topShapes, DENT_FILL } from '../dents.js';
+import { tapeShapes, TAPE_FILL } from '../repair.js';
 import { decalsEnabled, boxDeco, boxDecalShapes } from '../decals.js';
 import { carriedWorldOffs, carriedJoltZ, liftedHf } from '../game.js';
 import { parseColor, shade, mix } from './mesh.js';
@@ -65,6 +66,7 @@ function addBox(m, tm, x, y, r, z, col, pen, level) {
   const top = z1 + 0.02;
   const place = (u, v) => [x + u * co - v * si, y + u * si + v * co];
   if (dented) for (const poly of topShapes(pen, level + Math.round(col * 7))) tm.poly(poly.map(([u, v]) => place(u, v)), top, [...parseColor(DENT_FILL).slice(0, 3), 0.6]);
+  if (pen?.tape) for (const poly of tapeShapes(pen)) tm.poly(poly.map(([u, v]) => place(u, v)), top + 0.002, [...parseColor(TAPE_FILL).slice(0, 3), 0.9]);
   if (pen?.open && decalsEnabled()) {
     // the "do not stack" sign also on every side of the box
     const corners = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];

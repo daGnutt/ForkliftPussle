@@ -2,6 +2,7 @@ import { BARREL_COLOR, ZONE_COLORS } from '../level.js';
 import { truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, floorDecals, oilDropMark } from '../decals.js';
+import { padPolys } from '../repair.js';
 import { FL } from '../forklift.js';
 import { reverseLight } from '../revlight.js';
 import { zoneDone, zoneExt, isSolved, isParked } from '../game.js';
@@ -82,6 +83,7 @@ export function drawFloorMarks(ctx, g, cam) {
   const ready = isSolved(g);
   floorPoly(ctx, cam, parkingCorners(g),
     ready ? (isParked(g) ? '#66bb6a99' : '#66bb6a66') : '#9e9e9e55', ready ? '#66bb6a' : '#bdbdbd');
+  if (g.repair) for (const q of padPolys(g.repair)) floorPoly(ctx, cam, q.pts, q.hex + Math.round(q.alpha * 255).toString(16).padStart(2, '0'));
   if (ready) {
     const p = g.parking, hx = (FL.front - FL.back) / 2 + 0.2, c = Math.cos(p.a), s = Math.sin(p.a);
     const arrow = [[hx - 0.15, 0], [hx - 0.75, -0.45], [hx - 0.75, 0.45]]

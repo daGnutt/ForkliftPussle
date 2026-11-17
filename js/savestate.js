@@ -13,7 +13,7 @@ const okOff = (o) => !!o && num(o.x) && num(o.y);
 const okPen = (p) => !!p && num(p.crash) && num(p.sq) &&
   (p.oilDropped === undefined || Number.isInteger(p.oilDropped) && p.oilDropped >= 0 && p.oilDropped <= 50) &&
   (p.oilFraction === undefined || num(p.oilFraction) && p.oilFraction >= 0 && p.oilFraction < 1);
-const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'oil', 'bot', 'inspector', 'bonks', 'H', 'hf', 'status', 'time', 'started', 'clock'];
+const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'oil', 'repair', 'bot', 'inspector', 'photo', 'bonks', 'H', 'hf', 'status', 'time', 'started', 'clock'];
 
 // Plain-JSON snapshot of a level in progress; the static layout is regenerated from (level, seed, hard).
 export function serializeGame(g, seedText = '') {
@@ -51,6 +51,8 @@ export function deserializeGame(data) {
   const boxes = (stacks, carried) => stacks.reduce((n, st) => n + st.layers.length, 0) + (carried ? carried.length : 0);
   if (boxes(s.stacks, s.carried) !== boxes(g.stacks, null)) throw new Error('State does not match level');
   Object.assign(g, clone(s));
+  const ph = g.photo; // the observer's last picture; a malformed one is dropped rather than failing the load
+  if (ph != null && !(Array.isArray(ph.layers) && Array.isArray(ph.pens) && Array.isArray(ph.rots) && Array.isArray(ph.offs) && num(ph.at?.x) && num(ph.at?.y))) g.photo = null;
   if (!num(g.hf)) g.hf = g.H;
   if (!num(g.time)) g.time = 0;
   // Saves from before `clock` was stored: start it past every stack's last-hit time so cooldowns have expired.

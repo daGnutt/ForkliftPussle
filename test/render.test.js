@@ -7,7 +7,8 @@ import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndl
 import { chaseOrbit } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
-import { placePhoto } from '../js/photo.js';
+import { tapeShapes, TAPE_FILL } from '../js/repair.js';
+import { placePhoto, drawPhoto, issues, stripHeight, scoreText } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
 import { setDiscoEnabled } from '../js/disco.js';
@@ -354,7 +355,44 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(placePhoto({ ...base, blocked: [] }).corner, 0, 'no touch controls: stays top right');
   const tight = placePhoto({ vw: 800, vh: 330, w: 500, h: 300, blocked: [btn(380, 100, 420, 200)] });
   assert.equal(tight.scale, 0.5, 'shrinks when no corner fits at full size');
+  const first = placePhoto({ vw: 1600, vh: 900, w: 360, h: 270 }), second = placePhoto({ vw: 1600, vh: 900, w: 360, h: 270, avoid: [first] });
+  assert.ok(first.corner === 0 && second.corner !== 0, 'a second popup takes another corner instead of covering the first');
   console.log('photo placement ok');
 }
 
+{ // gallery photos carry their points
+  assert.equal(scoreText({ base: 200, crash: 23, square: 15, total: 162 }), '200 − 23 damage − 15 wonky = 162 pts');
+  assert.equal(scoreText({ base: 100, crash: 0, square: 0, total: 100 }), '100 pts');
+  const p = { layers: [0], pens: [{ crash: 0 }] };
+  assert.equal(stripHeight({ ...p, score: { base: 100, crash: 0, square: 0, total: 100 } }), stripHeight(p) + 26, 'the points take one more caption line');
+}
+
 console.log('render tests passed');
+
+{ // damaged boxes carry a warning symbol in the inspector photo
+  const photo = { n: 1, ok: false, layers: [0, 1], rots: [0, 0], offs: [{ x: 0, y: 0 }, { x: 0, y: 0 }], pens: [{ crash: 0 }, { crash: 10 }], view: 0, dist: 2 };
+  const symbols = (p) => {
+    let n = 0, style = '';
+    const ctx = new Proxy({}, { get: (t, k) => (k === 'fillStyle' ? style : k === 'measureText' ? () => ({ width: 10 }) : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : k === 'fill' ? () => { if (style === '#ffeb3b') n++; } : () => {}), set: (t, k, v) => { if (k === 'fillStyle') style = v; return true; } });
+    drawPhoto(ctx, p);
+    return n;
+  };
+  assert.equal(symbols(photo), 1, 'one symbol, on the damaged box only');
+  assert.equal(symbols({ ...photo, pens: photo.pens.map((q) => ({ ...q, crash: 0 })) }), 0, 'no symbol without damage');
+  let tapes = 0, stroke = '';
+  const spy = new Proxy({}, { get: (t, k) => (k === 'measureText' ? () => ({ width: 10 }) : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : k === 'stroke' ? () => { if (stroke === TAPE_FILL) tapes++; } : () => {}), set: (t, k, v) => { if (k === 'strokeStyle') stroke = v; return true; } });
+  drawPhoto(spy, { ...photo, pens: [{ crash: 0, tape: 2 }, { crash: 0 }] });
+  assert.ok(tapes >= 1, 'repair tape shows in the photo');
+  const bad = { ...photo, pens: [{ crash: 22.6, sq: 0 }, { crash: 0, sq: 0 }, { crash: 5, sq: 10 }, { crash: 0, sq: 15 }] };
+  assert.deepEqual(issues(bad), ['Box 1 has 23 pt damage', 'Box 3 has 5 pt damage and is wonky', 'Box 4 is wonky'], 'issues are listed per box, lowest box is 1');
+  assert.deepEqual(issues({ ...photo, pens: [{ crash: 0 }, { crash: 0 }] }), []);
+  assert.ok(stripHeight(bad) > stripHeight(photo), 'the caption strip grows with the list');
+  console.log('damage symbol ok');
+}
+
+{ // tape strips stay on the lid and grow with the repair
+  const sizes = [1, 2, 6].map((n) => tapeShapes({ tape: n }));
+  assert.deepEqual(sizes.map((a) => a.length), [1, 2, 6]);
+  assert.ok(sizes[2].every((poly) => poly.length > 2 && poly.every(([u, v]) => Math.abs(u) <= 0.5 + 1e-9 && Math.abs(v) <= 0.5 + 1e-9)));
+  console.log('tape ok');
+}

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { newGame, update, zoneDone, zoneWonky, flaggedStacks } from '../js/game.js';
+import { newGame, update, zoneDone, zoneWonky, flaggedStacks, endPhotos } from '../js/game.js';
 import { BOT_R, CLEAN_SECS, truckGap } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { run, NONE, flatWorld } from './common.js';
@@ -279,6 +279,46 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   };
   assert.equal(pick(false), 'near', 'a calm bot takes the nearby spill');
   assert.equal(pick(true), 'far', 'a spooked bot goes for the one far from the forklift');
+}
+
+// A damaged stack is never "perfect": the inspector's photo says so and lists the damage.
+{
+  const g = newGame(1, 0);
+  const z = g.zones[0];
+  g.stacks = [{ x: z.x, y: z.y, layers: Array(z.count).fill(z.color), rots: Array(z.count).fill(0), offs: Array(z.count).fill(0).map(() => ({ x: 0, y: 0 })), a: 0, pen: Array(z.count).fill(0).map(() => ({ crash: 0, sq: 0 })) }];
+  g.stacks[0].pen[0].crash = 12;
+  const spots = [[1, 1], [g.w - 1, 1], [1, g.h - 1], [g.w - 1, g.h - 1]].map(([x, y]) => ({ x, y, d: Math.min(Math.hypot(x - g.hatch.x, y - g.hatch.y), ...g.zones.map((q) => Math.hypot(x - q.x, y - q.y))) }));
+  Object.assign(g.fl, spots.sort((a, b) => b.d - a.d)[0]);
+  for (let t = 0; t < 120 && !g.photo; t += 1 / 120) update(g, NONE, 1 / 120);
+  assert.ok(g.photo, 'the stack was photographed');
+  assert.equal(g.photo.ok, false, 'damage means no GOOD JOB');
+  assert.equal(g.photo.pens[0].crash, 12);
+  assert.equal(flaggedStacks(g).length, 1, 'a photographed damaged stack gets the floating "!"');
+  const fresh = newGame(1, 0);
+  fresh.photo = g.photo;
+  const back = deserializeGame(JSON.parse(JSON.stringify(serializeGame(fresh))));
+  assert.deepEqual(back.photo, JSON.parse(JSON.stringify(g.photo)), 'the last picture survives save and load');
+}
+
+// End of level: every stack gets a picture with the points it contributed, longest-dormant stack first; a missing photo is faked from the stack.
+{
+  const g = newGame(1, 0);
+  const [z0, z1] = g.zones;
+  g.stacks = [z0, z1].map((z, i) => ({ x: z.x, y: z.y, layers: Array(z.count).fill(z.color), rots: Array(z.count).fill(0), offs: Array(z.count).fill(0).map(() => ({ x: 0, y: 0 })), a: 0, pen: Array(z.count).fill(0).map((_, j) => ({ crash: i || j ? 0 : 10, sq: 0 })) }));
+  const mk = (t) => ({ n: 1, t, ok: true, layers: [0], pens: [{ crash: 0 }], at: { x: 0, y: 0 } });
+  g.inspector.photos = { [`${z1.x},${z1.y},${z1.color}`]: mk(20) };
+  g.clock = 50;
+  const list = endPhotos(g);
+  assert.equal(list.length, 2, 'a stack without a photo gets a faked one');
+  assert.deepEqual(list.map((p) => p.t), [20, 50], 'the stack dormant longest comes first');
+  const fake = list[1];
+  assert.equal(fake.score.crash, 10);
+  assert.equal(fake.score.total, fake.score.base - 10, 'damage is deducted from the stack points');
+  assert.equal(fake.ok, false, 'a faked picture of a damaged stack is not perfect');
+  assert.equal(fake.pens[0].crash, 10);
+  assert.equal(fake.layers.length, g.stacks[0].layers.length);
+  assert.equal(list[0].score.total, list[0].score.base, 'a perfect stack scores its full points');
+  assert.equal(endPhotos(g)[0], list[0], 'one stable object per picture');
 }
 
 console.log('bot tests passed');

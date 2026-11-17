@@ -4,6 +4,7 @@ import { FL, toWorld, truckColor } from './forklift.js';
 import { scanBeam, WHEEL_R } from './bot.js';
 import { drawBotDebugWorld } from './debug.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
+import { padPolys, tapeShapes, TAPE_FILL } from './repair.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
 import { labelRows, hitRows, honkers, drawHonk, drawFlag } from './pov/overlay.js';
@@ -195,6 +196,17 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
           ctx.stroke();
           ctx.globalAlpha = 1;
         }
+      }
+      if (pens[i]?.tape) {
+        ctx.fillStyle = TAPE_FILL;
+        ctx.globalAlpha = 0.9;
+        for (const poly of tapeShapes(pens[i])) {
+          ctx.beginPath();
+          poly.forEach(([u, v], k) => (k ? ctx.lineTo(u, v) : ctx.moveTo(u, v)));
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
       }
       if (decalsEnabled()) {
         for (const d of boxDecalShapes(boxDeco(pens[i], layers[i], i))) {
@@ -458,6 +470,10 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   ctx.globalAlpha = 1;
   ctx.fillStyle = '#9e9e9e';
   ctx.fillRect((g.parking.x - 0.8) * s - 1, (g.parking.y - 0.8) * s - 1, 1.6 * s + 2, 1.6 * s + 2);
+  if (g.repair) {
+    ctx.fillStyle = '#42a5f5';
+    ctx.fillRect((g.repair.x - 0.65) * s, (g.repair.y - 0.65) * s, 1.3 * s, 1.3 * s);
+  }
   ctx.fillStyle = theme().wall;
   for (const q of g.pillars) if (q.y < g.h && q.x < g.w) ctx.fillRect(q.x * s, q.y * s, Math.max(1.5, q.w * s), Math.max(1.5, q.h * s));
   const dot = Math.max(3, s * 0.9);
@@ -717,6 +733,18 @@ function drawWorldObjects(ctx, g, vis) {
         ctx.fill();
       }
     });
+  }
+
+  if (g.repair) {
+    for (const q of padPolys(g.repair)) {
+      ctx.fillStyle = q.hex;
+      ctx.globalAlpha = q.alpha;
+      ctx.beginPath();
+      q.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   const rl = reverseLight(g);

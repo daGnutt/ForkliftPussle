@@ -1,7 +1,8 @@
 import { COLORS } from './level.js';
+import { TAPE_FILL } from './repair.js';
 
 // The inspector's snapshot, seen from its own vantage point: a camera ~0.3 tiles off the floor, tilted up so the whole stack fits.
-const W = 400, H = 300, STRIP = 81, CAM_H = 0.3, FOV = 1.8, SHOW_MS = 4500;
+const W = 400, H = 300, STRIP = 81, LINE = 26, CAM_H = 0.3, FOV = 1.8, SHOW_MS = 4500;
 
 const shade = (hex, k) => {
   const n = parseInt(hex.slice(1), 16);
@@ -41,9 +42,39 @@ function drawBarrel(ctx, P, col, cx, cz, y0, y1, poly, line) {
   line(sl, tl, '#111', 4); line(sr, tr, '#111', 4);
 }
 
+const hurt = (pen) => (pen?.crash || 0) > 0;
+
+// What is wrong with the stack, one line per box (the lowest box is box 1): its damage points and whether it sits crooked.
+// A barrel pair counts as one box (damage of both halves).
+export function issues(photo) {
+  const out = [];
+  (photo.pens || []).forEach((pen, i) => {
+    if (pen?.barrelPart === 'top') return;
+    const pts = Math.round((pen?.crash || 0) + (pen?.barrelPart === 'base' ? photo.pens[i + 1]?.crash || 0 : 0)), bits = [];
+    if (pts > 0) bits.push(`has ${pts} pt damage`);
+    if ((pen?.sq || 0) > 0) bits.push('is wonky');
+    if (bits.length) out.push(`Box ${i + 1} ${bits.join(' and ')}`);
+  });
+  return out;
+}
+
+// Height of the caption strip: the verdict plus one line per issue.
+export const stripHeight = (photo) => STRIP + (issues(photo).length + (photo.score ? 1 : 0)) * LINE;
+
+// The points the stack contributed (end-of-level gallery): "100 − 23 damage − 15 wonky = 62 pts".
+export const scoreText = (sc) => `${sc.base}${sc.crash ? ` − ${sc.crash} damage` : ''}${sc.square ? ` − ${sc.square} wonky` : ''}${sc.crash || sc.square ? ` = ${sc.total}` : ''} pts`;
+
+// Warning triangle with an exclamation mark, centred on screen point `c`, `r` px across.
+function drawDamage(ctx, c, r) {
+  const [x, y] = c, t = [[x, y - r * 0.55], [x + r * 0.6, y + r * 0.45], [x - r * 0.6, y + r * 0.45]];
+  ctx.beginPath(); t.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.closePath();
+  ctx.fillStyle = '#ffeb3b'; ctx.fill(); ctx.strokeStyle = '#d50000'; ctx.lineWidth = Math.max(2, r * 0.12); ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.fillStyle = '#d50000'; ctx.fillRect(x - r * 0.05, y - r * 0.2, r * 0.1, r * 0.36); ctx.fillRect(x - r * 0.05, y + r * 0.22, r * 0.1, r * 0.1);
+}
+
 // Polaroid: the w x h picture plus a white caption strip below it (canvas height h + STRIP), the verdict is written on the strip.
 export function drawPhoto(ctx, photo, w = W, h = H) {
-  const sh = Math.round(h * STRIP / H);
+  const list = issues(photo), sh = Math.round(h * stripHeight(photo) / H), k = h / H;
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h + sh);
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.clip();
   const P = projector(photo, w, h), d = Math.max(1.1, photo.dist || 1.4), n = photo.layers.length;
@@ -70,7 +101,11 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
     if (pen?.barrelPart === 'top') continue;
     const col = COLORS[photo.layers[i]] ?? '#9e9e9e', y0 = i, o = photo.offs?.[i] || { x: 0, y: 0 };
     const cx = o.x * -fy + o.y * fx, cz = d + o.x * fx + o.y * fy; // box centre in the camera frame: x to the right, z forward
-    if (pen?.barrelPart === 'base') { drawBarrel(ctx, P, col, cx, cz, y0, y0 + 2, poly, line); continue; }
+    if (pen?.barrelPart === 'base') {
+      drawBarrel(ctx, P, col, cx, cz, y0, y0 + 2, poly, line);
+      if (hurt(pen) || hurt(photo.pens?.[i + 1])) drawDamage(ctx, P(cx, y0 + 1, cz - 0.47), Math.abs(P(0.4, 0, cz)[0] - P(-0.4, 0, cz)[0]));
+      continue;
+    }
     const phi = (photo.rots?.[i] ?? view) - view, sn = Math.sin(phi), cs = Math.cos(phi), y1 = y0 + 1;
     const hy = pen?.wide ? 1 : 0.5; // a double-wide box is two tiles across its local y axis
     const cor = [[-0.5, -hy], [0.5, -hy], [0.5, hy], [-0.5, hy]].map(([u, v]) => [cx + u * sn + v * cs, cz + u * cs - v * sn]);
@@ -81,6 +116,11 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
       const nl = Math.hypot(nx, nz);
       poly([P(ax, y0, az), P(bx, y0, bz), P(bx, y1, bz), P(ax, y1, az)], shade(col, 0.8 + 0.25 * (-nz / nl) + 0.2 * (nx / nl)));
       const m = (u, v) => P(ax + ex * u, y0 + v, az + ez * u);
+      for (let t = 0, n = pen?.tape || 0; t < n; t++) { // film strips: diagonals across the face, alternating direction
+        const c = (t - (n - 1) / 2) * 0.28, up = t % 2 === 0, u0 = Math.max(0, -c), u1 = Math.min(1, 1 - c);
+        if (u1 > u0) line(m(u0, up ? u0 + c : 1 - u0 - c), m(u1, up ? u1 + c : 1 - u1 - c), TAPE_FILL, 7);
+      }
+      if (hurt(pen)) drawDamage(ctx, m(0.5, 0.5), Math.min(Math.hypot(...m(1, 0.5).map((v, j) => v - m(0, 0.5)[j])), Math.hypot(...m(0.5, 1).map((v, j) => v - m(0.5, 0)[j]))) * 0.7);
       for (const [p, q] of [[[0.5, 0], [0.5, 1]], [[0, 0.5], [1, 0.5]], [[0.12, 0.12], [0.88, 0.12]], [[0.88, 0.12], [0.88, 0.88]], [[0.88, 0.88], [0.12, 0.88]], [[0.12, 0.88], [0.12, 0.12]]]) line(m(...p), m(...q), 'rgba(255,255,255,.55)', 3);
     }
   }
@@ -92,14 +132,19 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 14; ctx.strokeRect(0, 0, w, h + sh); // polaroid border
   const text = photo.ok ? 'GOOD JOB' : 'COULD BE BETTER', col = photo.ok ? '#43a047' : '#e53935';
   ctx.save();
-  ctx.translate(w / 2, h + sh / 2 + 2); ctx.rotate(-0.04);
+  ctx.translate(w / 2, h + (STRIP * k) / 2 + 2); ctx.rotate(-0.04);
   ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.scale(Math.min(1, (w - 50) / ctx.measureText(text).width), 1);
   ctx.fillStyle = col; ctx.fillText(text, 0, 0);
   ctx.restore();
+  ctx.save();
+  ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#b71c1c';
+  list.forEach((t, n) => ctx.fillText(t, w / 2, h + STRIP * k + (n + 0.5) * LINE * k - 6 * k, w - 50));
+  if (photo.score) { ctx.fillStyle = photo.score.total < photo.score.base ? '#e65100' : '#1b5e20'; ctx.fillText(scoreText(photo.score), w / 2, h + STRIP * k + (list.length + 0.5) * LINE * k - 6 * k, w - 50); }
+  ctx.restore();
 }
 
-let timer = 0, fade = 0, spot = null, corner = 0;
+let spot = null;
 
 // The renderers report where the player's forklift is on the canvas (CSS px, with a radius); no report (cab views) means nothing to dodge.
 export const clearTruckSpot = () => { spot = null; };
@@ -108,42 +153,107 @@ export const setTruckSpot = (x, y, r) => { spot = { x, y, r }; };
 export const PHOTO_SCALES = [1, 0.75, 0.5];
 const MARGIN = 16;
 
-// Picks the screen corner (0 right-top, 1 left-top, 2 right-bottom, 3 left-bottom) and size factor for a popup of full size w x h: the current corner is kept while it is free, otherwise the first free one; if no corner is free at full size the popup shrinks (PHOTO_SCALES). `blocked` are screen rects to keep clear (touch controls), `truck` the forklift circle.
-export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], truck = null, m = MARGIN }) {
+// Picks the screen corner (0 right-top, 1 left-top, 2 right-bottom, 3 left-bottom) and size factor for a popup of full size w x h: the current corner is kept while it is free, otherwise the first free one; if no corner is free at full size the popup shrinks (PHOTO_SCALES). `blocked` are screen rects to keep clear (touch controls) and `avoid` the rects of other popups (`{ x, y, w, h }`), `truck` the forklift circle.
+export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], avoid = [], truck = null, m = MARGIN }) {
   const rect = (k, f) => { const rw = w * f, rh = h * f; return { x: k & 1 ? m : vw - rw - m, y: k & 2 ? vh - rh - m : m, w: rw, h: rh }; };
   const hit = (k, f) => {
     const r = rect(k, f);
     if (blocked.some((b) => r.x < b.right + 8 && r.x + r.w > b.left - 8 && r.y < b.bottom + 8 && r.y + r.h > b.top - 8)) return true;
+    if (avoid.some((b) => r.x < b.x + b.w + 8 && r.x + r.w > b.x - 8 && r.y < b.y + b.h + 8 && r.y + r.h > b.y - 8)) return true;
     return !!truck && Math.hypot(truck.x - Math.max(r.x, Math.min(truck.x, r.x + r.w)), truck.y - Math.max(r.y, Math.min(truck.y, r.y + r.h))) < truck.r + 24;
   };
   for (const f of PHOTO_SCALES) {
     const k = hit(corner, f) ? [0, 1, 2, 3].find((c) => !hit(c, f)) : corner;
-    if (k !== undefined) return { corner: k, scale: f, ...rect(k, f) };
+    if (k !== undefined) return { corner: k, scale: f, fits: true, ...rect(k, f) };
   }
-  return { corner, scale: PHOTO_SCALES.at(-1), ...rect(corner, PHOTO_SCALES.at(-1)) };
+  return { corner, fits: false, scale: PHOTO_SCALES.at(-1), ...rect(corner, PHOTO_SCALES.at(-1)) };
 }
 
-let photoScale = 1;
-// Keeps the popup off the forklift and the visible touch controls: it slides to a free screen corner and shrinks when none is free.
+// Several pictures can be on screen at once (at most MAX_POPUPS, the oldest goes first); each is its own canvas with its own timers.
+const MAX_POPUPS = 4, GALLERY_MAX = 30, GALLERY_SCALE = 0.5;
+const popups = [];
+const hidePopup = (p) => { clearTimeout(p.timer); clearTimeout(p.fade); p.el.remove(); const i = popups.indexOf(p); if (i >= 0) popups.splice(i, 1); };
+
+// End-of-level gallery: the pictures (a function returning them, ordered longest-dormant stack first, with stable objects; more can turn up while it runs) pop in whenever a corner is free and rotate through
+// the list, each staying GALLERY_MS. `keepClear()` gives screen rects (`{ left, top, right, bottom }`) the popups must stay off (the results panel).
+const GALLERY_MS = 6000, GALLERY_GAP = 500;
+let gallery = null;
+export function startGallery(photos, keepClear = () => []) {
+  stopGallery();
+  gallery = { photos, next: 0, nextAt: 0, keepClear };
+}
+export function stopGallery() {
+  if (!gallery) return;
+  gallery = null;
+  [...popups].forEach(hidePopup);
+}
+
+const place = (q, p) => {
+  q.corner = p.corner; q.rect = p;
+  if (p.scale !== q.scale) { q.scale = p.scale; q.el.style.width = `calc(min(45vw, 60vh) * ${p.scale})`; }
+  q.el.style.transform = `translate(${p.x - (innerWidth - p.w - MARGIN)}px, ${p.y - MARGIN}px) rotate(2deg)`;
+};
+
+// The first spot (scanning the screen row by row) where a w x h picture clears the blocked rects and the placed pictures (the level is over, so gameplay may be covered), or null.
+function freeSpot(w, h, blocked, placed) {
+  const m = MARGIN, g = 8, sx = Math.max(12, w / 4), sy = Math.max(12, h / 4);
+  for (let y = m; y + h <= innerHeight - m; y += sy) for (let x = m; x + w <= innerWidth - m; x += sx) {
+    if (blocked.some((b) => x < b.right + g && x + w > b.left - g && y < b.bottom + g && y + h > b.top - g)) continue;
+    if (placed.some((b) => x < b.x + b.w + g && x + w > b.x - g && y < b.y + b.h + g && y + h > b.y - g)) continue;
+    return { x, y };
+  }
+  return null;
+}
+
+// Keeps the popups off the forklift, the visible touch controls and each other: each slides to a free screen corner and shrinks when none is free.
 export function dodgePhoto() {
-  const el = typeof document !== 'undefined' && document.getElementById('photo');
-  if (!el || el.classList.contains('hide')) return;
+  if (typeof document === 'undefined' || (!popups.length && !gallery)) return;
   const c = document.getElementById('game')?.getBoundingClientRect() || { left: 0, top: 0 };
   const blocked = [...document.querySelectorAll('#touch button, #stick')].map((b) => b.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
-  const w = el.offsetWidth / photoScale, h = el.offsetHeight / photoScale;
+  if (gallery) blocked.push(...gallery.keepClear());
   const truck = spot && { x: spot.x + c.left, y: spot.y + c.top, r: spot.r };
-  const p = placePhoto({ vw: innerWidth, vh: innerHeight, w, h, corner, blocked, truck });
-  corner = p.corner;
-  if (p.scale !== photoScale) { photoScale = p.scale; el.style.width = `calc(min(45vw, 60vh) * ${p.scale})`; }
-  el.style.transform = `translate(${p.x - (innerWidth - p.w - MARGIN)}px, ${p.y - MARGIN}px) rotate(2deg)`;
+  const placed = [];
+  for (const q of popups) {
+    if (q.fixed) { placed.push(q.rect); continue; } // gallery pictures keep the spot they were given
+    const w = q.el.offsetWidth / q.scale, h = q.el.offsetHeight / q.scale;
+    const p = placePhoto({ vw: innerWidth, vh: innerHeight, w, h, corner: q.corner, blocked, avoid: placed, truck });
+    place(q, p);
+    placed.push(p);
+  }
+  const now = performance.now();
+  if (!gallery || now < gallery.nextAt || popups.length >= GALLERY_MAX) return;
+  const list = gallery.photos(), n = list.length;
+  for (let i = 0; i < n; i++) {
+    const idx = (gallery.next + i) % n, photo = list[idx];
+    if (popups.some((q) => q.photo === photo)) continue;
+    const w = Math.min(innerWidth * 0.45, innerHeight * 0.6) * GALLERY_SCALE, h = (w * (H + stripHeight(photo))) / W;
+    const p = freeSpot(w, h, blocked, placed);
+    if (!p) return; // no space yet: try again next frame
+    gallery.next = idx + 1; gallery.nextAt = now + GALLERY_GAP;
+    const q = showPhoto(photo, GALLERY_MS);
+    q.fixed = true; place(q, { ...p, scale: GALLERY_SCALE, w, h, corner: 0 });
+    return;
+  }
 }
-export function showPhoto(photo) {
-  const el = typeof document !== 'undefined' && document.getElementById('photo');
-  if (!el) return;
-  el.width = W; el.height = H + STRIP;
-  drawPhoto(el.getContext('2d'), photo);
-  clearTimeout(timer); clearTimeout(fade);
-  el.classList.remove('hide', 'fade');
-  fade = setTimeout(() => el.classList.add('fade'), SHOW_MS - 400);
-  timer = setTimeout(() => el.classList.add('hide'), SHOW_MS);
+
+// Shows a picture for `ms` (tapping it hides it, touch only, see style.css); showing the same picture again just keeps it up for another `ms`. Returns the popup.
+export function showPhoto(photo, ms = SHOW_MS) {
+  if (typeof document === 'undefined') return null;
+  let q = popups.find((o) => o.photo === photo);
+  if (!q) {
+    if (popups.length >= (gallery ? GALLERY_MAX : MAX_POPUPS)) hidePopup(popups[0]);
+    const el = document.createElement('canvas');
+    el.className = 'photo'; el.setAttribute('aria-hidden', 'true');
+    el.width = W; el.height = H + stripHeight(photo); el.style.aspectRatio = `${el.width} / ${el.height}`;
+    drawPhoto(el.getContext('2d'), photo);
+    document.body.append(el);
+    q = { el, photo, scale: 1, corner: 0, timer: 0, fade: 0 };
+    el.addEventListener('pointerdown', () => hidePopup(q));
+    popups.push(q);
+  }
+  clearTimeout(q.timer); clearTimeout(q.fade);
+  q.el.classList.remove('fade');
+  q.fade = setTimeout(() => q.el.classList.add('fade'), ms - 400);
+  q.timer = setTimeout(() => hidePopup(q), ms);
+  return q;
 }

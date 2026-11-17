@@ -1,6 +1,7 @@
 import { theme } from '../theme.js';
 import { decalsEnabled, wallDecal, wallBase, hash, boxDecalShapes } from '../decals.js';
 import { topShapes, sideShapes, DENT_FILL } from '../dents.js';
+import { tapeShapes, TAPE_FILL } from '../repair.js';
 import { project, pathPoly, toCam, BOX_H, DECAL_MAX_DIST, FAR_DARK, PALLET_COLOR } from './camera.js';
 
 // Face painting: flat colour, distance shading and the decals on walls, boxes and chargers.
@@ -399,12 +400,13 @@ function drawBoxDecal(ctx, cam, f, dark) {
 function drawDents(ctx, cam, f, dark) {
   if (f.side) {
     const [q0, q1, z0, z1] = f.side;
-    for (const poly of sideShapes(f.pen, f.edge, f.dseed)) {
+    for (const poly of f.pen.dent ? sideShapes(f.pen, f.edge, f.dseed) : []) {
       decalPoly(ctx, cam, poly.map(([u, v]) => [q0[0] + (q1[0] - q0[0]) * u, q0[1] + (q1[1] - q0[1]) * u, z0 + (z1 - z0) * v]), DENT_FILL, dark);
     }
   } else if (f.boxFlat && f.lit) {
     const { x, y, r } = f.box, c = Math.cos(r), s = Math.sin(r), z = f.quad[0][2];
-    for (const poly of topShapes(f.pen, f.dseed)) decalPoly(ctx, cam, poly.map(([u, v]) => [x + u * c - v * s, y + u * s + v * c, z]), DENT_FILL, dark);
+    if (f.pen.dent) for (const poly of topShapes(f.pen, f.dseed)) decalPoly(ctx, cam, poly.map(([u, v]) => [x + u * c - v * s, y + u * s + v * c, z]), DENT_FILL, dark);
+    if (f.pen.tape) for (const poly of tapeShapes(f.pen)) decalPoly(ctx, cam, poly.map(([u, v]) => [x + u * c - v * s, y + u * s + v * c, z]), TAPE_FILL, dark);
   }
 }
 

@@ -19,6 +19,7 @@ import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ } from '../js/game.js';
 
+import { stackSig } from '../js/bot.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
 // Nudging a box slowly squares it to the forklift; it causes no damage.
@@ -533,6 +534,76 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(Math.abs(slick.spin) > Math.abs(clean.spin), 'oil on a rear tire can spin the truck');
   assert.ok(slick.slip > 0, 'oil makes the tyres slip');
   console.log('oil barrels ok');
+}
+
+// The repair station next to the parking spot repairs one single box at a time (1 damage point/s), spinning it while no truck is close.
+{
+  const g = newGame(1);
+  const r = g.repair;
+  assert.ok(r && Math.abs(Math.hypot(r.x - g.parking.x, r.y - g.parking.y) - 2.4) < 1e-9, 'a pad sits beside the parking spot');
+  assert.ok(g.walls.filter((w) => !w.mast).every((w) => pointRectDist(r.x, r.y, w) > 0.65), 'the pad is clear of walls');
+  assert.ok(g.walls.some((w) => w.mast) && pointRectDist(r.x, r.y, r.mast) > 0.65, 'the film mast is a solid post beside the turntable');
+  g.stacks = [{ x: r.x, y: r.y, layers: [0], rots: [0], a: 0, pen: [{ crash: 10, sq: 0, dent: { t: 1, c: [0, 0, 0, 0], s: [0, 0, 0, 0] } }], offs: [{ x: 0, y: 0 }] }];
+  Object.assign(g.fl, { x: g.parking.x, y: g.parking.y, a: g.parking.a, speed: 0 }); // the truck stays in the parking spot, out of reach
+  const far = { x: r.x + 12, y: r.y, a: 0, speed: 0 };
+  Object.assign(g.fl, far);
+  run(g, NONE, 3.01);
+  assert.equal(g.stacks[0].pen[0].crash, 7, 'one damage point per second');
+  assert.ok(g.stacks[0].a > 5 && g.repair.on, 'the box spins while it is repaired');
+  assert.equal(g.stacks[0].pen[0].tape, 1, 'tape appears once repair has started');
+  Object.assign(g.fl, { x: r.x - 1.5, y: r.y, a: 0 });
+  const a = g.stacks[0].a;
+  run(g, NONE, 2);
+  assert.ok(g.stacks[0].pen[0].crash === 7 && g.stacks[0].a === a && !g.repair.on, 'a close truck pauses the spin and the repair');
+  Object.assign(g.fl, far);
+  run(g, NONE, 20);
+  const pen = g.stacks[0].pen[0];
+  assert.ok(pen.crash === 0 && pen.tape > 1 && !pen.dent, 'fully repaired: more tape, dents gone');
+  assert.ok(Math.abs(g.stacks[0].a / (Math.PI / 2) - Math.round(g.stacks[0].a / (Math.PI / 2))) < 1e-9 && !g.repair.on, 'it stops spinning, squared up');
+  g.stacks = [{ x: r.x, y: r.y, layers: [0, 1], rots: [0, 0], a: 0, pen: [{ crash: 5, sq: 0 }, { crash: 5, sq: 0 }], offs: [{ x: 0, y: 0 }, { x: 0, y: 0 }] }];
+  run(g, NONE, 2);
+  assert.ok(g.stacks[0].pen.every((p) => p.crash === 5) && !g.repair.on, 'a stack of several boxes is not repaired');
+  console.log('repair station ok');
+}
+
+// Putting the tines into a stack that carries the inspector's "!" (photographed, still damaged or wonky, untouched) re-shows the picture the inspector took of that stack.
+{
+  const setup = (crash, sq = 0, photographed = true) => {
+    const g = newGame(1);
+    flatWorld(g);
+    g.zones = [{ x: 10, y: 5, w: 1, h: 1, count: 1, color: 0 }];
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [sq ? 0.3 : 0], a: 0, pen: [{ crash, sq }], offs: [{ x: 0, y: 0 }] }]; // sq is recomputed from the angles
+    if (photographed) {
+      const photo = { n: 1, ok: false, layers: [0], pens: [{ crash, sq }], at: { x: 10, y: 5 } };
+      Object.assign(g.inspector, { seen: ['10,5,0'], sigs: { '10,5,0': stackSig(g.stacks[0]) }, photos: { '10,5,0': photo } });
+    }
+    return g;
+  };
+  let g = setup(8, 0, false);
+  faceStack(g, 0); g.fl.speed = 0;
+  run(g, NONE, 0.05);
+  assert.equal(g.forkPhoto, undefined, 'no picture taken: nothing to show');
+  g = setup(8);
+  g.fl.x = 5; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
+  run(g, NONE, 0.05);
+  assert.equal(g.forkPhoto, undefined, 'tines not in the stack yet');
+  faceStack(g, 0);
+  run(g, NONE, 0.05);
+  assert.equal(g.forkPhoto?.photo, g.inspector.photos['10,5,0'], 'the stack picture is shown when the stack reaches the fork gauge');
+  g = setup(0, 20);
+  faceStack(g, 0);
+  run(g, NONE, 0.05);
+  assert.ok(g.forkPhoto, 'a wonky stack re-shows its picture too');
+  g = setup(0);
+  faceStack(g, 0);
+  run(g, NONE, 0.05);
+  assert.equal(g.forkPhoto, undefined, 'a perfect stack has no "!" and no popup');
+  g = setup(8);
+  g.stacks[0].touched = true;
+  faceStack(g, 0);
+  run(g, NONE, 0.05);
+  assert.equal(g.forkPhoto, undefined, 'no "!" (touched since the picture): no popup');
+  console.log('last picture ok');
 }
 
 console.log('stacks tests passed');
