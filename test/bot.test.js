@@ -294,6 +294,8 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(g.photo.ok, false, 'damage means no GOOD JOB');
   assert.equal(g.photo.pens[0].crash, 12);
   assert.equal(flaggedStacks(g).length, 1, 'a photographed damaged stack gets the floating "!"');
+  const back = deserializeGame(JSON.parse(JSON.stringify(serializeGame(g))));
+  assert.deepEqual(back.photo, g.photo, 'the last picture survives save and load');
 }
 
 console.log('bot tests passed');
