@@ -357,6 +357,9 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(tight.scale, 0.5, 'shrinks when no corner fits at full size');
   const first = placePhoto({ vw: 1600, vh: 900, w: 360, h: 270 }), second = placePhoto({ vw: 1600, vh: 900, w: 360, h: 270, avoid: [first] });
   assert.ok(first.corner === 0 && second.corner !== 0, 'a second popup takes another corner instead of covering the first');
+  const gauge = btn(1102, 44, 1184, 234), compass = btn(1151, 240, 1199, 284), hud = [gauge, compass];
+  const g1 = placePhoto({ vw: 1200, vh: 800, w: 360, h: 270, blocked: hud });
+  assert.ok(g1.corner !== 0 && ![gauge, compass].some((b) => g1.x < b.right && g1.x + g1.w > b.left && g1.y < b.bottom && g1.y + g1.h > b.top), 'the photo leaves the fork gauge and compass clear');
   console.log('photo placement ok');
 }
 

@@ -10,7 +10,7 @@ import { drawPov } from './pov.js';
 import { labelRows, hitRows, honkers, drawHonk, drawFlag } from './pov/overlay.js';
 import { chaseTiles as chaseTilesFor, chaseRig, clearChaseTilt, CHASE_TILT, CHASE_TILES, CHASE_DEFAULT, headTurn } from './gl/camera.js';
 import { beginGlFrame } from './gl/renderer.js';
-import { clearTruckSpot, setTruckSpot } from './photo.js';
+import { clearTruckSpot, setTruckSpot, addHudRect } from './photo.js';
 import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
@@ -1109,6 +1109,7 @@ function drawPartyBadge(ctx, g, party, width) {
   let x = width - 12 - w;
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   ctx.beginPath();
+  addHudRect(x - 6, 8, x + w + 6, 34);
   ctx.roundRect(x - 6, 8, w + 12, 26, 6);
   ctx.fill();
   ctx.fillStyle = '#eee';
@@ -1151,6 +1152,7 @@ function drawDockWaits(ctx, g, width, touchLand) {
 // Fork height gauge of one truck view: 0 = floor; box layer i fills the cell at height i-1
 function drawForkGauge(ctx, g, gx, gy) {
   const cell = 26, top = 5;
+  addHudRect(gx - 28, gy - 26, gx + 54, gy + top * cell + cell + 8);
   const yOf = (lvl) => gy + (top - lvl) * cell;
   const tc = truckColor(g.truck.color);
   ctx.fillStyle = tc.dark;
@@ -1201,6 +1203,7 @@ function drawCompass(ctx, g, view, width) {
   else a = view.orbit ? view.orbit.yaw - Math.PI / 2 : -Math.PI / 2;
   const theta = Math.atan2(-Math.cos(a), -Math.sin(a)), cx = width - 29, cy = 262, r = 18;
   if (!(view.chase && !view.povBig) && Math.abs(wrapAngle(theta)) < 0.02) return; // north is straight up: no need for a compass (the chase camera always shows it)
+  addHudRect(cx - r - 4, cy - r - 4, cx + r + 4, cy + r + 4);
   ctx.save();
   ctx.translate(cx, cy);
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
