@@ -326,12 +326,15 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   const g = botGame(), h = g.hatch;
   g.stacks = []; clearOf(g, h);
   g.oil = [{ id: 't', x: h.x + h.nx * 4, y: h.y + h.ny * 4, r: 0.163, drops: 1 }];
-  let sliding = 0, t = 0;
+  let sliding = 0, t = 0, prev = null;
   while (g.bot.mode !== 'hidden' || !sliding) {
+    if (g.bot.show === 0 || g.bot.show === 1) prev = null;
     update(g, NONE, 1 / 120); t += 1 / 120;
     if (g.bot.show > 0 && g.bot.show < 1) {
       sliding++;
-      assert.ok(Math.abs(g.bot.a - h.a) < 0.06, 'faces out of the hatch while sliding');
+      assert.ok(Math.abs(Math.sin(g.bot.a - h.a)) < 0.06, 'square to the wall while sliding');
+      if (prev) assert.ok((g.bot.x - prev.x) * Math.cos(g.bot.a) + (g.bot.y - prev.y) * Math.sin(g.bot.a) > 0, 'drives forwards, in and out');
+      prev = { x: g.bot.x, y: g.bot.y };
       assert.ok(Math.abs((g.bot.x - h.x) * h.ny - (g.bot.y - h.y) * h.nx) < 1e-6, 'stays on the straight line out of the hatch while sliding');
     }
     assert.ok(t < 90, 'bot finishes and goes home');

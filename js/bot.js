@@ -51,27 +51,27 @@ export function botDrawPos(b, h) {
   return h ? { x: b.x - h.nx * s, y: b.y - h.ny * s } : { x: b.x, y: b.y };
 }
 
-// A bot drives straight out of its hatch and straight back in (reversing, so it still faces out): `show` (0..1) is how far along that
-// line from `botHome` to `botLane` it is. It goes in and out via the lane point, where it turns to face out before backing in.
+// A bot drives straight out of its hatch and straight back in, always forwards: `show` (0..1) is how far along that
+// line from `botHome` to `botLane` it is. It goes in and out via the lane point, where it turns to face the wall before driving in.
 export const LANE = 1.1; // distance of the lane point (the bot's goal when going home) from the wall
 const laneAt = (h, show) => { const d = (LANE - (BOT_R + 0.1)) * show + BOT_R + 0.1; return { x: h.x + h.nx * d, y: h.y + h.ny * d }; };
 export const botLane = (h) => laneAt(h, 1);
-function place(g, bot) { const p = laneAt(g.hatch, bot.show); bot.x = p.x; bot.y = p.y; bot.a = g.hatch.a; }
+function place(g, bot, a) { const p = laneAt(g.hatch, bot.show); bot.x = p.x; bot.y = p.y; bot.a = a; }
 function emerge(g, bot, dt) {
   bot.show = Math.min(1, bot.show + dt / SHOW_SECS);
-  place(g, bot);
+  place(g, bot, g.hatch.a);
 }
 function retract(g, bot, dt) {
   bot.path = [];
   if (!bot.leaving) {
     const lane = botLane(g.hatch);
     bot.x = lane.x; bot.y = lane.y;
-    let da = g.hatch.a - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
+    let da = g.hatch.a + Math.PI - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
     if (Math.abs(da) > 0.05) { bot.a += da * Math.min(1, TURN * dt); return; }
     bot.leaving = true;
   }
   bot.show = Math.max(0, bot.show - dt / SHOW_SECS);
-  place(g, bot);
+  place(g, bot, g.hatch.a + Math.PI);
   if (bot.show === 0) { bot.mode = 'hidden'; bot.leaving = false; }
 }
 
