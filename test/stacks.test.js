@@ -566,43 +566,43 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('repair station ok');
 }
 
-// Putting the tines into a damaged stack (it fills the fork gauge) re-shows the observer's last picture of it, unless there is none or the stack was tampered with.
+// Putting the tines into a stack that carries the inspector's "!" (photographed, still damaged or wonky, untouched) re-shows the picture the inspector took of that stack.
 {
-  const setup = (crash) => {
+  const setup = (crash, sq = 0, photographed = true) => {
     const g = newGame(1);
     flatWorld(g);
-    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0, pen: [{ crash, sq: 0 }], offs: [{ x: 0, y: 0 }] }];
+    g.zones = [{ x: 10, y: 5, w: 1, h: 1, count: 1, color: 0 }];
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [sq ? 0.3 : 0], a: 0, pen: [{ crash, sq }], offs: [{ x: 0, y: 0 }] }]; // sq is recomputed from the angles
+    if (photographed) {
+      const photo = { n: 1, ok: false, layers: [0], pens: [{ crash, sq }], at: { x: 10, y: 5 } };
+      Object.assign(g.inspector, { seen: ['10,5,0'], sigs: { '10,5,0': stackSig(g.stacks[0]) }, photos: { '10,5,0': photo } });
+    }
     return g;
   };
-  let g = setup(8);
+  let g = setup(8, 0, false);
   faceStack(g, 0); g.fl.speed = 0;
   run(g, NONE, 0.05);
   assert.equal(g.forkPhoto, undefined, 'no picture taken: nothing to show');
   g = setup(8);
-  g.photo = { n: 1, ok: false, layers: [0], pens: [{ crash: 8 }], at: { x: 10, y: 5 }, sig: stackSig(g.stacks[0]) };
   g.fl.x = 5; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
   run(g, NONE, 0.05);
   assert.equal(g.forkPhoto, undefined, 'tines not in the stack yet');
   faceStack(g, 0);
   run(g, NONE, 0.05);
-  assert.equal(g.forkPhoto?.photo, g.photo, 'the last picture is shown when the stack reaches the fork gauge');
-  g = setup(0);
-  g.photo = { n: 1, ok: true, layers: [0], pens: [{ crash: 0 }], at: { x: 10, y: 5 }, sig: stackSig(g.stacks[0]) };
-  faceStack(g, 0);
-  run(g, NONE, 0.05);
-  assert.equal(g.forkPhoto, undefined, 'undamaged stack: no popup');
-  g = setup(0);
-  g.stacks[0].pen[0].sq = 20;
-  g.photo = { n: 1, ok: false, layers: [0], pens: [{ crash: 0, sq: 20 }], at: { x: 10, y: 5 }, sig: stackSig(g.stacks[0]) };
+  assert.equal(g.forkPhoto?.photo, g.inspector.photos['10,5,0'], 'the stack picture is shown when the stack reaches the fork gauge');
+  g = setup(0, 20);
   faceStack(g, 0);
   run(g, NONE, 0.05);
   assert.ok(g.forkPhoto, 'a wonky stack re-shows its picture too');
+  g = setup(0);
+  faceStack(g, 0);
+  run(g, NONE, 0.05);
+  assert.equal(g.forkPhoto, undefined, 'a perfect stack has no "!" and no popup');
   g = setup(8);
-  g.photo = { n: 1, ok: false, layers: [0], pens: [{ crash: 8 }], at: { x: 10, y: 5 }, sig: stackSig(g.stacks[0]) };
   g.stacks[0].touched = true;
   faceStack(g, 0);
   run(g, NONE, 0.05);
-  assert.ok(g.photo === null && g.forkPhoto === undefined, 'a tampered stack makes the observer forget the picture');
+  assert.equal(g.forkPhoto, undefined, 'no "!" (touched since the picture): no popup');
   console.log('last picture ok');
 }
 

@@ -394,6 +394,7 @@ export function pendingZones(g, done) {
     return q?.touched || (insp.sigs?.[zoneKey(z)] !== undefined && insp.sigs[zoneKey(z)] !== stackSig(q));
   }).map(zoneKey));
   insp.seen = insp.seen.filter((k) => doneKeys.has(k) && !changed.has(k)); // a drop point that was undone is inspected again once it is completed anew
+  if (insp.photos) for (const k of Object.keys(insp.photos)) if (!insp.seen.includes(k)) delete insp.photos[k];
   return done.filter((z) => !insp.seen.includes(zoneKey(z)));
 }
 
@@ -502,6 +503,7 @@ function inspectorStep(g, dt, done, wonky) {
           g.photo = { n: (g.photo?.n || 0) + 1, ok: !wonky(target) && !st?.pen?.some((q) => q?.crash > 0), layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [], pens: st?.pen ? st.pen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide, crash: q?.crash || 0, sq: q?.sq || 0, tape: q?.tape || 0 })) : [], view: Math.atan2(target.y - bot.y, target.x - bot.x), dist: Math.hypot(target.x - bot.x, target.y - bot.y) }; // the snapshot shown as a popup (js/photo.js)
           (bot.sigs ||= {})[zoneKey(target)] = stackSig(st);
           if (st) { st.touched = false; g.photo.at = { x: st.x, y: st.y }; g.photo.sig = stackSig(st); }
+          if (st) (bot.photos ||= {})[zoneKey(target)] = g.photo; // kept per drop point: the flagged stack's own picture
           bot.seen.push(zoneKey(target)); bot.shooting = 0; bot.flash = 1; bot.target = null; bot.repath = 0;
           (g.hits ||= []).push({ x: bot.x, y: bot.y, z: 0.5, t: g.clock, owner: null, check: !g.photo.ok ? 'warn' : 'perfect' }); // verdict floats up from the bot
         }

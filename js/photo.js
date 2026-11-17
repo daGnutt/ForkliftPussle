@@ -178,6 +178,9 @@ export function dodgePhoto() {
   if (p.scale !== photoScale) { photoScale = p.scale; el.style.width = `calc(min(45vw, 60vh) * ${p.scale})`; }
   el.style.transform = `translate(${p.x - (innerWidth - p.w - MARGIN)}px, ${p.y - MARGIN}px) rotate(2deg)`;
 }
+// Tapping the popup (touch only, see style.css) hides it at once.
+if (typeof document !== 'undefined') document.getElementById('photo')?.addEventListener('pointerdown', (e) => { clearTimeout(timer); clearTimeout(fade); e.currentTarget.classList.add('hide'); });
+
 export function showPhoto(photo) {
   const el = typeof document !== 'undefined' && document.getElementById('photo');
   if (!el) return;

@@ -4,7 +4,7 @@ import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLoc
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
 import { makeStation, stepRepair } from './repair.js';
-import { makeHatch, makeBot, makeInspector, stepBot, stepInspector, stackSig, photoTampered } from './bot.js';
+import { makeHatch, makeBot, makeInspector, stepBot, stepInspector, stackSig } from './bot.js';
 
 const FORKLIFT_MASS = 6;
 const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
@@ -883,17 +883,18 @@ function skidStep(f, dt) {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-// Steps the game. `input` drives the local truck; the other trucks use their `input` field (set by the host from the network).
-// The stack that appears in the fork gauge (tines in front of it) in it: if it is the stack in the observer's
-// last picture (and untouched since) and that picture was not a perfect one (damaged or wonky), it is shown again (`g.forkPhoto`, picked up by main.js).
+// The stack that appears in the fork gauge (tines in front of it): if it carries the inspector's "!" (see flaggedStacks), the picture the
+// inspector took of it is shown again (`g.forkPhoto`, picked up by main.js).
 function watchForkedStack(g) {
   const S = g.carried ? null : stackInZone(g);
   if (S === g.forkStack) return;
   g.forkStack = S;
-  const ph = g.photo;
-  if (S && ph && !photoTampered(g) && !ph.ok && Math.hypot(S.x - ph.at.x, S.y - ph.at.y) < 0.5) g.forkPhoto = { photo: ph };
+  const f = S && flaggedStacks(g).find((q) => q.x === S.x && q.y === S.y);
+  const ph = f && g.inspector.photos?.[f.key];
+  if (ph) g.forkPhoto = { photo: ph };
 }
 
+// Steps the game. `input` drives the local truck; the other trucks use their `input` field (set by the host from the network).
 export function update(g, input, dt) {
   const root = g.root;
   root.clock += dt;
@@ -1496,7 +1497,7 @@ export function zonePoints(g, z) {
   return { n: S.layers.length, base, total: base - Math.round(crash) - Math.round(square), crash: Math.round(crash), square: Math.round(square) };
 }
 
-// Stacks the inspector judged "could be better": photographed (in `inspector.seen`) and still crooked or damaged. Each `{x, y, h}` (h = boxes high).
+// Stacks the inspector judged "could be better": photographed (in `inspector.seen`) and still crooked or damaged. Each `{x, y, h, key}` (h = boxes high, key = the drop point's key in `inspector.seen`/`inspector.photos`).
 export function flaggedStacks(g) {
   const out = [];
   for (const z of g.zones) {
@@ -1504,7 +1505,7 @@ export function flaggedStacks(g) {
     const s = g.stacks.find((q) => stackFillsZone(q, z));
     if (s?.touched) continue;
     if (s && g.inspector.sigs?.[`${z.x},${z.y},${z.color}`] !== undefined && g.inspector.sigs[`${z.x},${z.y},${z.color}`] !== stackSig(s)) continue; // touched since the photo
-    if (s && (refreshSquare(s), s.pen.some((p) => p.sq > 0 || p.crash > 0))) out.push({ x: s.x, y: s.y, h: s.layers.length });
+    if (s && (refreshSquare(s), s.pen.some((p) => p.sq > 0 || p.crash > 0))) out.push({ x: s.x, y: s.y, h: s.layers.length, key: `${z.x},${z.y},${z.color}` });
   }
   return out;
 }

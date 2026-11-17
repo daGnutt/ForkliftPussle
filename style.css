@@ -234,4 +234,5 @@ body.keys-wasd .k-arrows { display: none; }
 
 /* Inspector snapshot popup (js/photo.js): at most 25% of the screen (45vw x 60vh bounds, 400:381) */
 #photo { position: fixed; right: 16px; top: 16px; z-index: 6; width: min(45vw, 60vh); height: auto; aspect-ratio: 400 / 381; border-radius: 3px; box-shadow: 0 6px 24px rgba(0,0,0,.6); pointer-events: none; transform: rotate(2deg); transition: opacity .4s, transform .35s ease; } /* js/photo.js dodgePhoto slides it to a free corner */
+@media (pointer: coarse) { #photo { pointer-events: auto; } } /* touch: tap the picture to dismiss it */
 #photo.hide { display: none; } #photo.fade { opacity: 0; }
