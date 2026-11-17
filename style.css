@@ -73,6 +73,15 @@ footer b { color: var(--accent); }
 #menu .page[hidden] { display: none; }
 #menu h3 { margin: 0; text-align: center; color: var(--accent); }
 #menu hr { width: 100%; margin: 2px 0; border: 0; border-top: 1px solid rgba(128,128,128,.35); }
+#menu .padmap { margin: 4px 0; text-align: center; }
+#menu .padmap svg { width: 100%; height: auto; }
+#menu .padmap .body { fill: rgba(128,128,128,.35); stroke: currentColor; stroke-width: 2; }
+#menu .padmap rect, #menu .padmap circle { fill: rgba(128,128,128,.5); stroke: currentColor; stroke-width: 1.5; }
+#menu .padmap circle.stk { fill: rgba(128,128,128,.2); }
+#menu .padmap circle.knob { fill: currentColor; stroke: none; }
+#menu .padmap .hi { fill: #f9a825; }
+#menu .padmap text { fill: currentColor; font: bold 11px sans-serif; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+#menu .padmap figcaption { font-size: .8em; opacity: .8; }
 #menu .item { padding: 4px 2px; }
 #menu button.nav, #menu button.back, #menu a.nav { display: flex; justify-content: space-between; align-items: center; text-align: left; background: transparent; color: var(--fg); font-weight: normal; padding: 9px 4px; border-radius: 0; border-bottom: 1px solid rgba(128,128,128,.2); }
 #menu a.nav { text-decoration: none; box-sizing: border-box; }
