@@ -193,7 +193,17 @@ export function stopGallery() {
 const place = (q, p) => {
   q.corner = p.corner; q.rect = p;
   if (p.scale !== q.scale) { q.scale = p.scale; q.el.style.width = `calc(min(45vw, 60vh) * ${p.scale * q.k})`; }
-  q.el.style.transform = `translate(${p.x - (innerWidth - p.w - MARGIN)}px, ${p.y - MARGIN}px) rotate(2deg)`;
+  const at = (x, y) => `translate(${x - (innerWidth - p.w - MARGIN)}px, ${y - MARGIN}px) rotate(2deg)`;
+  if (q.entering) { // a new picture flies in from the screen edge closest to the spot it was given
+    q.entering = false;
+    const d = [p.x, innerWidth - p.x - p.w, p.y, innerHeight - p.y - p.h], k = d.indexOf(Math.min(...d));
+    q.el.style.transition = 'none';
+    q.el.style.transform = at(k === 0 ? -p.w - MARGIN : k === 1 ? innerWidth + MARGIN : p.x, k === 2 ? -p.h - MARGIN : k === 3 ? innerHeight + MARGIN : p.y);
+    q.el.style.visibility = '';
+    void q.el.offsetWidth;
+    q.el.style.transition = '';
+  }
+  q.el.style.transform = at(p.x, p.y);
 };
 
 // The first spot (scanning the screen row by row) where a w x h picture clears the blocked rects and the placed pictures (the level is over, so gameplay may be covered), or null.
@@ -250,8 +260,9 @@ export function showPhoto(photo, ms = SHOW_MS, old = false) {
     el.className = 'photo'; el.setAttribute('aria-hidden', 'true');
     el.width = W; el.height = H + stripHeight(photo); el.style.aspectRatio = `${el.width} / ${el.height}`;
     drawPhoto(el.getContext('2d'), photo);
+    el.style.visibility = 'hidden'; // until dodgePhoto has picked its spot
     document.body.append(el);
-    q = { el, photo, scale: 1, k: old ? OLD_SCALE : 1, corner: 0, timer: 0, fade: 0 };
+    q = { el, photo, scale: 1, k: old ? OLD_SCALE : 1, entering: true, corner: 0, timer: 0, fade: 0 };
     if (old) { el.classList.add('old'); el.style.width = `calc(min(45vw, 60vh) * ${OLD_SCALE})`; }
     el.addEventListener('pointerdown', () => hidePopup(q));
     popups.push(q);
