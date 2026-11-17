@@ -1,6 +1,6 @@
 import { newGame, update, endPhotos, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges } from './game.js';
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
-import { createInput } from './input.js';
+import { createInput, inTouchControlZone } from './input.js';
 import { createLocal } from './local.js';
 import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
 import { createRelay } from './net/relay.js';
@@ -373,6 +373,10 @@ let drag = null;
 canvas.addEventListener('pointerdown', () => { if (!splashOn) view.startHidden = true; }, true);
 canvas.addEventListener('pointerdown', (e) => {
   if (e.target !== canvas || !glEnabled() || splashOn || recordOpen || view.menuOpen) return;
+  if (e.pointerType === 'touch') {
+    const r = canvas.getBoundingClientRect();
+    if (inTouchControlZone(e.clientX - r.left, e.clientY - r.top, r.width, r.height, matchMedia('(orientation: landscape)').matches, view.shared ? game.trucks.length : 1)) return;
+  }
   drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
 });
 canvas.addEventListener('pointermove', (e) => {

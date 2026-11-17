@@ -174,3 +174,14 @@ console.log('input tests passed');
   drive(g2, { thr: 0, str: 0 }, 0.5);
   assert.ok(f.speed < g2.speed && f.brake, 'braking slows faster than coasting and lights the brake lamps');
 }
+
+// Touch camera drag ignores the control zones (pad strip + fork gauge)
+{
+  const { inTouchControlZone: z } = await import('../js/input.js');
+  assert.ok(z(400, 700, 800, 800, false), 'portrait: bottom 208px is a control zone');
+  assert.ok(!z(400, 500, 800, 800, false), 'portrait: open area above it is free');
+  assert.ok(z(400, 660, 900, 800, true), 'landscape: bottom 144px');
+  assert.ok(!z(400, 640, 900, 800, true), 'landscape: free above 144px');
+  assert.ok(z(850, 100, 900, 800, true), 'fork gauge column');
+  assert.ok(!z(500, 100, 900, 800, true), 'free area beside the gauge');
+}
