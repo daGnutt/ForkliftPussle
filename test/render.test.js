@@ -7,7 +7,7 @@ import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndl
 import { chaseOrbit } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
-import { tapeShapes } from '../js/repair.js';
+import { tapeShapes, TAPE_FILL } from '../js/repair.js';
 import { placePhoto, drawPhoto } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
@@ -370,6 +370,10 @@ console.log('render tests passed');
   };
   assert.equal(symbols(photo), 1, 'one symbol, on the damaged box only');
   assert.equal(symbols({ ...photo, pens: photo.pens.map((q) => ({ ...q, crash: 0 })) }), 0, 'no symbol without damage');
+  let tapes = 0, stroke = '';
+  const spy = new Proxy({}, { get: (t, k) => (k === 'measureText' ? () => ({ width: 10 }) : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : k === 'stroke' ? () => { if (stroke === TAPE_FILL) tapes++; } : () => {}), set: (t, k, v) => { if (k === 'strokeStyle') stroke = v; return true; } });
+  drawPhoto(spy, { ...photo, pens: [{ crash: 0, tape: 2 }, { crash: 0 }] });
+  assert.ok(tapes >= 1, 'repair tape shows in the photo');
   console.log('damage symbol ok');
 }
 

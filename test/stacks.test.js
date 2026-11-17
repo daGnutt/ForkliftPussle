@@ -541,7 +541,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const g = newGame(1);
   const r = g.repair;
   assert.ok(r && Math.abs(Math.hypot(r.x - g.parking.x, r.y - g.parking.y) - 2.4) < 1e-9, 'a pad sits beside the parking spot');
-  assert.ok(g.walls.every((w) => pointRectDist(r.x, r.y, w) > 0.65), 'the pad is clear of walls');
+  assert.ok(g.walls.filter((w) => !w.mast).every((w) => pointRectDist(r.x, r.y, w) > 0.65), 'the pad is clear of walls');
+  assert.ok(g.walls.some((w) => w.mast) && pointRectDist(r.x, r.y, r.mast) > 0.65, 'the film mast is a solid post beside the turntable');
   g.stacks = [{ x: r.x, y: r.y, layers: [0], rots: [0], a: 0, pen: [{ crash: 10, sq: 0, dent: { t: 1, c: [0, 0, 0, 0], s: [0, 0, 0, 0] } }], offs: [{ x: 0, y: 0 }] }];
   Object.assign(g.fl, { x: g.parking.x, y: g.parking.y, a: g.parking.a, speed: 0 }); // the truck stays in the parking spot, out of reach
   const far = { x: r.x + 12, y: r.y, a: 0, speed: 0 };
@@ -565,26 +566,37 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('repair station ok');
 }
 
-// Lifting a damaged stack re-shows the observer's last picture of it, unless there is none or the stack was tampered with.
+// Putting the tines into a damaged stack (it fills the fork gauge) re-shows the observer's last picture of it, unless there is none or the stack was tampered with.
 {
-  const g = newGame(1);
-  flatWorld(g);
-  const mk = () => ({ x: 10, y: 5, layers: [0], rots: [0], a: 0, pen: [{ crash: 8, sq: 0 }], offs: [{ x: 0, y: 0 }] });
-  g.stacks = [mk()];
-  faceStack(g, 0);
-  g.fl.speed = 0;
-  forkUp(g);
-  assert.equal(g.liftPhoto, undefined, 'no picture taken: nothing to show');
-  g.carried = null; g.stacks = [mk()]; g.H = 0;
-  g.photo = { n: 1, ok: false, layers: [0], pens: [{ crash: 8 }], at: { x: 10, y: 5 }, sig: stackSig(g.stacks[0]) };
-  faceStack(g, 0);
-  forkUp(g);
-  assert.equal(g.liftPhoto?.photo, g.photo, 'the last picture is shown again');
-  g.carried = null; g.stacks = [mk()]; g.H = 0; g.liftPhoto = undefined;
-  g.stacks[0].x += 0.1; // moved since the picture
-  g.stacks[0].x -= 0.1; g.stacks[0].touched = true;
+  const setup = (crash) => {
+    const g = newGame(1);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0, pen: [{ crash, sq: 0 }], offs: [{ x: 0, y: 0 }] }];
+    return g;
+  };
+  let g = setup(8);
+  faceStack(g, 0); g.fl.speed = 0;
   run(g, NONE, 0.05);
-  assert.equal(g.photo, null, 'a tampered stack makes the observer forget the picture');
+  assert.equal(g.forkPhoto, undefined, 'no picture taken: nothing to show');
+  g = setup(8);
+  g.photo = { n: 1, ok: false, layers: [0], pens: [{ crash: 8 }], at: { x: 10, y: 5 }, sig: stackSig(g.stacks[0]) };
+  g.fl.x = 5; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
+  run(g, NONE, 0.05);
+  assert.equal(g.forkPhoto, undefined, 'tines not in the stack yet');
+  faceStack(g, 0);
+  run(g, NONE, 0.05);
+  assert.equal(g.forkPhoto?.photo, g.photo, 'the last picture is shown when the stack reaches the fork gauge');
+  g = setup(0);
+  g.photo = { n: 1, ok: true, layers: [0], pens: [{ crash: 0 }], at: { x: 10, y: 5 }, sig: stackSig(g.stacks[0]) };
+  faceStack(g, 0);
+  run(g, NONE, 0.05);
+  assert.equal(g.forkPhoto, undefined, 'undamaged stack: no popup');
+  g = setup(8);
+  g.photo = { n: 1, ok: false, layers: [0], pens: [{ crash: 8 }], at: { x: 10, y: 5 }, sig: stackSig(g.stacks[0]) };
+  g.stacks[0].touched = true;
+  faceStack(g, 0);
+  run(g, NONE, 0.05);
+  assert.ok(g.photo === null && g.forkPhoto === undefined, 'a tampered stack makes the observer forget the picture');
   console.log('last picture ok');
 }
 

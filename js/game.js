@@ -528,6 +528,7 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
     clock: 0,
   };
   g.repair = makeStation(g);
+  if (g.repair) { const m = g.repair.mast; walls.push({ ...m, poly: rectPoly(m.x + m.w / 2, m.y + m.h / 2, m.w / 2, m.h / 2), mast: true }); }
   g.hatch = makeHatch(g);
   g.bot = makeBot(g);
   g.inspector = makeInspector(g);
@@ -883,6 +884,16 @@ function skidStep(f, dt) {
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 // Steps the game. `input` drives the local truck; the other trucks use their `input` field (set by the host from the network).
+// The stack that appears in the fork gauge (tines in front of it) with a damaged box in it: if it is the stack in the observer's
+// last picture (and untouched since), that picture is shown again (`g.forkPhoto`, picked up by main.js).
+function watchForkedStack(g) {
+  const S = g.carried ? null : stackInZone(g);
+  if (S === g.forkStack) return;
+  g.forkStack = S;
+  const ph = g.photo;
+  if (S && ph && !photoTampered(g) && S.pen?.some((q) => q.crash > 0) && Math.hypot(S.x - ph.at.x, S.y - ph.at.y) < 0.5) g.forkPhoto = { photo: ph };
+}
+
 export function update(g, input, dt) {
   const root = g.root;
   root.clock += dt;
@@ -893,6 +904,7 @@ export function update(g, input, dt) {
   if (root.hits) root.hits = root.hits.filter((h) => root.clock - h.t < hitLife(h));
   root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self ? input : t.input, dt); });
   stepOil(root, dt);
+  watchForkedStack(root);
   stepRepair(root, dt, root.trucks.flatMap((t, i) => (t.gone ? [] : [truckView(root, i).fl])));
   stepBot(root, dt, OIL_DROP_AREA);
   stepInspector(root, dt, root.zones.filter((z) => zoneDone(root, z)), (z) => zoneWonky(root, z));
@@ -1325,8 +1337,7 @@ export function forkUp(g) {
   if (S) {
     const k = relH(g, S);
     if (S.pen?.[k]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[k])) > WIDE_ALIGN) return 'blocked'; // the tines don't both fit under it
-    const rider = perchedOn(g, S), ph = g.root.photo;
-    if (ph && !photoTampered(g.root) && S.pen.slice(k).some((q) => q.crash > 0) && Math.hypot(S.x - ph.at.x, S.y - ph.at.y) < 0.5) g.root.liftPhoto = { photo: ph }; // the observer's last picture of this stack, to be shown again
+    const rider = perchedOn(g, S);
     g.carried = S.layers.splice(k);
     g.carriedRots = S.rots.splice(k).map((r) => r - g.fl.a);
     g.carriedPen = S.pen.splice(k);

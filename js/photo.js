@@ -1,4 +1,5 @@
 import { COLORS } from './level.js';
+import { TAPE_FILL } from './repair.js';
 
 // The inspector's snapshot, seen from its own vantage point: a camera ~0.3 tiles off the floor, tilted up so the whole stack fits.
 const W = 400, H = 300, STRIP = 81, CAM_H = 0.3, FOV = 1.8, SHOW_MS = 4500;
@@ -95,6 +96,10 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
       const nl = Math.hypot(nx, nz);
       poly([P(ax, y0, az), P(bx, y0, bz), P(bx, y1, bz), P(ax, y1, az)], shade(col, 0.8 + 0.25 * (-nz / nl) + 0.2 * (nx / nl)));
       const m = (u, v) => P(ax + ex * u, y0 + v, az + ez * u);
+      for (let t = 0, n = pen?.tape || 0; t < n; t++) { // film strips: diagonals across the face, alternating direction
+        const c = (t - (n - 1) / 2) * 0.28, up = t % 2 === 0, u0 = Math.max(0, -c), u1 = Math.min(1, 1 - c);
+        if (u1 > u0) line(m(u0, up ? u0 + c : 1 - u0 - c), m(u1, up ? u1 + c : 1 - u1 - c), TAPE_FILL, 7);
+      }
       if (hurt(pen)) drawDamage(ctx, m(0.5, 0.5), Math.min(Math.hypot(...m(1, 0.5).map((v, j) => v - m(0, 0.5)[j])), Math.hypot(...m(0.5, 1).map((v, j) => v - m(0.5, 0)[j]))) * 0.7);
       for (const [p, q] of [[[0.5, 0], [0.5, 1]], [[0, 0.5], [1, 0.5]], [[0.12, 0.12], [0.88, 0.12]], [[0.88, 0.12], [0.88, 0.88]], [[0.88, 0.88], [0.12, 0.88]], [[0.12, 0.88], [0.12, 0.12]]]) line(m(...p), m(...q), 'rgba(255,255,255,.55)', 3);
     }

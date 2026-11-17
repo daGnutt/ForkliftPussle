@@ -1,10 +1,10 @@
 import { pointRectDist } from './geom.js';
 import { toWorld } from './forklift.js';
 
-// The repair station: a pad next to the parking spot that holds one single box at a time. A box on it spins and is repaired at
+// The repair station, a pallet turntable wrapping machine: a round turntable with a film mast (a solid post, `r.mast`) beside it. A turntable is next to the parking spot that holds one single box at a time. A box on it spins and is repaired at
 // RATE crash points per second; while a truck is within PAUSE_DIST of the pad the box stands still and nothing is repaired.
 export const PAD_HALF = 0.65, PAUSE_DIST = 1.5, SPIN = 2, RATE = 1, MAX_TAPE = 6, TAPE_EVERY = 8;
-const SIDE = 2.4;
+const SIDE = 2.4, MAST_AT = 1.05, MAST_HALF = 0.18;
 
 // Places the pad beside the parking spot (either side, first one that is clear of walls, stacks and drop points), or null.
 export function makeStation(g) {
@@ -14,7 +14,9 @@ export function makeStation(g) {
     if (g.walls.some((w) => pointRectDist(x, y, w) < PAD_HALF + 0.5)) continue;
     if (g.stacks.some((s) => Math.hypot(s.x - x, s.y - y) < PAD_HALF + 1)) continue;
     if (g.zones.some((z) => Math.hypot(z.x - x, z.y - y) < PAD_HALF + 1.6)) continue;
-    return { x, y, on: false, acc: 0 };
+    const mx = x + nx * side * MAST_AT, my = y + ny * side * MAST_AT;
+    if (g.walls.some((w) => pointRectDist(mx, my, w) < MAST_HALF + 0.6)) continue;
+    return { x, y, on: false, acc: 0, ang: 0, mast: { x: mx - MAST_HALF, y: my - MAST_HALF, w: 2 * MAST_HALF, h: 2 * MAST_HALF } };
   }
   return null;
 }
@@ -33,6 +35,7 @@ export function stepRepair(g, dt, fls) {
   const s = boxOnPad(g), pen = s?.pen[0];
   r.on = !!pen && pen.crash > 0 && !truckNearPad(r, fls);
   if (!r.on) { r.acc = 0; return; }
+  r.ang = ((r.ang || 0) + SPIN * dt) % (2 * Math.PI);
   s.rots ||= [s.a || 0];
   s.a = (s.a || 0) + SPIN * dt; s.rots[0] += SPIN * dt;
   r.acc += RATE * dt;
@@ -45,13 +48,17 @@ export function stepRepair(g, dt, fls) {
   }
 }
 
-// Floor art of the pad in world coordinates: `{ pts, hex, alpha }` polygons (base, border, plus sign); yellow while a box is being repaired.
+// Floor art of the turntable in world coordinates: `{ pts, hex, alpha }` polygons (dark platform, rim, four spokes turning with the box).
 export function padPolys(r) {
-  const h = PAD_HALF, t = 0.07, hex = r.on ? '#ffca28' : '#42a5f5', rect = (u0, v0, u1, v1) => [[r.x + u0, r.y + v0], [r.x + u1, r.y + v0], [r.x + u1, r.y + v1], [r.x + u0, r.y + v1]];
-  return [
-    { pts: rect(-h, -h, h, h), hex, alpha: 0.3 },
-    ...[rect(-h, -h, h, -h + t), rect(-h, h - t, h, h), rect(-h, -h + t, -h + t, h - t), rect(h - t, -h + t, h, h - t), rect(-0.08, -0.35, 0.08, 0.35), rect(-0.35, -0.08, 0.35, 0.08)].map((pts) => ({ pts, hex, alpha: 1 })),
-  ];
+  const h = PAD_HALF, N = 24, ang = r.ang || 0, hot = r.on ? '#fff176' : '#ffca28';
+  const ring = (rad, k) => [r.x + Math.cos((k * 2 * Math.PI) / N) * rad, r.y + Math.sin((k * 2 * Math.PI) / N) * rad];
+  const out = [{ pts: Array.from({ length: N }, (_, k) => ring(h, k)), hex: '#455a64', alpha: 0.85 }];
+  for (let k = 0; k < N; k++) out.push({ pts: [ring(h, k), ring(h, k + 1), ring(h - 0.06, k + 1), ring(h - 0.06, k)], hex: k % 2 ? '#212121' : '#ffca28', alpha: 1 });
+  for (let k = 0; k < 4; k++) {
+    const a = ang + (k * Math.PI) / 2, c = Math.cos(a), s = Math.sin(a), at = (u, v) => [r.x + u * c - v * s, r.y + u * s + v * c];
+    out.push({ pts: [at(0.1, -0.05), at(h - 0.12, -0.05), at(h - 0.12, 0.05), at(0.1, 0.05)], hex: hot, alpha: 1 });
+  }
+  return out;
 }
 
 // Tape on a box lid, box-local (-0.5..0.5): `tapeCount(pen)` diagonal strips, alternating direction, clipped to the lid.
