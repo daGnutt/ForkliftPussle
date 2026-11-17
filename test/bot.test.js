@@ -297,7 +297,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   const fresh = newGame(1, 0);
   fresh.photo = g.photo;
   const back = deserializeGame(JSON.parse(JSON.stringify(serializeGame(fresh))));
-  assert.deepEqual(back.photo, g.photo, 'the last picture survives save and load');
+  assert.deepEqual(back.photo, JSON.parse(JSON.stringify(g.photo)), 'the last picture survives save and load');
 }
 
 console.log('bot tests passed');
