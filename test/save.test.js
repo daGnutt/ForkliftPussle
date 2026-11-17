@@ -89,6 +89,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const guestBase = guest.stacks.find((s) => s.pen.some((p) => p.barrelId === base.barrelId)).pen.find((p) => p.barrelPart === 'base');
   assert.equal(guestBase.oilDropped, 49, 'multiplayer preserves the consumed oil supply');
   assert.equal(guestBase.oilFraction, 0.9, 'multiplayer preserves drop timing');
+  resumed.bot = null; // keep the cleaning bot from mopping the spill during the check
   run(resumed, NONE, 1);
   assert.equal(resumedBase.oilDropped, 50, 'saving preserves fractional progress to the last drop');
   assert.equal(resumed.oil[0].drops, 1, 'reloading does not refill the barrel');

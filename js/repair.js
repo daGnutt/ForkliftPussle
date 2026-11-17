@@ -6,33 +6,33 @@ import { toWorld } from './forklift.js';
 export const PAD_HALF = 0.65, PAUSE_DIST = 1.5, SPIN = 2, RATE = 1, MAX_TAPE = 6, TAPE_EVERY = 8;
 const SIDE = 2.4, MAST_AT = 1.05, MAST_HALF = 0.18;
 
-// A pad at (x, y) with its mast `dir` (unit vector) away from it, or null when something is in the way.
+const WALL_GAP = 0.35; // a mast this close to a wall (edge to edge, beyond its own half-width) counts as standing against it
+
+// A pad at (x, y) with its mast in direction (dx, dy) away from it, or null when something is in the way. `wall`: the mast stands against a wall.
 function tryPad(g, x, y, dx, dy) {
   if (g.walls.some((w) => pointRectDist(x, y, w) < PAD_HALF + 0.5)) return null;
   if (g.stacks.some((s) => Math.hypot(s.x - x, s.y - y) < PAD_HALF + 1)) return null;
   if (g.zones.some((z) => Math.hypot(z.x - x, z.y - y) < PAD_HALF + 1.6)) return null;
   const mx = x + dx * MAST_AT, my = y + dy * MAST_AT;
-  if (g.walls.some((w) => pointRectDist(mx, my, w) < MAST_HALF + 0.6)) return null;
+  const gap = Math.min(...g.walls.map((w) => pointRectDist(mx, my, w))) - MAST_HALF;
+  if (gap < 0.02 || (gap > WALL_GAP && gap < 0.6)) return null;
   if (g.zones.some((z) => Math.hypot(z.x - mx, z.y - my) < 1.3)) return null; // keeps the mast off the drop points' "×count" labels
-  return { x, y, on: false, acc: 0, ang: 0, mast: { x: mx - MAST_HALF, y: my - MAST_HALF, w: 2 * MAST_HALF, h: 2 * MAST_HALF } };
+  return { x, y, on: false, acc: 0, ang: 0, wall: gap <= WALL_GAP, mast: { x: mx - MAST_HALF, y: my - MAST_HALF, w: 2 * MAST_HALF, h: 2 * MAST_HALF } };
 }
 
-// Places the pad beside the parking spot when there is room (either side, first one clear of walls, stacks and drop points); otherwise at the free spot closest to the parking spot anywhere on the map. Null only when nothing fits.
+// Places the pad, with its mast on the wall side, against a wall (outer or inner) at the free spot closest to the parking spot (at least SIDE away from it). Without any wall-backed spot, the closest free spot with the mast clear of walls; null only when nothing fits.
 export function makeStation(g) {
-  const p = g.parking, nx = -Math.sin(p.a), ny = Math.cos(p.a);
-  for (const side of [1, -1]) {
-    const r = tryPad(g, p.x + nx * SIDE * side, p.y + ny * SIDE * side, nx * side, ny * side);
-    if (r) return r;
-  }
+  const p = g.parking;
   let best = null, bd = Infinity;
-  for (let x = 1; x < g.w; x += 0.5) for (let y = 1; y < g.h; y += 0.5) {
+  for (let x = 1; x < g.w; x += 0.25) for (let y = 1; y < g.h; y += 0.25) {
     const d = Math.hypot(x - p.x, y - p.y);
-    if (d < SIDE || d >= bd) continue;
+    if (d < SIDE - 1e-9) continue;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const r = tryPad(g, x, y, dx, dy);
-      if (r) { best = r; bd = d; break; }
+      if (r && (!best || (r.wall && !best.wall) || (r.wall === best.wall && d < bd))) { best = r; bd = d; }
     }
   }
+  if (best) delete best.wall;
   return best;
 }
 

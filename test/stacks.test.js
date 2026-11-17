@@ -540,7 +540,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 {
   const g = newGame(1);
   const r = g.repair;
-  assert.ok(r && Math.abs(Math.hypot(r.x - g.parking.x, r.y - g.parking.y) - 2.4) < 1e-9, 'a pad sits beside the parking spot');
+  assert.ok(r && Math.hypot(r.x - g.parking.x, r.y - g.parking.y) >= 2.4 - 1e-9, 'a pad sits near the parking spot, not on it');
+  assert.ok(g.walls.filter((w) => !w.mast).some((w) => pointRectDist(r.mast.x + 0.18, r.mast.y + 0.18, w) < 0.18 + 0.36), 'the mast is on the wall side');
   assert.ok(g.walls.filter((w) => !w.mast).every((w) => pointRectDist(r.x, r.y, w) > 0.65), 'the pad is clear of walls');
   assert.ok(g.walls.some((w) => w.mast) && pointRectDist(r.x, r.y, r.mast) > 0.65, 'the film mast is a solid post beside the turntable');
   g.stacks = [{ x: r.x, y: r.y, layers: [0], rots: [0], a: 0, pen: [{ crash: 10, sq: 0, dent: { t: 1, c: [0, 0, 0, 0], s: [0, 0, 0, 0] } }], offs: [{ x: 0, y: 0 }] }];
