@@ -122,7 +122,8 @@ let galleryGame = null;
 const resultsPanel = () => { const r = canvas.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2; return [{ left: cx - 360, right: cx + 360, top: cy - 110, bottom: cy + 430 }]; };
 let botGame = null, botPrev = new Map(), botSaid = new WeakSet();
 function watchBots() {
-  if (botGame !== game) { botGame = game; botPrev = new Map(); botSaid = new WeakSet(); }
+  const loaded = botGame !== game; // first look at this game (new level, or restored from a save): its existing photo is not news
+  if (loaded) { botGame = game; botPrev = new Map(); botSaid = new WeakSet(); }
   const first = (b, key) => { const p = botPrev.get(key); botPrev.set(key, { show: b.show > 0, scared: !!b.scared, shoot: (b.shooting || 0) > 0, clean: !!b.cleaning }); return p; };
   for (const [key, b, pitch] of [['clean', game.bot, 0.8], ['insp', game.inspector, 1.25]]) {
     if (!b) continue;
@@ -134,8 +135,8 @@ function watchBots() {
     if ((b.shooting || 0) > 0 && !p.shoot) playDroid('scan', vol, pitch);
     if (b.cleaning && !p.clean) playDroid('mumble', vol, pitch);
   }
-  if (game.photo && !botSaid.has(game.photo)) { botSaid.add(game.photo); if (botPrev.has('insp') && game.status !== 'won') showPhoto(game.photo); } // after the level the gallery shows them
-  if (game.forkPhoto && !botSaid.has(game.forkPhoto)) { botSaid.add(game.forkPhoto); showPhoto(game.forkPhoto.photo); } // tines in a damaged stack: show the observer's last picture of it again
+  if (game.photo && !botSaid.has(game.photo)) { botSaid.add(game.photo); if (!loaded && game.status !== 'won') showPhoto(game.photo); } // after the level the gallery shows them
+  if (game.forkPhoto && !botSaid.has(game.forkPhoto)) { botSaid.add(game.forkPhoto); showPhoto(game.forkPhoto.photo, undefined, true); } // tines in a damaged stack: show the observer's last picture of it again
   for (const h of game.hits || []) {
     if (!h.check || botSaid.has(h)) continue;
     botSaid.add(h);
@@ -218,7 +219,9 @@ function partyGameChanged() {
   mp.host.levelLoaded(game);
 }
 
-let autoFs = localStorage.getItem('forklift-auto-fullscreen') === '1';
+// Saved choice wins; with none, full screen is on for touch devices (the default is not written to storage).
+const savedFs = localStorage.getItem('forklift-auto-fullscreen');
+let autoFs = savedFs === null ? matchMedia('(pointer: coarse)').matches : savedFs === '1';
 function setFullscreen(on) {
   if (!autoFs) return;
   if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});

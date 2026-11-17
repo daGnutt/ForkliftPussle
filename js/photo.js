@@ -153,7 +153,7 @@ export const addHudRect = (left, top, right, bottom) => { hud.push({ left, top, 
 export const setTruckSpot = (x, y, r) => { spot = { x, y, r }; };
 
 export const PHOTO_SCALES = [1, 0.75, 0.5];
-const MARGIN = 16;
+const MARGIN = 16, OLD_SCALE = 0.50, POPUP_SCALE = 0.50; // gameplay popups are smaller than the full size; old ones smaller still
 
 // Picks the screen corner (0 right-top, 1 left-top, 2 right-bottom, 3 left-bottom) and size factor for a popup of full size w x h: the current corner is kept while it is free, otherwise the first free one; if no corner is free at full size the popup shrinks (PHOTO_SCALES). `blocked` are screen rects to keep clear (touch controls) and `avoid` the rects of other popups (`{ x, y, w, h }`), `truck` the forklift circle.
 export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], avoid = [], truck = null, m = MARGIN }) {
@@ -192,8 +192,18 @@ export function stopGallery() {
 
 const place = (q, p) => {
   q.corner = p.corner; q.rect = p;
-  if (p.scale !== q.scale) { q.scale = p.scale; q.el.style.width = `calc(min(45vw, 60vh) * ${p.scale})`; }
-  q.el.style.transform = `translate(${p.x - (innerWidth - p.w - MARGIN)}px, ${p.y - MARGIN}px) rotate(2deg)`;
+  if (p.scale !== q.scale) { q.scale = p.scale; q.el.style.width = `calc(min(45vw, 60vh) * ${p.scale * q.k})`; }
+  const at = (x, y) => `translate(${x - (innerWidth - p.w - MARGIN)}px, ${y - MARGIN}px) rotate(2deg)`;
+  if (q.entering) { // a new picture flies in from the screen edge closest to the spot it was given
+    q.entering = false;
+    const d = [p.x, innerWidth - p.x - p.w, p.y, innerHeight - p.y - p.h], k = d.indexOf(Math.min(...d));
+    q.el.style.transition = 'none';
+    q.el.style.transform = at(k === 0 ? -p.w - MARGIN : k === 1 ? innerWidth + MARGIN : p.x, k === 2 ? -p.h - MARGIN : k === 3 ? innerHeight + MARGIN : p.y);
+    q.el.style.visibility = '';
+    void q.el.offsetWidth;
+    q.el.style.transition = '';
+  }
+  q.el.style.transform = at(p.x, p.y);
 };
 
 // The first spot (scanning the screen row by row) where a w x h picture clears the blocked rects and the placed pictures (the level is over, so gameplay may be covered), or null.
@@ -218,7 +228,7 @@ export function dodgePhoto() {
   const placed = [];
   for (const q of popups) {
     if (q.fixed) { placed.push(q.rect); continue; } // gallery pictures keep the spot they were given
-    const w = q.el.offsetWidth / q.scale, h = q.el.offsetHeight / q.scale;
+    const w = q.el.offsetWidth / q.scale, h = q.el.offsetHeight / q.scale; // already includes q.k
     const p = placePhoto({ vw: innerWidth, vh: innerHeight, w, h, corner: q.corner, blocked, avoid: placed, truck });
     place(q, p);
     placed.push(p);
@@ -240,7 +250,8 @@ export function dodgePhoto() {
 }
 
 // Shows a picture for `ms` (tapping it hides it, touch only, see style.css); showing the same picture again just keeps it up for another `ms`. Returns the popup.
-export function showPhoto(photo, ms = SHOW_MS) {
+// `old` marks a picture shown again (not just taken): drawn smaller and in sepia.
+export function showPhoto(photo, ms = SHOW_MS, old = false) {
   if (typeof document === 'undefined') return null;
   let q = popups.find((o) => o.photo === photo);
   if (!q) {
@@ -249,8 +260,11 @@ export function showPhoto(photo, ms = SHOW_MS) {
     el.className = 'photo'; el.setAttribute('aria-hidden', 'true');
     el.width = W; el.height = H + stripHeight(photo); el.style.aspectRatio = `${el.width} / ${el.height}`;
     drawPhoto(el.getContext('2d'), photo);
+    el.style.visibility = 'hidden'; // until dodgePhoto has picked its spot
     document.body.append(el);
-    q = { el, photo, scale: 1, corner: 0, timer: 0, fade: 0 };
+    q = { el, photo, scale: 1, k: gallery ? 1 : POPUP_SCALE * (old ? OLD_SCALE : 1), entering: true, corner: 0, timer: 0, fade: 0 };
+    if (old) el.classList.add('old');
+    el.style.width = `calc(min(45vw, 60vh) * ${q.k})`;
     el.addEventListener('pointerdown', () => hidePopup(q));
     popups.push(q);
   }
