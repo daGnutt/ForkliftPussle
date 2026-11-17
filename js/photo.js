@@ -147,7 +147,10 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
 let spot = null;
 
 // The renderers report where the player's forklift is on the canvas (CSS px, with a radius); no report (cab views) means nothing to dodge.
-export const clearTruckSpot = () => { spot = null; };
+export const clearTruckSpot = () => { spot = null; hud = []; };
+// Canvas HUD rects ({ left, top, right, bottom } in canvas CSS px: fork gauges, compass, party badge) the popups must stay off.
+let hud = [];
+export const addHudRect = (left, top, right, bottom) => { hud.push({ left, top, right, bottom }); };
 export const setTruckSpot = (x, y, r) => { spot = { x, y, r }; };
 
 export const PHOTO_SCALES = [1, 0.75, 0.5];
@@ -210,6 +213,7 @@ export function dodgePhoto() {
   if (typeof document === 'undefined' || (!popups.length && !gallery)) return;
   const c = document.getElementById('game')?.getBoundingClientRect() || { left: 0, top: 0 };
   const blocked = [...document.querySelectorAll('#touch button, #stick')].map((b) => b.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+  blocked.push(...hud.map((r) => ({ left: r.left + c.left, top: r.top + c.top, right: r.right + c.left, bottom: r.bottom + c.top })));
   if (gallery) blocked.push(...gallery.keepClear());
   const truck = spot && { x: spot.x + c.left, y: spot.y + c.top, r: spot.r };
   const placed = [];
