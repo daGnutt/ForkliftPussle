@@ -51,6 +51,20 @@ export function botDrawPos(b, h) {
   return h ? { x: b.x - h.nx * s, y: b.y - h.ny * s } : { x: b.x, y: b.y };
 }
 
+// A bot slides out of / into its hatch square to the wall: it first stands still facing out, and on the way home turns to face out before retracting.
+function emerge(g, bot, home, dt) {
+  bot.x = home.x; bot.y = home.y; bot.a = g.hatch.a;
+  bot.show = Math.min(1, bot.show + dt / SHOW_SECS);
+}
+function retract(g, bot, home, dt) {
+  bot.x = home.x; bot.y = home.y; bot.path = [];
+  let da = g.hatch.a - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
+  if (Math.abs(da) > 0.05) { bot.a += da * Math.min(1, TURN * dt); return; }
+  bot.a = g.hatch.a; bot.leaving = true;
+  bot.show = Math.max(0, bot.show - dt / SHOW_SECS);
+  if (bot.show === 0) bot.mode = 'hidden';
+}
+
 export function makeBot(g) {
   if (!g.hatch || !g.stacks.some((s) => s.layers.includes(BARREL_COLOR))) return null;
   const home = botHome(g.hatch);
@@ -308,6 +322,7 @@ export function stepBot(g, dt, dropArea) {
     if (!spill) return;
     bot.mode = 'out';
   }
+  if (bot.show < 1 && !bot.leaving) { emerge(g, bot, home, dt); return; }
   bot.scared = gap < (bot.scared ? CALM : SCARE);
   if (bot.scared) bot.spookedUntil = g.clock + SPOOK_SECS;
   bot.cleaning = false;
@@ -361,12 +376,11 @@ export function stepBot(g, dt, dropArea) {
       if (drops <= 1e-9) g.oil.splice(g.oil.indexOf(spill), 1);
       else { spill.drops = drops; spill.r = Math.sqrt(drops * dropArea); }
     } else if (!spill && Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
-      bot.x = home.x; bot.y = home.y;
-      bot.show = Math.max(0, bot.show - dt / SHOW_SECS);
-      if (bot.show === 0) bot.mode = 'hidden';
+      retract(g, bot, home, dt);
       return;
     }
   }
+  bot.leaving = false;
   bot.show = Math.min(1, bot.show + dt / SHOW_SECS);
 }
 
@@ -455,6 +469,7 @@ function inspectorStep(g, dt, done, wonky) {
     if (!todo.length) return;
     bot.mode = 'out';
   }
+  if (bot.show < 1 && !bot.leaving) { emerge(g, bot, home, dt); return; }
   bot.idle = todo.length ? 0 : (bot.idle || 0) + dt; // loiters a while after the last drop point before heading home
   const wasScared = bot.scared;
   bot.scared = approachGap(g, bot) < (wasScared ? CALM : SCARE);
@@ -520,11 +535,10 @@ function inspectorStep(g, dt, done, wonky) {
         }
       }
     } else if (!todo.length && bot.idle >= LOITER_SECS && Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
-      bot.x = home.x; bot.y = home.y;
-      bot.show = Math.max(0, bot.show - dt / SHOW_SECS);
-      if (bot.show === 0) bot.mode = 'hidden';
+      retract(g, bot, home, dt);
       return;
     }
   }
+  bot.leaving = false;
   bot.show = Math.min(1, bot.show + dt / SHOW_SECS);
 }
