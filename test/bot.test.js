@@ -293,6 +293,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.ok(g.photo, 'the stack was photographed');
   assert.equal(g.photo.ok, false, 'damage means no GOOD JOB');
   assert.equal(g.photo.pens[0].crash, 12);
+  assert.equal(flaggedStacks(g).length, 1, 'a photographed damaged stack gets the floating "!"');
 }
 
 console.log('bot tests passed');

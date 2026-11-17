@@ -884,14 +884,14 @@ function skidStep(f, dt) {
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 // Steps the game. `input` drives the local truck; the other trucks use their `input` field (set by the host from the network).
-// The stack that appears in the fork gauge (tines in front of it) with a damaged box in it: if it is the stack in the observer's
-// last picture (and untouched since), that picture is shown again (`g.forkPhoto`, picked up by main.js).
+// The stack that appears in the fork gauge (tines in front of it) in it: if it is the stack in the observer's
+// last picture (and untouched since) and that picture was not a perfect one (damaged or wonky), it is shown again (`g.forkPhoto`, picked up by main.js).
 function watchForkedStack(g) {
   const S = g.carried ? null : stackInZone(g);
   if (S === g.forkStack) return;
   g.forkStack = S;
   const ph = g.photo;
-  if (S && ph && !photoTampered(g) && S.pen?.some((q) => q.crash > 0) && Math.hypot(S.x - ph.at.x, S.y - ph.at.y) < 0.5) g.forkPhoto = { photo: ph };
+  if (S && ph && !photoTampered(g) && !ph.ok && Math.hypot(S.x - ph.at.x, S.y - ph.at.y) < 0.5) g.forkPhoto = { photo: ph };
 }
 
 export function update(g, input, dt) {
@@ -1496,7 +1496,7 @@ export function zonePoints(g, z) {
   return { n: S.layers.length, base, total: base - Math.round(crash) - Math.round(square), crash: Math.round(crash), square: Math.round(square) };
 }
 
-// Stacks the inspector judged "could be better": photographed (in `inspector.seen`) and still crooked. Each `{x, y, h}` (h = boxes high).
+// Stacks the inspector judged "could be better": photographed (in `inspector.seen`) and still crooked or damaged. Each `{x, y, h}` (h = boxes high).
 export function flaggedStacks(g) {
   const out = [];
   for (const z of g.zones) {
@@ -1504,7 +1504,7 @@ export function flaggedStacks(g) {
     const s = g.stacks.find((q) => stackFillsZone(q, z));
     if (s?.touched) continue;
     if (s && g.inspector.sigs?.[`${z.x},${z.y},${z.color}`] !== undefined && g.inspector.sigs[`${z.x},${z.y},${z.color}`] !== stackSig(s)) continue; // touched since the photo
-    if (s && (refreshSquare(s), s.pen.some((p) => p.sq > 0))) out.push({ x: s.x, y: s.y, h: s.layers.length });
+    if (s && (refreshSquare(s), s.pen.some((p) => p.sq > 0 || p.crash > 0))) out.push({ x: s.x, y: s.y, h: s.layers.length });
   }
   return out;
 }
