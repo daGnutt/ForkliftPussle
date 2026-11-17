@@ -7,7 +7,15 @@ import { FL, toWorld } from './forklift.js';
 
 export const BOT_R = 0.3; // about a quarter of a forklift's footprint
 export const CLEAN_SECS = 5; // seconds per oil drop
-const CELL = 0.25, SPEED = 1.8, FLEE_SPEED = 3.2, SCARE = 1.3, CALM = 2.0, SHOW_SECS = 0.6, TURN = 8;
+const CELL = 0.25, SPEED = 1.8, FLEE_SPEED = 3.2, SCARE = 1.3, CALM = 2.0, SHOW_SECS = 0.6;
+export const TURN_RATE = 5, TURN_FIRST = 0.6; // max turning speed (rad/s; a tracked bot spins on the spot) and the heading error above which it turns before driving on
+const angDiff = (a, b) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
+// Turns the bot towards heading `ang` at no more than TURN_RATE; returns the heading error left.
+function turnTo(bot, ang, dt) {
+  const da = angDiff(bot.a, ang), step = Math.max(-TURN_RATE * dt, Math.min(TURN_RATE * dt, da));
+  bot.a += step;
+  return da - step;
+}
 const hash = (n) => { const t = Math.sin(n * 12.9898) * 43758.5453; return t - Math.floor(t); };
 
 // Predetermined hatch position on the outer walls: seeded, and clear of stacks, pillars and the start.
@@ -66,8 +74,7 @@ function retract(g, bot, dt) {
   if (!bot.leaving) {
     const lane = botLane(g.hatch);
     bot.x = lane.x; bot.y = lane.y;
-    let da = g.hatch.a + Math.PI - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
-    if (Math.abs(da) > 0.05) { bot.a += da * Math.min(1, TURN * dt); return; }
+    if (Math.abs(turnTo(bot, g.hatch.a + Math.PI, dt)) > 0.05) return;
     bot.leaving = true;
   }
   bot.show = Math.max(0, bot.show - dt / SHOW_SECS);
@@ -282,16 +289,14 @@ const underStack = (g, p) => g.stacks.some((s) => Math.hypot(s.x - p.x, s.y - p.
 
 // Moves along bot.path by `move` tiles, turning towards each waypoint; returns the unused distance.
 function followPath(bot, move, dt) {
+  let turned = false;
   while (bot.path.length && move > 0) {
     const w = bot.path[0], d = Math.hypot(w.x - bot.x, w.y - bot.y);
-    if (d <= move) {
-      if (d > 1e-6) bot.a = Math.atan2(w.y - bot.y, w.x - bot.x);
-      bot.x = w.x; bot.y = w.y; move -= d; bot.path.shift();
-      continue;
-    }
+    if (d < 1e-6) { bot.path.shift(); continue; }
     const ang = Math.atan2(w.y - bot.y, w.x - bot.x);
-    let da = ang - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
-    bot.a += da * Math.min(1, TURN * dt);
+    if (!turned) { turned = true; if (Math.abs(turnTo(bot, ang, dt)) > TURN_FIRST) return move; }
+    else if (Math.abs(angDiff(bot.a, ang)) > TURN_FIRST) return move;
+    if (d <= move) { bot.x = w.x; bot.y = w.y; move -= d; bot.path.shift(); continue; }
     bot.x += Math.cos(ang) * move; bot.y += Math.sin(ang) * move;
     move = 0;
   }
@@ -369,8 +374,7 @@ export function stepBot(g, dt, dropArea) {
     const d = Math.hypot(goal.x - bot.x, goal.y - bot.y);
     if (d > 1e-6 && d < 0.5 && truckGap(g, goal) > 0 && !underStack(g, goal)) {
       const step = Math.min(move, Math.max(0, d - goal.r * 0.5));
-      bot.a = Math.atan2(goal.y - bot.y, goal.x - bot.x);
-      bot.x += (goal.x - bot.x) / d * step; bot.y += (goal.y - bot.y) / d * step;
+      if (Math.abs(turnTo(bot, Math.atan2(goal.y - bot.y, goal.x - bot.x), dt)) < TURN_FIRST) { bot.x += (goal.x - bot.x) / d * step; bot.y += (goal.y - bot.y) / d * step; }
     }
   }
 
@@ -381,7 +385,7 @@ export function stepBot(g, dt, dropArea) {
     const reaching = spill && !bot.path.length && d <= REACH && underStack(g, spill);
     if (spill && (d <= goal.r + 0.12 || reaching)) {
       bot.cleaning = true;
-      if (reaching) bot.a = Math.atan2(goal.y - bot.y, goal.x - bot.x);
+      if (reaching) turnTo(bot, Math.atan2(goal.y - bot.y, goal.x - bot.x), dt);
       const drops = spillDrops(spill, dropArea) - dt / CLEAN_SECS;
       if (drops <= 1e-9) g.oil.splice(g.oil.indexOf(spill), 1);
       else { spill.drops = drops; spill.r = Math.sqrt(drops * dropArea); }
@@ -530,9 +534,7 @@ function inspectorStep(g, dt, done, wonky) {
       else if (!bot.path.length) {
         const st = g.stacks.find((q) => Math.hypot(q.x - target.x, q.y - target.y) < 0.5);
         bot.aim = { x: target.x, y: target.y, h: st ? st.layers.length : 1 };
-        let da = Math.atan2(target.y - bot.y, target.x - bot.x) - bot.a; da = Math.atan2(Math.sin(da), Math.cos(da));
-        bot.a += da * Math.min(1, TURN * dt);
-        if (Math.abs(da) < 0.15) bot.shooting += dt;
+        if (Math.abs(turnTo(bot, Math.atan2(target.y - bot.y, target.x - bot.x), dt)) < 0.15) bot.shooting += dt;
         if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
           g.photo = makePhoto(st, !wonky(target) && !st?.pen?.some((q) => q?.crash > 0), Math.atan2(target.y - bot.y, target.x - bot.x), Math.hypot(target.x - bot.x, target.y - bot.y), (g.photo?.n || 0) + 1, g.clock); // the snapshot shown as a popup (js/photo.js)
           (bot.sigs ||= {})[zoneKey(target)] = stackSig(st);

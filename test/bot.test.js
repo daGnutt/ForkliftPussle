@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { newGame, update, zoneDone, zoneWonky, flaggedStacks, endPhotos } from '../js/game.js';
-import { BOT_R, CLEAN_SECS, truckGap, botDrawPos } from '../js/bot.js';
+import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { run, NONE, flatWorld } from './common.js';
 
@@ -339,6 +339,21 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
     }
     assert.ok(t < 90, 'bot finishes and goes home');
   }
+}
+
+// Bots turn at a limited speed, whatever they are doing.
+{
+  const g = botGame();
+  g.stacks = []; clearOf(g, g.hatch);
+  g.oil = [{ id: 't', x: g.hatch.x + g.hatch.nx * 4 + 3, y: g.hatch.y + g.hatch.ny * 4, r: 0.163, drops: 1 }];
+  let prev = null, maxTurn = 0;
+  for (let i = 0; i < 120 * 30; i++) {
+    update(g, NONE, 1 / 120);
+    const b = g.bot;
+    if (prev !== null && b.show === 1) maxTurn = Math.max(maxTurn, Math.abs(Math.atan2(Math.sin(b.a - prev), Math.cos(b.a - prev))));
+    prev = b.show === 1 ? b.a : null;
+  }
+  assert.ok(maxTurn > 0 && maxTurn <= TURN_RATE / 120 + 1e-9, `turns at most ${TURN_RATE} rad/s (${(maxTurn * 120).toFixed(2)})`);
 }
 
 // Bots keep their size when they appear: they slide out of the wall through the hatch instead of scaling up.
