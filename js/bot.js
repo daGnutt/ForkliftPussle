@@ -400,6 +400,9 @@ export function pendingZones(g, done) {
 
 export const WHEEL_R = 0.12;
 
+// The snapshot of stack `st` that the photo popup draws (js/photo.js): `ok` is the verdict, `view` the angle it is seen from and `dist` the distance. Also used to fake a picture at the end of a level.
+export const makePhoto = (st, ok, view, dist, n, t) => ({ n, t, ok, layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [], pens: st?.pen ? st.pen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide, crash: q?.crash || 0, sq: q?.sq || 0, tape: q?.tape || 0 })) : [], view, dist });
+
 // Has the stack in the observer's last picture (`photo.at`, `photo.sig`) been touched, changed or taken away since?
 export function photoTampered(g) {
   const p = g.photo;
@@ -500,7 +503,7 @@ function inspectorStep(g, dt, done, wonky) {
         bot.a += da * Math.min(1, TURN * dt);
         if (Math.abs(da) < 0.15) bot.shooting += dt;
         if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
-          g.photo = { n: (g.photo?.n || 0) + 1, t: g.clock, ok: !wonky(target) && !st?.pen?.some((q) => q?.crash > 0), layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [], pens: st?.pen ? st.pen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide, crash: q?.crash || 0, sq: q?.sq || 0, tape: q?.tape || 0 })) : [], view: Math.atan2(target.y - bot.y, target.x - bot.x), dist: Math.hypot(target.x - bot.x, target.y - bot.y) }; // the snapshot shown as a popup (js/photo.js)
+          g.photo = makePhoto(st, !wonky(target) && !st?.pen?.some((q) => q?.crash > 0), Math.atan2(target.y - bot.y, target.x - bot.x), Math.hypot(target.x - bot.x, target.y - bot.y), (g.photo?.n || 0) + 1, g.clock); // the snapshot shown as a popup (js/photo.js)
           (bot.sigs ||= {})[zoneKey(target)] = stackSig(st);
           if (st) { st.touched = false; g.photo.at = { x: st.x, y: st.y }; g.photo.sig = stackSig(st); }
           if (st) (bot.photos ||= {})[zoneKey(target)] = g.photo; // kept per drop point: the flagged stack's own picture

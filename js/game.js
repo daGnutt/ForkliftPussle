@@ -4,7 +4,7 @@ import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLoc
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
 import { makeStation, stepRepair } from './repair.js';
-import { makeHatch, makeBot, makeInspector, stepBot, stepInspector, stackSig } from './bot.js';
+import { makeHatch, makeBot, makeInspector, stepBot, stepInspector, stackSig, makePhoto } from './bot.js';
 
 const FORKLIFT_MASS = 6;
 const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
@@ -881,7 +881,6 @@ function skidStep(f, dt) {
   f.spin = q(f.spin); f.sx = q(f.sx); f.sy = q(f.sy);
 }
 
-const INSPECTOR_SPEEDRUN = 8;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 // The stack that appears in the fork gauge (tines in front of it): if it carries the inspector's "!" (see flaggedStacks), the picture the
@@ -909,8 +908,7 @@ export function update(g, input, dt) {
   watchForkedStack(root);
   stepRepair(root, dt, root.trucks.flatMap((t, i) => (t.gone ? [] : [truckView(root, i).fl])));
   stepBot(root, dt, OIL_DROP_AREA);
-  // once the level is finished (forklift parked) the inspector speedruns its remaining photos
-  for (let i = 0; i < (root.status === 'won' ? INSPECTOR_SPEEDRUN : 1); i++) stepInspector(root, dt, root.zones.filter((z) => zoneDone(root, z)), (z) => zoneWonky(root, z));
+  stepInspector(root, dt, root.zones.filter((z) => zoneDone(root, z)), (z) => zoneWonky(root, z));
   updateGhosts(root);
   if (root.status === 'play' && root.started) root.time += dt; // the level timer runs from the first move until solved
   scorePopups(root);
@@ -1499,16 +1497,21 @@ export function zonePoints(g, z) {
   return { n: S.layers.length, base, total: base - Math.round(crash) - Math.round(square), crash: Math.round(crash), square: Math.round(square) };
 }
 
-// The pictures for the end-of-level gallery: the inspector's photo of every drop point's stack, each with the `score` that stack
-// contributed (`zonePoints`: base minus damage and wonkiness), the stack that has been dormant longest (oldest picture) first.
+// The pictures for the end-of-level gallery: one for every drop point's stack, each with the `score` that stack contributed
+// (`zonePoints`: base minus damage and wonkiness), the stack that has been dormant longest (oldest picture) first. The inspector's own
+// photo is used when it took one, otherwise a picture is faked from the stack (seen from a corner, like the inspector would).
 const endCache = new WeakMap();
 export function endPhotos(g) {
   const out = [];
   for (const z of g.zones) {
-    const photo = g.inspector?.photos?.[`${z.x},${z.y},${z.color}`], pts = zonePoints(g, z);
-    if (!photo || !pts) continue;
-    if (!endCache.has(photo)) endCache.set(photo, { ...photo, score: { base: pts.base, crash: pts.crash, square: pts.square, total: pts.total } }); // one object per picture, so the gallery can tell which are up
-    out.push(endCache.get(photo));
+    const S = g.stacks.find((s) => stackFillsZone(s, z)), pts = zonePoints(g, z);
+    if (!S || !pts) continue;
+    const photo = g.inspector?.photos?.[`${z.x},${z.y},${z.color}`], src = photo || S;
+    if (!endCache.has(src)) {
+      const base = photo || makePhoto(S, !pts.crash && !pts.square, Math.PI / 4 + (S.rots?.[0] ?? 0), 1.4, 0, g.clock);
+      endCache.set(src, { ...base, score: { base: pts.base, crash: pts.crash, square: pts.square, total: pts.total } }); // one object per picture, so the gallery can tell which are up
+    }
+    out.push(endCache.get(src));
   }
   return out.sort((a, b) => (a.t ?? 0) - (b.t ?? 0));
 }
