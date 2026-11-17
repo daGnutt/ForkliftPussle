@@ -490,7 +490,7 @@ function inspectorStep(g, dt, done, wonky) {
         bot.a += da * Math.min(1, TURN * dt);
         if (Math.abs(da) < 0.15) bot.shooting += dt;
         if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
-          g.photo = { n: (g.photo?.n || 0) + 1, ok: !wonky(target), layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [], pens: st?.pen ? st.pen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide })) : [], view: Math.atan2(target.y - bot.y, target.x - bot.x), dist: Math.hypot(target.x - bot.x, target.y - bot.y) }; // the snapshot shown as a popup (js/photo.js)
+          g.photo = { n: (g.photo?.n || 0) + 1, ok: !wonky(target), layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [], pens: st?.pen ? st.pen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide, crash: q?.crash || 0 })) : [], view: Math.atan2(target.y - bot.y, target.x - bot.x), dist: Math.hypot(target.x - bot.x, target.y - bot.y) }; // the snapshot shown as a popup (js/photo.js)
           (bot.sigs ||= {})[zoneKey(target)] = stackSig(st);
           if (st) st.touched = false;
           bot.seen.push(zoneKey(target)); bot.shooting = 0; bot.flash = 1; bot.target = null; bot.repath = 0;

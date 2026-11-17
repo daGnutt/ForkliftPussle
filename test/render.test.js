@@ -7,7 +7,7 @@ import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndl
 import { chaseOrbit } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
-import { placePhoto } from '../js/photo.js';
+import { placePhoto, carriedPhoto, drawPhoto } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
 import { setDiscoEnabled } from '../js/disco.js';
@@ -358,3 +358,20 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 }
 
 console.log('render tests passed');
+
+{ // damaged boxes carry a warning symbol in the inspector photo, and lifting them re-shows it
+  const g = { fl: { a: 0 }, carried: [0, 1], carriedRots: [0, 0], carriedOffs: [{ x: 0, y: 0 }, { x: 0, y: 0 }], carriedPen: [{ crash: 0 }, { crash: 0 }] };
+  assert.equal(carriedPhoto(g), null, 'undamaged stack: no popup');
+  g.carriedPen[1].crash = 10;
+  const photo = carriedPhoto(g);
+  assert.ok(photo && photo.pens[1].crash === 10 && photo.layers.length === 2, 'damaged stack: snapshot of the carried boxes');
+  const symbols = (p) => {
+    let n = 0, style = '';
+    const ctx = new Proxy({}, { get: (t, k) => (k === 'fillStyle' ? style : k === 'measureText' ? () => ({ width: 10 }) : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : k === 'fill' ? () => { if (style === '#ffeb3b') n++; } : () => {}), set: (t, k, v) => { if (k === 'fillStyle') style = v; return true; } });
+    drawPhoto(ctx, p);
+    return n;
+  };
+  assert.equal(symbols(photo), 1, 'one symbol, on the damaged box only');
+  assert.equal(symbols({ ...photo, pens: photo.pens.map((q) => ({ ...q, crash: 0 })) }), 0, 'no symbol without damage');
+  console.log('damage symbol ok');
+}

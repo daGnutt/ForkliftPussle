@@ -41,6 +41,16 @@ function drawBarrel(ctx, P, col, cx, cz, y0, y1, poly, line) {
   line(sl, tl, '#111', 4); line(sr, tr, '#111', 4);
 }
 
+const hurt = (pen) => (pen?.crash || 0) > 0;
+
+// Warning triangle with an exclamation mark, centred on screen point `c`, `r` px across.
+function drawDamage(ctx, c, r) {
+  const [x, y] = c, t = [[x, y - r * 0.55], [x + r * 0.6, y + r * 0.45], [x - r * 0.6, y + r * 0.45]];
+  ctx.beginPath(); t.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.closePath();
+  ctx.fillStyle = '#ffeb3b'; ctx.fill(); ctx.strokeStyle = '#d50000'; ctx.lineWidth = Math.max(2, r * 0.12); ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.fillStyle = '#d50000'; ctx.fillRect(x - r * 0.05, y - r * 0.2, r * 0.1, r * 0.36); ctx.fillRect(x - r * 0.05, y + r * 0.22, r * 0.1, r * 0.1);
+}
+
 // Polaroid: the w x h picture plus a white caption strip below it (canvas height h + STRIP), the verdict is written on the strip.
 export function drawPhoto(ctx, photo, w = W, h = H) {
   const sh = Math.round(h * STRIP / H);
@@ -70,7 +80,11 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
     if (pen?.barrelPart === 'top') continue;
     const col = COLORS[photo.layers[i]] ?? '#9e9e9e', y0 = i, o = photo.offs?.[i] || { x: 0, y: 0 };
     const cx = o.x * -fy + o.y * fx, cz = d + o.x * fx + o.y * fy; // box centre in the camera frame: x to the right, z forward
-    if (pen?.barrelPart === 'base') { drawBarrel(ctx, P, col, cx, cz, y0, y0 + 2, poly, line); continue; }
+    if (pen?.barrelPart === 'base') {
+      drawBarrel(ctx, P, col, cx, cz, y0, y0 + 2, poly, line);
+      if (hurt(pen) || hurt(photo.pens?.[i + 1])) drawDamage(ctx, P(cx, y0 + 1, cz - 0.47), Math.abs(P(0.4, 0, cz)[0] - P(-0.4, 0, cz)[0]));
+      continue;
+    }
     const phi = (photo.rots?.[i] ?? view) - view, sn = Math.sin(phi), cs = Math.cos(phi), y1 = y0 + 1;
     const hy = pen?.wide ? 1 : 0.5; // a double-wide box is two tiles across its local y axis
     const cor = [[-0.5, -hy], [0.5, -hy], [0.5, hy], [-0.5, hy]].map(([u, v]) => [cx + u * sn + v * cs, cz + u * cs - v * sn]);
@@ -81,6 +95,7 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
       const nl = Math.hypot(nx, nz);
       poly([P(ax, y0, az), P(bx, y0, bz), P(bx, y1, bz), P(ax, y1, az)], shade(col, 0.8 + 0.25 * (-nz / nl) + 0.2 * (nx / nl)));
       const m = (u, v) => P(ax + ex * u, y0 + v, az + ez * u);
+      if (hurt(pen)) drawDamage(ctx, m(0.5, 0.5), Math.min(Math.hypot(...m(1, 0.5).map((v, j) => v - m(0, 0.5)[j])), Math.hypot(...m(0.5, 1).map((v, j) => v - m(0.5, 0)[j]))) * 0.7);
       for (const [p, q] of [[[0.5, 0], [0.5, 1]], [[0, 0.5], [1, 0.5]], [[0.12, 0.12], [0.88, 0.12]], [[0.88, 0.12], [0.88, 0.88]], [[0.88, 0.88], [0.12, 0.88]], [[0.12, 0.88], [0.12, 0.12]]]) line(m(...p), m(...q), 'rgba(255,255,255,.55)', 3);
     }
   }
@@ -90,13 +105,25 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
   ctx.restore();
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 14; ctx.strokeRect(0, 0, w, h + sh); // polaroid border
-  const text = photo.ok ? 'GOOD JOB' : 'COULD BE BETTER', col = photo.ok ? '#43a047' : '#e53935';
+  const text = photo.damage ? 'DAMAGED!' : photo.ok ? 'GOOD JOB' : 'COULD BE BETTER', col = photo.ok ? '#43a047' : '#e53935';
   ctx.save();
   ctx.translate(w / 2, h + sh / 2 + 2); ctx.rotate(-0.04);
   ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.scale(Math.min(1, (w - 50) / ctx.measureText(text).width), 1);
   ctx.fillStyle = col; ctx.fillText(text, 0, 0);
   ctx.restore();
+}
+
+// Snapshot of the stack on the forks as seen from behind the truck, or null when none of its boxes is damaged (so no popup is needed).
+export function carriedPhoto(g) {
+  if (!g.carried?.length || !g.carriedPen?.some(hurt)) return null;
+  const c = Math.cos(g.fl.a), sn = Math.sin(g.fl.a);
+  return {
+    n: 0, ok: false, layers: [...g.carried], rots: g.carriedRots.map((r) => r + g.fl.a),
+    offs: g.carriedOffs.map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c })),
+    pens: g.carriedPen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide, crash: q?.crash || 0 })),
+    view: g.fl.a, dist: 2.2, damage: true,
+  };
 }
 
 let timer = 0, fade = 0, spot = null, corner = 0;

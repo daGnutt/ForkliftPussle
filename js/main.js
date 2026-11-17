@@ -12,7 +12,7 @@ import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, t
 import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
 import { draw } from './render.js';
-import { showPhoto, dodgePhoto } from './photo.js';
+import { showPhoto, dodgePhoto, carriedPhoto } from './photo.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { setBareForks, bareForksEnabled } from './gl/models.js';
 import { decalsEnabled, setDecalsEnabled } from './decals.js';
@@ -115,6 +115,13 @@ function watchPops() {
   }
 }
 const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8);
+// Lifting a stack with a damaged box pops the inspector photo up again so the player sees which one it is.
+let liftGame = null, liftHad = false;
+function watchLift() {
+  const has = !!game.carried;
+  if (liftGame === game && has && !liftHad) { const p = carriedPhoto(game); if (p) showPhoto(p); }
+  liftGame = game; liftHad = has;
+}
 // The maintenance bots talk in droidspeak, triggered by state changes (first sight of a game is silent): hello on emerging, bye on going home,
 // alarm when a forklift scares them, mumble while mopping, a scanning trill, and the inspector's verdict (perfect / warn).
 let botGame = null, botPrev = new Map(), botSaid = new WeakSet();
@@ -1188,6 +1195,7 @@ function frame(now) {
   }));
   honkTrucks();
   watchBots();
+  watchLift();
   const done = doneSet();
   const fresh = [...done].filter((z) => !doneZones.has(z));
   if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();
