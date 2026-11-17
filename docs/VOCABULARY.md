@@ -145,7 +145,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Start board** | Level + local/global best shown until the truck first moves, the canvas is touched/clicked, or 10 s have passed | `drawStartBoard` |
 | **Level complete overlay** | End-of-level breakdown with top lists | `render.js` |
 | **Splash** | Title screen: Start, Start endless, options | `#splash` |
-| **Scheme picker** | First-run popup on the splash to choose keyboard scheme / touch layout | `#schemePicker`, `schemepicker.js` |
+| **Scheme picker** | First-run popup on the splash to choose keyboard scheme / touch layout; keyboard version also shows a gamepad pictogram + local-multiplayer hint (`.padhint`) | `#schemePicker`, `schemepicker.js` |
 | **Menu / pause menu** | Esc/P menu with pages: main, sound, display, game, info, state | `#menu` |
 | **Report link** | Main-menu entry "Report a bug / request a feature" opening the GitHub issues page in a new tab | `#menu a.nav` |
 | **Zoom slider** | Desktop-only on-screen camera zoom slider in the bottom-right of the main view (sets the chase camera's zoom, same value as Camera zoom in the menu, while in the chase camera, and the overview's own zoom otherwise) | `#zoomBar` |

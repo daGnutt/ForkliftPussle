@@ -190,6 +190,15 @@ body.keys-wasd .k-arrows { display: none; }
 #schemePicker button:hover, #schemePicker button:focus-visible { border-color: #f9a825; outline: 0; }
 #schemePicker button span { display: block; margin-top: 6px; font-weight: bold; }
 #schemePicker svg { width: 100%; height: auto; }
+#schemePicker .padhint { display: flex; align-items: center; gap: 12px; margin: 14px 0 4px; text-align: left; }
+#schemePicker .padhint svg { flex: 0 0 120px; width: 120px; }
+#schemePicker .padhint p { margin: 0; font-size: .9em; }
+#schemePicker .padhint .body { fill: rgba(128,128,128,.35); stroke: currentColor; stroke-width: 1.5; }
+#schemePicker .padhint circle { fill: rgba(128,128,128,.5); stroke: currentColor; stroke-width: 1; }
+#schemePicker .padhint circle.stk { fill: rgba(128,128,128,.2); }
+#schemePicker .padhint circle.knob { fill: currentColor; stroke: none; }
+#schemePicker .padhint text { fill: currentColor; font-size: 8px; font-weight: bold; text-anchor: middle; }
+#schemePicker .padhint circle.hi { fill: #f9a825; }
 #schemePicker svg rect { fill: rgba(128,128,128,.35); stroke: currentColor; stroke-width: 1.5; }
 #schemePicker svg rect.hi { fill: #f9a825; }
 #schemePicker svg rect.scr { fill: rgba(0,0,0,.25); stroke-width: 1; }
