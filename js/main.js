@@ -23,7 +23,7 @@ import { chaseDrift, chaseOrbit, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZo
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
-import { pickScheme } from './schemepicker.js';
+import { pickScheme, KEYBOARD } from './schemepicker.js';
 import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
@@ -538,7 +538,14 @@ function checkTutorial() {
 }
 const keySel = document.getElementById('keySel');
 if (isTouch) document.getElementById('keyLabel').hidden = true;
-const applyKeys = () => { input.setScheme(keySel.value); document.body.classList.toggle('keys-wasd', keySel.value === 'wasd'); };
+const keyMap = document.getElementById('keyMap');
+keyMap.innerHTML = Object.entries(KEYBOARD).map(([name, o]) => `<div data-scheme="${name}">${o.svg}<span>${o.label}</span></div>`).join('');
+if (isTouch) keyMap.hidden = true;
+const applyKeys = () => {
+  input.setScheme(keySel.value);
+  document.body.classList.toggle('keys-wasd', keySel.value === 'wasd');
+  for (const d of keyMap.children) d.classList.toggle('on', d.dataset.scheme === keySel.value);
+};
 const savedKeys = localStorage.getItem('forklift-keys');
 keySel.value = savedKeys === 'wasd' ? 'wasd' : 'arrows';
 applyKeys();

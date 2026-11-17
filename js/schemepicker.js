@@ -1,6 +1,6 @@
 // First-run popup on the splash: pick the keyboard scheme (keyboard devices) or the touch layout (touch devices).
 const key = (x, y, t, hi) => `<rect x="${x}" y="${y}" width="30" height="30" rx="5" class="${hi ? 'hi' : ''}"/><text x="${x + 15}" y="${y + 20}">${t}</text>`;
-const KEYBOARD = {
+export const KEYBOARD = {
   arrows: { label: 'Arrows + A/Z forks', svg: `<svg viewBox="0 0 220 100">${key(40, 4, '▲')}${key(5, 36, '◀')}${key(40, 36, '▼')}${key(75, 36, '▶')}${key(135, 4, 'A', 1)}${key(135, 36, 'Z', 1)}<text class="cap" x="57" y="86">drive / steer</text><text class="cap" x="150" y="86">forks up / down</text></svg>` },
   wasd: { label: 'WASD + E/Q forks', svg: `<svg viewBox="0 0 220 100">${key(40, 4, 'W')}${key(5, 36, 'A')}${key(40, 36, 'S')}${key(75, 36, 'D')}${key(135, 4, 'E', 1)}${key(135, 36, 'Q', 1)}<text class="cap" x="57" y="86">drive / steer</text><text class="cap" x="150" y="86">forks up / down</text></svg>` },
 };

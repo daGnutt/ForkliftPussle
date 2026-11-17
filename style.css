@@ -73,6 +73,16 @@ footer b { color: var(--accent); }
 #menu .page[hidden] { display: none; }
 #menu h3 { margin: 0; text-align: center; color: var(--accent); }
 #menu hr { width: 100%; margin: 2px 0; border: 0; border-top: 1px solid rgba(128,128,128,.35); }
+#menu .keymap { display: flex; gap: 8px; }
+#menu .keymap[hidden] { display: none; }
+#menu .keymap > div { flex: 1; padding: 6px; text-align: center; font-size: .8em; border: 2px solid rgba(128,128,128,.4); border-radius: 8px; opacity: .7; }
+#menu .keymap > div.on { border-color: #f9a825; opacity: 1; }
+#menu .keymap span { display: block; font-weight: bold; }
+#menu .keymap svg { width: 100%; height: auto; }
+#menu .keymap svg rect { fill: rgba(128,128,128,.35); stroke: currentColor; stroke-width: 1.5; }
+#menu .keymap svg rect.hi { fill: #f9a825; }
+#menu .keymap svg text { fill: currentColor; font: bold 12px sans-serif; text-anchor: middle; }
+#menu .keymap svg text.cap { font-size: 10px; font-weight: normal; }
 #menu .padmap { margin: 4px 0; text-align: center; }
 #menu .padmap svg { width: 100%; height: auto; }
 #menu .padmap .body { fill: rgba(128,128,128,.35); stroke: currentColor; stroke-width: 2; }
