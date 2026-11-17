@@ -23,7 +23,8 @@ import { chaseDrift, chaseOrbit, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZo
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
-import { pickScheme } from './schemepicker.js';
+import { standardPads } from './gamepad.js';
+import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
 import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
@@ -538,11 +539,31 @@ function checkTutorial() {
 }
 const keySel = document.getElementById('keySel');
 if (isTouch) document.getElementById('keyLabel').hidden = true;
-const applyKeys = () => { input.setScheme(keySel.value); document.body.classList.toggle('keys-wasd', keySel.value === 'wasd'); };
+// On touch devices the gamepad map only shows once a gamepad has been seen on this device.
+const padMap = document.getElementById('padMap');
+const padSeen = () => { localStorage.setItem('forklift-pad-seen', '1'); padMap.hidden = false; };
+padMap.hidden = isTouch && !localStorage.getItem('forklift-pad-seen');
+if (isTouch) { window.addEventListener('gamepadconnected', padSeen); if (standardPads().length) padSeen(); }
+const keyMap = document.getElementById('keyMap');
+keyMap.innerHTML = Object.entries(KEYBOARD).map(([name, o]) => `<div data-scheme="${name}" role="button" tabindex="0">${o.svg}<span>${o.label}</span></div>`).join('');
+if (isTouch) keyMap.hidden = true;
+const applyKeys = () => {
+  input.setScheme(keySel.value);
+  document.body.classList.toggle('keys-wasd', keySel.value === 'wasd');
+  for (const d of keyMap.children) d.classList.toggle('on', d.dataset.scheme === keySel.value);
+};
 const savedKeys = localStorage.getItem('forklift-keys');
 keySel.value = savedKeys === 'wasd' ? 'wasd' : 'arrows';
 applyKeys();
 keySel.addEventListener('change', () => { localStorage.setItem('forklift-keys', keySel.value); applyKeys(); });
+const pickKeys = (e) => {
+  const d = e.target.closest('[data-scheme]');
+  if (!d || (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ')) return;
+  e.preventDefault();
+  keySel.value = d.dataset.scheme;
+  keySel.dispatchEvent(new Event('change'));
+};
+keyMap.addEventListener('click', pickKeys);
 const wasd = () => keySel.value === 'wasd';
 let tutLastH = game.H;
 const tutorialOpt = document.getElementById('tutorialOpt');
@@ -908,12 +929,22 @@ if (isTouch) { const l = document.getElementById('autoFsLabel'); l.classList.add
   touchSel.value = [...touchSel.options].some((o) => o.value === saved) ? saved : 'classic';
   touchPad.dataset.scheme = touchSel.value;
 }
+const touchMap = document.getElementById('touchMap');
+touchMap.innerHTML = Object.entries(TOUCH).map(([name, o]) => `<div data-scheme="${name}" role="button" tabindex="0">${o.svg}<span>${o.label}</span></div>`).join('');
+touchMap.hidden = !isTouch;
+const markTouch = () => { for (const d of touchMap.children) d.classList.toggle('on', d.dataset.scheme === touchSel.value); };
 const applyTouch = () => {
   touchPad.dataset.scheme = touchSel.value;
+  markTouch();
   localStorage.setItem('forklift-touch-scheme', touchSel.value);
   input.clear();
 };
 touchSel.addEventListener('change', applyTouch);
+touchMap.addEventListener('click', (e) => {
+  const d = e.target.closest('[data-scheme]');
+  if (d) { touchSel.value = d.dataset.scheme; touchSel.dispatchEvent(new Event('change')); }
+});
+markTouch();
 // First run on the splash: nothing saved yet, so ask which control scheme to use.
 if (!localStorage.getItem(isTouch ? 'forklift-touch-scheme' : 'forklift-keys') && !new URLSearchParams(location.search).has('skip')) {
   pickScheme(isTouch ? 'touch' : 'keyboard').then((name) => {
@@ -995,6 +1026,7 @@ menuEndRun.addEventListener('click', () => {
 window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
+  if (e.target.closest?.('#keyMap')) { if (e.code === 'Enter' || e.code === 'Space') pickKeys(e); if (e.code !== 'Escape') return; }
   const typing = e.target === menuLevel || e.target === pullName;
   if (e.target === stateText) { if (e.code === 'Escape') { e.preventDefault(); showPage('main'); } return; }
   if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage('main'); return; }

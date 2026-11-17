@@ -62,7 +62,22 @@
         <label title="Glitter balls and coloured lights (dark mode only)"><input type="checkbox" id="discoOpt"> Disco lights <small>(dark mode only)</small></label>
         <label id="autoFsLabel" title="Enter full screen when starting and when leaving this menu"><input type="checkbox" id="autoFsOpt"> Auto full-screen</label>
         <label id="touchLabel" class="row" hidden title="Layout of the on-screen controls"><span>Touch controls</span> <select id="touchSel"><option value="classic">Buttons (classic)</option><option value="rotated">Buttons (forks left, drive right)</option><option value="joystick">Joystick + fork buttons</option></select></label>
+        <div id="touchMap" class="keymap" hidden title="Touch controls (the highlighted layout is active)"></div>
         <label id="keyLabel" class="row" title="Keyboard layout"><span>Keyboard</span> <select id="keySel"><option value="arrows">Arrows + A/Z forks</option><option value="wasd">WASD + E/Q forks</option></select></label>
+        <div id="keyMap" class="keymap" title="Keyboard controls (the highlighted layout is active)"></div>
+        <figure class="padmap" id="padMap" title="Gamepad controls (standard mapping)">
+          <svg viewBox="0 0 300 150" role="img" aria-label="Gamepad controls"><g class="g">
+            <rect x="48" y="14" width="36" height="12" rx="5"/><rect x="216" y="14" width="36" height="12" rx="5"/>
+            <text x="66" y="23">LT</text><text x="234" y="23">RT</text>
+            <path class="body" d="M90 29h120q36 0 48 60l8 36q2 16-16 12l-28-20H78l-28 20q-18 4-16-12l8-36q12-60 48-60z"/>
+            <circle cx="105" cy="62" r="18" class="stk"/><circle cx="105" cy="62" r="9" class="knob"/>
+            <circle cx="195" cy="98" r="18" class="stk"/><circle cx="195" cy="98" r="9" class="knob"/>
+            <rect x="124" y="84" width="10" height="28" rx="3"/><rect x="115" y="93" width="28" height="10" rx="3"/>
+            <circle cx="207" cy="58" r="9"/><circle cx="225" cy="44" r="9"/><circle cx="243" cy="58" r="9" class="hi"/><circle cx="225" cy="72" r="9" class="hi"/>
+            <text x="207" y="61">X</text><text x="225" y="47">Y</text><text x="243" y="61">B</text><text x="225" y="75">A</text>
+          </g></svg>
+          <figcaption>Left stick steers (analogue) &middot; RT accelerate &middot; LT brake/reverse &middot; A fork up &middot; B fork down (hold to lower fully) &middot; X horn &middot; Y swap view &middot; right stick look around &middot; Start menu</figcaption>
+        </figure>
         <button type="button" id="menuFullscreen" class="sec">Toggle full screen</button>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
       </div>

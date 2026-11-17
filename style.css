@@ -73,6 +73,29 @@ footer b { color: var(--accent); }
 #menu .page[hidden] { display: none; }
 #menu h3 { margin: 0; text-align: center; color: var(--accent); }
 #menu hr { width: 100%; margin: 2px 0; border: 0; border-top: 1px solid rgba(128,128,128,.35); }
+#menu .keymap { display: flex; gap: 8px; }
+#menu .keymap[hidden] { display: none; }
+#menu .keymap > div { flex: 1; padding: 6px; text-align: center; font-size: .8em; border: 2px solid rgba(128,128,128,.4); border-radius: 8px; opacity: .7; cursor: pointer; }
+#menu .keymap > div:hover, #menu .keymap > div:focus-visible { opacity: 1; outline: 0; border-color: #f9a825; }
+#menu .keymap > div.on { border-color: #f9a825; opacity: 1; }
+#menu .keymap span { display: block; font-weight: bold; }
+#menu .keymap svg { width: 100%; height: auto; }
+#menu .keymap svg rect { fill: rgba(128,128,128,.35); stroke: currentColor; stroke-width: 1.5; }
+#menu .keymap svg rect.hi { fill: #f9a825; }
+#menu .keymap svg rect.scr { fill: none; }
+#menu .keymap svg rect.stk { fill: rgba(128,128,128,.2); }
+#menu .keymap svg circle.knob { fill: rgba(255,255,255,.6); stroke: currentColor; }
+#menu .keymap svg text { fill: currentColor; font: bold 12px sans-serif; text-anchor: middle; }
+#menu .keymap svg text.cap { font-size: 10px; font-weight: normal; }
+#menu .padmap { margin: 4px 0; text-align: center; }
+#menu .padmap svg { width: 100%; height: auto; }
+#menu .padmap .body { fill: rgba(128,128,128,.35); stroke: currentColor; stroke-width: 2; }
+#menu .padmap rect, #menu .padmap circle { fill: rgba(128,128,128,.5); stroke: currentColor; stroke-width: 1.5; }
+#menu .padmap circle.stk { fill: rgba(128,128,128,.2); }
+#menu .padmap circle.knob { fill: currentColor; stroke: none; }
+#menu .padmap .hi { fill: #f9a825; }
+#menu .padmap text { fill: currentColor; font: bold 11px sans-serif; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+#menu .padmap figcaption { font-size: .8em; opacity: .8; }
 #menu .item { padding: 4px 2px; }
 #menu button.nav, #menu button.back, #menu a.nav { display: flex; justify-content: space-between; align-items: center; text-align: left; background: transparent; color: var(--fg); font-weight: normal; padding: 9px 4px; border-radius: 0; border-bottom: 1px solid rgba(128,128,128,.2); }
 #menu a.nav { text-decoration: none; box-sizing: border-box; }
@@ -190,6 +213,15 @@ body.keys-wasd .k-arrows { display: none; }
 #schemePicker button:hover, #schemePicker button:focus-visible { border-color: #f9a825; outline: 0; }
 #schemePicker button span { display: block; margin-top: 6px; font-weight: bold; }
 #schemePicker svg { width: 100%; height: auto; }
+#schemePicker .padhint { display: flex; align-items: center; gap: 12px; margin: 14px 0 4px; text-align: left; }
+#schemePicker .padhint svg { flex: 0 0 120px; width: 120px; }
+#schemePicker .padhint p { margin: 0; font-size: .9em; }
+#schemePicker .padhint .body { fill: rgba(128,128,128,.35); stroke: currentColor; stroke-width: 1.5; }
+#schemePicker .padhint circle { fill: rgba(128,128,128,.5); stroke: currentColor; stroke-width: 1; }
+#schemePicker .padhint circle.stk { fill: rgba(128,128,128,.2); }
+#schemePicker .padhint circle.knob { fill: currentColor; stroke: none; }
+#schemePicker .padhint text { fill: currentColor; font-size: 8px; font-weight: bold; text-anchor: middle; }
+#schemePicker .padhint circle.hi { fill: #f9a825; }
 #schemePicker svg rect { fill: rgba(128,128,128,.35); stroke: currentColor; stroke-width: 1.5; }
 #schemePicker svg rect.hi { fill: #f9a825; }
 #schemePicker svg rect.scr { fill: rgba(0,0,0,.25); stroke-width: 1; }
@@ -200,6 +232,6 @@ body.keys-wasd .k-arrows { display: none; }
 #schemePicker svg text.cap { font-size: 10px; font-weight: normal; }
 #schemePicker small { display: block; margin-top: 12px; opacity: .8; }
 
-/* Inspector snapshot popup (js/photo.js): at most 25% of the screen (45vw x 45vh bounds, 4:3) */
-#photo { position: fixed; right: 16px; top: 16px; z-index: 6; width: min(45vw, 60vh); height: auto; aspect-ratio: 4 / 3; border-radius: 3px; box-shadow: 0 6px 24px rgba(0,0,0,.6); pointer-events: none; transform: rotate(2deg); transition: opacity .4s, transform .35s ease; } /* js/photo.js dodgePhoto slides it to a free corner */
+/* Inspector snapshot popup (js/photo.js): at most 25% of the screen (45vw x 60vh bounds, 400:381) */
+#photo { position: fixed; right: 16px; top: 16px; z-index: 6; width: min(45vw, 60vh); height: auto; aspect-ratio: 400 / 381; border-radius: 3px; box-shadow: 0 6px 24px rgba(0,0,0,.6); pointer-events: none; transform: rotate(2deg); transition: opacity .4s, transform .35s ease; } /* js/photo.js dodgePhoto slides it to a free corner */
 #photo.hide { display: none; } #photo.fade { opacity: 0; }

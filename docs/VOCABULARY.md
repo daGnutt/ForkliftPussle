@@ -33,7 +33,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Oil slick** | Persistent floor puddle formed by merging nearby oil drops; each barrel holds 50 drops and leaks one per damage point per ten seconds. Affects drive and steering tires independently, allowing rear-axle drift | `g.oil`, `dropOil`, `wheelOilGrip`, `axleOilGrip`, `stepOil` |
 | **Cleaning bot** | Small (about a quarter forklift) M-O-style robot that emerges from the **bot hatch** when there is oil, mops each drop in 5 s and flees from nearby forklifts | `g.bot`, `js/bot.js` |
 | **Inspection flag** | Bobbing amber ⚠ sign the inspector leaves over a stack it judged could be better (shown in all views and on the minimap, gone, and the stack re-inspected, as soon as the stack is touched in any way) | `flaggedStacks`, `drawFlag` |
-| **Inspection photo** | Polaroid-style popup in the top right (max 25% of the screen) showing the scanned stack (crooked and offset boxes drawn as they are, oil drums as striped cylinders) from the bot's low vantage point looking up, with "GOOD JOB" or "COULD BE BETTER" printed on it | `g.photo`, `js/photo.js` |
+| **Inspection photo** | Polaroid-style popup in the top right (max 25% of the screen; moves to a free corner and shrinks if needed so it never covers the touch controls or the forklift) showing the scanned stack (crooked and offset boxes drawn as they are, oil drums as striped cylinders) from the bot's low vantage point looking up, on a white caption strip below the picture with "GOOD JOB" or "COULD BE BETTER" written on it | `g.photo`, `js/photo.js` |
 | **Inspection bot** | Ebo-style white egg with a black visor, ring eyes and a lens; drives out of the bot hatch to every completed drop point, laser-scans it, flashes, shows the photo and floats a ⚠ Warning (wonky stack) or ✔ Perfect label up from itself, then shows the photo it took (**Inspection photo**) and goes home; flees from forklifts | `g.inspector`, `stepInspector` |
 | **Bot hatch** | Predetermined door in an outer wall (every level) where the bots come out and go home | `g.hatch`, `makeHatch` |
 | **Carried stack** | The boxes currently on the forks | `g.carried` |
@@ -145,7 +145,10 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Start board** | Level + local/global best shown until the truck first moves, the canvas is touched/clicked, or 10 s have passed | `drawStartBoard` |
 | **Level complete overlay** | End-of-level breakdown with top lists | `render.js` |
 | **Splash** | Title screen: Start, Start endless, options | `#splash` |
-| **Scheme picker** | First-run popup on the splash to choose keyboard scheme / touch layout | `#schemePicker`, `schemepicker.js` |
+| **Scheme picker** | First-run popup on the splash to choose keyboard scheme / touch layout; keyboard version also shows a gamepad pictogram + local-multiplayer hint (`.padhint`) | `#schemePicker`, `schemepicker.js` |
+| **Gamepad map** | Static pictogram of the gamepad controls on the menu's "Visuals & controls" page; on touch devices only shown once a gamepad has been seen (`forklift-pad-seen` in `localStorage`) | `.padmap` / `#padMap` in `index.html` |
+| **Touch map** | The three touch-layout pictograms (active one highlighted, tap to select) shown instead of the keyboard map on touch devices; reuses `TOUCH` from `schemepicker.js` | `#touchMap`, `applyTouch` |
+| **Keyboard map** | The two keyboard-scheme pictograms (active one highlighted; click or Enter/Space selects it, like the dropdown) above the gamepad map; reuses `KEYBOARD` from `schemepicker.js` | `#keyMap`, `applyKeys` |
 | **Menu / pause menu** | Esc/P menu with pages: main, sound, display, game, info, state | `#menu` |
 | **Report link** | Main-menu entry "Report a bug / request a feature" opening the GitHub issues page in a new tab | `#menu a.nav` |
 | **Zoom slider** | Desktop-only on-screen camera zoom slider in the bottom-right of the main view (sets the chase camera's zoom, same value as Camera zoom in the menu, while in the chase camera, and the overview's own zoom otherwise) | `#zoomBar` |

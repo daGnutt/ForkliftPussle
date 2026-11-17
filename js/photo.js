@@ -1,7 +1,7 @@
 import { COLORS } from './level.js';
 
 // The inspector's snapshot, seen from its own vantage point: a camera ~0.3 tiles off the floor, tilted up so the whole stack fits.
-const W = 400, H = 300, CAM_H = 0.3, FOV = 1.8, SHOW_MS = 4500;
+const W = 400, H = 300, STRIP = 81, CAM_H = 0.3, FOV = 1.8, SHOW_MS = 4500;
 
 const shade = (hex, k) => {
   const n = parseInt(hex.slice(1), 16);
@@ -41,7 +41,11 @@ function drawBarrel(ctx, P, col, cx, cz, y0, y1, poly, line) {
   line(sl, tl, '#111', 4); line(sr, tr, '#111', 4);
 }
 
+// Polaroid: the w x h picture plus a white caption strip below it (canvas height h + STRIP), the verdict is written on the strip.
 export function drawPhoto(ctx, photo, w = W, h = H) {
+  const sh = Math.round(h * STRIP / H);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h + sh);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.clip();
   const P = projector(photo, w, h), d = Math.max(1.1, photo.dist || 1.4), n = photo.layers.length;
   const horizon = P(0, 0, 40)[1]; // floor meets the far wall
   const hy = Math.max(0, Math.min(h, horizon)), top = Math.max(0, hy - h * 0.45);
@@ -84,17 +88,15 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
   const g = ctx.createRadialGradient(w / 2, h / 2, h * 0.2, w / 2, h / 2, h * 0.95);
   g.addColorStop(0, 'rgba(255,255,255,.25)'); g.addColorStop(0.6, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)');
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-  // verdict printed on the photo
+  ctx.restore();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 14; ctx.strokeRect(0, 0, w, h + sh); // polaroid border
   const text = photo.ok ? 'GOOD JOB' : 'COULD BE BETTER', col = photo.ok ? '#43a047' : '#e53935';
   ctx.save();
-  ctx.translate(w / 2, h - 44); ctx.rotate(-0.06);
-  ctx.font = 'bold 44px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  const sc = Math.min(1, (w - 30) / ctx.measureText(text).width);
-  ctx.scale(sc, sc);
-  ctx.lineWidth = 8; ctx.lineJoin = 'round'; ctx.strokeStyle = '#fff'; ctx.strokeText(text, 0, 0);
+  ctx.translate(w / 2, h + sh / 2 + 2); ctx.rotate(-0.04);
+  ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.scale(Math.min(1, (w - 50) / ctx.measureText(text).width), 1);
   ctx.fillStyle = col; ctx.fillText(text, 0, 0);
   ctx.restore();
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 14; ctx.strokeRect(0, 0, w, h); // polaroid border
 }
 
 let timer = 0, fade = 0, spot = null, corner = 0;
@@ -103,26 +105,42 @@ let timer = 0, fade = 0, spot = null, corner = 0;
 export const clearTruckSpot = () => { spot = null; };
 export const setTruckSpot = (x, y, r) => { spot = { x, y, r }; };
 
-// Keeps the popup off the forklift: it slides to another screen corner (right-top, left-top, right-bottom, left-bottom) while the forklift is under it.
+export const PHOTO_SCALES = [1, 0.75, 0.5];
+const MARGIN = 16;
+
+// Picks the screen corner (0 right-top, 1 left-top, 2 right-bottom, 3 left-bottom) and size factor for a popup of full size w x h: the current corner is kept while it is free, otherwise the first free one; if no corner is free at full size the popup shrinks (PHOTO_SCALES). `blocked` are screen rects to keep clear (touch controls), `truck` the forklift circle.
+export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], truck = null, m = MARGIN }) {
+  const rect = (k, f) => { const rw = w * f, rh = h * f; return { x: k & 1 ? m : vw - rw - m, y: k & 2 ? vh - rh - m : m, w: rw, h: rh }; };
+  const hit = (k, f) => {
+    const r = rect(k, f);
+    if (blocked.some((b) => r.x < b.right + 8 && r.x + r.w > b.left - 8 && r.y < b.bottom + 8 && r.y + r.h > b.top - 8)) return true;
+    return !!truck && Math.hypot(truck.x - Math.max(r.x, Math.min(truck.x, r.x + r.w)), truck.y - Math.max(r.y, Math.min(truck.y, r.y + r.h))) < truck.r + 24;
+  };
+  for (const f of PHOTO_SCALES) {
+    const k = hit(corner, f) ? [0, 1, 2, 3].find((c) => !hit(c, f)) : corner;
+    if (k !== undefined) return { corner: k, scale: f, ...rect(k, f) };
+  }
+  return { corner, scale: PHOTO_SCALES.at(-1), ...rect(corner, PHOTO_SCALES.at(-1)) };
+}
+
+let photoScale = 1;
+// Keeps the popup off the forklift and the visible touch controls: it slides to a free screen corner and shrinks when none is free.
 export function dodgePhoto() {
   const el = typeof document !== 'undefined' && document.getElementById('photo');
   if (!el || el.classList.contains('hide')) return;
   const c = document.getElementById('game')?.getBoundingClientRect() || { left: 0, top: 0 };
-  const vw = innerWidth, vh = innerHeight, w = el.offsetWidth, h = el.offsetHeight, m = 16;
-  const rect = (k) => { const x = k & 1 ? m : vw - w - m, y = k & 2 ? vh - h - m : m; return { x, y, dx: x - (vw - w - m), dy: y - m }; };
-  const hit = (k) => { // forklift circle (plus margin) against the corner's rectangle
-    if (!spot) return false;
-    const r = rect(k), px = spot.x + c.left, py = spot.y + c.top, rr = spot.r + 24;
-    return Math.hypot(px - Math.max(r.x, Math.min(px, r.x + w)), py - Math.max(r.y, Math.min(py, r.y + h))) < rr;
-  };
-  if (hit(corner)) corner = [0, 1, 2, 3].find((k) => !hit(k)) ?? corner;
-  const r = rect(corner);
-  el.style.transform = `translate(${r.dx}px, ${r.dy}px) rotate(2deg)`;
+  const blocked = [...document.querySelectorAll('#touch button, #stick')].map((b) => b.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+  const w = el.offsetWidth / photoScale, h = el.offsetHeight / photoScale;
+  const truck = spot && { x: spot.x + c.left, y: spot.y + c.top, r: spot.r };
+  const p = placePhoto({ vw: innerWidth, vh: innerHeight, w, h, corner, blocked, truck });
+  corner = p.corner;
+  if (p.scale !== photoScale) { photoScale = p.scale; el.style.width = `calc(min(45vw, 60vh) * ${p.scale})`; }
+  el.style.transform = `translate(${p.x - (innerWidth - p.w - MARGIN)}px, ${p.y - MARGIN}px) rotate(2deg)`;
 }
 export function showPhoto(photo) {
   const el = typeof document !== 'undefined' && document.getElementById('photo');
   if (!el) return;
-  el.width = W; el.height = H;
+  el.width = W; el.height = H + STRIP;
   drawPhoto(el.getContext('2d'), photo);
   clearTimeout(timer); clearTimeout(fade);
   el.classList.remove('hide', 'fade');
