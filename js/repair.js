@@ -6,19 +6,34 @@ import { toWorld } from './forklift.js';
 export const PAD_HALF = 0.65, PAUSE_DIST = 1.5, SPIN = 2, RATE = 1, MAX_TAPE = 6, TAPE_EVERY = 8;
 const SIDE = 2.4, MAST_AT = 1.05, MAST_HALF = 0.18;
 
-// Places the pad beside the parking spot (either side, first one that is clear of walls, stacks and drop points), or null.
+// A pad at (x, y) with its mast `dir` (unit vector) away from it, or null when something is in the way.
+function tryPad(g, x, y, dx, dy) {
+  if (g.walls.some((w) => pointRectDist(x, y, w) < PAD_HALF + 0.5)) return null;
+  if (g.stacks.some((s) => Math.hypot(s.x - x, s.y - y) < PAD_HALF + 1)) return null;
+  if (g.zones.some((z) => Math.hypot(z.x - x, z.y - y) < PAD_HALF + 1.6)) return null;
+  const mx = x + dx * MAST_AT, my = y + dy * MAST_AT;
+  if (g.walls.some((w) => pointRectDist(mx, my, w) < MAST_HALF + 0.6)) return null;
+  if (g.zones.some((z) => Math.hypot(z.x - mx, z.y - my) < 1.3)) return null; // keeps the mast off the drop points' "×count" labels
+  return { x, y, on: false, acc: 0, ang: 0, mast: { x: mx - MAST_HALF, y: my - MAST_HALF, w: 2 * MAST_HALF, h: 2 * MAST_HALF } };
+}
+
+// Places the pad beside the parking spot when there is room (either side, first one clear of walls, stacks and drop points); otherwise at the free spot closest to the parking spot anywhere on the map. Null only when nothing fits.
 export function makeStation(g) {
   const p = g.parking, nx = -Math.sin(p.a), ny = Math.cos(p.a);
   for (const side of [1, -1]) {
-    const x = p.x + nx * SIDE * side, y = p.y + ny * SIDE * side;
-    if (g.walls.some((w) => pointRectDist(x, y, w) < PAD_HALF + 0.5)) continue;
-    if (g.stacks.some((s) => Math.hypot(s.x - x, s.y - y) < PAD_HALF + 1)) continue;
-    if (g.zones.some((z) => Math.hypot(z.x - x, z.y - y) < PAD_HALF + 1.6)) continue;
-    const mx = x + nx * side * MAST_AT, my = y + ny * side * MAST_AT;
-    if (g.walls.some((w) => pointRectDist(mx, my, w) < MAST_HALF + 0.6)) continue;
-    return { x, y, on: false, acc: 0, ang: 0, mast: { x: mx - MAST_HALF, y: my - MAST_HALF, w: 2 * MAST_HALF, h: 2 * MAST_HALF } };
+    const r = tryPad(g, p.x + nx * SIDE * side, p.y + ny * SIDE * side, nx * side, ny * side);
+    if (r) return r;
   }
-  return null;
+  let best = null, bd = Infinity;
+  for (let x = 1; x < g.w; x += 0.5) for (let y = 1; y < g.h; y += 0.5) {
+    const d = Math.hypot(x - p.x, y - p.y);
+    if (d < SIDE || d >= bd) continue;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const r = tryPad(g, x, y, dx, dy);
+      if (r) { best = r; bd = d; break; }
+    }
+  }
+  return best;
 }
 
 // The single box on the pad: a lone 1×1 box resting on its middle.
