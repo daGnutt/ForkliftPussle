@@ -7,6 +7,7 @@ import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndl
 import { chaseOrbit } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
+import { placePhoto } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
 import { setDiscoEnabled } from '../js/disco.js';
@@ -341,5 +342,19 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('chase tuning ok');
 }
 
+
+{ // the inspector photo keeps clear of touch controls (portrait tablet: Menu button top right, pads at the bottom)
+  const btn = (left, top, right, bottom) => ({ left, top, right, bottom });
+  const blocked = [btn(700, 8, 780, 48), btn(16, 900, 100, 1080), btn(600, 900, 780, 1080)];
+  const base = { vw: 800, vh: 1100, w: 360, h: 270, blocked };
+  const hits = (p) => blocked.some((b) => p.x < b.right && p.x + p.w > b.left && p.y < b.bottom && p.y + p.h > b.top);
+  const p = placePhoto(base);
+  assert.equal(p.corner, 1, 'slides off the Menu button to the free top-left corner');
+  assert.ok(!hits(p) && p.scale === 1);
+  assert.equal(placePhoto({ ...base, blocked: [] }).corner, 0, 'no touch controls: stays top right');
+  const tight = placePhoto({ vw: 800, vh: 330, w: 500, h: 300, blocked: [btn(380, 100, 420, 200)] });
+  assert.equal(tight.scale, 0.5, 'shrinks when no corner fits at full size');
+  console.log('photo placement ok');
+}
 
 console.log('render tests passed');
