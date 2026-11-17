@@ -425,9 +425,16 @@ function tryGenerate(n, attempt, seed = 0) {
     }
     if (!area) return null;
     areas.push(area);
-    zs.forEach((z, i) => {
-      z.x = area.x + 0.6 + (i % cols) * PITCH;
-      z.y = area.y + 0.6 + Math.floor(i / cols) * PITCH;
+    // Back = the outer wall nearest the area; the tallest drop points fill the rows/columns furthest back (stable sort keeps ties in order).
+    const gaps = [area.x, w - area.x - aw, area.y, h - area.y - ah];
+    const back = gaps.indexOf(Math.min(...gaps));
+    const horizontal = back >= 2; // wall runs along x, so depth is measured in rows
+    [...zs].sort((a, b) => b.count - a.count).forEach((z, i) => {
+      let col = horizontal ? i % cols : Math.floor(i / rows), row = horizontal ? Math.floor(i / cols) : i % rows;
+      if (back === 1) col = cols - 1 - col;
+      if (back === 3) row = rows - 1 - row;
+      z.x = area.x + 0.6 + col * PITCH;
+      z.y = area.y + 0.6 + row * PITCH;
     });
   }
   // Start stacks are clustered into small groups (2-4) on a grid; each group gets a big yellow bay around it.

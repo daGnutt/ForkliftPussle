@@ -33,6 +33,17 @@ for (let n = 1; n <= 40; n++) {
   for (const a of l.areas) assert.ok(l.zones.some((z) => z.color === a.color), `level ${n} no empty area`);
 }
 
+// Drop points of a drop-off area: the tallest stacks sit furthest back, towards the outer wall nearest the area (levels 1-2 have no barrel/wide swaps).
+for (let n = 1; n <= 2; n++) {
+  const l = generateLevel(n);
+  for (const a of l.areas) {
+    const gaps = [a.x, l.w - a.x - a.w, a.y, l.h - a.y - a.h], back = gaps.indexOf(Math.min(...gaps));
+    const depth = (z) => [z.x, l.w - z.x, z.y, l.h - z.y][back];
+    const zs = l.zones.filter((z) => z.color === a.color);
+    for (const p of zs) for (const q of zs) if (p.count > q.count) assert.ok(depth(p) <= depth(q) + 1e-9, `level ${n} tallest drop point furthest back`);
+  }
+}
+
 // Generator: counts match, nothing overlaps walls, deterministic.
 for (let n = 1; n <= 40; n++) {
   const l = generateLevel(n);
