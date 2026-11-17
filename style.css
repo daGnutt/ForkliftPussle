@@ -75,7 +75,8 @@ footer b { color: var(--accent); }
 #menu hr { width: 100%; margin: 2px 0; border: 0; border-top: 1px solid rgba(128,128,128,.35); }
 #menu .keymap { display: flex; gap: 8px; }
 #menu .keymap[hidden] { display: none; }
-#menu .keymap > div { flex: 1; padding: 6px; text-align: center; font-size: .8em; border: 2px solid rgba(128,128,128,.4); border-radius: 8px; opacity: .7; }
+#menu .keymap > div { flex: 1; padding: 6px; text-align: center; font-size: .8em; border: 2px solid rgba(128,128,128,.4); border-radius: 8px; opacity: .7; cursor: pointer; }
+#menu .keymap > div:hover, #menu .keymap > div:focus-visible { opacity: 1; outline: 0; border-color: #f9a825; }
 #menu .keymap > div.on { border-color: #f9a825; opacity: 1; }
 #menu .keymap span { display: block; font-weight: bold; }
 #menu .keymap svg { width: 100%; height: auto; }

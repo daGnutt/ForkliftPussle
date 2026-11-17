@@ -539,7 +539,7 @@ function checkTutorial() {
 const keySel = document.getElementById('keySel');
 if (isTouch) document.getElementById('keyLabel').hidden = true;
 const keyMap = document.getElementById('keyMap');
-keyMap.innerHTML = Object.entries(KEYBOARD).map(([name, o]) => `<div data-scheme="${name}">${o.svg}<span>${o.label}</span></div>`).join('');
+keyMap.innerHTML = Object.entries(KEYBOARD).map(([name, o]) => `<div data-scheme="${name}" role="button" tabindex="0">${o.svg}<span>${o.label}</span></div>`).join('');
 if (isTouch) keyMap.hidden = true;
 const applyKeys = () => {
   input.setScheme(keySel.value);
@@ -550,6 +550,14 @@ const savedKeys = localStorage.getItem('forklift-keys');
 keySel.value = savedKeys === 'wasd' ? 'wasd' : 'arrows';
 applyKeys();
 keySel.addEventListener('change', () => { localStorage.setItem('forklift-keys', keySel.value); applyKeys(); });
+const pickKeys = (e) => {
+  const d = e.target.closest('[data-scheme]');
+  if (!d || (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ')) return;
+  e.preventDefault();
+  keySel.value = d.dataset.scheme;
+  keySel.dispatchEvent(new Event('change'));
+};
+keyMap.addEventListener('click', pickKeys);
 const wasd = () => keySel.value === 'wasd';
 let tutLastH = game.H;
 const tutorialOpt = document.getElementById('tutorialOpt');
@@ -1002,6 +1010,7 @@ menuEndRun.addEventListener('click', () => {
 window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
+  if (e.target.closest?.('#keyMap')) { if (e.code === 'Enter' || e.code === 'Space') pickKeys(e); if (e.code !== 'Escape') return; }
   const typing = e.target === menuLevel || e.target === pullName;
   if (e.target === stateText) { if (e.code === 'Escape') { e.preventDefault(); showPage('main'); } return; }
   if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage('main'); return; }
