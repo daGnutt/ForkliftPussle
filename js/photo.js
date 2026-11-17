@@ -42,7 +42,7 @@ function drawBarrel(ctx, P, col, cx, cz, y0, y1, poly, line) {
   line(sl, tl, '#111', 4); line(sr, tr, '#111', 4);
 }
 
-const hurt = (pen) => (pen?.crash || 0) > 0;
+const hurt = (pen) => (pen?.crash || 0) > 0 && repairable(pen); // no damage symbol on what can't be repaired
 
 // What is wrong with the stack, one line per box (the lowest box is box 1): its damage points and whether it sits crooked.
 // A barrel pair counts as one box (damage of both halves).
@@ -103,7 +103,6 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
     const cx = o.x * -fy + o.y * fx, cz = d + o.x * fx + o.y * fy; // box centre in the camera frame: x to the right, z forward
     if (pen?.barrelPart === 'base') {
       drawBarrel(ctx, P, col, cx, cz, y0, y0 + 2, poly, line);
-      if (hurt(pen) || hurt(photo.pens?.[i + 1])) drawDamage(ctx, P(cx, y0 + 1, cz - 0.47), Math.abs(P(0.4, 0, cz)[0] - P(-0.4, 0, cz)[0]));
       continue;
     }
     const phi = (photo.rots?.[i] ?? view) - view, sn = Math.sin(phi), cs = Math.cos(phi), y1 = y0 + 1;
