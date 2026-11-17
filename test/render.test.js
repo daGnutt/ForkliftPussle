@@ -8,7 +8,7 @@ import { chaseOrbit } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
-import { placePhoto, drawPhoto, issues, stripHeight, scoreText } from '../js/photo.js';
+import { popupScale, placePhoto, drawPhoto, issues, stripHeight, scoreText } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
 import { setDiscoEnabled } from '../js/disco.js';
@@ -361,6 +361,11 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const g1 = placePhoto({ vw: 1200, vh: 800, w: 360, h: 270, blocked: hud });
   assert.ok(g1.corner !== 0 && ![gauge, compass].some((b) => g1.x < b.right && g1.x + g1.w > b.left && g1.y < b.bottom && g1.y + g1.h > b.top), 'the photo leaves the fork gauge and compass clear');
   console.log('photo placement ok');
+}
+
+{ // touch: re-shown photos are as large as new ones; desktop keeps them smaller
+  assert.equal(popupScale(true, true), popupScale(false, true));
+  assert.ok(popupScale(true, false) < popupScale(false, false));
 }
 
 { // gallery photos carry their points

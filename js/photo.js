@@ -155,6 +155,9 @@ export const setTruckSpot = (x, y, r) => { spot = { x, y, r }; };
 export const PHOTO_SCALES = [1, 0.75, 0.5];
 const MARGIN = 16, OLD_SCALE = 0.50, POPUP_SCALE = 0.50; // gameplay popups are smaller than the full size; old ones smaller still
 
+// Size factor of a gameplay popup: re-shown (old) pictures are smaller, except on touch devices where all are as large as new ones.
+export const popupScale = (old, coarse) => POPUP_SCALE * (old && !coarse ? OLD_SCALE : 1);
+
 // Picks the screen corner (0 right-top, 1 left-top, 2 right-bottom, 3 left-bottom) and size factor for a popup of full size w x h: the current corner is kept while it is free, otherwise the first free one; if no corner is free at full size the popup shrinks (PHOTO_SCALES). `blocked` are screen rects to keep clear (touch controls) and `avoid` the rects of other popups (`{ x, y, w, h }`), `truck` the forklift circle.
 export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], avoid = [], truck = null, m = MARGIN }) {
   const rect = (k, f) => { const rw = w * f, rh = h * f; return { x: k & 1 ? m : vw - rw - m, y: k & 2 ? vh - rh - m : m, w: rw, h: rh }; };
@@ -262,7 +265,7 @@ export function showPhoto(photo, ms = SHOW_MS, old = false) {
     drawPhoto(el.getContext('2d'), photo);
     el.style.visibility = 'hidden'; // until dodgePhoto has picked its spot
     document.body.append(el);
-    q = { el, photo, scale: 1, k: gallery ? 1 : POPUP_SCALE * (old ? OLD_SCALE : 1), entering: true, corner: 0, timer: 0, fade: 0 };
+    q = { el, photo, scale: 1, k: gallery ? 1 : popupScale(old, matchMedia('(pointer: coarse)').matches), entering: true, corner: 0, timer: 0, fade: 0 };
     if (old) el.classList.add('old');
     el.style.width = `calc(min(45vw, 60vh) * ${q.k})`;
     el.addEventListener('pointerdown', () => hidePopup(q));
