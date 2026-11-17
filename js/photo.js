@@ -105,25 +105,13 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
   ctx.restore();
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 14; ctx.strokeRect(0, 0, w, h + sh); // polaroid border
-  const text = photo.damage ? 'DAMAGED!' : photo.ok ? 'GOOD JOB' : 'COULD BE BETTER', col = photo.ok ? '#43a047' : '#e53935';
+  const text = photo.ok ? 'GOOD JOB' : 'COULD BE BETTER', col = photo.ok ? '#43a047' : '#e53935';
   ctx.save();
   ctx.translate(w / 2, h + sh / 2 + 2); ctx.rotate(-0.04);
   ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.scale(Math.min(1, (w - 50) / ctx.measureText(text).width), 1);
   ctx.fillStyle = col; ctx.fillText(text, 0, 0);
   ctx.restore();
-}
-
-// Snapshot of the stack on the forks as seen from behind the truck, or null when none of its boxes is damaged (so no popup is needed).
-export function carriedPhoto(g) {
-  if (!g.carried?.length || !g.carriedPen?.some(hurt)) return null;
-  const c = Math.cos(g.fl.a), sn = Math.sin(g.fl.a);
-  return {
-    n: 0, ok: false, layers: [...g.carried], rots: g.carriedRots.map((r) => r + g.fl.a),
-    offs: g.carriedOffs.map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c })),
-    pens: g.carriedPen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide, crash: q?.crash || 0 })),
-    view: g.fl.a, dist: 2.2, damage: true,
-  };
 }
 
 let timer = 0, fade = 0, spot = null, corner = 0;

@@ -19,6 +19,7 @@ import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ } from '../js/game.js';
 
+import { stackSig } from '../js/bot.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
 // Nudging a box slowly squares it to the forklift; it causes no damage.
@@ -533,6 +534,58 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(Math.abs(slick.spin) > Math.abs(clean.spin), 'oil on a rear tire can spin the truck');
   assert.ok(slick.slip > 0, 'oil makes the tyres slip');
   console.log('oil barrels ok');
+}
+
+// The repair station next to the parking spot repairs one single box at a time (1 damage point/s), spinning it while no truck is close.
+{
+  const g = newGame(1);
+  const r = g.repair;
+  assert.ok(r && Math.abs(Math.hypot(r.x - g.parking.x, r.y - g.parking.y) - 2.4) < 1e-9, 'a pad sits beside the parking spot');
+  assert.ok(g.walls.every((w) => pointRectDist(r.x, r.y, w) > 0.65), 'the pad is clear of walls');
+  g.stacks = [{ x: r.x, y: r.y, layers: [0], rots: [0], a: 0, pen: [{ crash: 10, sq: 0, dent: { t: 1, c: [0, 0, 0, 0], s: [0, 0, 0, 0] } }], offs: [{ x: 0, y: 0 }] }];
+  Object.assign(g.fl, { x: g.parking.x, y: g.parking.y, a: g.parking.a, speed: 0 }); // the truck stays in the parking spot, out of reach
+  const far = { x: r.x + 12, y: r.y, a: 0, speed: 0 };
+  Object.assign(g.fl, far);
+  run(g, NONE, 3.01);
+  assert.equal(g.stacks[0].pen[0].crash, 7, 'one damage point per second');
+  assert.ok(g.stacks[0].a > 5 && g.repair.on, 'the box spins while it is repaired');
+  assert.equal(g.stacks[0].pen[0].tape, 1, 'tape appears once repair has started');
+  Object.assign(g.fl, { x: r.x - 1.5, y: r.y, a: 0 });
+  const a = g.stacks[0].a;
+  run(g, NONE, 2);
+  assert.ok(g.stacks[0].pen[0].crash === 7 && g.stacks[0].a === a && !g.repair.on, 'a close truck pauses the spin and the repair');
+  Object.assign(g.fl, far);
+  run(g, NONE, 20);
+  const pen = g.stacks[0].pen[0];
+  assert.ok(pen.crash === 0 && pen.tape > 1 && !pen.dent, 'fully repaired: more tape, dents gone');
+  assert.ok(Math.abs(g.stacks[0].a / (Math.PI / 2) - Math.round(g.stacks[0].a / (Math.PI / 2))) < 1e-9 && !g.repair.on, 'it stops spinning, squared up');
+  g.stacks = [{ x: r.x, y: r.y, layers: [0, 1], rots: [0, 0], a: 0, pen: [{ crash: 5, sq: 0 }, { crash: 5, sq: 0 }], offs: [{ x: 0, y: 0 }, { x: 0, y: 0 }] }];
+  run(g, NONE, 2);
+  assert.ok(g.stacks[0].pen.every((p) => p.crash === 5) && !g.repair.on, 'a stack of several boxes is not repaired');
+  console.log('repair station ok');
+}
+
+// Lifting a damaged stack re-shows the observer's last picture of it, unless there is none or the stack was tampered with.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  const mk = () => ({ x: 10, y: 5, layers: [0], rots: [0], a: 0, pen: [{ crash: 8, sq: 0 }], offs: [{ x: 0, y: 0 }] });
+  g.stacks = [mk()];
+  faceStack(g, 0);
+  g.fl.speed = 0;
+  forkUp(g);
+  assert.equal(g.liftPhoto, undefined, 'no picture taken: nothing to show');
+  g.carried = null; g.stacks = [mk()]; g.H = 0;
+  g.photo = { n: 1, ok: false, layers: [0], pens: [{ crash: 8 }], at: { x: 10, y: 5 }, sig: stackSig(g.stacks[0]) };
+  faceStack(g, 0);
+  forkUp(g);
+  assert.equal(g.liftPhoto?.photo, g.photo, 'the last picture is shown again');
+  g.carried = null; g.stacks = [mk()]; g.H = 0; g.liftPhoto = undefined;
+  g.stacks[0].x += 0.1; // moved since the picture
+  g.stacks[0].x -= 0.1; g.stacks[0].touched = true;
+  run(g, NONE, 0.05);
+  assert.equal(g.photo, null, 'a tampered stack makes the observer forget the picture');
+  console.log('last picture ok');
 }
 
 console.log('stacks tests passed');

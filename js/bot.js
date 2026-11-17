@@ -399,11 +399,20 @@ export function pendingZones(g, done) {
 
 export const WHEEL_R = 0.12;
 
+// Has the stack in the observer's last picture (`photo.at`, `photo.sig`) been touched, changed or taken away since?
+export function photoTampered(g) {
+  const p = g.photo;
+  if (!p?.at) return false;
+  const q = g.stacks.find((o) => Math.hypot(o.x - p.at.x, o.y - p.at.y) < 0.5);
+  return !q || q.touched || stackSig(q) !== p.sig;
+}
+
 // Steps the inspector and turns its wheels (`roll`, radians) by the distance it drove.
 export function stepInspector(g, dt, done, wonky = () => false) {
   const bot = g.inspector;
   if (!bot) return;
   const x = bot.x, y = bot.y;
+  if (g.photo && photoTampered(g)) g.photo = null; // the stack in the last picture was touched: the picture no longer shows what is there
   inspectorStep(g, dt, done, wonky);
   bot.roll = ((bot.roll || 0) + ((bot.x - x) * Math.cos(bot.a) + (bot.y - y) * Math.sin(bot.a)) / WHEEL_R) % (Math.PI * 2);
 }
@@ -492,7 +501,7 @@ function inspectorStep(g, dt, done, wonky) {
         if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
           g.photo = { n: (g.photo?.n || 0) + 1, ok: !wonky(target), layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [], pens: st?.pen ? st.pen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide, crash: q?.crash || 0 })) : [], view: Math.atan2(target.y - bot.y, target.x - bot.x), dist: Math.hypot(target.x - bot.x, target.y - bot.y) }; // the snapshot shown as a popup (js/photo.js)
           (bot.sigs ||= {})[zoneKey(target)] = stackSig(st);
-          if (st) st.touched = false;
+          if (st) { st.touched = false; g.photo.at = { x: st.x, y: st.y }; g.photo.sig = stackSig(st); }
           bot.seen.push(zoneKey(target)); bot.shooting = 0; bot.flash = 1; bot.target = null; bot.repath = 0;
           (g.hits ||= []).push({ x: bot.x, y: bot.y, z: 0.5, t: g.clock, owner: null, check: wonky(target) ? 'warn' : 'perfect' }); // verdict floats up from the bot
         }

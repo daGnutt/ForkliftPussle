@@ -3,7 +3,8 @@ import { rectPoly, sat, overlapArea } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
-import { makeHatch, makeBot, makeInspector, stepBot, stepInspector, stackSig } from './bot.js';
+import { makeStation, stepRepair } from './repair.js';
+import { makeHatch, makeBot, makeInspector, stepBot, stepInspector, stackSig, photoTampered } from './bot.js';
 
 const FORKLIFT_MASS = 6;
 const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
@@ -526,6 +527,7 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
     started: false,
     clock: 0,
   };
+  g.repair = makeStation(g);
   g.hatch = makeHatch(g);
   g.bot = makeBot(g);
   g.inspector = makeInspector(g);
@@ -891,6 +893,7 @@ export function update(g, input, dt) {
   if (root.hits) root.hits = root.hits.filter((h) => root.clock - h.t < hitLife(h));
   root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self ? input : t.input, dt); });
   stepOil(root, dt);
+  stepRepair(root, dt, root.trucks.flatMap((t, i) => (t.gone ? [] : [truckView(root, i).fl])));
   stepBot(root, dt, OIL_DROP_AREA);
   stepInspector(root, dt, root.zones.filter((z) => zoneDone(root, z)), (z) => zoneWonky(root, z));
   updateGhosts(root);
@@ -1322,7 +1325,8 @@ export function forkUp(g) {
   if (S) {
     const k = relH(g, S);
     if (S.pen?.[k]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[k])) > WIDE_ALIGN) return 'blocked'; // the tines don't both fit under it
-    const rider = perchedOn(g, S);
+    const rider = perchedOn(g, S), ph = g.root.photo;
+    if (ph && !photoTampered(g.root) && S.pen.slice(k).some((q) => q.crash > 0) && Math.hypot(S.x - ph.at.x, S.y - ph.at.y) < 0.5) g.root.liftPhoto = { photo: ph }; // the observer's last picture of this stack, to be shown again
     g.carried = S.layers.splice(k);
     g.carriedRots = S.rots.splice(k).map((r) => r - g.fl.a);
     g.carriedPen = S.pen.splice(k);

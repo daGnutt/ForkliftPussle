@@ -4,6 +4,7 @@ import { theme } from '../theme.js';
 import { scanBeam } from '../bot.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals, oilDropMark } from '../decals.js';
+import { padPolys } from '../repair.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
 import { zoneDone, zoneExt, zoneLabelPos, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf } from '../game.js';
@@ -338,6 +339,7 @@ function addMarks(tm, g, mode) {
   bar(-hx, -hy, hx, -hy + t); bar(-hx, hy - t, hx, hy); bar(-hx, -hy + t, -hx + t, hy - t); bar(hx - t, -hy + t, hx, hy - t);
   bar(-0.25, -0.35, -0.13, 0.35); bar(-0.25, -0.35, 0.15, -0.23); bar(-0.25, -0.05, 0.15, 0.07); bar(0.15, -0.35, 0.27, 0.07);
   if (ready) tm.poly([at(hx - 0.15, 0), at(hx - 0.75, -0.45), at(hx - 0.75, 0.45)], 0, col);
+  if (g.repair) for (const q of padPolys(g.repair)) tm.poly(q.pts, 0, [...parseColor(q.hex).slice(0, 3), q.alpha]);
 }
 
 function addRevLight(tm, g) {
