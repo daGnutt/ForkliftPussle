@@ -1,7 +1,7 @@
 import { COLORS } from './level.js';
 
 // The inspector's snapshot, seen from its own vantage point: a camera ~0.3 tiles off the floor, tilted up so the whole stack fits.
-const W = 400, H = 300, CAM_H = 0.3, FOV = 1.8, SHOW_MS = 4500;
+const W = 400, H = 300, STRIP = 81, CAM_H = 0.3, FOV = 1.8, SHOW_MS = 4500;
 
 const shade = (hex, k) => {
   const n = parseInt(hex.slice(1), 16);
@@ -41,7 +41,11 @@ function drawBarrel(ctx, P, col, cx, cz, y0, y1, poly, line) {
   line(sl, tl, '#111', 4); line(sr, tr, '#111', 4);
 }
 
+// Polaroid: the w x h picture plus a white caption strip below it (canvas height h + STRIP), the verdict is written on the strip.
 export function drawPhoto(ctx, photo, w = W, h = H) {
+  const sh = Math.round(h * STRIP / H);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h + sh);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.clip();
   const P = projector(photo, w, h), d = Math.max(1.1, photo.dist || 1.4), n = photo.layers.length;
   const horizon = P(0, 0, 40)[1]; // floor meets the far wall
   const hy = Math.max(0, Math.min(h, horizon)), top = Math.max(0, hy - h * 0.45);
@@ -84,17 +88,15 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
   const g = ctx.createRadialGradient(w / 2, h / 2, h * 0.2, w / 2, h / 2, h * 0.95);
   g.addColorStop(0, 'rgba(255,255,255,.25)'); g.addColorStop(0.6, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)');
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-  // verdict printed on the photo
+  ctx.restore();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 14; ctx.strokeRect(0, 0, w, h + sh); // polaroid border
   const text = photo.ok ? 'GOOD JOB' : 'COULD BE BETTER', col = photo.ok ? '#43a047' : '#e53935';
   ctx.save();
-  ctx.translate(w / 2, h - 44); ctx.rotate(-0.06);
-  ctx.font = 'bold 44px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  const sc = Math.min(1, (w - 30) / ctx.measureText(text).width);
-  ctx.scale(sc, sc);
-  ctx.lineWidth = 8; ctx.lineJoin = 'round'; ctx.strokeStyle = '#fff'; ctx.strokeText(text, 0, 0);
+  ctx.translate(w / 2, h + sh / 2 + 2); ctx.rotate(-0.04);
+  ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.scale(Math.min(1, (w - 50) / ctx.measureText(text).width), 1);
   ctx.fillStyle = col; ctx.fillText(text, 0, 0);
   ctx.restore();
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 14; ctx.strokeRect(0, 0, w, h); // polaroid border
 }
 
 let timer = 0, fade = 0, spot = null, corner = 0;
@@ -138,7 +140,7 @@ export function dodgePhoto() {
 export function showPhoto(photo) {
   const el = typeof document !== 'undefined' && document.getElementById('photo');
   if (!el) return;
-  el.width = W; el.height = H;
+  el.width = W; el.height = H + STRIP;
   drawPhoto(el.getContext('2d'), photo);
   clearTimeout(timer); clearTimeout(fade);
   el.classList.remove('hide', 'fade');
