@@ -1,6 +1,6 @@
 # Pallet Polka
 
-Top-down browser puzzle (keyboard only, tested for Firefox). Drive a forklift and move coloured boxes onto the matching coloured zones. A zone is done when a stack of exactly its count (`×N`) and only its colour sits on it. All zones of one colour are grouped in a single tinted area.
+Top-down browser puzzle (keyboard, gamepad or touch; tested for Firefox), rendered in 3D with a 2D fallback. Drive a forklift and move coloured boxes onto the matching coloured zones, solo, in local or online multiplayer, or in endless mode. A zone is done when a stack of exactly its count (`×N`) and only its colour sits on it. All zones of one colour are grouped in a single tinted area.
 
 ## Controls
 
@@ -71,7 +71,7 @@ Up to 4 players share a level (co-op, one shared score). On the start screen ent
 
 ## Run / deploy
 No build step. Serve the folder statically (ES modules need http): `python3 -m http.server`, then open http://localhost:8000.
-GitHub Pages: Settings → Pages → deploy from branch, root folder.
+Deployed as static files on GitHub Pages (`main`, root folder).
 
 ## Finishing a level
 You spawn in a parking spot (marked **P**). To finish a level, fill every zone and drive back into the parking spot (aligned, nearly stopped).
@@ -79,6 +79,6 @@ You spawn in a parking spot (marked **P**). To finish a level, fill every zone a
 ## Scoring
 Each box is worth 100 points, but only boxes in a stack that is in its correct zone count towards your score. Nudging a box slowly head-on turns it square to the forklift. Crashing into boxes (or hitting a wall while carrying) costs a few points, down to 50 per box; the other 50 depend on how square a box is when you put it down (within 5° is free; deductions come in steps of 5); you can pick a box up and re-place it to fix its squareness (crash losses stay). The score resets on level load/restart.
 
-Levels are procedurally generated from the level number (deterministic). Tests: `npm test` runs everything; `node test/run.js fork score` runs only some categories (`level physics fork stacks score render save demo net endless`).
+Levels are procedurally generated from the level number (deterministic). Tests: `npm test` runs everything; `node test/run.js fork score` runs only some categories (one file per category in `test/`, listed in `docs/CODE_GUIDE.md`).
 
 The splash screen and the end-of-level overlay explain/break down how the score is calculated (box points, crash and squareness losses, time penalty, final score).

@@ -74,9 +74,3 @@ export async function pullScores(store, name, fetchPage = fetchPlayerPage) {
 
 // Resolves to the top 10 entries, or null when offline.
 export const fetchTopList = (board) => fetchScores(board, 10);
-
-// Resolves to the top entry, 'none' (empty board) or 'offline'.
-export async function fetchTop(board) {
-  const list = await fetchScores(board, 1);
-  return list === null ? 'offline' : list[0] || 'none';
-}

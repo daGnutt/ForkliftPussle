@@ -101,5 +101,15 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('savestate ok');
 }
 
+// Service worker precache lists every module, so the offline PWA has the whole game.
+{
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  const root = new URL('../js/', import.meta.url);
+  const mods = readdirSync(root, { recursive: true }).filter((f) => f.endsWith('.js')).map((f) => f.slice(0, -3).replaceAll('\\', '/'));
+  const missing = mods.filter((m) => !sw.includes(`'${m}'`));
+  assert.deepEqual(missing, [], 'modules missing from sw.js CORE');
+  console.log('sw precache ok');
+}
 
 console.log('save tests passed');
