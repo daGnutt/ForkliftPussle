@@ -1,7 +1,7 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from './level.js';
 import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, dockWaits, dockNumber, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
-import { scanBeam, WHEEL_R } from './bot.js';
+import { scanBeam, botDrawPos, WHEEL_R } from './bot.js';
 import { drawBotDebugWorld } from './debug.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { padPolys, tapeShapes, TAPE_FILL } from './repair.js';
@@ -562,7 +562,9 @@ function drawInspector(ctx, g, vis) {
     ctx.restore();
   }
   ctx.save();
-  ctx.translate(b.x, b.y); ctx.rotate(b.a); ctx.scale(b.show, b.show);
+  const p = botDrawPos(b, g.hatch);
+  ctx.beginPath(); ctx.rect(0, 0, g.w, g.h); ctx.clip(); // the walls hide a bot that is still inside one
+  ctx.translate(p.x, p.y); ctx.rotate(b.a);
   ctx.fillStyle = '#1d2024';
   ctx.beginPath(); ctx.roundRect(-0.16, -0.3, 0.32, 0.1, 0.04); ctx.fill();
   ctx.beginPath(); ctx.roundRect(-0.16, 0.2, 0.32, 0.1, 0.04); ctx.fill();
@@ -609,7 +611,9 @@ function drawBot(ctx, g, vis) {
   if (!b || b.show <= 0 || !visSeen(vis, b.x - 0.5, b.y - 0.5, 1, 1)) return;
   const t = g.clock || 0;
   ctx.save();
-  ctx.translate(b.x, b.y); ctx.rotate(b.a); ctx.scale(b.show, b.show);
+  const p = botDrawPos(b, g.hatch);
+  ctx.beginPath(); ctx.rect(0, 0, g.w, g.h); ctx.clip(); // the walls hide a bot that is still inside one
+  ctx.translate(p.x, p.y); ctx.rotate(b.a);
   ctx.fillStyle = '#4a4d52';
   ctx.fillRect(-0.2, -0.3, 0.4, 0.1); ctx.fillRect(-0.2, 0.2, 0.4, 0.1);
   ctx.fillStyle = '#f2f2ee';

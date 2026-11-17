@@ -1,7 +1,7 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from '../level.js';
 import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
-import { scanBeam } from '../bot.js';
+import { scanBeam, botDrawPos } from '../bot.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals, oilDropMark } from '../decals.js';
 import { padPolys } from '../repair.js';
@@ -433,24 +433,24 @@ function addDisco(om, g, eye) {
 function addInspector(om, tm, g) {
   const b = g.inspector;
   if (!b || b.show <= 0) return;
-  const k = b.show, at = (u, v) => [b.x + (u * Math.cos(b.a) - v * Math.sin(b.a)) * k, b.y + (u * Math.sin(b.a) + v * Math.cos(b.a)) * k];
+  const { x: bx, y: by } = botDrawPos(b, g.hatch), at = (u, v) => [bx + (u * Math.cos(b.a) - v * Math.sin(b.a)), by + (u * Math.sin(b.a) + v * Math.cos(b.a))];
   const sc = scanBeam(b), face = b.a + Math.PI / 2;
   const spin = -(b.roll || 0); // rolling forward turns the wheel clockwise seen from its side
   for (const v of [-0.25, 0.25]) {
-    om.wheel(...at(0, v), 0.12 * k, b.a, 0.12 * k, 0.05 * k, '#1d2024', 12, spin);
+    om.wheel(...at(0, v), 0.12, b.a, 0.12, 0.05, '#1d2024', 12, spin);
     // A light hub mark on the outer face turns with the wheel.
-    const zc = 0.12 * k + 0.075 * k * Math.sin(spin);
-    om.cuboid(...at(0.075 * Math.cos(spin), v + Math.sign(v) * 0.052), b.a, 0.02 * k, 0.003 * k, zc - 0.02 * k, zc + 0.02 * k, '#8a929a');
+    const zc = 0.12 + 0.075 * Math.sin(spin);
+    om.cuboid(...at(0.075 * Math.cos(spin), v + Math.sign(v) * 0.052), b.a, 0.02, 0.003, zc - 0.02, zc + 0.02, '#8a929a');
   }
-  om.cuboid(b.x, b.y, b.a, 0.24 * k, 0.2 * k, 0.1 * k, 0.45 * k, '#f6f6f4');
-  om.cuboid(...at(0.2, 0), b.a, 0.05 * k, 0.18 * k, 0.16 * k, 0.4 * k, '#111317');
+  om.cuboid(bx, by, b.a, 0.24, 0.2, 0.1, 0.45, '#f6f6f4');
+  om.cuboid(...at(0.2, 0), b.a, 0.05, 0.18, 0.16, 0.4, '#111317');
   for (const v of [-0.085, 0.085]) {
-    om.wheel(...at(0.255, v), 0.3 * k, face, 0.055 * k, 0.004 * k, '#ffffff', 14);
-    om.wheel(...at(0.257, v), 0.3 * k, face, 0.04 * k, 0.004 * k, '#111317', 14);
+    om.wheel(...at(0.255, v), 0.3, face, 0.055, 0.004, '#ffffff', 14);
+    om.wheel(...at(0.257, v), 0.3, face, 0.04, 0.004, '#111317', 14);
   }
-  om.wheel(...at(0.26, 0), 0.24 * k, face, 0.03 * k, 0.006 * k, sc ? '#ff3b3b' : b.scared ? '#ff6a4a' : '#2a3a52', 12);
+  om.wheel(...at(0.26, 0), 0.24, face, 0.03, 0.006, sc ? '#ff3b3b' : b.scared ? '#ff6a4a' : '#2a3a52', 12);
   if (!sc) return;
-  const U = BOX_H + PAL, lens = [sc.lens.x, sc.lens.y, 0.24 * k], to = [sc.sx, sc.sy, 0.05 + sc.z * U];
+  const U = BOX_H + PAL, lens = [sc.lens.x, sc.lens.y, 0.24], to = [sc.sx, sc.sy, 0.05 + sc.z * U];
   const red = '#ff3030', w = 0.012, dirx = to[0] - lens[0], diry = to[1] - lens[1], dl = Math.hypot(dirx, diry) || 1, px = -diry / dl * w, py = dirx / dl * w;
   for (const [a, c] of [[[px, py, 0], red], [[0, 0, w], red]]) {
     om.quad([lens[0] - a[0], lens[1] - a[1], lens[2] - a[2]], [lens[0] + a[0], lens[1] + a[1], lens[2] + a[2]], [to[0] + a[0], to[1] + a[1], to[2] + a[2]], [to[0] - a[0], to[1] - a[1], to[2] - a[2]], [0, 0, 0], parseColor(c));
@@ -471,14 +471,14 @@ function addBot(om, tm, g) {
   addInspector(om, tm, g);
   const b = g.bot;
   if (!b || b.show <= 0) return;
-  const k = b.show, at = (u, v) => [b.x + (u * Math.cos(b.a) - v * Math.sin(b.a)) * k, b.y + (u * Math.sin(b.a) + v * Math.cos(b.a)) * k];
-  for (const v of [-0.25, 0.25]) om.cuboid(...at(0, v), b.a, 0.2 * k, 0.05 * k, 0, 0.12 * k, '#4a4d52');
-  om.cuboid(b.x, b.y, b.a, 0.22 * k, 0.2 * k, 0.1 * k, 0.4 * k, '#f2f2ee');
-  om.cuboid(...at(0.2, 0), b.a, 0.04 * k, 0.15 * k, 0.2 * k, 0.36 * k, '#20262c');
-  om.cuboid(...at(0.245, 0), b.a, 0.005 * k, 0.06 * k, 0.25 * k, 0.31 * k, b.scared ? '#ff6a4a' : '#4ec3ff', { emissive: true });
+  const { x: bx, y: by } = botDrawPos(b, g.hatch), at = (u, v) => [bx + (u * Math.cos(b.a) - v * Math.sin(b.a)), by + (u * Math.sin(b.a) + v * Math.cos(b.a))];
+  for (const v of [-0.25, 0.25]) om.cuboid(...at(0, v), b.a, 0.2, 0.05, 0, 0.12, '#4a4d52');
+  om.cuboid(bx, by, b.a, 0.22, 0.2, 0.1, 0.4, '#f2f2ee');
+  om.cuboid(...at(0.2, 0), b.a, 0.04, 0.15, 0.2, 0.36, '#20262c');
+  om.cuboid(...at(0.245, 0), b.a, 0.005, 0.06, 0.25, 0.31, b.scared ? '#ff6a4a' : '#4ec3ff', { emissive: true });
   // Two arms hold a square roller across the front; `wheel` has its axis along local y, which is the roller's long axis.
-  for (const v of [-0.17, 0.17]) om.cuboid(...at(0.28, v), b.a, 0.08 * k, 0.02 * k, 0.1 * k, 0.14 * k, '#4a4d52');
-  om.wheel(...at(0.36, 0), 0.12 * k, b.a, 0.05 * k, 0.17 * k, '#e8c52e', 4, b.cleaning ? (g.clock || 0) * 18 : 0);
+  for (const v of [-0.17, 0.17]) om.cuboid(...at(0.28, v), b.a, 0.08, 0.02, 0.1, 0.14, '#4a4d52');
+  om.wheel(...at(0.36, 0), 0.12, b.a, 0.05, 0.17, '#e8c52e', 4, b.cleaning ? (g.clock || 0) * 18 : 0);
 }
 
 // Per-frame meshes: { opaque, trans, lights } for the game state `g` seen from `eye` ([x, y]).

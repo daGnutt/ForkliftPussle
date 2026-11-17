@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { newGame, update, zoneDone, zoneWonky, flaggedStacks, endPhotos } from '../js/game.js';
-import { BOT_R, CLEAN_SECS, truckGap } from '../js/bot.js';
+import { BOT_R, CLEAN_SECS, truckGap, botDrawPos } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { run, NONE, flatWorld } from './common.js';
 
@@ -319,6 +319,15 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(fake.layers.length, g.stacks[0].layers.length);
   assert.equal(list[0].score.total, list[0].score.base, 'a perfect stack scores its full points');
   assert.equal(endPhotos(g)[0], list[0], 'one stable object per picture');
+}
+
+// Bots keep their size when they appear: they slide out of the wall through the hatch instead of scaling up.
+{
+  const g = botGame(), h = g.hatch, b = { x: 5 + h.nx, y: 5 + h.ny, show: 1 };
+  const d = (show) => { const p = botDrawPos({ ...b, show }, h); return (p.x - b.x) * h.nx + (p.y - b.y) * h.ny; };
+  assert.equal(d(1), 0, 'fully out: at its real position');
+  assert.ok(d(0.5) < 0 && d(0) < d(0.5), 'part way: further into the wall (behind the hatch line)');
+  assert.ok(-d(0) >= BOT_R + 0.1, 'hidden: at least from its home position back to the wall face');
 }
 
 console.log('bot tests passed');

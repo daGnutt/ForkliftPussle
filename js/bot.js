@@ -43,6 +43,14 @@ export function makeHatch(g) {
 
 export const botHome = (h) => ({ x: h.x + h.nx * (BOT_R + 0.1), y: h.y + h.ny * (BOT_R + 0.1) });
 
+// Where a bot is drawn: it keeps its full size and slides in/out of the hatch, so while `show` < 1 it sits (partly) inside the wall,
+// which hides it; `show` is the progress of that slide.
+export const BOT_SLIDE = BOT_R + 0.1 + 0.5; // from home to fully inside the wall
+export function botDrawPos(b, h) {
+  const s = (1 - b.show) * BOT_SLIDE;
+  return h ? { x: b.x - h.nx * s, y: b.y - h.ny * s } : { x: b.x, y: b.y };
+}
+
 export function makeBot(g) {
   if (!g.hatch || !g.stacks.some((s) => s.layers.includes(BARREL_COLOR))) return null;
   const home = botHome(g.hatch);

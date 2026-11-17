@@ -1,4 +1,5 @@
 import { COLORS } from '../level.js';
+import { botDrawPos } from '../bot.js';
 import { truckPaint, TRUCK_H, truckRoofs, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, overheadDecals, boxDeco } from '../decals.js';
@@ -123,19 +124,19 @@ function addBot(faces, cam, g) {
   addPrism(faces, cam, h.x + h.nx * 0.03, h.y + h.ny * 0.03, h.a, 0.03, 0.45, 0, 0.55, '#2b2f33');
   const q = g.inspector;
   if (q && q.show > 0) {
-    const k = q.show, at = (u, v) => [q.x + (u * Math.cos(q.a) - v * Math.sin(q.a)) * k, q.y + (u * Math.sin(q.a) + v * Math.cos(q.a)) * k];
-    for (const v of [-0.25, 0.25]) addPrism(faces, cam, ...at(0, v), q.a, 0.2 * k, 0.05 * k, 0, 0.12 * k, '#4a4d52');
-    addPrism(faces, cam, q.x, q.y, q.a, 0.22 * k, 0.2 * k, 0.1 * k, 0.45 * k, '#f6f6f4');
-    addPrism(faces, cam, ...at(0.24, 0), q.a, 0.06 * k, 0.1 * k, 0.2 * k, 0.4 * k, q.flash > 0 ? '#ffffff' : '#111317');
+    const { x: bx, y: by } = botDrawPos(q, g.hatch), at = (u, v) => [bx + (u * Math.cos(q.a) - v * Math.sin(q.a)), by + (u * Math.sin(q.a) + v * Math.cos(q.a))];
+    for (const v of [-0.25, 0.25]) addPrism(faces, cam, ...at(0, v), q.a, 0.2, 0.05, 0, 0.12, '#4a4d52');
+    addPrism(faces, cam, bx, by, q.a, 0.22, 0.2, 0.1, 0.45, '#f6f6f4');
+    addPrism(faces, cam, ...at(0.24, 0), q.a, 0.06, 0.1, 0.2, 0.4, q.flash > 0 ? '#ffffff' : '#111317');
   }
   const b = g.bot;
   if (!b || b.show <= 0) return;
-  const k = b.show, at = (u, v) => [b.x + (u * Math.cos(b.a) - v * Math.sin(b.a)) * k, b.y + (u * Math.sin(b.a) + v * Math.cos(b.a)) * k];
-  for (const v of [-0.25, 0.25]) addPrism(faces, cam, ...at(0, v), b.a, 0.2 * k, 0.05 * k, 0, 0.12 * k, '#4a4d52');
-  addPrism(faces, cam, b.x, b.y, b.a, 0.22 * k, 0.2 * k, 0.1 * k, 0.4 * k, '#f2f2ee');
-  addPrism(faces, cam, ...at(0.2, 0), b.a, 0.04 * k, 0.15 * k, 0.2 * k, 0.36 * k, '#20262c');
-  for (const v of [-0.17, 0.17]) addPrism(faces, cam, ...at(0.28, v), b.a, 0.08 * k, 0.02 * k, 0.1 * k, 0.14 * k, '#4a4d52');
-  addPrism(faces, cam, ...at(0.36, 0), b.a, 0.05 * k, 0.17 * k, 0.07 * k, 0.17 * k, '#e8c52e');
+  const { x: bx, y: by } = botDrawPos(b, g.hatch), at = (u, v) => [bx + (u * Math.cos(b.a) - v * Math.sin(b.a)), by + (u * Math.sin(b.a) + v * Math.cos(b.a))];
+  for (const v of [-0.25, 0.25]) addPrism(faces, cam, ...at(0, v), b.a, 0.2, 0.05, 0, 0.12, '#4a4d52');
+  addPrism(faces, cam, bx, by, b.a, 0.22, 0.2, 0.1, 0.4, '#f2f2ee');
+  addPrism(faces, cam, ...at(0.2, 0), b.a, 0.04, 0.15, 0.2, 0.36, '#20262c');
+  for (const v of [-0.17, 0.17]) addPrism(faces, cam, ...at(0.28, v), b.a, 0.08, 0.02, 0.1, 0.14, '#4a4d52');
+  addPrism(faces, cam, ...at(0.36, 0), b.a, 0.05, 0.17, 0.07, 0.17, '#e8c52e');
 }
 
 const OVERHEAD_R = 20; // fixtures further away are tiny and fogged
