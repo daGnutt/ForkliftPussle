@@ -27,7 +27,7 @@ import { startSplash3d } from './splash3d.js';
 import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
-import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const resultsCanvas = document.getElementById('results'); // end-of-level panel, stacked above the gallery photos
@@ -281,16 +281,18 @@ const input = createInput({
     if (view.povBig) tutDone.cab = true;
   },
   up: () => {
-    if (mp?.role === 'guest') { mp.guest.sendFork('up'); if (mp.guest.predictor.fork('up', performance.now() / 1000) === 'blocked') playBlocked(); return; }
+    if (mp?.role === 'guest') { mp.guest.sendFork('up'); noteForkResult('up', mp.guest.predictor.fork('up', performance.now() / 1000)); return; }
     const h = game.H;
-    if (forkUp(game) === 'blocked') playBlocked();
-    else if (game.H !== h) playFork(true);
+    const res = forkUp(game);
+    noteForkResult('up', res);
+    if (res !== 'blocked' && game.H !== h) playFork(true);
   },
   down: () => {
-    if (mp?.role === 'guest') { mp.guest.sendFork('down'); if (mp.guest.predictor.fork('down', performance.now() / 1000) === 'blocked') playBlocked(); return; }
+    if (mp?.role === 'guest') { mp.guest.sendFork('down'); noteForkResult('down', mp.guest.predictor.fork('down', performance.now() / 1000)); return; }
     const h = game.H;
-    if (forkDown(game) === 'blocked') playBlocked();
-    else if (game.H !== h) playFork(false);
+    const res = forkDown(game);
+    noteForkResult('down', res);
+    if (res !== 'blocked' && game.H !== h) playFork(false);
   },
   downAll: () => {
     if (mp?.role === 'guest') { mp.guest.sendFork('downAll'); mp.guest.predictor.fork('downAll', performance.now() / 1000); return; }
@@ -491,14 +493,14 @@ const TUTORIAL = [
     : `Press <b>${wasd() ? 'E' : 'A'}</b> to raise the forks and <b>${wasd() ? 'Q' : 'Z'}</b> to lower them. Drive the forks in under a stack to lift it.`; } },
   { done: 'zone', html: isTouch
     ? 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Restart if you get stuck.'
-    : 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Game → Restart level if you get stuck.' },
+    : 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Restart level if you get stuck.' },
   { done: 'cab', html: 'For a more immersive experience, press <b>Tab</b> or <b>M</b> to switch to the cab view (and again to return to the overview).' },
   { done: 'info', get html() { return isTouch
     ? 'Hold two fingers on the canvas to <b>honk</b>. Open <b>Menu</b> → <b>Info</b> for scoring and more tips.'
     : 'Extras: <b>C</b> chase camera, <b>,</b>/<b>.</b> rotate the camera (or drag it), hold <b>H</b> to honk, <b>F</b> full screen. Press <b>P</b> / <b>Esc</b> for the menu → <b>Info</b> for scoring and more tips.'; },
     extra: () => (theme().dark
-      ? ' Prefer a brighter scene? Switch <b>Colour mode</b> to <b>Light</b> under Visuals.'
-      : ' Try <b>Dark</b> colour mode under Visuals for headlights, ambient lights and disco lights.') },
+      ? ' Prefer a brighter scene? Switch <b>Colour mode</b> to <b>Light</b> under Graphics.'
+      : ' Try <b>Dark</b> colour mode under Graphics for headlights, ambient lights and disco lights.') },
 ];
 if (isTouch) TUTORIAL.splice(3, 1);
 const TUT_MIN_MS = 2500, TUT_INFO_MS = 20000;
@@ -509,7 +511,31 @@ let tutDone = {};
 let tutShownAt = performance.now();
 // One-off tip the first time the truck lifts or comes up to an open-top box; it takes over the banner for a few seconds.
 const OPEN_TIP_KEY = 'forklift-opentop-tip', OPEN_TIP_MS = 8000, OPEN_TIP_DIST = 1.2;
+const CEILING_TIP_KEY = 'forklift-ceiling-tip', FORKBOX_TIP_KEY = 'forklift-forkbox-tip', OIL_TIP_KEY = 'forklift-oil-tip';
 let tipUntil = 0;
+// One-off tips for events: the first blocked fork action (ceiling / lowering through a box) and the first damaged oil barrel.
+const pendingTips = {};
+function showTip(key, html) {
+  localStorage.setItem(key, '1');
+  tipUntil = performance.now() + OPEN_TIP_MS;
+  tutorialEl.classList.remove('hide');
+  tutorialEl.innerHTML = `<small>Tip</small>${html}`;
+}
+const barrelDamaged = (pens = []) => pens.some((p, i) => p?.barrelPart === 'base' && (p.crash || 0) + (pens[i + 1]?.crash || 0) > 0);
+function checkEventTips() {
+  if (tipUntil || splashOn || view.menuOpen) return;
+  if (!localStorage.getItem(CEILING_TIP_KEY) && pendingTips.ceiling) showTip(CEILING_TIP_KEY, 'Carried boxes <b>hit the ceiling</b> and were damaged. Lower the forks before you drive on.');
+  else if (!localStorage.getItem(FORKBOX_TIP_KEY) && pendingTips.forkbox) showTip(FORKBOX_TIP_KEY, 'You cannot lower the forks <b>through a box</b>: it gets damaged. Raise the forks or back out first, then lower them.');
+  else if (!localStorage.getItem(OIL_TIP_KEY) && (barrelDamaged(game.carriedPen) || game.stacks.some((s) => barrelDamaged(s.pen)))) showTip(OIL_TIP_KEY, 'A damaged barrel <b>drips oil</b>, and oil is slippery. Don\'t worry, a <b>cleaning bot</b> has been dispatched to help you.');
+  pendingTips.ceiling = pendingTips.forkbox = false;
+}
+// Called with the result of every fork action by the local player.
+function noteForkResult(dir, res) {
+  if (res !== 'blocked') return;
+  playBlocked();
+  if (dir === 'down') pendingTips.forkbox = true;
+  else if (game.carried || game.lifting >= 0) pendingTips.ceiling = true;
+}
 function checkOpenTip() {
   if (tipUntil) {
     if (performance.now() < tipUntil) return;
@@ -551,6 +577,7 @@ function nextTutorial() {
 }
 let tutStart = { x: game.fl.x, y: game.fl.y };
 function checkTutorial() {
+  checkEventTips();
   checkOpenTip();
   checkRepairTip();
   if (tipUntil || repairTipOn) return;
@@ -568,6 +595,8 @@ function checkTutorial() {
 }
 const keySel = document.getElementById('keySel');
 if (isTouch) document.getElementById('keyLabel').hidden = true;
+document.getElementById('ctlDesktop').hidden = isTouch;
+document.getElementById('ctlTouch').hidden = !isTouch;
 // On touch devices the gamepad map only shows once a gamepad has been seen on this device.
 const padMap = document.getElementById('padMap');
 const padSeen = () => { localStorage.setItem('forklift-pad-seen', '1'); padMap.hidden = false; };
@@ -776,9 +805,7 @@ function onGuestGame(m) {
 }
 
 const menuEl = document.getElementById('menu');
-const sfxOpt = document.getElementById('sfxOpt');
-const engineOpt = document.getElementById('engineOpt');
-const beepOpt = document.getElementById('beepOpt');
+const volSliders = [...menuEl.querySelectorAll('input.vol')];
 const musicOpt = document.getElementById('musicOpt');
 const trackSel = document.getElementById('trackSel');
 for (const t of MUSIC_TRACKS) trackSel.add(new Option(t.name, t.id));
@@ -864,10 +891,7 @@ function toggleMenu(open) {
   menuEl.classList.toggle('hide', !open);
   if (open) {
     muteOpt.checked = isAllMuted();
-    sfxOpt.checked = isSfxOn();
-    engineOpt.checked = isEngineOn();
-    beepOpt.checked = isBeepOn();
-    engineOpt.disabled = beepOpt.disabled = !sfxOpt.checked;
+    for (const el of volSliders) el.value = Math.round(getVolume(el.dataset.vol) * 100);
     musicOpt.checked = !isMusicMuted();
     decalOpt.checked = decalsEnabled();
     glOpt.checked = glEnabled();
@@ -893,9 +917,7 @@ function toggleMenu(open) {
   applyPause();
 }
 muteOpt.addEventListener('change', () => setAllMuted(muteOpt.checked));
-sfxOpt.addEventListener('change', () => { setSfxOn(sfxOpt.checked); engineOpt.disabled = beepOpt.disabled = !sfxOpt.checked; });
-engineOpt.addEventListener('change', () => setEngineOn(engineOpt.checked));
-beepOpt.addEventListener('change', () => setBeepOn(beepOpt.checked));
+for (const el of volSliders) el.addEventListener('input', () => { setVolume(el.dataset.vol, Number(el.value) / 100); startAudio(); });
 decalOpt.addEventListener('change', () => {
   setDecalsEnabled(decalOpt.checked);
   localStorage.setItem('forklift-decals-off', decalOpt.checked ? '0' : '1');
@@ -1065,7 +1087,7 @@ window.addEventListener('keydown', (e) => {
   if (typing || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
   const actions = {
     KeyM: () => { muteOpt.checked = !muteOpt.checked; muteOpt.dispatchEvent(new Event('change')); },
-    KeyG: () => { showPage('game'); menuLevel.focus(); menuLevel.select(); },
+    KeyG: () => { showPage('play'); menuLevel.focus(); menuLevel.select(); },
   };
   if (actions[e.code]) { e.preventDefault(); actions[e.code](); }
 }, true);
@@ -1130,7 +1152,7 @@ applyPause();
 
 const debug = debugEnabled(location.search) ? createDebug() : null;
 initTestingBanner();
-if (!isTesting()) menuEl.querySelector('[data-go="state"]')?.remove();
+if (!isTesting()) document.getElementById('stateSection')?.remove();
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 if (new URLSearchParams(location.search).has('endless')) loadEndless();

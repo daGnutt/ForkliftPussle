@@ -8,8 +8,8 @@ const MUSIC_VOL = 0.35;
 const SFX_VOL = 0.5;
 const TRACK_KEY = 'forklift-music-track';
 
-let ctx = null, master = null, musicBus = null, sfxBus = null;
-let muted = localStorage.getItem(MUTE_KEY) !== '0'; // music is off until enabled
+let ctx = null, master = null, musicBus = null, sfxMix = null, sfxBus = null, engineBus = null, beepBus = null;
+let muted = localStorage.getItem(MUTE_KEY) === '1'; // music is on until muted
 const RANDOM_KEY = 'forklift-music-random';
 let randomOn = localStorage.getItem(RANDOM_KEY) !== '0';
 let onTrackChange = null;
@@ -17,6 +17,22 @@ let timer = null, noiseBuf = null;
 let trackIdx = 0, trackBus = null;
 const engines = new Map(); // truck id -> engine voice
 const beepers = new Map(); // truck id -> reversing beeper voice
+
+// Volume sliders (0..1, saved as percent): master, music, engine (0.5 = the original loudness, so it can go twice as loud), beeps
+// (reversing beep and proximity alert) and other sound effects. The mute-all and silenced switches override them.
+const VOL_DEFAULTS = { master: 1, music: 1, engine: 0.5, beeps: 1, sfx: 1 };
+const VOL_GAIN = { master: 1, music: 1, engine: 2, beeps: 1, sfx: 1 }; // slider 1 -> bus gain multiplier
+const vols = { ...VOL_DEFAULTS };
+// Old on/off options: an "off" setting becomes a volume of 0.
+const OLD_OFF = { sfx: 'forklift-sfx-off', engine: 'forklift-engine-off', beeps: 'forklift-beep-off' };
+for (const k of Object.keys(vols)) {
+  const saved = localStorage.getItem('forklift-vol-' + k);
+  if (saved !== null && saved !== '' && Number.isFinite(Number(saved))) vols[k] = Math.max(0, Math.min(1, Number(saved) / 100));
+  else if (OLD_OFF[k] && localStorage.getItem(OLD_OFF[k]) === '1') vols[k] = 0;
+}
+if (localStorage.getItem(OLD_OFF.sfx) === '1' && localStorage.getItem('forklift-vol-sfx') === null) { // "Sound effects" off also muted the engine and beeps
+  for (const k of ['engine', 'beeps']) if (localStorage.getItem('forklift-vol-' + k) === null) vols[k] = 0;
+}
 const ALL_KEY = 'forklift-all-muted';
 let allMuted = localStorage.getItem(ALL_KEY) === '1';
 const MASTER_VOL = 0.8;
@@ -27,14 +43,19 @@ function init() {
   if (!AC) return;
   ctx = new AC();
   master = ctx.createGain();
-  master.gain.value = allMuted ? 0 : MASTER_VOL;
+  master.gain.value = masterGain();
   master.connect(ctx.destination);
 
   musicBus = ctx.createGain();
-  musicBus.gain.value = muted ? 0 : MUSIC_VOL;
+  musicBus.gain.value = muted ? 0 : MUSIC_VOL * vols.music;
+  sfxMix = ctx.createGain();
+  sfxMix.gain.value = silenced ? 0 : SFX_VOL;
+  sfxMix.connect(master);
   sfxBus = ctx.createGain();
-  sfxBus.gain.value = sfxOn ? SFX_VOL : 0;
-  sfxBus.connect(master);
+  engineBus = ctx.createGain();
+  beepBus = ctx.createGain();
+  for (const b of [sfxBus, engineBus, beepBus]) b.connect(sfxMix);
+  applyVolumes();
 
   // Music bus: cut low-mid mud, add a little presence, glue with a gentle compressor.
   const hp = ctx.createBiquadFilter();
@@ -326,49 +347,38 @@ export function startAudio() {
 // Silence everything (focus lost / manual pause) by suspending the audio clock.
 // Mutes the sound effects (pause menu / focus lost); the music keeps playing.
 let silenced = false;
-const SFX_KEY = 'forklift-sfx-off', BEEP_KEY = 'forklift-beep-off';
-let sfxOn = localStorage.getItem(SFX_KEY) !== '1';
-let beepOn = localStorage.getItem(BEEP_KEY) !== '1';
-const updateSfxBus = () => { if (ctx) sfxBus.gain.setTargetAtTime(silenced || !sfxOn ? 0 : SFX_VOL, ctx.currentTime, 0.02); };
+const masterGain = () => (allMuted ? 0 : MASTER_VOL * vols.master);
+function applyVolumes() {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  master.gain.setTargetAtTime(masterGain(), t, 0.03);
+  if (!muted) musicBus.gain.setTargetAtTime(MUSIC_VOL * vols.music, t, 0.05);
+  sfxBus.gain.setTargetAtTime(vols.sfx, t, 0.03);
+  engineBus.gain.setTargetAtTime(vols.engine * VOL_GAIN.engine, t, 0.03);
+  beepBus.gain.setTargetAtTime(vols.beeps, t, 0.03);
+}
 export function setSilenced(s) {
   silenced = s;
-  updateSfxBus();
+  if (ctx) sfxMix.gain.setTargetAtTime(s ? 0 : SFX_VOL, ctx.currentTime, 0.02);
 }
 
-// Sound effects on/off (all of them, including the engine whine and the reversing beep, which have their own toggles below).
-export function isSfxOn() { return sfxOn; }
-export function setSfxOn(on) {
-  sfxOn = on;
-  localStorage.setItem(SFX_KEY, on ? '0' : '1');
-  updateSfxBus();
-}
-
-export function isBeepOn() { return beepOn; }
-export function setBeepOn(on) {
-  beepOn = on;
-  localStorage.setItem(BEEP_KEY, on ? '0' : '1');
-  if (!on && ctx) for (const b of beepers.values()) b.g.gain.setTargetAtTime(0, ctx.currentTime, 0.01);
+// Volume sliders: `name` is master / music / engine / beeps / sfx, `v` 0..1 (0 = muted).
+export function getVolume(name) { return vols[name]; }
+export function setVolume(name, v) {
+  if (!(name in vols)) return;
+  vols[name] = Math.max(0, Math.min(1, v));
+  localStorage.setItem('forklift-vol-' + name, String(Math.round(vols[name] * 100)));
+  applyVolumes();
 }
 
 export function isAllMuted() { return allMuted; }
 export function setAllMuted(m) {
   allMuted = m;
   localStorage.setItem(ALL_KEY, m ? '1' : '0');
-  if (ctx) master.gain.setTargetAtTime(m ? 0 : MASTER_VOL, ctx.currentTime, 0.03);
+  applyVolumes();
 }
 
 export function isMusicMuted() { return muted; }
-
-const ENGINE_KEY = 'forklift-engine-off';
-let engineOn = localStorage.getItem(ENGINE_KEY) !== '1';
-export function isEngineOn() { return engineOn; }
-export function setEngineOn(on) {
-  engineOn = on;
-  localStorage.setItem(ENGINE_KEY, on ? '0' : '1');
-  if (!on && ctx) {
-    for (const e of engines.values()) e.g.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
-  }
-}
 
 export function setMusicMuted(m) {
   if (m !== muted) toggleMusic();
@@ -378,7 +388,7 @@ function toggleMusic() {
   startAudio();
   muted = !muted;
   localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
-  if (ctx) musicBus.gain.setTargetAtTime(muted ? 0 : MUSIC_VOL, ctx.currentTime, 0.15);
+  if (ctx) musicBus.gain.setTargetAtTime(muted ? 0 : MUSIC_VOL * vols.music, ctx.currentTime, 0.15);
   return muted;
 }
 
@@ -597,7 +607,7 @@ function startEngine() {
   o.connect(f);
   o2.connect(f);
   f.connect(g);
-  g.connect(sfxBus);
+  g.connect(engineBus);
   o.start();
   o2.start();
   return { o, o2, f, g };
@@ -614,8 +624,7 @@ export function setEngine(speed, throttle, reversing = false, id = 0, vol = 1) {
     engine = startEngine();
     engines.set(id, engine);
   }
-  setBeeper(reversing && beepOn, t, id, vol);
-  if (!engineOn) return;
+  setBeeper(reversing, t, id, vol);
   const v = Math.min(1, Math.abs(speed) / 4);
   const pitch = (55 + v * 80 + (throttle ? 6 : 0)) * (1 + 0.04 * id);
   engine.o.frequency.setTargetAtTime(pitch, t, 0.15);
@@ -674,11 +683,11 @@ export function playImpatientHonk(dur = 0.5, vol = 1) {
 // Proximity alert: fast double beep (1500 Hz) while the carried stack is about to hit another stack.
 let alertAt = 0;
 export function setCrashAlert(on) {
-  if (!on || !ctx || ctx.state !== 'running' || !beepOn) return;
+  if (!on || !ctx || ctx.state !== 'running') return;
   const t = ctx.currentTime;
   if (t < alertAt) return;
   alertAt = t + 0.3;
-  for (const dt of [0, 0.1]) tone(sfxBus, 1500, t + dt, 0.07, { type: 'square', gain: 0.05, attack: 0.005, release: 0.03, cutoff: 3000 });
+  for (const dt of [0, 0.1]) tone(beepBus, 1500, t + dt, 0.07, { type: 'square', gain: 0.05, attack: 0.005, release: 0.03, cutoff: 3000 });
 }
 
 // Reversing warning: 880 Hz soft sine beep, 0.4 s on / 0.4 s off while backing up.
@@ -692,7 +701,7 @@ function setBeeper(reversing, t, id, vol) {
     o.frequency.value = 880;
     g.gain.value = 0;
     o.connect(g);
-    g.connect(sfxBus);
+    g.connect(beepBus);
     o.start();
     beeper = { o, g };
     beepers.set(id, beeper);

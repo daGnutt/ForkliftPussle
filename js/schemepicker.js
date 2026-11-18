@@ -15,7 +15,7 @@ export const TOUCH = {
 
 // Gamepad pictogram + hint, shown with the keyboard schemes only.
 const PAD = '<svg viewBox="0 0 120 70"><path class="body" d="M30 12h60q18 0 24 30l4 18q1 8-8 6l-14-10H24L10 66q-9 2-8-6l4-18Q12 12 30 12z"/><circle cx="30" cy="27" r="9" class="stk"/><circle cx="30" cy="27" r="4.5" class="knob"/><circle cx="78" cy="44" r="9" class="stk"/><circle cx="78" cy="44" r="4.5" class="knob"/><rect x="43" y="37" width="5" height="14" rx="1.5"/><rect x="38.5" y="41.5" width="14" height="5" rx="1.5"/><circle cx="88" cy="26" r="3.5"/><circle cx="96" cy="19" r="3.5"/><circle cx="104" cy="26" r="3.5"/><circle cx="96" cy="33" r="3.5" class="hi"/></svg>';
-const PAD_HINT = `<div class="padhint">${PAD}<p><b>Gamepad supported too</b> - just plug one in and press a button. Keyboard + gamepad = local multiplayer: turn it on under Menu → Game &amp; levels → Local multiplayer, then gamepads join by pressing A.</p></div>`;
+const PAD_HINT = `<div class="padhint">${PAD}<p><b>Gamepad supported too</b> - just plug one in and press a button. Keyboard + gamepad = local multiplayer: turn it on under Menu → Multiplayer → Local multiplayer, then gamepads join by pressing A.</p></div>`;
 
 // Resolves with the chosen scheme name once the user picks one.
 export function pickScheme(kind) {
