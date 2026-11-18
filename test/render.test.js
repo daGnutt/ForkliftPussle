@@ -366,6 +366,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 { // touch: re-shown photos are as large as new ones; desktop keeps them smaller
   assert.equal(popupScale(true, true), popupScale(false, true));
   assert.ok(popupScale(true, false) < popupScale(false, false));
+  assert.ok(popupScale(false, true) >= 1.5 * popupScale(false, false) && popupScale(false, true) <= 2 * popupScale(false, false), 'touch popups are 50-100% bigger');
 }
 
 { // gallery photos carry their points
