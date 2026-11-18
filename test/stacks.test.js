@@ -17,7 +17,7 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ, crashAlert } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ, crashAlert, crashBlink } from '../js/game.js';
 
 import { stackSig } from '../js/bot.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
@@ -623,4 +623,14 @@ console.log('stacks tests passed');
   assert.equal(crashAlert(g), false);
   g.H = 0; f.speed = -1;
   assert.equal(crashAlert(g), false);
+}
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.carried = [0]; g.carriedPen = [{ crash: 0, sq: 0 }]; g.carriedRots = [0]; g.carriedOffs = [{ x: 0, y: 0 }]; g.carriedRel = 0;
+  g.stacks = [{ x: g.fl.x + 2.3, y: g.fl.y, layers: [1], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
+  g.fl.a = 0; g.fl.speed = 1; g.H = 0;
+  const seen = new Set();
+  for (let t = 0; t < 1; t += 0.05) { g.clock = t; seen.add(crashBlink(g)); }
+  assert.deepEqual([...seen].sort(), [false, true]); // the headlights blink
 }

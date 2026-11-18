@@ -16,7 +16,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark } from './decals.js';
-import { liftedHf, carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashAlert } from './game.js';
+import { liftedHf, carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -332,6 +332,19 @@ function drawTines(ctx, g) {
     }
   });
   ctx.restore();
+}
+
+// Proximity alert: the headlights flash red (top-down view).
+function drawAlertGlow(ctx, g) {
+  if (!crashBlink(g)) return;
+  for (const side of [-1, 1]) {
+    const p = toWorld(g.fl, FL.front, side * 0.38), r = 0.9;
+    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+    grad.addColorStop(0, 'rgba(255,30,20,0.9)');
+    grad.addColorStop(1, 'rgba(255,30,20,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 function drawCarried(ctx, g) {
@@ -815,6 +828,7 @@ function drawWorldObjects(ctx, g, vis) {
     if (lh != null) { ctx.save(); ctx.translate(lh * PX, lh * PY); } // riding on another truck's tines
     drawForkliftBody(ctx, t);
     drawTines(ctx, t);
+    drawAlertGlow(ctx, t);
     if (lh != null) ctx.restore();
     ctx.restore();
     ctx.globalAlpha = 1;
@@ -1411,14 +1425,6 @@ export function draw(ctx, g, view) {
   drawCompass(ctx, g, view, width);
   if (g.endless) drawDockWaits(ctx, g, width, view.touch && width > height);
 
-  if (!view.paused && crashAlert(g) && Math.floor(now / 150) % 2 === 0) { // proximity alert: blinking red frame
-    const w = Math.min(width, height) * 0.05;
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,30,30,0.85)';
-    ctx.lineWidth = w;
-    ctx.strokeRect(w / 2, w / 2, width - w, height - w);
-    ctx.restore();
-  }
   if (view.fullscreen && view.flashAt != null && ready) drawReadyFlash(ctx, width, height, (now - view.flashAt) / 1000);
   if (g.status === 'play' && !g.started && !view.startHidden && !view.paused && !view.menuOpen) drawStartBoard(ctx, g, view, width, height);
   if (view.paused) {

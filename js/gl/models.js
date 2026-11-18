@@ -4,7 +4,7 @@ import { FL, toWorld, truckColor } from '../forklift.js';
 import { topShapes, DENT_FILL } from '../dents.js';
 import { tapeShapes, TAPE_FILL } from '../repair.js';
 import { decalsEnabled, boxDeco, boxDecalShapes } from '../decals.js';
-import { carriedWorldOffs, carriedJoltZ, liftedHf } from '../game.js';
+import { carriedWorldOffs, carriedJoltZ, liftedHf, crashBlink } from '../game.js';
 import { parseColor, shade, mix } from './mesh.js';
 
 // Geometry of the movable things (forklift, pallets, boxes). Heights in tiles; a box is BOX_H tall, a pallet PAL.
@@ -132,10 +132,12 @@ export function addForklift(m, g, solidRoof) {
     for (const px of [-1.1, -0.05]) box(px - pw, s * 0.42 - pw, px + pw, s * 0.42 + pw, solidRoof ? 0.5 : 0.3, 1.15, '#37474f');
   }
   if (solidRoof) box(FL.front - 0.1, -0.35, FL.front, 0.35, 1.31, 1.46, '#555');
+  const alert = crashBlink(g);
+  if (alert && !theme().dark) for (const s of [-1, 1]) box(HEAD_X - 0.12, s * LAMP_Y - 0.04, HEAD_X + 0.0, s * LAMP_Y + 0.04, HEAD_Z - 0.045, HEAD_Z + 0.045, '#ff2a1a', { emissive: true });
   if (theme().dark) {
     const tail = g.fl.gear === 'R' ? '#ffffff' : g.fl.brake ? '#ff2a1a' : '#6a0d0a';
     for (const s of [-1, 1]) {
-      box(HEAD_X - 0.12, s * LAMP_Y - 0.04, HEAD_X + 0.0, s * LAMP_Y + 0.04, HEAD_Z - 0.045, HEAD_Z + 0.045, '#fff4cf', { emissive: true });
+      box(HEAD_X - 0.12, s * LAMP_Y - 0.04, HEAD_X + 0.0, s * LAMP_Y + 0.04, HEAD_Z - 0.045, HEAD_Z + 0.045, alert ? '#ff2a1a' : '#fff4cf', { emissive: true });
       box(TAIL_X - 0.02, s * LAMP_Y - 0.08, TAIL_X + 0.1, s * LAMP_Y + 0.08, TAIL_Z - 0.04, TAIL_Z + 0.04, tail, { emissive: true });
     }
   }

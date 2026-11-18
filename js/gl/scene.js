@@ -7,7 +7,7 @@ import { decalsEnabled, floorDecals, overheadDecals, oilDropMark } from '../deca
 import { padPolys } from '../repair.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
-import { zoneDone, zoneExt, zoneLabelPos, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf } from '../game.js';
+import { zoneDone, zoneExt, zoneLabelPos, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf, crashBlink } from '../game.js';
 import { paintWallDecals, chargerDecal } from '../pov/face.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
 import { addParticles } from './particles.js';
@@ -395,14 +395,16 @@ function darkLights(g, eye) {
   return out.sort((p, q) => p.d - q.d).slice(0, LIGHT_MAX);
 }
 
-function truckLights(g, out) {
+function truckLights(g, out, headsOnly = false) {
   const f = g.fl, c = Math.cos(f.a), s = Math.sin(f.a);
   const lamp = (lx, ly, z, r, col, dir, cone) => {
     const p = toWorld(f, lx, ly);
     out.push({ x: p.x, y: p.y, z, r, col, dir, cone });
   };
   const fwd = [c * 0.95, s * 0.95, -0.3];
-  for (const side of [-1, 1]) lamp(HEAD_X, side * LAMP_Y, HEAD_Z, 11, WARM.map((v) => v * HEAD_I), fwd, 0.62);
+  const alert = crashBlink(g);
+  for (const side of [-1, 1]) lamp(HEAD_X, side * LAMP_Y, HEAD_Z, alert ? 6 : 11, alert ? [1.6, 0.08, 0.04] : WARM.map((v) => v * HEAD_I), fwd, 0.62);
+  if (headsOnly) return;
   const back = [-c * 0.8, -s * 0.8, -0.6];
   for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 1.8, [0.5, 0.05, 0.03], back, 0.2); // idle tail glow
   if (f.gear === 'R') for (const side of [-1, 1]) lamp(TAIL_X, side * LAMP_Y, TAIL_Z, 4.5, [0.9, 0.9, 0.95], back, 0.45);
@@ -523,6 +525,7 @@ export function dynamicMeshes(g, mode, eye) {
   const disco = discoOn();
   if (disco && mode === 'pov') addDisco(om, g, eye);
   const lights = theme().dark ? darkLights(g, eye) : [];
+  if (!theme().dark) for (const t of [g, ...otherTrucksShown(g)]) if (crashBlink(t)) truckLights(t, lights, true);
   lights.push(...sparkLights.slice(0, Math.max(0, LIGHT_MAX - lights.length)));
   if (disco) lights.push(...discoLights(g, eye).slice(0, LIGHT_MAX - lights.length));
   return { opaque: om, trans: tm, lights };

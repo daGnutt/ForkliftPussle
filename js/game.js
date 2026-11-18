@@ -274,6 +274,9 @@ export function crashAlert(g) {
   return g.stacks.some((s) => { const z = stackZ(g, s); return z < hi && lo < z + s.layers.length && sat(probe, stackPoly(s)); });
 }
 
+// True during the lit half of the alert's blink (the headlights flash red).
+export const crashBlink = (g) => crashAlert(g) && Math.floor((g.clock || 0) * 6) % 2 === 0;
+
 // Height (in box levels) of the floor under a point: 1 on the raised conveyor belt (`g.lowWalls`), else 0.
 const zAt = (g, x, y) => (g.lowWalls?.some((w) => x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) ? 1 : 0);
 export const stackZ = (g, s) => zAt(g, s.x, s.y) + (s.fallZ || 0); // fallZ only exists on the drawing copies made by fallView
