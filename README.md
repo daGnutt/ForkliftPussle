@@ -61,6 +61,7 @@ Combine with `&`, e.g. `index.html?skip&debug&gl=0`.
 | `?gl=0` / `?gl=1` | Force the 2D canvas / WebGL2 renderers (overrides the saved setting) |
 | `?debug` | Show the [debug overlay](#debug-overlay); state export is plain JSON |
 | `?skip` | Skip the splash screen and start the game, with the tutorial off for that visit (saved settings are kept); on touch devices it opens the main menu and leaving it enters fullscreen |
+| `?firstplay` | Behave like the first run in this browser: control scheme picker, tutorial on, level 1, default settings. Uses a temporary empty storage, so nothing is saved and your real saved data is untouched |
 | `?level=N` | Start at level N; every page load goes to (and resets) that level, ignoring the saved level and saved progress (timer, box positions) |
 | `?local` | Turn on [local multiplayer](#multiplayer) for this visit (pads join with A) |
 | `?endless` | Start in endless mode (also in the menu's Game page) |
