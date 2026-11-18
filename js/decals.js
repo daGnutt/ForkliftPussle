@@ -273,10 +273,11 @@ export function boxDecalShapes(kind) {
   return [];
 }
 
-export function oilDropMark(x, y, scale = 1) {
+// Light mode gets a darker fill and a white outline (`edge`, in tiles: `edgeW`) so the mark stands out on the pale floor; dark mode keeps the plain fill.
+export function oilDropMark(x, y, scale = 1, light = false) {
   const shape = [[0, -0.27], [0.12, -0.06], [0.16, 0.06], [0.14, 0.16], [0.08, 0.23],
     [0, 0.27], [-0.08, 0.23], [-0.14, 0.16], [-0.16, 0.06], [-0.12, -0.06]];
-  return { pts: shape.map(([u, v]) => [x + u * scale, y + v * scale]), fill: '#39484b' };
+  return { pts: shape.map(([u, v]) => [x + u * scale, y + v * scale]), fill: light ? '#141d20' : '#39484b', ...(light && { edge: '#ffffff', edgeW: 0.04 * scale }) };
 }
 
 // "Do not stack" label: red rounded frame, crossed-out pair of stacked cubes and the words in a stroke font.

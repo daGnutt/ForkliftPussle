@@ -775,12 +775,13 @@ function drawWorldObjects(ctx, g, vis) {
     ctx.strokeRect(z.x - e.x, z.y - e.y, 2 * e.x, 2 * e.y);
     ctx.setLineDash([]);
     if (z.color === BARREL_COLOR && decalsEnabled()) {
-      const mark = oilDropMark(z.x, z.y);
+      const mark = oilDropMark(z.x, z.y, 1, !theme().dark);
       ctx.fillStyle = mark.fill;
       ctx.beginPath();
       mark.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
       ctx.closePath();
       ctx.fill();
+      if (mark.edge) { ctx.strokeStyle = mark.edge; ctx.lineWidth = mark.edgeW; ctx.stroke(); }
     }
     if (done) continue;
     ctx.font = 'bold 0.5px sans-serif';
