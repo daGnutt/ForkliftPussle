@@ -50,6 +50,7 @@ export function drawPov(ctx, g, x, y, w, h) {
   while (li < labels.length) labels[li++].draw(ctx);
   drawRevWalls(ctx, g, cam);
   drawHits(ctx, g, cam, { x, y, w, h });
+  drawRepairEdgeArrow(ctx, g, x, y, w, h);
   ctx.restore();
 
   ctx.strokeStyle = '#111';

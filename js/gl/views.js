@@ -1,5 +1,6 @@
 import { COLORS } from '../level.js';
 import { hitLife, zoneDone, flaggedStacks } from '../game.js';
+import { repairHintOn, drawHintGlow, drawHintArrow, drawRepairEdgeArrow } from '../repairhint.js';
 import { setTruckSpot } from '../photo.js';
 import { label, drawFlag, labelRows, hitRows, honkers, drawHonk, pinHonk } from '../pov/overlay.js';
 import { povCamera, overviewCamera, chaseCamera, groundFootprint, blendCameras } from './camera.js';
@@ -63,6 +64,7 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
     const p = proj(f.x, f.y, f.h * (BOX_H + PAL) + 0.6);
     if (p && p[2] > 0.3 && p[2] < 60) drawFlag(ctx, f, p[0], p[1], Math.max(12, Math.min(70, (0.5 / p[2]) * (w / 2))), g.clock);
   }
+  drawRepairEdgeArrow(ctx, g, x, y, w, h);
   for (const t of honkers(g)) {
     const rect = { x, y, w, h }, p = proj(t.fl.x, t.fl.y, 1.8);
     if (p) {
@@ -130,6 +132,14 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = n
     labelRows(ctx, hitRows(h), p[0], p[1], 0.55 * s);
   }
   ctx.globalAlpha = 1;
+  if (repairHintOn() && g.repair && tp) {
+    const pp = proj(g.repair.x, g.repair.y, 0.1);
+    if (pp) {
+      drawHintGlow(ctx, pp[0], pp[1], 2 * s, g.clock);
+      const a = Math.atan2(pp[1] - tp[1], pp[0] - tp[0]);
+      drawHintArrow(ctx, tp[0] + Math.cos(a) * 2.2 * s, tp[1] + Math.sin(a) * 2.2 * s, a, 0.5 * s, g.clock);
+    }
+  }
   for (const f of flaggedStacks(g)) {
     const p = proj(f.x, f.y, f.h * (BOX_H + PAL) + 0.8);
     if (p) drawFlag(ctx, f, p[0], p[1], 0.9 * s, g.clock);

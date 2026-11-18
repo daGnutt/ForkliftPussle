@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { generateLevel, parseSeed, isReachable, BARREL_COLOR } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
+import { repairHintWanted } from '../js/repairhint.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
 import { chaseOrbit } from '../js/gl/camera.js';
@@ -661,4 +662,24 @@ console.log('stacks tests passed');
   const seen = new Set();
   for (let t = 0; t < 1; t += 0.05) { g.clock = t; seen.add(crashBlink(g)); }
   assert.deepEqual([...seen].sort(), [false, true]); // the headlights blink
+}
+
+// Repair-station onboarding hint: one damaged, repairable carried box, until the first repair.
+{
+  const g = newGame(1, 0);
+  assert.ok(g.repair, 'level 1 has a repair station');
+  const carry = (pens) => Object.assign(g, { carried: pens.map(() => 0), carriedPen: pens });
+  assert.equal(repairHintWanted(g, false), false, 'nothing carried');
+  carry([{ crash: 3, sq: 0 }]);
+  assert.equal(repairHintWanted(g, false), true);
+  assert.equal(repairHintWanted(g, true), false, 'never again once something was repaired');
+  carry([{ crash: 3, sq: 0 }, { crash: 3, sq: 0 }]);
+  assert.equal(repairHintWanted(g, false), false, 'only a single box');
+  carry([{ crash: 0, sq: 0 }]);
+  assert.equal(repairHintWanted(g, false), false, 'undamaged');
+  carry([{ crash: 3, sq: 0, wide: true }]);
+  assert.equal(repairHintWanted(g, false), false, 'big boxes cannot be repaired');
+  carry([{ crash: 3, sq: 0 }]);
+  g.repair = null;
+  assert.equal(repairHintWanted(g, false), false, 'no station on this level');
 }

@@ -5,6 +5,7 @@ import { scanBeam, botDrawPos, WHEEL_R } from './bot.js';
 import { drawBotDebugWorld } from './debug.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { padPolys, tapeShapes, TAPE_FILL } from './repair.js';
+import { repairHintOn, repairBlink, drawHintGlow, drawHintArrow } from './repairhint.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
 import { labelRows, hitRows, honkers, drawHonk, drawFlag } from './pov/overlay.js';
@@ -484,7 +485,7 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   ctx.fillStyle = '#9e9e9e';
   ctx.fillRect((g.parking.x - 0.8) * s - 1, (g.parking.y - 0.8) * s - 1, 1.6 * s + 2, 1.6 * s + 2);
   if (g.repair) {
-    ctx.fillStyle = '#42a5f5';
+    ctx.fillStyle = repairHintOn() && !repairBlink(g.clock) ? '#fff' : '#42a5f5'; // blinks while the repair hint is up
     ctx.fillRect((g.repair.x - 0.65) * s, (g.repair.y - 0.65) * s, 1.3 * s, 1.3 * s);
   }
   ctx.fillStyle = theme().wall;
@@ -663,6 +664,11 @@ function drawWorld(ctx, g, vis, pxPerTile = 0) {
   drawBot(ctx, g, vis);
   if (discoOn()) drawDiscoSpots(ctx, g, vis);
   drawWorldObjects(ctx, g, vis);
+  if (repairHintOn() && g.repair) {
+    drawHintGlow(ctx, g.repair.x, g.repair.y, 2, g.clock);
+    const a = Math.atan2(g.repair.y - g.fl.y, g.repair.x - g.fl.x);
+    drawHintArrow(ctx, g.fl.x + Math.cos(a) * 2.2, g.fl.y + Math.sin(a) * 2.2, a, 0.5, g.clock);
+  }
   for (const f of flaggedStacks(g)) drawFlag(ctx, f, f.x + (f.h + 0.6) * PX, f.y + (f.h + 0.6) * PY - 0.3, 0.9, g.clock, 0.03); // the inspector's hovering "!"
 }
 

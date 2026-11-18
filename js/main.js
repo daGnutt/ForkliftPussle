@@ -24,6 +24,7 @@ import { chaseDrift, chaseOrbit, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZo
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
+import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
 import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
@@ -522,9 +523,22 @@ function checkOpenTip() {
   tutorialEl.classList.remove('hide');
   tutorialEl.innerHTML = '<small>Tip</small>This is an <b>open-top box</b>: nothing can be stacked on top of it.';
 }
+// Until the first repair on this device, carrying one damaged box shows a pop-up and the arrow/glow/blink in the views (js/repairhint.js).
+let repairTipOn = false;
+function checkRepairTip() {
+  if (game.repair?.on) localStorage.setItem(REPAIRED_KEY, '1');
+  const on = !splashOn && !view.menuOpen && !tipUntil && repairHintWanted(game, !!localStorage.getItem(REPAIRED_KEY));
+  setRepairHint(on);
+  if (on === repairTipOn) return;
+  repairTipOn = on;
+  if (on) {
+    tutorialEl.classList.remove('hide');
+    tutorialEl.innerHTML = '<small>Tip</small>This box is damaged, it can be <b>repaired at the repair station</b>. Big boxes and oil barrels cannot be repaired.';
+  } else showTutorial();
+}
 function showTutorial() {
   tutShownAt = performance.now();
-  if (tipUntil) return;
+  if (tipUntil || repairTipOn) return;
   tutorialEl.classList.toggle('hide', tutStep < 0);
   if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep].html}${TUTORIAL[tutStep].extra?.() ?? ''}`;
 }
@@ -536,7 +550,8 @@ function nextTutorial() {
 let tutStart = { x: game.fl.x, y: game.fl.y };
 function checkTutorial() {
   checkOpenTip();
-  if (tipUntil) return;
+  checkRepairTip();
+  if (tipUntil || repairTipOn) return;
   if (tutStart.g !== game) tutStart = { x: game.fl.x, y: game.fl.y, g: game };
   if (tutStep < 0) return;
   const g = game;
