@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { newGame, update, zoneDone, zoneWonky, flaggedStacks, endPhotos } from '../js/game.js';
+import { newGame, update, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos } from '../js/game.js';
 import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { run, NONE, flatWorld } from './common.js';
@@ -294,6 +294,11 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(g.photo.ok, false, 'damage means no GOOD JOB');
   assert.equal(g.photo.pens[0].crash, 12);
   assert.equal(flaggedStacks(g).length, 1, 'a photographed damaged stack gets the floating "!"');
+  const fl = flaggedStacks(g)[0];
+  assert.ok(fl.damaged && !fl.wonky, 'damage only');
+  assert.equal(flagSymbol(fl, 0), 'damaged');
+  assert.equal(flagSymbol({ wonky: true, damaged: false }, 0), 'wonky');
+  assert.deepEqual([0, 1, 2, 3].map((t) => flagSymbol({ wonky: true, damaged: true }, t + 0.5)), ['wonky', 'damaged', 'wonky', 'damaged'], 'both problems alternate');
   g.stacks[0].pen[0].wide = true;
   assert.equal(flaggedStacks(g).length, 0, 'damage that cannot be repaired is not flagged');
   g.stacks[0].pen[0].wide = false;

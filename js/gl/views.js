@@ -61,7 +61,7 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
   ctx.globalAlpha = 1;
   for (const f of flaggedStacks(g)) {
     const p = proj(f.x, f.y, f.h * (BOX_H + PAL) + 0.6);
-    if (p && p[2] > 0.3 && p[2] < 60) drawFlag(ctx, p[0], p[1], Math.max(12, Math.min(70, (0.5 / p[2]) * (w / 2))), g.clock);
+    if (p && p[2] > 0.3 && p[2] < 60) drawFlag(ctx, f, p[0], p[1], Math.max(12, Math.min(70, (0.5 / p[2]) * (w / 2))), g.clock);
   }
   for (const t of honkers(g)) {
     const rect = { x, y, w, h }, p = proj(t.fl.x, t.fl.y, 1.8);
@@ -132,7 +132,7 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = n
   ctx.globalAlpha = 1;
   for (const f of flaggedStacks(g)) {
     const p = proj(f.x, f.y, f.h * (BOX_H + PAL) + 0.8);
-    if (p) drawFlag(ctx, p[0], p[1], 0.9 * s, g.clock);
+    if (p) drawFlag(ctx, f, p[0], p[1], 0.9 * s, g.clock);
   }
   for (const t of honkers(g)) {
     const rect = { x: rx, y: ry, w: rw, h: rh }, p = proj(t.fl.x, t.fl.y, 1.8);

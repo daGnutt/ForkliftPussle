@@ -1549,7 +1549,7 @@ export function endPhotos(g) {
   return out.sort((a, b) => (a.t ?? 0) - (b.t ?? 0));
 }
 
-// Stacks the inspector judged "could be better": photographed (in `inspector.seen`) and still crooked or damaged. Each `{x, y, h, key}` (h = boxes high, key = the drop point's key in `inspector.seen`/`inspector.photos`).
+// Stacks the inspector judged "could be better": photographed (in `inspector.seen`) and still crooked or damaged. Each `{x, y, h, key, wonky, damaged}` (h = boxes high, wonky = crooked boxes, damaged = repairable crash damage, key = the drop point's key in `inspector.seen`/`inspector.photos`).
 export function flaggedStacks(g) {
   const out = [];
   for (const z of g.zones) {
@@ -1557,9 +1557,19 @@ export function flaggedStacks(g) {
     const s = g.stacks.find((q) => stackFillsZone(q, z));
     if (s?.touched) continue;
     if (s && g.inspector.sigs?.[`${z.x},${z.y},${z.color}`] !== undefined && g.inspector.sigs[`${z.x},${z.y},${z.color}`] !== stackSig(s)) continue; // touched since the photo
-    if (s && (refreshSquare(s), s.pen.some((p) => p.sq > 0 || (p.crash > 0 && repairable(p))))) out.push({ x: s.x, y: s.y, h: s.layers.length, key: `${z.x},${z.y},${z.color}` });
+    if (!s) continue;
+    refreshSquare(s);
+    const wonky = s.pen.some((p) => p.sq > 0), damaged = s.pen.some((p) => p.crash > 0 && repairable(p));
+    if (wonky || damaged) out.push({ x: s.x, y: s.y, h: s.layers.length, key: `${z.x},${z.y},${z.color}`, wonky, damaged });
   }
   return out;
+}
+
+// Which symbol a flagged stack shows: 'wonky' or 'damaged'; a stack with both alternates every FLAG_SWAP seconds (by the game clock, so every view agrees).
+export const FLAG_SWAP = 1;
+export function flagSymbol(f, clock) {
+  if (f.wonky && f.damaged) return Math.floor(clock / FLAG_SWAP) % 2 ? 'damaged' : 'wonky';
+  return f.damaged ? 'damaged' : 'wonky';
 }
 
 export function zoneDone(g, z) {

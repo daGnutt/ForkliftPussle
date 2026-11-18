@@ -1,6 +1,6 @@
 import { lorryHonks } from '../endless.js';
 import { COLORS } from '../level.js';
-import { hitLife, zoneDone, flaggedStacks } from '../game.js';
+import { hitLife, zoneDone, flaggedStacks, flagSymbol } from '../game.js';
 import { truckColor } from '../forklift.js';
 import { toCam, BOX_H, PAL, MAX_DIST } from './camera.js';
 
@@ -18,17 +18,29 @@ export function label(ctx, text, sx, sy, size, color) {
   ctx.fillText(text, sx, sy);
 }
 
-// The inspector's hovering warning sign (⚠) over a stack it found wanting: a bobbing amber triangle.
-export function drawFlag(ctx, sx, sy, size, clock, minLine = 1.5) {
+// The inspector's hovering sign over a stack it found wanting: a bobbing symbol, by shape as well as colour — an amber tilted box for
+// crooked boxes (wonky), a red cracked box for repairable crash damage; a stack with both alternates (see flagSymbol).
+export function drawFlag(ctx, f, sx, sy, size, clock, minLine = 1.5) {
   const y = sy + Math.sin(clock * 4) * size * 0.12, r = size * 0.58;
-  ctx.beginPath();
-  ctx.moveTo(sx, y - r); ctx.lineTo(sx + r * 1.05, y + r * 0.8); ctx.lineTo(sx - r * 1.05, y + r * 0.8); ctx.closePath();
-  ctx.fillStyle = '#ffc107'; ctx.fill();
-  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(minLine, size / 14); ctx.lineJoin = 'round'; ctx.stroke();
-  ctx.font = `bold ${size * 0.75}px sans-serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#111';
-  ctx.fillText('!', sx, y + r * 0.28);
+  const damaged = flagSymbol(f, clock) === 'damaged';
+  ctx.save();
+  ctx.translate(sx, y);
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(minLine, size / 14);
+  if (damaged) {
+    ctx.beginPath(); ctx.rect(-r * 0.85, -r * 0.85, r * 1.7, r * 1.7);
+    ctx.fillStyle = '#ff5252'; ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(r * 0.15, -r * 0.85); ctx.lineTo(-r * 0.25, -r * 0.2); ctx.lineTo(r * 0.3, r * 0.1); ctx.lineTo(-r * 0.15, r * 0.85);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(minLine, size / 9); ctx.stroke();
+  } else {
+    ctx.rotate(-0.4);
+    ctx.beginPath(); ctx.rect(-r * 0.85, -r * 0.2, r * 1.7, r * 1.05); // lower box, tilted
+    ctx.fillStyle = '#ffc107'; ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.rect(-r * 0.55, -r * 1.15, r * 1.1, r * 0.95); // top box sliding off
+    ctx.translate(r * 0.3, 0); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 const DAMAGE_COLOR = '#ff5252', WONKY_COLOR = '#ffb74d', POINTS_COLOR = '#a5d6a7';
@@ -129,7 +141,7 @@ export function drawHits(ctx, g, cam, rect) {
   for (const f of flaggedStacks(g)) {
     const [fw, rt] = toCam(cam, f.x, f.y, 0);
     if (fw <= 0.3 || fw > MAX_DIST) continue;
-    drawFlag(ctx, cam.cx + (rt / fw) * cam.f, cam.cy - ((f.h * (BOX_H + PAL) + 0.6 - cam.z) / fw) * cam.f, Math.max(12, Math.min(70, (0.5 / fw) * cam.f)), g.clock);
+    drawFlag(ctx, f, cam.cx + (rt / fw) * cam.f, cam.cy - ((f.h * (BOX_H + PAL) + 0.6 - cam.z) / fw) * cam.f, Math.max(12, Math.min(70, (0.5 / fw) * cam.f)), g.clock);
   }
   for (const t of honkers(g)) {
     const [fw, rt] = toCam(cam, t.fl.x, t.fl.y, 0);

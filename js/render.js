@@ -494,7 +494,7 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
     ctx.fillStyle = COLORS[st.layers[st.layers.length - 1]];
     ctx.fillRect(st.x * s - dot / 2, st.y * s - dot / 2, dot, dot);
   }
-  for (const f of flaggedStacks(g)) drawFlag(ctx, f.x * s, f.y * s - dot / 2 - Math.max(5, s * 1.1), Math.max(10, s * 2.2), g.clock); // the inspector's "!" on the minimap
+  for (const f of flaggedStacks(g)) drawFlag(ctx, f, f.x * s, f.y * s - dot / 2 - Math.max(5, s * 1.1), Math.max(10, s * 2.2), g.clock); // the inspector's "!" on the minimap
   for (const t of [...otherTrucksShown(g), g]) {
     if (!t.carried?.length) continue;
     const p = toWorld(t.fl, FL.carryX, 0);
@@ -663,7 +663,7 @@ function drawWorld(ctx, g, vis, pxPerTile = 0) {
   drawBot(ctx, g, vis);
   if (discoOn()) drawDiscoSpots(ctx, g, vis);
   drawWorldObjects(ctx, g, vis);
-  for (const f of flaggedStacks(g)) drawFlag(ctx, f.x + (f.h + 0.6) * PX, f.y + (f.h + 0.6) * PY - 0.3, 0.9, g.clock, 0.03); // the inspector's hovering "!"
+  for (const f of flaggedStacks(g)) drawFlag(ctx, f, f.x + (f.h + 0.6) * PX, f.y + (f.h + 0.6) * PY - 0.3, 0.9, g.clock, 0.03); // the inspector's hovering "!"
 }
 
 const visSeen = (vis, x, y, w, h) => !vis || (x + w >= vis.x0 && x <= vis.x1 && y + h >= vis.y0 && y <= vis.y1);
