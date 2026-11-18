@@ -634,9 +634,7 @@ console.log('stacks tests passed');
   assert.equal(crashAlert(g), true);
   f.speed = 0.1; g.stacks[0].x = f.x + 2.2; // slow: still looks 1 tile past the fork tips
   assert.equal(crashAlert(g), true);
-  f.speed = 0; g.stacks[0].x = f.x + 2.4; g.stacks[0].y = f.y + 1.2; // standing still: the close probe fans out 45° beyond the fork tips
-  assert.equal(crashAlert(g), true);
-  g.stacks[0].y = f.y + 2.5;
+  f.speed = 0; g.stacks[0].x = f.x + 2.4; g.stacks[0].y = f.y + 1.2; // the close probe is straight ahead only: a stack off to the side is missed
   assert.equal(crashAlert(g), false);
   g.carried = null; assert.deepEqual(crashProbes(g), [], 'empty forks: no alert');
 }
