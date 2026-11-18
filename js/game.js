@@ -265,13 +265,34 @@ export function removeTruck(g, i) {
 // Visual lowering (in box heights) of a just-released stack: it follows the forks of the truck that put it down.
 export const dropLift = (g, st) => (st.dropFrom != null ? Math.max(0, (g.root.trucks[st.dropTruck ?? 0]?.hf ?? 0) - st.dropFrom - stackZ(g, st)) : 0);
 
-// Proximity alert: the carried stack is moving forward and a stack stands just ahead of it at an overlapping height.
+// Proximity alert (any gear but R, occupied forks only, even when coasting or standing still): the area the carried stack sweeps in the next ALERT_AHEAD seconds along the current steering arc,
+// plus a close probe reaching at least ALERT_MIN_REACH tiles beyond the fork tips and fanning out 45° to each side. Returns the probe polygons (also drawn in debug mode).
+const ALERT_AHEAD = 2, ALERT_STEP = 0.2, ALERT_MIN_REACH = 1, ALERT_MAX_TURN = Math.PI / 4; // the sweep stops once the heading has turned 45° either way (90° in total)
+export function crashProbes(g) {
+  const f = g.fl;
+  if (!g.carried || g.status === 'over' || f.gear === 'R') return [];
+  const hy = halfY(g.carriedPen?.[0]);
+  const x0 = FL.carryX - 0.5, x1 = FL.tineX1 + ALERT_MIN_REACH;
+  // the close probe widens at 45° on both sides beyond the fork tips: a rectangle up to the tips plus a trapezoid (two convex pieces, in the forklift's frame)
+  const tip = FL.tineX1, w = hy + ALERT_MIN_REACH, local = (pts) => pts.map(([lx, ly]) => toWorld(f, lx, ly));
+  const probes = [local([[x0, -hy], [tip, -hy], [tip, hy], [x0, hy]]), local([[tip, -hy], [x1, -w], [x1, w], [tip, hy]])];
+  const v = Math.max(0, f.speed);
+  let { x, y, a } = f;
+  for (let t = 0; t < ALERT_AHEAD; t += ALERT_STEP) {
+    x += Math.cos(a) * v * ALERT_STEP; y += Math.sin(a) * v * ALERT_STEP;
+    a += (v * Math.tan(f.steer) / FL.L) * ALERT_STEP;
+    if (Math.abs(a - f.a) > ALERT_MAX_TURN) break;
+    const c = toWorld({ x, y, a }, FL.carryX, 0);
+    probes.push(rectPoly(c.x, c.y, 0.5, hy, a + g.carriedRel));
+  }
+  return probes;
+}
+
 export function crashAlert(g) {
-  if (!g.carried || g.status === 'over' || g.fl.speed < 0.05) return false;
-  const d = 1.5 + g.fl.speed * 0.6, c = toWorld(g.fl, FL.carryX + d / 2, 0);
-  const probe = rectPoly(c.x, c.y, 0.5 + d / 2, halfY(g.carriedPen?.[0]), g.fl.a + g.carriedRel);
+  const probes = crashProbes(g);
+  if (!probes.length) return false;
   const lo = g.H, hi = g.H + g.carried.length;
-  return g.stacks.some((s) => { const z = stackZ(g, s); return z < hi && lo < z + s.layers.length && sat(probe, stackPoly(s)); });
+  return g.stacks.some((s) => { const z = stackZ(g, s); return z < hi && lo < z + s.layers.length && probes.some((p) => sat(p, stackPoly(s))); });
 }
 
 // True during the lit half of the alert's blink (the headlights flash red).
