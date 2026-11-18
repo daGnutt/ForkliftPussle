@@ -5,6 +5,7 @@ import { scanBeam, botDrawPos, WHEEL_R } from './bot.js';
 import { drawBotDebugWorld } from './debug.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { padPolys, tapeShapes, TAPE_FILL } from './repair.js';
+import { repairHintOn, repairBlink, drawHintGlow, drawHintArrow } from './repairhint.js';
 import { reverseLight } from './revlight.js';
 import { drawPov } from './pov.js';
 import { labelRows, hitRows, honkers, drawHonk, drawFlag } from './pov/overlay.js';
@@ -484,7 +485,7 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   ctx.fillStyle = '#9e9e9e';
   ctx.fillRect((g.parking.x - 0.8) * s - 1, (g.parking.y - 0.8) * s - 1, 1.6 * s + 2, 1.6 * s + 2);
   if (g.repair) {
-    ctx.fillStyle = '#42a5f5';
+    ctx.fillStyle = repairHintOn() && !repairBlink(g.clock) ? '#fff' : '#42a5f5'; // blinks while the repair hint is up
     ctx.fillRect((g.repair.x - 0.65) * s, (g.repair.y - 0.65) * s, 1.3 * s, 1.3 * s);
   }
   ctx.fillStyle = theme().wall;
@@ -494,7 +495,7 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
     ctx.fillStyle = COLORS[st.layers[st.layers.length - 1]];
     ctx.fillRect(st.x * s - dot / 2, st.y * s - dot / 2, dot, dot);
   }
-  for (const f of flaggedStacks(g)) drawFlag(ctx, f.x * s, f.y * s - dot / 2 - Math.max(5, s * 1.1), Math.max(10, s * 2.2), g.clock); // the inspector's "!" on the minimap
+  for (const f of flaggedStacks(g)) drawFlag(ctx, f, f.x * s, f.y * s - dot / 2 - Math.max(5, s * 1.1), Math.max(10, s * 2.2), g.clock); // the inspector's "!" on the minimap
   for (const t of [...otherTrucksShown(g), g]) {
     if (!t.carried?.length) continue;
     const p = toWorld(t.fl, FL.carryX, 0);
@@ -663,7 +664,12 @@ function drawWorld(ctx, g, vis, pxPerTile = 0) {
   drawBot(ctx, g, vis);
   if (discoOn()) drawDiscoSpots(ctx, g, vis);
   drawWorldObjects(ctx, g, vis);
-  for (const f of flaggedStacks(g)) drawFlag(ctx, f.x + (f.h + 0.6) * PX, f.y + (f.h + 0.6) * PY - 0.3, 0.9, g.clock, 0.03); // the inspector's hovering "!"
+  if (repairHintOn() && g.repair) {
+    drawHintGlow(ctx, g.repair.x, g.repair.y, 2, g.clock);
+    const a = Math.atan2(g.repair.y - g.fl.y, g.repair.x - g.fl.x);
+    drawHintArrow(ctx, g.fl.x + Math.cos(a) * 2.2, g.fl.y + Math.sin(a) * 2.2, a, 0.5, g.clock);
+  }
+  for (const f of flaggedStacks(g)) drawFlag(ctx, f, f.x + (f.h + 0.6) * PX, f.y + (f.h + 0.6) * PY - 0.3, 0.9, g.clock, 0.03); // the inspector's hovering "!"
 }
 
 const visSeen = (vis, x, y, w, h) => !vis || (x + w >= vis.x0 && x <= vis.x1 && y + h >= vis.y0 && y <= vis.y1);
@@ -1445,23 +1451,29 @@ export function draw(ctx, g, view) {
     ctx.fillText(view.touch ? 'Tap to play again' : 'Press Enter to play again', width / 2, height / 2 + 40);
     drawTopLists(ctx, view, width / 2, height / 2 + 70, width / 2);
   }
-  if (g.status === 'won') {
-    const lost = lostBreakdown(g);
-    const pts = score(g);
-    ctx.fillStyle = 'rgba(0,0,0,0.65)';
-    ctx.fillRect(0, height / 2 - 110, width, 220 + 210);
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.font = 'bold 36px sans-serif';
-    ctx.fillText('Level complete!', width / 2, height / 2 - 64);
-    ctx.font = '18px sans-serif';
-    ctx.fillText(`Boxes in zones: ${pts + lost.crash + lost.square} − crashes ${lost.crash} − squareness ${lost.square} = ${pts}`, width / 2, height / 2 - 28);
-    ctx.fillText(`Time ${formatTime(g.time)}: −${timePenalty(g.time)} (1 point per 10 s)`, width / 2, height / 2 - 2);
-    ctx.font = 'bold 22px sans-serif';
-    ctx.fillText(`Final score: ${finalScore(pts, g.time)}`, width / 2, height / 2 + 30);
-    ctx.font = '20px sans-serif';
-    ctx.fillText(view.touch ? 'Tap to continue to the next level' : 'Press Enter for the next level', width / 2, height / 2 + 70);
-    drawTopLists(ctx, view, width / 2, height / 2 + 90, width / 2);
-  }
+}
+
+// The end-of-level results panel, drawn on its own overlay canvas (above the gallery photos) instead of on the game canvas.
+export function drawResults(ctx, g, view) {
+  const { width, height } = view;
+  ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  if (g.status !== 'won') return;
+  const lost = lostBreakdown(g);
+  const pts = score(g);
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fillRect(0, height / 2 - 110, width, 220 + 210);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = 'bold 36px sans-serif';
+  ctx.fillText('Level complete!', width / 2, height / 2 - 64);
+  ctx.font = '18px sans-serif';
+  ctx.fillText(`Boxes in zones: ${pts + lost.crash + lost.square} − crashes ${lost.crash} − squareness ${lost.square} = ${pts}`, width / 2, height / 2 - 28);
+  ctx.fillText(`Time ${formatTime(g.time)}: −${timePenalty(g.time)} (1 point per 10 s)`, width / 2, height / 2 - 2);
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillText(`Final score: ${finalScore(pts, g.time)}`, width / 2, height / 2 + 30);
+  ctx.font = '20px sans-serif';
+  ctx.fillText(view.touch ? 'Tap to continue to the next level' : 'Press Enter for the next level', width / 2, height / 2 + 70);
+  drawTopLists(ctx, view, width / 2, height / 2 + 90, width / 2);
 }
