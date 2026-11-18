@@ -9,7 +9,7 @@ const SFX_VOL = 0.5;
 const TRACK_KEY = 'forklift-music-track';
 
 let ctx = null, master = null, musicBus = null, sfxBus = null;
-let muted = localStorage.getItem(MUTE_KEY) !== '0'; // music is off until enabled
+let muted = localStorage.getItem(MUTE_KEY) === '1'; // music is on until muted
 const RANDOM_KEY = 'forklift-music-random';
 let randomOn = localStorage.getItem(RANDOM_KEY) !== '0';
 let onTrackChange = null;
