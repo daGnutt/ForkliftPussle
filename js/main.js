@@ -281,16 +281,18 @@ const input = createInput({
     if (view.povBig) tutDone.cab = true;
   },
   up: () => {
-    if (mp?.role === 'guest') { mp.guest.sendFork('up'); if (mp.guest.predictor.fork('up', performance.now() / 1000) === 'blocked') playBlocked(); return; }
+    if (mp?.role === 'guest') { mp.guest.sendFork('up'); noteForkResult('up', mp.guest.predictor.fork('up', performance.now() / 1000)); return; }
     const h = game.H;
-    if (forkUp(game) === 'blocked') playBlocked();
-    else if (game.H !== h) playFork(true);
+    const res = forkUp(game);
+    noteForkResult('up', res);
+    if (res !== 'blocked' && game.H !== h) playFork(true);
   },
   down: () => {
-    if (mp?.role === 'guest') { mp.guest.sendFork('down'); if (mp.guest.predictor.fork('down', performance.now() / 1000) === 'blocked') playBlocked(); return; }
+    if (mp?.role === 'guest') { mp.guest.sendFork('down'); noteForkResult('down', mp.guest.predictor.fork('down', performance.now() / 1000)); return; }
     const h = game.H;
-    if (forkDown(game) === 'blocked') playBlocked();
-    else if (game.H !== h) playFork(false);
+    const res = forkDown(game);
+    noteForkResult('down', res);
+    if (res !== 'blocked' && game.H !== h) playFork(false);
   },
   downAll: () => {
     if (mp?.role === 'guest') { mp.guest.sendFork('downAll'); mp.guest.predictor.fork('downAll', performance.now() / 1000); return; }
@@ -509,7 +511,31 @@ let tutDone = {};
 let tutShownAt = performance.now();
 // One-off tip the first time the truck lifts or comes up to an open-top box; it takes over the banner for a few seconds.
 const OPEN_TIP_KEY = 'forklift-opentop-tip', OPEN_TIP_MS = 8000, OPEN_TIP_DIST = 1.2;
+const CEILING_TIP_KEY = 'forklift-ceiling-tip', FORKBOX_TIP_KEY = 'forklift-forkbox-tip', OIL_TIP_KEY = 'forklift-oil-tip';
 let tipUntil = 0;
+// One-off tips for events: the first blocked fork action (ceiling / lowering through a box) and the first damaged oil barrel.
+const pendingTips = {};
+function showTip(key, html) {
+  localStorage.setItem(key, '1');
+  tipUntil = performance.now() + OPEN_TIP_MS;
+  tutorialEl.classList.remove('hide');
+  tutorialEl.innerHTML = `<small>Tip</small>${html}`;
+}
+const barrelDamaged = (pens = []) => pens.some((p, i) => p?.barrelPart === 'base' && (p.crash || 0) + (pens[i + 1]?.crash || 0) > 0);
+function checkEventTips() {
+  if (tipUntil || splashOn || view.menuOpen) return;
+  if (!localStorage.getItem(CEILING_TIP_KEY) && pendingTips.ceiling) showTip(CEILING_TIP_KEY, 'Carried boxes <b>hit the ceiling</b> and were damaged. Lower the forks before you drive on.');
+  else if (!localStorage.getItem(FORKBOX_TIP_KEY) && pendingTips.forkbox) showTip(FORKBOX_TIP_KEY, 'You cannot lower the forks <b>through a box</b>: it gets damaged. Raise the forks or back out first, then lower them.');
+  else if (!localStorage.getItem(OIL_TIP_KEY) && (barrelDamaged(game.carriedPen) || game.stacks.some((s) => barrelDamaged(s.pen)))) showTip(OIL_TIP_KEY, 'A damaged barrel <b>drips oil</b>, and oil is slippery. Don\'t worry, a <b>cleaning bot</b> has been dispatched to help you.');
+  pendingTips.ceiling = pendingTips.forkbox = false;
+}
+// Called with the result of every fork action by the local player.
+function noteForkResult(dir, res) {
+  if (res !== 'blocked') return;
+  playBlocked();
+  if (dir === 'down') pendingTips.forkbox = true;
+  else if (game.carried || game.lifting >= 0) pendingTips.ceiling = true;
+}
 function checkOpenTip() {
   if (tipUntil) {
     if (performance.now() < tipUntil) return;
@@ -551,6 +577,7 @@ function nextTutorial() {
 }
 let tutStart = { x: game.fl.x, y: game.fl.y };
 function checkTutorial() {
+  checkEventTips();
   checkOpenTip();
   checkRepairTip();
   if (tipUntil || repairTipOn) return;
