@@ -27,7 +27,7 @@ import { startSplash3d } from './splash3d.js';
 import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
-import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const resultsCanvas = document.getElementById('results'); // end-of-level panel, stacked above the gallery photos
@@ -803,9 +803,7 @@ function onGuestGame(m) {
 }
 
 const menuEl = document.getElementById('menu');
-const sfxOpt = document.getElementById('sfxOpt');
-const engineOpt = document.getElementById('engineOpt');
-const beepOpt = document.getElementById('beepOpt');
+const volSliders = [...menuEl.querySelectorAll('input.vol')];
 const musicOpt = document.getElementById('musicOpt');
 const trackSel = document.getElementById('trackSel');
 for (const t of MUSIC_TRACKS) trackSel.add(new Option(t.name, t.id));
@@ -891,10 +889,7 @@ function toggleMenu(open) {
   menuEl.classList.toggle('hide', !open);
   if (open) {
     muteOpt.checked = isAllMuted();
-    sfxOpt.checked = isSfxOn();
-    engineOpt.checked = isEngineOn();
-    beepOpt.checked = isBeepOn();
-    engineOpt.disabled = beepOpt.disabled = !sfxOpt.checked;
+    for (const el of volSliders) el.value = Math.round(getVolume(el.dataset.vol) * 100);
     musicOpt.checked = !isMusicMuted();
     decalOpt.checked = decalsEnabled();
     glOpt.checked = glEnabled();
@@ -920,9 +915,7 @@ function toggleMenu(open) {
   applyPause();
 }
 muteOpt.addEventListener('change', () => setAllMuted(muteOpt.checked));
-sfxOpt.addEventListener('change', () => { setSfxOn(sfxOpt.checked); engineOpt.disabled = beepOpt.disabled = !sfxOpt.checked; });
-engineOpt.addEventListener('change', () => setEngineOn(engineOpt.checked));
-beepOpt.addEventListener('change', () => setBeepOn(beepOpt.checked));
+for (const el of volSliders) el.addEventListener('input', () => { setVolume(el.dataset.vol, Number(el.value) / 100); startAudio(); });
 decalOpt.addEventListener('change', () => {
   setDecalsEnabled(decalOpt.checked);
   localStorage.setItem('forklift-decals-off', decalOpt.checked ? '0' : '1');

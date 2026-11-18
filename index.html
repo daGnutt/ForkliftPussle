@@ -42,9 +42,11 @@
       </div>
       <div class="page" data-page="sound" hidden>
         <h3>Sound</h3>
-        <label><input type="checkbox" id="sfxOpt"> Sound effects</label>
-        <label class="sub"><input type="checkbox" id="engineOpt"> Engine whine</label>
-        <label class="sub"><input type="checkbox" id="beepOpt"> Reversing beep</label>
+        <label class="row" title="Everything (far left = muted)"><span>Master volume</span> <input type="range" class="vol" data-vol="master" min="0" max="100" step="1"></label>
+        <label class="row" title="Music volume (far left = muted)"><span>Music volume</span> <input type="range" class="vol" data-vol="music" min="0" max="100" step="1"></label>
+        <label class="row" title="Engine whine (50% = the original loudness, 100% = twice as loud)"><span>Engine</span> <input type="range" class="vol" data-vol="engine" min="0" max="100" step="1"></label>
+        <label class="row" title="Reversing beep and proximity / crash alert beeps"><span>Beeps</span> <input type="range" class="vol" data-vol="beeps" min="0" max="100" step="1"></label>
+        <label class="row" title="Fork, boxes, bonks, scrape, tyres, horns, jingles and the droids"><span>Other sound effects</span> <input type="range" class="vol" data-vol="sfx" min="0" max="100" step="1"></label>
         <label><input type="checkbox" id="musicOpt"> Music</label>
         <label><input type="checkbox" id="randomOpt"> Random music (new track after each song)</label>
         <label class="row"><span>Track</span> <select id="trackSel"></select></label>
