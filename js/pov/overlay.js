@@ -31,19 +31,19 @@ export function drawFlag(ctx, sx, sy, size, clock, minLine = 1.5) {
   ctx.fillText('!', sx, y + r * 0.28);
 }
 
-export const DAMAGE_COLOR = '#ff5252', WONKY_COLOR = '#ffb74d', POINTS_COLOR = '#a5d6a7';
+const DAMAGE_COLOR = '#ff5252', WONKY_COLOR = '#ffb74d', POINTS_COLOR = '#a5d6a7';
 
 const signed = (n) => `${n < 0 ? '−' : '+'}${Math.abs(n)}`;
 
 // Rows of a score popup: the stack's points (green, red when negative), or the wonkiness change (amber when it costs, green when it gains)
 // on the row below, so both popups of a drop point sit under each other.
-export function pointsRows(sc) {
+function pointsRows(sc) {
   if (sc.total != null) return [[{ text: `Score: ${signed(sc.total)}`, color: sc.total < 0 ? DAMAGE_COLOR : POINTS_COLOR }]];
   return [[], [{ text: `Wonkiness: ${signed(sc.wonky)}`, color: sc.wonky < 0 ? WONKY_COLOR : POINTS_COLOR }]];
 }
 
 // Outlined label made of coloured segments, centred as a whole at (sx, sy).
-export function labelParts(ctx, parts, sx, sy, size, minStroke = 2) {
+function labelParts(ctx, parts, sx, sy, size, minStroke = 2) {
   ctx.font = `bold ${size}px sans-serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
@@ -92,7 +92,7 @@ export const honkers = (g) => {
   }
   return [...g.trucks.filter((t) => !t.gone && t.horn), ...lorryHonks(g)];
 };
-export function honkText(elapsed) {
+function honkText(elapsed) {
   const o = Math.min(5, 1 + Math.floor(elapsed / 0.5));
   const text = `H${'O'.repeat(o)}NK`;
   return elapsed >= 3 ? `*${text}*` : text;

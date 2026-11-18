@@ -50,11 +50,11 @@ export function makeHatch(g) {
   return { x: best.x, y: best.y, nx: best.nx, ny: best.ny, a: Math.atan2(best.ny, best.nx) };
 }
 
-export const botHome = (h) => ({ x: h.x + h.nx * (BOT_R + 0.1), y: h.y + h.ny * (BOT_R + 0.1) });
+const botHome = (h) => ({ x: h.x + h.nx * (BOT_R + 0.1), y: h.y + h.ny * (BOT_R + 0.1) });
 
 // Where a bot is drawn: it keeps its full size and slides in/out of the hatch, so while `show` < 1 it sits (partly) inside the wall,
 // which hides it; `show` is the progress of that slide.
-export const BOT_SLIDE = BOT_R + 0.1 + 0.5; // from home to fully inside the wall
+const BOT_SLIDE = BOT_R + 0.1 + 0.5; // from home to fully inside the wall
 export function botDrawPos(b, h) {
   const s = (1 - b.show) * BOT_SLIDE;
   return h ? { x: b.x - h.nx * s, y: b.y - h.ny * s } : { x: b.x, y: b.y };
@@ -62,9 +62,9 @@ export function botDrawPos(b, h) {
 
 // A bot drives straight out of its hatch and straight back in, always forwards: `show` (0..1) is how far along that
 // line from `botHome` to `botLane` it is. It goes in and out via the lane point, where it turns to face the wall before driving in.
-export const LANE = 1.1; // distance of the lane point (the bot's goal when going home) from the wall
+const LANE = 1.1; // distance of the lane point (the bot's goal when going home) from the wall
 const laneAt = (h, show) => { const d = (LANE - (BOT_R + 0.1)) * show + BOT_R + 0.1; return { x: h.x + h.nx * d, y: h.y + h.ny * d }; };
-export const botLane = (h) => laneAt(h, 1);
+const botLane = (h) => laneAt(h, 1);
 function place(g, bot, a) { const p = laneAt(g.hatch, bot.show); bot.x = p.x; bot.y = p.y; bot.a = a; }
 function emerge(g, bot, dt) {
   bot.show = Math.min(1, bot.show + dt / SHOW_SECS);
@@ -416,7 +416,7 @@ export function scanBeam(b) {
 // Fingerprint of a floor stack's exact arrangement: any nudge changes it.
 export const stackSig = (s) => (s ? [s.x, s.y, ...s.layers, ...(s.rots || []), ...(s.offs || []).flatMap((o) => [o.x, o.y])].map((v) => (typeof v === 'number' ? Math.round(v * 1000) : v)).join(',') : '');
 
-export const zoneKey = (z) => `${z.x},${z.y},${z.color}`;
+const zoneKey = (z) => `${z.x},${z.y},${z.color}`;
 
 // Completed drop points that have not been photographed yet.
 export function pendingZones(g, done) {
@@ -439,7 +439,7 @@ export const WHEEL_R = 0.12;
 export const makePhoto = (st, ok, view, dist, n, t) => ({ n, t, ok, layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [], pens: st?.pen ? st.pen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide, crash: q?.crash || 0, sq: q?.sq || 0, tape: q?.tape || 0 })) : [], view, dist });
 
 // Has the stack in the observer's last picture (`photo.at`, `photo.sig`) been touched, changed or taken away since?
-export function photoTampered(g) {
+function photoTampered(g) {
   const p = g.photo;
   if (!p?.at) return false;
   const q = g.stacks.find((o) => Math.hypot(o.x - p.at.x, o.y - p.at.y) < 0.5);

@@ -7,11 +7,11 @@ import { gameFromLayout, liveTrucks, wonkyStack, solidPolys, zoneDone, zonePoint
 // carries them to the delivery truck of their colour south of the warehouse (one bay per colour). A full delivery truck (6 stacks
 // of 4 boxes) closes its gate once no forklift is inside, drives off with its load and is replaced. An incoming truck that is
 // unloaded closes its gate and drives off; when a new one is due and every bay is still occupied, the game is over.
-export const ENDLESS_COLORS = 5;
+const ENDLESS_COLORS = 5;
 const OPEN_CHANCE = 0.1; // chance that a stack's top box is open-top
-export const ROWS = 3; // incoming-truck bays per side
+const ROWS = 3; // incoming-truck bays per side
 export const DOCKS = 2 * ROWS; // west and east, alternating from the south
-export const DOCK_COLOR = ENDLESS_COLORS; // beyond the box colours: the incoming trucks are grey
+const DOCK_COLOR = ENDLESS_COLORS; // beyond the box colours: the incoming trucks are grey
 export const truckPaint = (c) => COLORS[c] ?? '#78909c';
 export const BOGIE = [1.2, 2.1]; // trailer wheel pair: distances from the gate (rear) end, centred under the row of drop points nearest the gate
 const SLOT = 1.5; // spacing of the delivery truck's stack slots (2 wide, 3 deep)
@@ -20,8 +20,8 @@ const APRON = 0.9; // empty strip inside the gate before the first stack slots
 const RAMP_D = 0.9, DOCK_RAMP_D = 1.8, CAB_D = 2;
 const WH_W = 26, WH_H = 19; // the warehouse floor; its south wall runs along y = WH_H, with an opening for each truck
 const WX = TRUCK_D + CAB_D + WALL; // the warehouse floor starts here: the west wall (the incoming trucks' gates) is just before it
-export const ENDLESS_W = 2 * WX + WH_W;
-export const ENDLESS_H = WH_H + TRUCK_D + CAB_D; // the trucks stand in the yard south of the wall, cab last
+const ENDLESS_W = 2 * WX + WH_W;
+const ENDLESS_H = WH_H + TRUCK_D + CAB_D; // the trucks stand in the yard south of the wall, cab last
 const BAY_Y = WH_H; // the trailer's north edge, its gate in line with the south wall
 const SLOTS = 6;
 const FIRST_X = WX + 1.0, BAY_STEP = 4.8;
@@ -48,8 +48,8 @@ const RATE_TAU = 150;
 // that many are, so the queue hovers around the target instead of ending the run on a fixed schedule. It only affects trucks yet to arrive.
 const MARGIN_START = 1.15, MARGIN_MIN = 0.5, MARGIN_MAX = 1.3;
 const MARGIN_RATE = 0.4 / 1800; // margin change per second (about 30 min for the full 0.4)
-export const TARGET_DOCKS = 5;
-export const MIN_GAP = 20, MAX_GAP = 150;
+const TARGET_DOCKS = 5;
+const MIN_GAP = 20, MAX_GAP = 150;
 export const unloadRate = (e) => e.wBoxes / e.wBusy;
 export const interval = (e, boxes) => Math.min(MAX_GAP, Math.max(MIN_GAP, (boxes / unloadRate(e)) * e.margin));
 
@@ -197,7 +197,7 @@ export function animatedDoors(g) {
   return out;
 }
 
-export function animateDoors(g, dt) {
+function animateDoors(g, dt) {
   for (const { w, closed } of animatedDoors(g)) {
     const to = closed ? 0 : 1, l = w.lift ?? to;
     w.lift = l < to ? Math.min(to, l + dt / DOOR_T) : Math.max(to, l - dt / DOOR_T);

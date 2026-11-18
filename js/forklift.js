@@ -22,7 +22,7 @@ export const WHEEL_R = 0.17; // rear wheel radius; the larger front wheels are 2
 const ACC = 3.2;
 const ROLL = 1.4;
 const MAX_FWD = 4;
-export const MAX_REV = 2.5;
+const MAX_REV = 2.5;
 const STEER_RATE = 2.0;
 
 // Raised forks make the forklift top-heavy: top speed and acceleration taper
@@ -55,7 +55,7 @@ export function maxSteerFor(speed) {
 // Multiplayer: up to MAX_PLAYERS trucks, one primary colour each (slot i uses TRUCK_COLORS[i]).
 // `dark` is a deep shade of the colour, used behind the fork gauge.
 export const MAX_PLAYERS = 4;
-export const TRUCK_COLORS = [
+const TRUCK_COLORS = [
   { name: 'Yellow', body: '#f9a825', roof: '#a1730f', counter: '#6d4c00', dark: '#3d2c06' },
   { name: 'Red', body: '#e53935', roof: '#8e1b18', counter: '#5a1210', dark: '#3d1210' },
   { name: 'Blue', body: '#1e88e5', roof: '#0d4f8f', counter: '#0a3560', dark: '#0e2740' },

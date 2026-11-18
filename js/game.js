@@ -36,12 +36,12 @@ const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
 const newPen = (col = 0, seed = 0, open = false, wide = false) => ({ crash: 0, sq: 0, deco: open ? 4 : boxDecalKind(col, seed), ...(open && { open: true }), ...(wide && { wide: true }) });
 export const topOpen = (pens) => !!pens?.[pens.length - 1]?.open;
 const blocksStacking = (pens) => topOpen(pens) || pens?.[pens.length - 1]?.barrelPart === 'top';
-export const wideBox = (pens) => !!pens?.[0]?.wide;
+const wideBox = (pens) => !!pens?.[0]?.wide;
 export const halfY = (pen) => (pen?.wide ? 1 : 0.5); // half extent across the box's local x axis (the fork axis)
 const reach = (s) => (wideBox(s.pen) ? 1.13 : 0.71); // radius that contains the whole box
 const boxMass = (s) => (wideBox(s.pen) ? 2 : 1);
 const WIDE_ALIGN = 0.45; // max |sin| of the angle between truck heading and a wide box's local x axis for the tines to get under it
-export const boxPoints = (pen) => (pen?.wide ? 2 * BOX_POINTS : BOX_POINTS);
+const boxPoints = (pen) => (pen?.wide ? 2 * BOX_POINTS : BOX_POINTS);
 
 // Trucks. Every player drives one entry of `g.trucks`; the fields below belong to a truck. `g` itself is the view of
 // the local truck (`g.self`): g.fl, g.H, g.carried... forward to `g.trucks[g.self]`, so single-player code and
@@ -146,7 +146,7 @@ const bodyPoly = (t) => {
 const LIFT_GRIP = 0.7; // how far (along its body) the carry point may be off the middle of a truck for the tines to get under its side
 const LIFT_SIDEWAYS = 0.5; // max |cos| of the angle between a truck's heading and the lifter's for the lifter to be at its side
 const BODY_MID = (FL.back + FL.front) / 2;
-export function liftedPose(carrier, liftRel) {
+function liftedPose(carrier, liftRel) {
   const a = carrier.fl.a + liftRel, p = toWorld(carrier.fl, FL.carryX, 0);
   return { x: p.x - BODY_MID * Math.cos(a), y: p.y - BODY_MID * Math.sin(a), a };
 }
@@ -266,7 +266,7 @@ export function removeTruck(g, i) {
 export const dropLift = (g, st) => (st.dropFrom != null ? Math.max(0, (g.root.trucks[st.dropTruck ?? 0]?.hf ?? 0) - st.dropFrom - stackZ(g, st)) : 0);
 
 // Height (in box levels) of the floor under a point: 1 on the raised conveyor belt (`g.lowWalls`), else 0.
-export const zAt = (g, x, y) => (g.lowWalls?.some((w) => x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) ? 1 : 0);
+const zAt = (g, x, y) => (g.lowWalls?.some((w) => x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) ? 1 : 0);
 export const stackZ = (g, s) => zAt(g, s.x, s.y) + (s.fallZ || 0); // fallZ only exists on the drawing copies made by fallView
 // The fork level relative to the bottom of stack s (negative: the tines are below it, inside the belt).
 const relH = (g, s) => g.H - stackZ(g, s);
@@ -375,8 +375,8 @@ function settle(g, S) {
 }
 
 
-export const HIT_LIFE = 1.2; // seconds a damage popup lives
-export const SCORE_LIFE = 2.2; // finished-stack score popups stay longer so they can be read
+const HIT_LIFE = 1.2; // seconds a damage popup lives
+const SCORE_LIFE = 2.2; // finished-stack score popups stay longer so they can be read
 export const hitLife = (h) => (h.score || h.check ? SCORE_LIFE : HIT_LIFE); // `check`: the inspection bot's "inspected" label
 const HIT_MERGE = 0.6; // further damage to the same stack within this time adds to its popup
 
@@ -1053,7 +1053,7 @@ function stepOil(root, dt) {
 }
 
 // Extra height (box heights, whole stack) `clock - t0` seconds after a jolt, or 0.
-export const joltHop = (clock, t0) => { const p = t0 == null ? 1 : (clock - t0) / JOLT_TIME; return p >= 0 && p < 1 ? 0.12 * Math.sin(Math.PI * p) : 0; };
+const joltHop = (clock, t0) => { const p = t0 == null ? 1 : (clock - t0) / JOLT_TIME; return p >= 0 && p < 1 ? 0.12 * Math.sin(Math.PI * p) : 0; };
 export const carriedJoltZ = (g) => (g.carried ? joltHop(g.root.clock, g.truck.jolt) : 0);
 
 function stepTruck(g, input, dt) {

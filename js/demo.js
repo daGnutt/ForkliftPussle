@@ -7,7 +7,7 @@ import { FL } from './forklift.js';
 // circle forever. The truck's pose follows Hermite paths: the front axle always moves along the heading, so the heading is
 // the path tangent (reversed when backing up) and the steering angle follows from the path curvature.
 
-export const ROOM = { w: 18, h: 10 };
+const ROOM = { w: 18, h: 10 };
 const T = 3;
 const SPOTS = [{ x: 4, y: 3, a: Math.PI }, { x: 14, y: 3, a: 0 }, { x: 14, y: 7, a: 0 }, { x: 4, y: 7, a: Math.PI }];
 const ZONE_COLORS = [3, 4, 0, 1];

@@ -2,7 +2,7 @@ import { pointRectDist } from './geom.js';
 import { FL } from './forklift.js';
 
 export const COLORS = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#9e9e9e', '#39484b'];
-export const WIDE_COLOR = 5; // gray: only wide boxes and their zones; the generator's colours are 0..4
+const WIDE_COLOR = 5; // gray: only wide boxes and their zones; the generator's colours are 0..4
 export const BARREL_COLOR = 6; // dark blue-gray: only oil barrels and their zones
 export const ZONE_COLORS = COLORS.map((color, i) => (i === BARREL_COLOR ? '#bfd5d8' : color));
 

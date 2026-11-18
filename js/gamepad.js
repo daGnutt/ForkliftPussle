@@ -1,5 +1,5 @@
 // Shared gamepad reading (standard mapping): the analog drive/steer values, used by input.js (the keyboard player's pad) and local.js (local players).
-export const STICK_DEAD = 0.12, TRIG_DEAD = 0.05;
+const STICK_DEAD = 0.12, TRIG_DEAD = 0.05;
 
 // Connected standard-mapping pads as [{ index, gp }], in slot order.
 export function standardPads() {

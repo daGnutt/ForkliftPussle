@@ -627,7 +627,7 @@ export function setEngine(speed, throttle, reversing = false, id = 0, vol = 1) {
 // Horns: one voice per truck (two detuned saws), held for as long as the truck's horn key is down.
 // Each truck has its own pitch so a party can tell them apart. `list` = [{ id, on, vol }] (vol 0..1, e.g. by distance).
 const horns = new Map();
-export const hornFreq = (id) => 196 * 1.06 ** id;
+const hornFreq = (id) => 196 * 1.06 ** id;
 export function setHorns(list) {
   if (!ctx || ctx.state !== 'running') return;
   const t = ctx.currentTime;

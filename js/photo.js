@@ -152,7 +152,7 @@ let hud = [];
 export const addHudRect = (left, top, right, bottom) => { hud.push({ left, top, right, bottom }); };
 export const setTruckSpot = (x, y, r) => { spot = { x, y, r }; };
 
-export const PHOTO_SCALES = [1, 0.75, 0.5];
+const PHOTO_SCALES = [1, 0.75, 0.5];
 const MARGIN = 16, OLD_SCALE = 0.50, POPUP_SCALE = 0.50; // gameplay popups are smaller than the full size; old ones smaller still
 
 // Size factor of a gameplay popup: re-shown (old) pictures are smaller, except on touch devices where all are as large as new ones.

@@ -3,7 +3,7 @@ import { toWorld } from './forklift.js';
 
 // The repair station, a pallet turntable wrapping machine: a round turntable with a film mast (a solid post, `r.mast`) beside it. A turntable is next to the parking spot that holds one single box at a time. A box on it spins and is repaired at
 // RATE crash points per second; while a truck is within PAUSE_DIST of the pad the box stands still and nothing is repaired.
-export const PAD_HALF = 0.65, PAUSE_DIST = 1.5, SPIN = 2, RATE = 1, MAX_TAPE = 6, TAPE_EVERY = 8;
+const PAD_HALF = 0.65, PAUSE_DIST = 1.5, SPIN = 2, RATE = 1, MAX_TAPE = 6, TAPE_EVERY = 8;
 const SIDE = 2.4, MAST_AT = 1.05, MAST_HALF = 0.18;
 
 const WALL_GAP = 0.35; // a mast this close to a wall (edge to edge, beyond its own half-width) counts as standing against it
@@ -37,15 +37,15 @@ export function makeStation(g) {
 }
 
 // The single box on the pad: a lone 1×1 box resting on its middle.
-export const boxOnPad = (g) => g.stacks.find((s) => s.layers.length === 1 && s.pen?.[0] && !s.pen[0].wide && Math.hypot(s.x - g.repair.x, s.y - g.repair.y) < 0.5);
+const boxOnPad = (g) => g.stacks.find((s) => s.layers.length === 1 && s.pen?.[0] && !s.pen[0].wide && Math.hypot(s.x - g.repair.x, s.y - g.repair.y) < 0.5);
 
 // `fls`: the forklift frames of all trucks in play.
-export const truckNearPad = (r, fls) => fls.some((f) => [-1.9, -1.4, -0.9, -0.4, 0, 0.35].some((u) => { const q = toWorld(f, u, 0); return Math.hypot(q.x - r.x, q.y - r.y) < PAUSE_DIST; }));
+const truckNearPad = (r, fls) => fls.some((f) => [-1.9, -1.4, -0.9, -0.4, 0, 0.35].some((u) => { const q = toWorld(f, u, 0); return Math.hypot(q.x - r.x, q.y - r.y) < PAUSE_DIST; }));
 
 // Only plain 1×1 boxes can be repaired at the station; barrels and wide boxes keep their damage, so the inspector ignores it.
 export const repairable = (pen) => !pen?.wide && !pen?.barrelPart;
 
-export const tapeCount = (pen) => (pen.fix > 0 ? Math.min(MAX_TAPE, 1 + Math.floor(pen.fix / TAPE_EVERY)) : 0);
+const tapeCount = (pen) => (pen.fix > 0 ? Math.min(MAX_TAPE, 1 + Math.floor(pen.fix / TAPE_EVERY)) : 0);
 
 export function stepRepair(g, dt, fls) {
   const r = g.repair;

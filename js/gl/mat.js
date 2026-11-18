@@ -1,6 +1,6 @@
 // Tiny column-major 4x4 matrix helpers for the WebGL renderer (pure maths, no DOM).
 
-export const identity = () => {
+const identity = () => {
   const m = new Float32Array(16);
   m[0] = m[5] = m[10] = m[15] = 1;
   return m;

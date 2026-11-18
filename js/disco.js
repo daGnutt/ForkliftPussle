@@ -68,7 +68,7 @@ export function drawDiscoSpots(ctx, g, vis) {
 }
 
 // A mirrored ball of screen/world radius r centred at (cx, cy): silver sphere with glittering rotating facets.
-export function drawGlitterBall(ctx, cx, cy, r, t, k = 0) {
+function drawGlitterBall(ctx, cx, cy, r, t, k = 0) {
   const gr = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.1, cx, cy, r);
   gr.addColorStop(0, '#f4f6fa');
   gr.addColorStop(1, '#5d6470');

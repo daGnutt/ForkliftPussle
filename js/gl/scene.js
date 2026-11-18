@@ -18,7 +18,7 @@ import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, BOX_H, PAL, addStack, a
 // (see `wallClip`). Static meshes depend only on the level and theme;
 // dynamic ones (stacks, forklift, markings) are rebuilt every frame.
 
-export const OV_WALL_H = 1.1; // lowest height the camera-side walls are clipped to in 'ov'
+const OV_WALL_H = 1.1; // lowest height the camera-side walls are clipped to in 'ov'
 
 // Clip for the static walls: [nx, ny, d, zMax] hides geometry with dot(xy, n) > d above zMax. The overview cuts every
 // wall at OV_WALL_H (n = 0, d = -1 matches everything); the third-person view (`cam.chase`) shows them full height (null).

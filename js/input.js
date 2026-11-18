@@ -207,7 +207,7 @@ export function createInput(handlers) {
 
 // Touch control zones (px, canvas coordinates): the pad strip along the bottom (144 landscape / 208 portrait) and the fork gauge column
 // at the right edge. A camera drag that starts here is ignored, so gaps between the on-screen buttons don't rotate the camera.
-export const TOUCH_PAD_H = { landscape: 144, portrait: 208 };
+const TOUCH_PAD_H = { landscape: 144, portrait: 208 };
 export function inTouchControlZone(x, y, width, height, landscape, gauges = 1) {
   if (y >= height - (landscape ? TOUCH_PAD_H.landscape : TOUCH_PAD_H.portrait)) return true;
   return y >= 44 && y <= 236 && x >= width - 98 - (gauges - 1) * 90;

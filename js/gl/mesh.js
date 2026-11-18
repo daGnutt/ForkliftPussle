@@ -1,7 +1,7 @@
 // Triangle batch builder for the WebGL renderer. Vertex = position(3) normal(3) colour rgba(4).
 // A zero normal marks an unlit (emissive) vertex. Pure data, no DOM.
 
-export const STRIDE = 10;
+const STRIDE = 10;
 
 const colorCache = new Map();
 // '#rgb', '#rrggbb', '#rrggbbaa', 'rgb(a)(r,g,b,a)' or [r,g,b,a] (0..1) -> [r,g,b,a] in 0..1.

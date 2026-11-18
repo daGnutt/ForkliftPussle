@@ -30,7 +30,7 @@ export function povCamera(g, w, h, look = null) {
   return { vp: mul(proj, view), eye, w, h };
 }
 
-export const OV_TILT = 0.35; // radians off vertical
+const OV_TILT = 0.35; // radians off vertical
 const OV_VFOV = (30 * Math.PI) / 180;
 
 // Top-down view: looks at world (cx, cy), `tilesH` tiles visible vertically at that point, `up` = world direction
@@ -189,7 +189,7 @@ function segHitsWall(a, b, w, wallH) {
 }
 
 // Fraction (0..1) of sample points on the forklift body that the chase camera eye sees past the walls.
-export function truckVisibility(g, eye, wallH = WALL_H) {
+function truckVisibility(g, eye, wallH = WALL_H) {
   let seen = 0;
   for (const [x, y, z] of OCC_PTS) {
     const p = toWorld(g.fl, x, y), q = [p.x, p.y, z];

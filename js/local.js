@@ -4,7 +4,7 @@ import { addTruck, removeTruck, truckView, forkUp, forkDown, forkDownAll } from 
 import { standardPads, padAxes } from './gamepad.js';
 
 const HOLD_S = 0.4; // holding the lower button this long drops the forks to the lowest safe level
-export const MAX_LOCAL_PADS = 3;
+const MAX_LOCAL_PADS = 3;
 
 export function createLocal(onCab = null) {
   const players = new Map(); // gamepad index -> { slot, prev: boolean[], lowerAt }

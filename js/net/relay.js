@@ -1,8 +1,8 @@
 // Client of the party relay in the high score service (https://highscore.gnutt.se): creates/joins parties and carries the
 // WebRTC signalling (SSE in, POST out). `fetchFn` and `EventSourceCls` can be replaced for tests.
-export const PARTY_BASE = 'https://highscore.gnutt.se/api/games/forklift';
+const PARTY_BASE = 'https://highscore.gnutt.se/api/games/forklift';
 
-export class RelayError extends Error {
+class RelayError extends Error {
   constructor(message, status = 0) { super(message); this.status = status; }
 }
 
