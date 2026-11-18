@@ -27,7 +27,7 @@ import { startSplash3d } from './splash3d.js';
 import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
-import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playDroid as droid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const resultsCanvas = document.getElementById('results'); // end-of-level panel, stacked above the gallery photos
@@ -126,6 +126,7 @@ const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8)
 let galleryGame = null;
 let botGame = null, botPrev = new Map(), botSaid = new WeakSet();
 function watchBots() {
+  const playDroid = (...a) => { if (game.status !== 'won') droid(...a); }; // silent on the end-of-level screen
   const loaded = botGame !== game; // first look at this game (new level, or restored from a save): its existing photo is not news
   if (loaded) { botGame = game; botPrev = new Map(); botSaid = new WeakSet(); }
   const first = (b, key) => { const p = botPrev.get(key); botPrev.set(key, { show: b.show > 0, scared: !!b.scared, shoot: (b.shooting || 0) > 0, clean: !!b.cleaning }); return p; };
@@ -1231,12 +1232,14 @@ function frame(now) {
   checkTutorial();
   checkRecord();
   const st = input.state();
-  setCrashAlert(crashAlert(game) && !splashOn && !view.paused);
-  setEngine(game.fl.speed, st.up || st.down, game.fl.gear === 'R', game.self);
+  const won = game.status === 'won'; // end-of-level screen: continuous sfx are cut (jingle and music go on)
+  setCrashAlert(crashAlert(game) && !splashOn && !view.paused && !won);
+  if (won) setEngine(0, false, false, game.self, 0);
+  else setEngine(game.fl.speed, st.up || st.down, game.fl.gear === 'R', game.self);
   game.horn = !!st.horn && !splashOn && !view.paused;
   setHorns(game.trucks.map((t, i) => {
-    const own = i === game.self, d = Math.hypot(t.fl.x - game.fl.x, t.fl.y - game.fl.y);
-    return { id: t.id, on: !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : hearVol(t.fl.x, t.fl.y) };
+    const own = i === game.self;
+    return { id: t.id, on: !won && !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : hearVol(t.fl.x, t.fl.y) };
   }));
   honkTrucks();
   watchBots();
@@ -1256,14 +1259,15 @@ function frame(now) {
     const vol = hearVol(t.fl.x, t.fl.y);
     if (t.H !== (otherH.get(t.id) ?? t.H)) playFork(t.H > otherH.get(t.id), vol);
     otherH.set(t.id, t.H);
-    setEngine(t.fl.speed, t.input?.up || t.input?.down, t.fl.gear === 'R', t.id, vol);
+    if (won) setEngine(0, false, false, t.id, 0);
+    else setEngine(t.fl.speed, t.input?.up || t.input?.down, t.fl.gear === 'R', t.id, vol);
     if (t.bonks > (otherBonks.get(t.id) ?? t.bonks)) playBonk(t.bonkPower, vol);
     otherBonks.set(t.id, t.bonks);
     if ((t.slip || 0) * vol > slipV * slipVol) { slipV = t.slip; slipVol = vol; }
     if (t.scrape * vol > scrapeV * scrapeVol) { scrapeV = t.scrape; scrapeVol = vol; }
   }
-  setScrape(scrapeV, scrapeVol);
-  setSqueal(slipV, slipVol);
+  setScrape(won ? 0 : scrapeV, scrapeVol);
+  setSqueal(won ? 0 : slipV, slipVol);
   if (game.bonks !== bonkCount) { if (game.bonks > bonkCount) playBonk(game.bonkPower); bonkCount = game.bonks; }
   const t2 = performance.now();
   view.fullscreen = !!document.fullscreenElement;
