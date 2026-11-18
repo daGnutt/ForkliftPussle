@@ -10,6 +10,7 @@ import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
 import { popupScale, placePhoto, drawPhoto, issues, stripHeight, scoreText } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
+import { oilDropMark } from '../js/decals.js';
 import { setThemeMode } from '../js/theme.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
@@ -367,6 +368,11 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(popupScale(true, true), popupScale(false, true));
   assert.ok(popupScale(true, false) < popupScale(false, false));
   assert.ok(popupScale(false, true) >= 1.5 * popupScale(false, false) && popupScale(false, true) <= 2 * popupScale(false, false), 'touch popups are 50-100% bigger');
+}
+
+{ // oil drop-point mark: outlined and darker in light mode, plain in dark mode
+  const lm = oilDropMark(0, 0, 1, true), dm = oilDropMark(0, 0);
+  assert.ok(lm.edge && lm.edgeW > 0 && !dm.edge && lm.fill !== dm.fill);
 }
 
 { // gallery photos carry their points

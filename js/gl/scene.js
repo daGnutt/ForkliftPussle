@@ -325,7 +325,8 @@ function addMarks(tm, g, mode) {
     tm.poly([[z.x - e.x, z.y - e.y], [z.x + e.x, z.y - e.y], [z.x + e.x, z.y + e.y], [z.x - e.x, z.y + e.y]], 0, [c[0], c[1], c[2], done ? 0.8 : 0.47]);
     tm.frame(z.x - e.x, z.y - e.y, z.x + e.x, z.y + e.y, 0.07, 0, c);
     if (z.color === BARREL_COLOR && decalsEnabled()) {
-      const mark = oilDropMark(z.x, z.y);
+      const mark = oilDropMark(z.x, z.y, 1, !theme().dark);
+      if (mark.edge) tm.poly(oilDropMark(z.x, z.y, 1.25).pts, 0.008, parseColor(mark.edge));
       tm.poly(mark.pts, 0.01, mark.fill);
     }
   }

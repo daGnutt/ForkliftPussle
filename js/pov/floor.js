@@ -76,8 +76,8 @@ export function drawFloorMarks(ctx, g, cam) {
     floorPoly(ctx, cam, [[z.x - e.x, z.y - e.y], [z.x + e.x, z.y - e.y], [z.x + e.x, z.y + e.y], [z.x - e.x, z.y + e.y]],
       ZONE_COLORS[z.color] + (done ? 'cc' : '77'), ZONE_COLORS[z.color]);
     if (z.color === BARREL_COLOR && decalsEnabled()) {
-      const mark = oilDropMark(z.x, z.y);
-      floorPoly(ctx, cam, mark.pts, mark.fill, mark.fill);
+      const mark = oilDropMark(z.x, z.y, 1, !theme().dark);
+      floorPoly(ctx, cam, mark.pts, mark.fill, mark.edge || mark.fill);
     }
   }
   const ready = isSolved(g);
