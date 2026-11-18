@@ -595,6 +595,8 @@ function checkTutorial() {
 }
 const keySel = document.getElementById('keySel');
 if (isTouch) document.getElementById('keyLabel').hidden = true;
+document.getElementById('ctlDesktop').hidden = isTouch;
+document.getElementById('ctlTouch').hidden = !isTouch;
 // On touch devices the gamepad map only shows once a gamepad has been seen on this device.
 const padMap = document.getElementById('padMap');
 const padSeen = () => { localStorage.setItem('forklift-pad-seen', '1'); padMap.hidden = false; };

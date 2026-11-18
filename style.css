@@ -91,6 +91,8 @@ footer b { color: var(--accent); }
 #menu .keymap svg circle.knob { fill: rgba(255,255,255,.6); stroke: currentColor; }
 #menu .keymap svg text { fill: currentColor; font: bold 12px sans-serif; text-anchor: middle; }
 #menu .keymap svg text.cap { font-size: 10px; font-weight: normal; }
+#menu .ctl[hidden] { display: none; }
+#menu .ctl ul { margin: 2px 0 0; padding-left: 18px; font-size: .85em; opacity: .85; }
 #menu .padmap { margin: 4px 0; text-align: center; }
 #menu .padmap svg { width: 100%; height: auto; }
 #menu .padmap .body { fill: rgba(128,128,128,.35); stroke: currentColor; stroke-width: 2; }
@@ -181,7 +183,7 @@ footer b { color: var(--accent); }
   #menu .page { gap: 4px; }
   #menu .page[data-page="main"], #menu .page[data-page="controls"] { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; align-items: center; }
   #menu .page[hidden] { display: none; }
-  #menu .page h3, #menu .page h4, #menu hr { grid-column: 1 / -1; margin: 0; }
+  #menu .page h3, #menu .page h4, #menu .ctl, #menu hr { grid-column: 1 / -1; margin: 0; }
   #menu button.nav, #menu button.back { padding: 5px 4px; }
   #menu button { padding: 6px 10px; }
   #record form { padding: 12px 20px; gap: 6px; }
@@ -206,6 +208,7 @@ table.keys td:first-child { white-space: nowrap; } table.keys b { color: var(--a
 .k-wasd { display: none; }
 body.keys-wasd .k-wasd { display: inline; }
 body.keys-wasd tr.k-wasd { display: table-row; }
+body.keys-wasd li.k-wasd { display: list-item; }
 body.keys-wasd .k-arrows { display: none; }
 
 /* First-run control scheme picker (js/schemepicker.js) */

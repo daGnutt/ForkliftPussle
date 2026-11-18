@@ -150,6 +150,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Level complete overlay** | End-of-level breakdown with top lists (own `#results` canvas above the gallery photos) | `drawResults` |
 | **Splash** | Title screen: Start, Start endless, options | `#splash` |
 | **Scheme picker** | First-run popup on the splash to choose keyboard scheme / touch layout; keyboard version also shows a gamepad pictogram + local-multiplayer hint (`.padhint`) | `#schemePicker`, `schemepicker.js` |
+| **Control hints** | Lists on the menu's "Controls" page of the extra controls (camera drag, double-tap chase camera, minimap tap, honk…); the desktop list is hidden on touch devices and the touch list on desktop | `#ctlDesktop`, `#ctlTouch` |
 | **Gamepad map** | Static pictogram of the gamepad controls on the menu's "Controls" page; on touch devices only shown once a gamepad has been seen (`forklift-pad-seen` in `localStorage`) | `.padmap` / `#padMap` in `index.html` |
 | **Touch map** | The three touch-layout pictograms (active one highlighted, tap to select) shown instead of the keyboard map on touch devices; reuses `TOUCH` from `schemepicker.js` | `#touchMap`, `applyTouch` |
 | **Keyboard map** | The two keyboard-scheme pictograms (active one highlighted; click or Enter/Space selects it, like the dropdown) above the gamepad map; reuses `KEYBOARD` from `schemepicker.js` | `#keyMap`, `applyKeys` |

@@ -80,6 +80,28 @@
         <div id="touchMap" class="keymap" hidden title="Touch controls (the highlighted layout is active)"></div>
         <label id="keyLabel" class="row" title="Keyboard layout"><span>Keyboard</span> <select id="keySel"><option value="arrows">Arrows + A/Z forks</option><option value="wasd">WASD + E/Q forks</option></select></label>
         <div id="keyMap" class="keymap" title="Keyboard controls (the highlighted layout is active)"></div>
+        <div id="ctlDesktop" class="ctl">
+          <h4>Mouse &amp; keyboard</h4>
+          <ul>
+            <li>Drag the view or <b>,</b>/<b>.</b>: rotate the camera</li>
+            <li>Double-click the overview or <b>C</b>: third-person camera</li>
+            <li>Zoom slider (bottom right): zoom the overview</li>
+            <li><b>Tab</b>/<b>M</b>: swap overview and cab view</li>
+            <li class="k-arrows"><b>A</b>/<b>Z</b>: forks up / down (hold <b>Z</b>: lowest safe level)</li>
+            <li class="k-wasd"><b>E</b>/<b>Q</b>: forks up / down (hold <b>Q</b>: lowest safe level)</li>
+            <li><b>H</b>: hold to honk &middot; <b>F</b>: full screen &middot; <b>Enter</b>: next level after winning</li>
+          </ul>
+        </div>
+        <div id="ctlTouch" class="ctl" hidden>
+          <h4>Touch</h4>
+          <ul>
+            <li>Drag the view (outside the buttons): rotate the camera</li>
+            <li>Double-tap the view: third-person camera</li>
+            <li>Landscape: tap the minimap to swap overview and cab view</li>
+            <li>Two fingers resting on the view: honk</li>
+            <li>Tap the level-complete board: next level</li>
+          </ul>
+        </div>
         <figure class="padmap" id="padMap" title="Gamepad controls (standard mapping)">
           <svg viewBox="0 0 300 150" role="img" aria-label="Gamepad controls"><g class="g">
             <rect x="48" y="14" width="36" height="12" rx="5"/><rect x="216" y="14" width="36" height="12" rx="5"/>
