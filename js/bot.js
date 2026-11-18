@@ -153,18 +153,40 @@ function buildGrid(g, margin) {
     stamp(w.x - m, w.y - m, w.x + w.w + m, w.y + w.h + m, (x, y) => rectDist(x, y, w) < m);
   }
   for (const s of g.stacks) circle(s, STACK_R + BOT_R);
+  const fixed = blocked.slice(); // cells blocked by walls and boxes only (forklifts move away on their own)
   for (const c of truckCircles(g)) circle(c, c.r + BOT_R + margin);
-  return { nx, ny, blocked };
+  return { nx, ny, blocked, fixed };
 }
 
 const cellOf = (grid, p) => ({ i: Math.max(0, Math.min(grid.nx - 1, Math.floor(p.x / CELL))), j: Math.max(0, Math.min(grid.ny - 1, Math.floor(p.y / CELL))) });
 const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2]];
 
+// Nearest unblocked cell (index) to cell `s`, ignoring obstacles on the way; -1 if the grid is full.
+function nearestFree(grid, s) {
+  const { nx, ny, blocked } = grid, seen = new Uint8Array(nx * ny), q = [s.j * nx + s.i];
+  seen[q[0]] = 1;
+  for (let k = 0; k < q.length; k++) {
+    const id = q[k];
+    if (!blocked[id]) return id;
+    const i = id % nx, j = (id - i) / nx;
+    for (const [di, dj] of NB) {
+      const ni = i + di, nj = j + dj;
+      if (ni < 0 || nj < 0 || ni >= nx || nj >= ny || seen[nj * nx + ni]) continue;
+      seen[nj * nx + ni] = 1; q.push(nj * nx + ni);
+    }
+  }
+  return -1;
+}
+
 // Dijkstra over free cells from `from`. `score(x, y, cost)` ranks cells (lower is better); the best cell within `maxCost` wins.
 // Returns the waypoint list (world coordinates) to that cell, or [].
 function plan(grid, from, maxCost, score) {
   const { nx, ny, blocked } = grid, n = nx * ny;
-  const s = cellOf(grid, from), start = s.j * nx + s.i;
+  const s = cellOf(grid, from);
+  let start = s.j * nx + s.i;
+  const escape = grid.fixed?.[start] ? nearestFree(grid, s) : -1; // a bot stuck inside a wall or box (e.g. by a repair mast built on top of it) first walks to the nearest free cell
+  const first = escape >= 0 ? { x: ((escape % nx) + 0.5) * CELL, y: (Math.floor(escape / nx) + 0.5) * CELL } : null;
+  if (first) start = escape;
   const cost = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1);
   cost[start] = 0;
   const open = [[0, start]]; // binary min-heap on cost
@@ -207,7 +229,8 @@ function plan(grid, from, maxCost, score) {
   }
   const path = [];
   for (let id = best; id !== start && id >= 0; id = prev[id]) path.push({ x: ((id % nx) + 0.5) * CELL, y: (Math.floor(id / nx) + 0.5) * CELL });
-  return path.reverse();
+  path.reverse();
+  return first ? [first, ...path] : path;
 }
 
 // How far (capped at 8 tiles) a point is from the nearest forklift; bots prefer goals far from the forklifts.
@@ -310,6 +333,17 @@ function pushOut(g, bot) {
     const d = Math.hypot(bot.x - c.x, bot.y - c.y), min = c.r + BOT_R * 0.8;
     if (d < min && d > 1e-6) { bot.x = c.x + (bot.x - c.x) / d * min; bot.y = c.y + (bot.y - c.y) / d * min; }
   }
+  for (const w of g.walls) { // being pushed must never leave the bot inside a wall (or the repair mast)
+    const d = rectDist(bot.x, bot.y, w);
+    if (d >= BOT_R) continue;
+    if (d > 1e-6) {
+      const cx = Math.max(w.x, Math.min(bot.x, w.x + w.w)), cy = Math.max(w.y, Math.min(bot.y, w.y + w.h));
+      bot.x = cx + (bot.x - cx) / d * BOT_R; bot.y = cy + (bot.y - cy) / d * BOT_R;
+    } else { // centre inside the rectangle: leave through the nearest side
+      const gaps = [[bot.x - w.x, -1, 0], [w.x + w.w - bot.x, 1, 0], [bot.y - w.y, 0, -1], [w.y + w.h - bot.y, 0, 1]].sort((a, b) => a[0] - b[0])[0];
+      bot.x += gaps[1] * (gaps[0] + BOT_R); bot.y += gaps[2] * (gaps[0] + BOT_R);
+    }
+  }
   for (const o of [g.bot, g.inspector]) {
     if (!o || o === bot || o.show <= 0) continue;
     const d = Math.hypot(bot.x - o.x, bot.y - o.y), min = BOT_R * 1.6;
@@ -323,7 +357,9 @@ function fleePlan(g, bot) {
   return plan(buildGrid(g, 0), bot, 7, (x, y, c) => {
     let clear = Infinity;
     for (const t of trucks) clear = Math.min(clear, Math.hypot(x - t.x, y - t.y) - t.r);
-    return -Math.min(clear, 4) * 3 + c * 0.2;
+    let room = 1.5; // wall-hugging spots and corners are traps: a forklift can pin the bot there
+    for (const w of g.walls) room = Math.min(room, rectDist(x, y, w));
+    return -Math.min(clear, 4) * 3 + (1.5 - room) * 4 + c * 0.2;
   });
 }
 

@@ -373,4 +373,28 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.ok(-d(0) >= BOT_R + 0.1, 'hidden: at least from its home position back to the wall face');
 }
 
+// An inspector boxed in by a solid obstacle (e.g. a repair mast) walks out of it instead of sitting stuck.
+{
+  const g = newGame(2, 0);
+  const m = g.repair.mast;
+  g.inspector.show = 1; g.inspector.mode = 'out';
+  g.inspector.x = m.x + m.w / 2; g.inspector.y = m.y + m.h / 2;
+  run(g, NONE, 20);
+  assert.ok(Math.hypot(g.inspector.x - (m.x + m.w / 2), g.inspector.y - (m.y + m.h / 2)) > 1, 'the inspector got out from inside the mast');
+}
+
+// A forklift running over the inspector next to a wall never leaves it inside the wall.
+{
+  const g = newGame(2, 0);
+  const m = g.repair.mast;
+  g.inspector.show = 1; g.inspector.mode = 'out';
+  g.inspector.x = m.x - BOT_R - 0.05; g.inspector.y = m.y + m.h / 2;
+  g.fl.x = g.inspector.x - 1.2; g.fl.y = g.inspector.y; g.fl.a = 0;
+  for (let i = 0; i < 240; i++) {
+    update(g, { up: true }, 1 / 120);
+    const dx = Math.max(m.x - g.inspector.x, 0, g.inspector.x - m.x - m.w), dy = Math.max(m.y - g.inspector.y, 0, g.inspector.y - m.y - m.h);
+    assert.ok(Math.hypot(dx, dy) > 0.01, 'the inspector is never inside the mast');
+  }
+}
+
 console.log('bot tests passed');
