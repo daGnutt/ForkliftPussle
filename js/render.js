@@ -1451,23 +1451,29 @@ export function draw(ctx, g, view) {
     ctx.fillText(view.touch ? 'Tap to play again' : 'Press Enter to play again', width / 2, height / 2 + 40);
     drawTopLists(ctx, view, width / 2, height / 2 + 70, width / 2);
   }
-  if (g.status === 'won') {
-    const lost = lostBreakdown(g);
-    const pts = score(g);
-    ctx.fillStyle = 'rgba(0,0,0,0.65)';
-    ctx.fillRect(0, height / 2 - 110, width, 220 + 210);
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.font = 'bold 36px sans-serif';
-    ctx.fillText('Level complete!', width / 2, height / 2 - 64);
-    ctx.font = '18px sans-serif';
-    ctx.fillText(`Boxes in zones: ${pts + lost.crash + lost.square} − crashes ${lost.crash} − squareness ${lost.square} = ${pts}`, width / 2, height / 2 - 28);
-    ctx.fillText(`Time ${formatTime(g.time)}: −${timePenalty(g.time)} (1 point per 10 s)`, width / 2, height / 2 - 2);
-    ctx.font = 'bold 22px sans-serif';
-    ctx.fillText(`Final score: ${finalScore(pts, g.time)}`, width / 2, height / 2 + 30);
-    ctx.font = '20px sans-serif';
-    ctx.fillText(view.touch ? 'Tap to continue to the next level' : 'Press Enter for the next level', width / 2, height / 2 + 70);
-    drawTopLists(ctx, view, width / 2, height / 2 + 90, width / 2);
-  }
+}
+
+// The end-of-level results panel, drawn on its own overlay canvas (above the gallery photos) instead of on the game canvas.
+export function drawResults(ctx, g, view) {
+  const { width, height } = view;
+  ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  if (g.status !== 'won') return;
+  const lost = lostBreakdown(g);
+  const pts = score(g);
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fillRect(0, height / 2 - 110, width, 220 + 210);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = 'bold 36px sans-serif';
+  ctx.fillText('Level complete!', width / 2, height / 2 - 64);
+  ctx.font = '18px sans-serif';
+  ctx.fillText(`Boxes in zones: ${pts + lost.crash + lost.square} − crashes ${lost.crash} − squareness ${lost.square} = ${pts}`, width / 2, height / 2 - 28);
+  ctx.fillText(`Time ${formatTime(g.time)}: −${timePenalty(g.time)} (1 point per 10 s)`, width / 2, height / 2 - 2);
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillText(`Final score: ${finalScore(pts, g.time)}`, width / 2, height / 2 + 30);
+  ctx.font = '20px sans-serif';
+  ctx.fillText(view.touch ? 'Tap to continue to the next level' : 'Press Enter for the next level', width / 2, height / 2 + 70);
+  drawTopLists(ctx, view, width / 2, height / 2 + 90, width / 2);
 }

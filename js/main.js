@@ -12,7 +12,7 @@ import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
 import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
-import { draw } from './render.js';
+import { draw, drawResults } from './render.js';
 import { showPhoto, dodgePhoto, startGallery, stopGallery } from './photo.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { setBareForks, bareForksEnabled } from './gl/models.js';
@@ -30,6 +30,8 @@ import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
 import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
+const resultsCanvas = document.getElementById('results'); // end-of-level panel, stacked above the gallery photos
+const resultsCtx = resultsCanvas.getContext('2d');
 const ctx = canvas.getContext('2d');
 attachGlCanvas(document.getElementById('gameGl'), ctx);
 const isTouch = matchMedia('(pointer: coarse)').matches;
@@ -46,6 +48,8 @@ function resize() {
   view.dpr = Math.min(view.dpr, Math.sqrt(3e6 / Math.max(1, view.width * view.height)));
   canvas.width = Math.round(view.width * view.dpr);
   canvas.height = Math.round(view.height * view.dpr);
+  resultsCanvas.width = canvas.width;
+  resultsCanvas.height = canvas.height;
 }
 window.addEventListener('resize', resize);
 resize();
@@ -120,8 +124,6 @@ const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8)
 // The maintenance bots talk in droidspeak, triggered by state changes (first sight of a game is silent): hello on emerging, bye on going home,
 // alarm when a forklift scares them, mumble while mopping, a scanning trill, and the inspector's verdict (perfect / warn).
 let galleryGame = null;
-// The end-of-level results panel (centre band of the canvas) that the photo gallery keeps clear of.
-const resultsPanel = () => { const r = canvas.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2; return [{ left: cx - 360, right: cx + 360, top: cy - 110, bottom: cy + 430 }]; };
 let botGame = null, botPrev = new Map(), botSaid = new WeakSet();
 function watchBots() {
   const loaded = botGame !== game; // first look at this game (new level, or restored from a save): its existing photo is not news
@@ -1245,8 +1247,9 @@ function frame(now) {
   view.fullscreen = !!document.fullscreenElement;
   game.debugBots = !!debug;
   draw(ctx, game, view);
+  drawResults(resultsCtx, game, view);
   if (game.status === 'won' && !game.endless) {
-    if (galleryGame !== game) { galleryGame = game; startGallery(() => endPhotos(game), resultsPanel); }
+    if (galleryGame !== game) { galleryGame = game; startGallery(() => endPhotos(game)); }
   } else if (galleryGame) { galleryGame = null; stopGallery(); }
   dodgePhoto();
   if (debug) {
