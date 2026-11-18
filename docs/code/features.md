@@ -1,0 +1,5 @@
+# Special box types
+
+**Open-top boxes**: a box whose `pen.open` is true (layouts mark a stack's top box with `stack.open`; `wonkyStack` sets it) cannot carry anything: `topOpen(pens)` blocks `forkDown` release (rest height stays one above it), `settle` landings, and handovers onto a carried stack with an open top. They get the "do not stack" decal (and a 🚫 on their cell in the fork gauge) (`boxDecalShapes(4)`) and a dark opening instead of a lid/tape in the renderers. `level.js` `markOpenTops` (own RNG, level ≥ 2) marks ≤ 1 per stack and ≤ zones of that colour; endless `loadDock` makes each stack's top box open with probability `OPEN_CHANCE` (1 in 10).
+
+**Oil barrels**: a dedicated dark gray type (`BARREL_COLOR`) occupies two rigid layers; nothing can be stacked on top. From level 3, the generator can place up to four barrels, each with its own zone whose `count: 1` measures barrels rather than box heights. Zones use a brighter blue-gray tint with an oil-drop floor decal (hidden by the Decals option). The cylindrical exterior uses the generic barrel paint, with oil-drop decals in the 2D and 3D renderers.
