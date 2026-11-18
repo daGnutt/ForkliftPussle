@@ -633,6 +633,10 @@ console.log('stacks tests passed');
   assert.equal(crashAlert(g), true);
   f.speed = 0.1; g.stacks[0].x = f.x + 2.2; // slow: still looks 1 tile past the fork tips
   assert.equal(crashAlert(g), true);
+  f.speed = 0; g.stacks[0].x = f.x + 2.4; g.stacks[0].y = f.y + 1.2; // standing still: the close probe fans out 45° beyond the fork tips
+  assert.equal(crashAlert(g), true);
+  g.stacks[0].y = f.y + 2.5;
+  assert.equal(crashAlert(g), false);
   g.carried = null; assert.deepEqual(crashProbes(g), [], 'empty forks: no alert');
 }
 { // follows the steering arc
@@ -641,10 +645,12 @@ console.log('stacks tests passed');
   const f = g.fl;
   g.carried = [0]; g.carriedPen = [{ crash: 0, sq: 0 }]; g.carriedRots = [0]; g.carriedOffs = [{ x: 0, y: 0 }]; g.carriedRel = 0;
   f.a = 0; f.speed = 3; g.H = 0; f.steer = 0;
-  g.stacks = [{ x: f.x + 3, y: f.y + 3, layers: [1], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
+  g.stacks = [{ x: f.x + 5, y: f.y + 1.6, layers: [1], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
   assert.equal(crashAlert(g), false, 'straight ahead misses a stack off to the side');
-  f.steer = 0.5;
+  f.steer = 0.2;
   assert.equal(crashAlert(g), true, 'turning right sweeps into it');
+  f.steer = 1; g.stacks[0].y = f.y + 3;
+  assert.equal(crashAlert(g), false, 'the look-ahead stops after 45° of turn');
 }
 {
   const g = newGame(1);
