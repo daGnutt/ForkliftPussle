@@ -266,16 +266,14 @@ export function removeTruck(g, i) {
 export const dropLift = (g, st) => (st.dropFrom != null ? Math.max(0, (g.root.trucks[st.dropTruck ?? 0]?.hf ?? 0) - st.dropFrom - stackZ(g, st)) : 0);
 
 // Proximity alert (any gear but R, occupied forks only, even when coasting or standing still): the area the carried stack sweeps in the next ALERT_AHEAD seconds along the current steering arc,
-// plus a close probe reaching at least ALERT_MIN_REACH tiles beyond the fork tips and fanning out 45° to each side. Returns the probe polygons (also drawn in debug mode).
-const ALERT_AHEAD = 2, ALERT_STEP = 0.2, ALERT_MIN_REACH = 1, ALERT_MAX_TURN = Math.PI / 4; // the sweep stops once the heading has turned 45° either way (90° in total)
+// plus a close probe reaching at least ALERT_MIN_REACH tiles beyond the fork tips. Returns the probe polygons (also drawn in debug mode).
+const ALERT_AHEAD = 1, ALERT_STEP = 0.2, ALERT_MIN_REACH = 1, ALERT_MAX_TURN = Math.PI / 4; // the sweep stops once the heading has turned 45° either way (90° in total)
 export function crashProbes(g) {
   const f = g.fl;
   if (!g.carried || g.status === 'over' || f.gear === 'R') return [];
   const hy = halfY(g.carriedPen?.[0]);
   const x0 = FL.carryX - 0.5, x1 = FL.tineX1 + ALERT_MIN_REACH;
-  // the close probe widens at 45° on both sides beyond the fork tips: a rectangle up to the tips plus a trapezoid (two convex pieces, in the forklift's frame)
-  const tip = FL.tineX1, w = hy + ALERT_MIN_REACH, local = (pts) => pts.map(([lx, ly]) => toWorld(f, lx, ly));
-  const probes = [local([[x0, -hy], [tip, -hy], [tip, hy], [x0, hy]]), local([[tip, -hy], [x1, -w], [x1, w], [tip, hy]])];
+  const m = toWorld(f, (x0 + x1) / 2, 0), probes = [rectPoly(m.x, m.y, (x1 - x0) / 2, hy, f.a)];
   const v = Math.max(0, f.speed);
   let { x, y, a } = f;
   for (let t = 0; t < ALERT_AHEAD; t += ALERT_STEP) {
@@ -288,12 +286,15 @@ export function crashProbes(g) {
   return probes;
 }
 
-export function crashAlert(g) {
+// The stacks the alert's probes currently hit (at an overlapping height).
+export function alertTriggers(g) {
   const probes = crashProbes(g);
-  if (!probes.length) return false;
+  if (!probes.length) return [];
   const lo = g.H, hi = g.H + g.carried.length;
-  return g.stacks.some((s) => { const z = stackZ(g, s); return z < hi && lo < z + s.layers.length && probes.some((p) => sat(p, stackPoly(s))); });
+  return g.stacks.filter((s) => { const z = stackZ(g, s); return z < hi && lo < z + s.layers.length && probes.some((p) => sat(p, stackPoly(s))); });
 }
+
+export const crashAlert = (g) => alertTriggers(g).length > 0;
 
 // True during the lit half of the alert's blink (the headlights flash red).
 export const crashBlink = (g) => crashAlert(g) && Math.floor((g.clock || 0) * 6) % 2 === 0;
@@ -1549,7 +1550,7 @@ export function endPhotos(g) {
   return out.sort((a, b) => (a.t ?? 0) - (b.t ?? 0));
 }
 
-// Stacks the inspector judged "could be better": photographed (in `inspector.seen`) and still crooked or damaged. Each `{x, y, h, key}` (h = boxes high, key = the drop point's key in `inspector.seen`/`inspector.photos`).
+// Stacks the inspector judged "could be better": photographed (in `inspector.seen`) and still crooked or damaged. Each `{x, y, h, key, wonky, damaged}` (h = boxes high, wonky = crooked boxes, damaged = repairable crash damage, key = the drop point's key in `inspector.seen`/`inspector.photos`).
 export function flaggedStacks(g) {
   const out = [];
   for (const z of g.zones) {
@@ -1557,9 +1558,19 @@ export function flaggedStacks(g) {
     const s = g.stacks.find((q) => stackFillsZone(q, z));
     if (s?.touched) continue;
     if (s && g.inspector.sigs?.[`${z.x},${z.y},${z.color}`] !== undefined && g.inspector.sigs[`${z.x},${z.y},${z.color}`] !== stackSig(s)) continue; // touched since the photo
-    if (s && (refreshSquare(s), s.pen.some((p) => p.sq > 0 || (p.crash > 0 && repairable(p))))) out.push({ x: s.x, y: s.y, h: s.layers.length, key: `${z.x},${z.y},${z.color}` });
+    if (!s) continue;
+    refreshSquare(s);
+    const wonky = s.pen.some((p) => p.sq > 0), damaged = s.pen.some((p) => p.crash > 0 && repairable(p));
+    if (wonky || damaged) out.push({ x: s.x, y: s.y, h: s.layers.length, key: `${z.x},${z.y},${z.color}`, wonky, damaged });
   }
   return out;
+}
+
+// Which symbol a flagged stack shows: 'wonky' or 'damaged'; a stack with both alternates every FLAG_SWAP seconds (by the game clock, so every view agrees).
+export const FLAG_SWAP = 1;
+export function flagSymbol(f, clock) {
+  if (f.wonky && f.damaged) return Math.floor(clock / FLAG_SWAP) % 2 ? 'damaged' : 'wonky';
+  return f.damaged ? 'damaged' : 'wonky';
 }
 
 export function zoneDone(g, z) {

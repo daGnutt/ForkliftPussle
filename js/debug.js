@@ -1,4 +1,4 @@
-import { zoneDone, score, maxScore, crashProbes, crashAlert } from './game.js';
+import { zoneDone, score, maxScore, crashProbes, crashAlert, alertTriggers } from './game.js';
 import { unloadRate, interval, DOCKS } from './endless.js';
 
 import { truckCircles, BOT_R } from './bot.js';
@@ -7,6 +7,7 @@ import { truckCircles, BOT_R } from './bot.js';
 // the forklift circles it steers around. `proj(x, y)` maps floor coordinates to the current canvas units ([sx, sy], or null when not visible); `unit` scales sizes.
 export function drawBotDebug(ctx, g, proj, unit = 1) {
   drawAlertProbes(ctx, g, proj, unit);
+  drawAlertMarks(ctx, g, proj, unit);
   const bots = [[g.bot, '#ffb84a', 'cleaner'], [g.inspector, '#4ad8ff', 'inspector']].filter(([b]) => b && b.mode === 'out');
   if (!bots.length) return;
   ctx.save();
@@ -62,6 +63,36 @@ export function drawAlertProbes(ctx, g, proj, unit = 1) {
     ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath(); ctx.stroke();
   }
   ctx.restore();
+}
+
+// Lightbulb decals floating above every stack that set off the proximity alert, each with a countdown; they vanish MARK_SECONDS after the last trigger.
+const MARK_SECONDS = 3, marks = new Map(); // stack -> clock time the decal expires
+export function drawAlertMarks(ctx, g, proj, unit = 1) {
+  const now = g.clock || 0;
+  for (const s of alertTriggers(g)) marks.set(s, now + MARK_SECONDS);
+  for (const [s, until] of marks) {
+    if (until < now || until > now + MARK_SECONDS + 1e-6 || !g.stacks.includes(s)) { marks.delete(s); continue; } // expired, clock went back (new level) or stack gone
+    const c = proj(s.x, s.y);
+    if (!c) continue;
+    const x = c[0], y = c[1] - (26 + 8 * s.layers.length) * unit, r = 8 * unit;
+    ctx.save();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.fillStyle = '#ffe14a'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5 * unit;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); // glass
+    ctx.fillStyle = '#8a8a8a';
+    ctx.beginPath(); ctx.rect(x - r * 0.5, y + r * 0.95, r, r * 0.7); ctx.fill(); ctx.stroke(); // socket
+    ctx.strokeStyle = '#a07000'; ctx.lineWidth = unit; // filament
+    ctx.beginPath(); ctx.moveTo(x - r * 0.35, y + r * 0.9); ctx.lineTo(x - r * 0.35, y - r * 0.1); ctx.lineTo(x, y + r * 0.3); ctx.lineTo(x + r * 0.35, y - r * 0.1); ctx.lineTo(x + r * 0.35, y + r * 0.9); ctx.stroke();
+    ctx.strokeStyle = '#ffe14a'; ctx.lineWidth = 1.5 * unit; // rays
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI * (0.1 + 0.2 * i) - Math.PI * 0.1;
+      ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r * 1.3, y + Math.sin(a) * r * 1.3); ctx.lineTo(x + Math.cos(a) * r * 1.7, y + Math.sin(a) * r * 1.7); ctx.stroke();
+    }
+    const text = (until - now).toFixed(1);
+    ctx.font = `bold ${11 * unit}px monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3 * unit; ctx.strokeStyle = '#000'; ctx.strokeText(text, x + r * 1.9, y); ctx.fillStyle = '#fff'; ctx.fillText(text, x + r * 1.9, y);
+    ctx.restore();
+  }
 }
 
 // 2D overview: the canvas currently carries the world transform, so project through it and draw in device pixels.

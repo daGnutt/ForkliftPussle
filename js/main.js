@@ -12,7 +12,7 @@ import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
 import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
-import { draw } from './render.js';
+import { draw, drawResults } from './render.js';
 import { showPhoto, dodgePhoto, startGallery, stopGallery } from './photo.js';
 import { debugEnabled, createDebug } from './debug.js';
 import { setBareForks, bareForksEnabled } from './gl/models.js';
@@ -24,11 +24,14 @@ import { chaseDrift, chaseOrbit, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZo
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
+import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
 import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
+const resultsCanvas = document.getElementById('results'); // end-of-level panel, stacked above the gallery photos
+const resultsCtx = resultsCanvas.getContext('2d');
 const ctx = canvas.getContext('2d');
 attachGlCanvas(document.getElementById('gameGl'), ctx);
 const isTouch = matchMedia('(pointer: coarse)').matches;
@@ -45,6 +48,8 @@ function resize() {
   view.dpr = Math.min(view.dpr, Math.sqrt(3e6 / Math.max(1, view.width * view.height)));
   canvas.width = Math.round(view.width * view.dpr);
   canvas.height = Math.round(view.height * view.dpr);
+  resultsCanvas.width = canvas.width;
+  resultsCanvas.height = canvas.height;
 }
 window.addEventListener('resize', resize);
 resize();
@@ -119,8 +124,6 @@ const hearVol = (x, y) => 1 / (1 + Math.hypot(x - game.fl.x, y - game.fl.y) / 8)
 // The maintenance bots talk in droidspeak, triggered by state changes (first sight of a game is silent): hello on emerging, bye on going home,
 // alarm when a forklift scares them, mumble while mopping, a scanning trill, and the inspector's verdict (perfect / warn).
 let galleryGame = null;
-// The end-of-level results panel (centre band of the canvas) that the photo gallery keeps clear of.
-const resultsPanel = () => { const r = canvas.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2; return [{ left: cx - 360, right: cx + 360, top: cy - 110, bottom: cy + 430 }]; };
 let botGame = null, botPrev = new Map(), botSaid = new WeakSet();
 function watchBots() {
   const loaded = botGame !== game; // first look at this game (new level, or restored from a save): its existing photo is not news
@@ -522,9 +525,22 @@ function checkOpenTip() {
   tutorialEl.classList.remove('hide');
   tutorialEl.innerHTML = '<small>Tip</small>This is an <b>open-top box</b>: nothing can be stacked on top of it.';
 }
+// Until the first repair on this device, carrying one damaged box shows a pop-up and the arrow/glow/blink in the views (js/repairhint.js).
+let repairTipOn = false;
+function checkRepairTip() {
+  if (game.repair?.on) localStorage.setItem(REPAIRED_KEY, '1');
+  const on = !splashOn && !view.menuOpen && !tipUntil && repairHintWanted(game, !!localStorage.getItem(REPAIRED_KEY));
+  setRepairHint(on);
+  if (on === repairTipOn) return;
+  repairTipOn = on;
+  if (on) {
+    tutorialEl.classList.remove('hide');
+    tutorialEl.innerHTML = '<small>Tip</small>This box is damaged, it can be <b>repaired at the repair station</b>. Big boxes and oil barrels cannot be repaired.';
+  } else showTutorial();
+}
 function showTutorial() {
   tutShownAt = performance.now();
-  if (tipUntil) return;
+  if (tipUntil || repairTipOn) return;
   tutorialEl.classList.toggle('hide', tutStep < 0);
   if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep].html}${TUTORIAL[tutStep].extra?.() ?? ''}`;
 }
@@ -536,7 +552,8 @@ function nextTutorial() {
 let tutStart = { x: game.fl.x, y: game.fl.y };
 function checkTutorial() {
   checkOpenTip();
-  if (tipUntil) return;
+  checkRepairTip();
+  if (tipUntil || repairTipOn) return;
   if (tutStart.g !== game) tutStart = { x: game.fl.x, y: game.fl.y, g: game };
   if (tutStep < 0) return;
   const g = game;
@@ -1230,8 +1247,9 @@ function frame(now) {
   view.fullscreen = !!document.fullscreenElement;
   game.debugBots = !!debug;
   draw(ctx, game, view);
+  drawResults(resultsCtx, game, view);
   if (game.status === 'won' && !game.endless) {
-    if (galleryGame !== game) { galleryGame = game; startGallery(() => endPhotos(game), resultsPanel); }
+    if (galleryGame !== game) { galleryGame = game; startGallery(() => endPhotos(game)); }
   } else if (galleryGame) { galleryGame = null; stopGallery(); }
   dodgePhoto();
   if (debug) {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { newGame, update, zoneDone, zoneWonky, flaggedStacks, endPhotos } from '../js/game.js';
+import { newGame, update, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos } from '../js/game.js';
 import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { run, NONE, flatWorld } from './common.js';
@@ -294,6 +294,11 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(g.photo.ok, false, 'damage means no GOOD JOB');
   assert.equal(g.photo.pens[0].crash, 12);
   assert.equal(flaggedStacks(g).length, 1, 'a photographed damaged stack gets the floating "!"');
+  const fl = flaggedStacks(g)[0];
+  assert.ok(fl.damaged && !fl.wonky, 'damage only');
+  assert.equal(flagSymbol(fl, 0), 'damaged');
+  assert.equal(flagSymbol({ wonky: true, damaged: false }, 0), 'wonky');
+  assert.deepEqual([0, 1, 2, 3].map((t) => flagSymbol({ wonky: true, damaged: true }, t + 0.5)), ['wonky', 'damaged', 'wonky', 'damaged'], 'both problems alternate');
   g.stacks[0].pen[0].wide = true;
   assert.equal(flaggedStacks(g).length, 0, 'damage that cannot be repaired is not flagged');
   g.stacks[0].pen[0].wide = false;
@@ -366,6 +371,30 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(d(1), 0, 'fully out: at its real position');
   assert.ok(d(0.5) < 0 && d(0) < d(0.5), 'part way: further into the wall (behind the hatch line)');
   assert.ok(-d(0) >= BOT_R + 0.1, 'hidden: at least from its home position back to the wall face');
+}
+
+// An inspector boxed in by a solid obstacle (e.g. a repair mast) walks out of it instead of sitting stuck.
+{
+  const g = newGame(2, 0);
+  const m = g.repair.mast;
+  g.inspector.show = 1; g.inspector.mode = 'out';
+  g.inspector.x = m.x + m.w / 2; g.inspector.y = m.y + m.h / 2;
+  run(g, NONE, 20);
+  assert.ok(Math.hypot(g.inspector.x - (m.x + m.w / 2), g.inspector.y - (m.y + m.h / 2)) > 1, 'the inspector got out from inside the mast');
+}
+
+// A forklift running over the inspector next to a wall never leaves it inside the wall.
+{
+  const g = newGame(2, 0);
+  const m = g.repair.mast;
+  g.inspector.show = 1; g.inspector.mode = 'out';
+  g.inspector.x = m.x - BOT_R - 0.05; g.inspector.y = m.y + m.h / 2;
+  g.fl.x = g.inspector.x - 1.2; g.fl.y = g.inspector.y; g.fl.a = 0;
+  for (let i = 0; i < 240; i++) {
+    update(g, { up: true }, 1 / 120);
+    const dx = Math.max(m.x - g.inspector.x, 0, g.inspector.x - m.x - m.w), dy = Math.max(m.y - g.inspector.y, 0, g.inspector.y - m.y - m.h);
+    assert.ok(Math.hypot(dx, dy) > 0.01, 'the inspector is never inside the mast');
+  }
 }
 
 console.log('bot tests passed');

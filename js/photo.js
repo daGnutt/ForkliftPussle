@@ -181,12 +181,12 @@ const popups = [];
 const hidePopup = (p) => { clearTimeout(p.timer); clearTimeout(p.fade); p.el.remove(); const i = popups.indexOf(p); if (i >= 0) popups.splice(i, 1); };
 
 // End-of-level gallery: the pictures (a function returning them, ordered longest-dormant stack first, with stable objects; more can turn up while it runs) pop in whenever a corner is free and rotate through
-// the list, each staying GALLERY_MS. `keepClear()` gives screen rects (`{ left, top, right, bottom }`) the popups must stay off (the results panel).
+// the list, each staying GALLERY_MS. The pictures may cover anything (forklift, controls, HUD); the results panel is drawn above them.
 const GALLERY_MS = 6000, GALLERY_GAP = 500;
 let gallery = null;
-export function startGallery(photos, keepClear = () => []) {
+export function startGallery(photos) {
   stopGallery();
-  gallery = { photos, next: 0, nextAt: 0, keepClear };
+  gallery = { photos, next: 0, nextAt: 0 };
 }
 export function stopGallery() {
   if (!gallery) return;
@@ -210,7 +210,7 @@ const place = (q, p) => {
   q.el.style.transform = at(p.x, p.y);
 };
 
-// The first spot (scanning the screen row by row) where a w x h picture clears the blocked rects and the placed pictures (the level is over, so gameplay may be covered), or null.
+// The first spot (scanning the screen row by row) where a w x h picture clears the blocked rects and the placed pictures (the level is over, so anything may be covered), or null.
 function freeSpot(w, h, blocked, placed) {
   const m = MARGIN, g = 8, sx = Math.max(12, w / 4), sy = Math.max(12, h / 4);
   for (let y = m; y + h <= innerHeight - m; y += sy) for (let x = m; x + w <= innerWidth - m; x += sx) {
@@ -225,9 +225,8 @@ function freeSpot(w, h, blocked, placed) {
 export function dodgePhoto() {
   if (typeof document === 'undefined' || (!popups.length && !gallery)) return;
   const c = document.getElementById('game')?.getBoundingClientRect() || { left: 0, top: 0 };
-  const blocked = [...document.querySelectorAll('#touch button, #stick')].map((b) => b.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
-  blocked.push(...hud.map((r) => ({ left: r.left + c.left, top: r.top + c.top, right: r.right + c.left, bottom: r.bottom + c.top })));
-  if (gallery) blocked.push(...gallery.keepClear());
+  const blocked = gallery ? [] : [...document.querySelectorAll('#touch button, #stick')].map((b) => b.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+  if (!gallery) blocked.push(...hud.map((r) => ({ left: r.left + c.left, top: r.top + c.top, right: r.right + c.left, bottom: r.bottom + c.top })));
   const truck = spot && { x: spot.x + c.left, y: spot.y + c.top, r: spot.r };
   const placed = [];
   for (const q of popups) {

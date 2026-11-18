@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { generateLevel, parseSeed, isReachable, BARREL_COLOR } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
+import { repairHintWanted } from '../js/repairhint.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
 import { chaseOrbit } from '../js/gl/camera.js';
@@ -17,7 +18,7 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ, crashAlert, crashBlink, crashProbes } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ, crashAlert, crashBlink, crashProbes, alertTriggers } from '../js/game.js';
 
 import { stackSig } from '../js/bot.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
@@ -615,8 +616,8 @@ console.log('stacks tests passed');
   flatWorld(g);
   const f = g.fl;
   g.carried = [0]; g.carriedPen = [{ crash: 0, sq: 0 }]; g.carriedRots = [0]; g.carriedOffs = [{ x: 0, y: 0 }]; g.carriedRel = 0;
-  g.stacks = [{ x: f.x + 3.3, y: f.y, layers: [1], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
-  f.a = 0; f.speed = 1;
+  g.stacks = [{ x: f.x + 3.6, y: f.y, layers: [1], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
+  f.a = 0; f.speed = 2;
   g.H = 0;
   assert.equal(crashAlert(g), true);
   g.H = 1; // carried above the low stack
@@ -624,27 +625,27 @@ console.log('stacks tests passed');
   g.H = 0; f.speed = 0; // standing still: still sees what is just beyond the fork tips
   g.stacks[0].x = f.x + 2.2;
   assert.equal(crashAlert(g), true);
-  g.stacks[0].x = f.x + 3.3;
+  g.stacks[0].x = f.x + 3.6;
   f.speed = 1; f.gear = 'R';
   assert.equal(crashAlert(g), false, 'not in gear R');
-  f.gear = 'D'; g.stacks[0].x = f.x + 5; // beyond 2 s at 1 tile/s
+  f.gear = 'D'; g.stacks[0].x = f.x + 5; // beyond 1 s at 1 tile/s
   assert.equal(crashAlert(g), false);
-  f.speed = 2.5; // 2 s ahead now reaches it
+  f.speed = 5; // 1 s ahead now reaches it
   assert.equal(crashAlert(g), true);
   f.speed = 0.1; g.stacks[0].x = f.x + 2.2; // slow: still looks 1 tile past the fork tips
   assert.equal(crashAlert(g), true);
-  f.speed = 0; g.stacks[0].x = f.x + 2.4; g.stacks[0].y = f.y + 1.2; // standing still: the close probe fans out 45° beyond the fork tips
-  assert.equal(crashAlert(g), true);
-  g.stacks[0].y = f.y + 2.5;
+  f.speed = 0; g.stacks[0].x = f.x + 2.4; g.stacks[0].y = f.y + 1.2; // the close probe is straight ahead only: a stack off to the side is missed
   assert.equal(crashAlert(g), false);
+  assert.deepEqual(alertTriggers(g), [g.stacks[0]].filter(() => crashAlert(g)));
   g.carried = null; assert.deepEqual(crashProbes(g), [], 'empty forks: no alert');
+  assert.deepEqual(alertTriggers(g), []);
 }
 { // follows the steering arc
   const g = newGame(1);
   flatWorld(g);
   const f = g.fl;
   g.carried = [0]; g.carriedPen = [{ crash: 0, sq: 0 }]; g.carriedRots = [0]; g.carriedOffs = [{ x: 0, y: 0 }]; g.carriedRel = 0;
-  f.a = 0; f.speed = 3; g.H = 0; f.steer = 0;
+  f.a = 0; f.speed = 5; g.H = 0; f.steer = 0;
   g.stacks = [{ x: f.x + 5, y: f.y + 1.6, layers: [1], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
   assert.equal(crashAlert(g), false, 'straight ahead misses a stack off to the side');
   f.steer = 0.2;
@@ -661,4 +662,24 @@ console.log('stacks tests passed');
   const seen = new Set();
   for (let t = 0; t < 1; t += 0.05) { g.clock = t; seen.add(crashBlink(g)); }
   assert.deepEqual([...seen].sort(), [false, true]); // the headlights blink
+}
+
+// Repair-station onboarding hint: one damaged, repairable carried box, until the first repair.
+{
+  const g = newGame(1, 0);
+  assert.ok(g.repair, 'level 1 has a repair station');
+  const carry = (pens) => Object.assign(g, { carried: pens.map(() => 0), carriedPen: pens });
+  assert.equal(repairHintWanted(g, false), false, 'nothing carried');
+  carry([{ crash: 3, sq: 0 }]);
+  assert.equal(repairHintWanted(g, false), true);
+  assert.equal(repairHintWanted(g, true), false, 'never again once something was repaired');
+  carry([{ crash: 3, sq: 0 }, { crash: 3, sq: 0 }]);
+  assert.equal(repairHintWanted(g, false), false, 'only a single box');
+  carry([{ crash: 0, sq: 0 }]);
+  assert.equal(repairHintWanted(g, false), false, 'undamaged');
+  carry([{ crash: 3, sq: 0, wide: true }]);
+  assert.equal(repairHintWanted(g, false), false, 'big boxes cannot be repaired');
+  carry([{ crash: 3, sq: 0 }]);
+  g.repair = null;
+  assert.equal(repairHintWanted(g, false), false, 'no station on this level');
 }
