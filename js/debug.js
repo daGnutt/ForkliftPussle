@@ -1,4 +1,4 @@
-import { zoneDone, score, maxScore } from './game.js';
+import { zoneDone, score, maxScore, crashProbes, crashAlert } from './game.js';
 import { unloadRate, interval, DOCKS } from './endless.js';
 
 import { truckCircles, BOT_R } from './bot.js';
@@ -6,6 +6,7 @@ import { truckCircles, BOT_R } from './bot.js';
 // Debug overlay of the maintenance bots' intentions: the planned route (line + waypoint dots, red while fleeing), the goal, the bot's mode and
 // the forklift circles it steers around. `proj(x, y)` maps floor coordinates to the current canvas units ([sx, sy], or null when not visible); `unit` scales sizes.
 export function drawBotDebug(ctx, g, proj, unit = 1) {
+  drawAlertProbes(ctx, g, proj, unit);
   const bots = [[g.bot, '#ffb84a', 'cleaner'], [g.inspector, '#4ad8ff', 'inspector']].filter(([b]) => b && b.mode === 'out');
   if (!bots.length) return;
   ctx.save();
@@ -49,12 +50,27 @@ export function drawBotDebug(ctx, g, proj, unit = 1) {
   ctx.restore();
 }
 
+// Outlines of the proximity alert's probe areas (see crashProbes); red while the alert is firing.
+export function drawAlertProbes(ctx, g, proj, unit = 1) {
+  const probes = crashProbes(g);
+  if (!probes.length) return;
+  ctx.save();
+  ctx.strokeStyle = crashAlert(g) ? '#ff3a2a' : 'rgba(255,225,74,0.8)'; ctx.lineWidth = unit;
+  for (const poly of probes) {
+    const pts = poly.map((p) => proj(p.x, p.y));
+    if (pts.some((p) => !p)) continue;
+    ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath(); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // 2D overview: the canvas currently carries the world transform, so project through it and draw in device pixels.
 export function drawBotDebugWorld(ctx, g, dpr) {
   const m = ctx.getTransform();
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  drawBotDebug(ctx, g, (x, y) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f], dpr);
+  const proj = (x, y) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f];
+  drawBotDebug(ctx, g, proj, dpr);
   ctx.restore();
 }
 
