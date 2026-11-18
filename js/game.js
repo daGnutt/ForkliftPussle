@@ -265,6 +265,15 @@ export function removeTruck(g, i) {
 // Visual lowering (in box heights) of a just-released stack: it follows the forks of the truck that put it down.
 export const dropLift = (g, st) => (st.dropFrom != null ? Math.max(0, (g.root.trucks[st.dropTruck ?? 0]?.hf ?? 0) - st.dropFrom - stackZ(g, st)) : 0);
 
+// Proximity alert: the carried stack is moving forward and a stack stands just ahead of it at an overlapping height.
+export function crashAlert(g) {
+  if (!g.carried || g.status === 'over' || g.fl.speed < 0.3) return false;
+  const d = 0.5 + g.fl.speed * 0.25, c = toWorld(g.fl, FL.carryX + d / 2, 0);
+  const probe = rectPoly(c.x, c.y, 0.5 + d / 2, halfY(g.carriedPen?.[0]), g.fl.a + g.carriedRel);
+  const lo = g.H, hi = g.H + g.carried.length;
+  return g.stacks.some((s) => { const z = stackZ(g, s); return z < hi && lo < z + s.layers.length && sat(probe, stackPoly(s)); });
+}
+
 // Height (in box levels) of the floor under a point: 1 on the raised conveyor belt (`g.lowWalls`), else 0.
 const zAt = (g, x, y) => (g.lowWalls?.some((w) => x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) ? 1 : 0);
 export const stackZ = (g, s) => zAt(g, s.x, s.y) + (s.fallZ || 0); // fallZ only exists on the drawing copies made by fallView

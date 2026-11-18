@@ -17,7 +17,7 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ, crashAlert } from '../js/game.js';
 
 import { stackSig } from '../js/bot.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
@@ -608,3 +608,19 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 }
 
 console.log('stacks tests passed');
+
+// Proximity alert: only when the carried stack heads into a stack at an overlapping height.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  const f = g.fl;
+  g.carried = [0]; g.carriedPen = [{ crash: 0, sq: 0 }]; g.carriedRots = [0]; g.carriedOffs = [{ x: 0, y: 0 }]; g.carriedRel = 0;
+  g.stacks = [{ x: f.x + 2.3, y: f.y, layers: [1], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
+  f.a = 0; f.speed = 1;
+  g.H = 0;
+  assert.equal(crashAlert(g), true);
+  g.H = 1; // carried above the low stack
+  assert.equal(crashAlert(g), false);
+  g.H = 0; f.speed = -1;
+  assert.equal(crashAlert(g), false);
+}

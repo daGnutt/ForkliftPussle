@@ -671,6 +671,16 @@ export function playImpatientHonk(dur = 0.5, vol = 1) {
   for (const f of [118, 148]) tone(sfxBus, f, t, dur, { type: 'sawtooth', gain: 0.07 * vol, attack: 0.02, release: 0.06, cutoff: 1100 });
 }
 
+// Proximity alert: fast double beep (1500 Hz) while the carried stack is about to hit another stack.
+let alertAt = 0;
+export function setCrashAlert(on) {
+  if (!on || !ctx || ctx.state !== 'running' || !beepOn) return;
+  const t = ctx.currentTime;
+  if (t < alertAt) return;
+  alertAt = t + 0.3;
+  for (const dt of [0, 0.1]) tone(sfxBus, 1500, t + dt, 0.07, { type: 'square', gain: 0.05, attack: 0.005, release: 0.03, cutoff: 3000 });
+}
+
 // Reversing warning: 880 Hz soft sine beep, 0.4 s on / 0.4 s off while backing up.
 function setBeeper(reversing, t, id, vol) {
   let beeper = beepers.get(id);

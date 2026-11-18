@@ -1,5 +1,5 @@
 import './firstplay.js';
-import { newGame, update, endPhotos, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges } from './game.js';
+import { newGame, update, endPhotos, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges, crashAlert } from './game.js';
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput, inTouchControlZone } from './input.js';
 import { createLocal } from './local.js';
@@ -26,7 +26,7 @@ import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
 import { standardPads } from './gamepad.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
-import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playDroid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, isSfxOn, setSfxOn, isBeepOn, setBeepOn, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isEngineOn, setEngineOn, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -1192,6 +1192,7 @@ function frame(now) {
   checkTutorial();
   checkRecord();
   const st = input.state();
+  setCrashAlert(crashAlert(game) && !splashOn && !view.paused);
   setEngine(game.fl.speed, st.up || st.down, game.fl.gear === 'R', game.self);
   game.horn = !!st.horn && !splashOn && !view.paused;
   setHorns(game.trucks.map((t, i) => {

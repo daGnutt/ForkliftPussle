@@ -16,7 +16,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark } from './decals.js';
-import { liftedHf, carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale } from './game.js';
+import { liftedHf, carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashAlert } from './game.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -1411,6 +1411,14 @@ export function draw(ctx, g, view) {
   drawCompass(ctx, g, view, width);
   if (g.endless) drawDockWaits(ctx, g, width, view.touch && width > height);
 
+  if (!view.paused && crashAlert(g) && Math.floor(now / 150) % 2 === 0) { // proximity alert: blinking red frame
+    const w = Math.min(width, height) * 0.05;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,30,30,0.85)';
+    ctx.lineWidth = w;
+    ctx.strokeRect(w / 2, w / 2, width - w, height - w);
+    ctx.restore();
+  }
   if (view.fullscreen && view.flashAt != null && ready) drawReadyFlash(ctx, width, height, (now - view.flashAt) / 1000);
   if (g.status === 'play' && !g.started && !view.startHidden && !view.paused && !view.menuOpen) drawStartBoard(ctx, g, view, width, height);
   if (view.paused) {
