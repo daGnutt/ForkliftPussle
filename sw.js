@@ -3,7 +3,7 @@ const CACHE = 'forklift-v23';
 const CORE = [
   './', 'index.html', 'style.css', 'favicon.svg', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png',
-  ...['audio', 'bot', 'debug', 'decals', 'demo', 'dents', 'disco', 'endless', 'forklift', 'game', 'gamepad', 'geom',
+  ...['audio', 'bot', 'debug', 'decals', 'demo', 'dents', 'disco', 'endless', 'firstplay', 'forklift', 'game', 'gamepad', 'geom',
     'globalscores', 'highscores', 'input', 'level', 'local', 'main', 'midi', 'photo', 'pov', 'render', 'repair',
     'revlight', 'savestate', 'schemepicker', 'splash', 'splash3d', 'testing', 'theme',
     'pov/camera', 'pov/scene', 'pov/face', 'pov/floor', 'pov/overlay',
