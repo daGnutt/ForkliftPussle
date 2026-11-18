@@ -286,12 +286,15 @@ export function crashProbes(g) {
   return probes;
 }
 
-export function crashAlert(g) {
+// The stacks the alert's probes currently hit (at an overlapping height).
+export function alertTriggers(g) {
   const probes = crashProbes(g);
-  if (!probes.length) return false;
+  if (!probes.length) return [];
   const lo = g.H, hi = g.H + g.carried.length;
-  return g.stacks.some((s) => { const z = stackZ(g, s); return z < hi && lo < z + s.layers.length && probes.some((p) => sat(p, stackPoly(s))); });
+  return g.stacks.filter((s) => { const z = stackZ(g, s); return z < hi && lo < z + s.layers.length && probes.some((p) => sat(p, stackPoly(s))); });
 }
+
+export const crashAlert = (g) => alertTriggers(g).length > 0;
 
 // True during the lit half of the alert's blink (the headlights flash red).
 export const crashBlink = (g) => crashAlert(g) && Math.floor((g.clock || 0) * 6) % 2 === 0;

@@ -18,7 +18,7 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ, crashAlert, crashBlink, crashProbes } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ, crashAlert, crashBlink, crashProbes, alertTriggers } from '../js/game.js';
 
 import { stackSig } from '../js/bot.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
@@ -636,7 +636,9 @@ console.log('stacks tests passed');
   assert.equal(crashAlert(g), true);
   f.speed = 0; g.stacks[0].x = f.x + 2.4; g.stacks[0].y = f.y + 1.2; // the close probe is straight ahead only: a stack off to the side is missed
   assert.equal(crashAlert(g), false);
+  assert.deepEqual(alertTriggers(g), [g.stacks[0]].filter(() => crashAlert(g)));
   g.carried = null; assert.deepEqual(crashProbes(g), [], 'empty forks: no alert');
+  assert.deepEqual(alertTriggers(g), []);
 }
 { // follows the steering arc
   const g = newGame(1);
