@@ -615,7 +615,7 @@ console.log('stacks tests passed');
   flatWorld(g);
   const f = g.fl;
   g.carried = [0]; g.carriedPen = [{ crash: 0, sq: 0 }]; g.carriedRots = [0]; g.carriedOffs = [{ x: 0, y: 0 }]; g.carriedRel = 0;
-  g.stacks = [{ x: f.x + 2.3, y: f.y, layers: [1], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
+  g.stacks = [{ x: f.x + 3.3, y: f.y, layers: [1], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
   f.a = 0; f.speed = 1;
   g.H = 0;
   assert.equal(crashAlert(g), true);
