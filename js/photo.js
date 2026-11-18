@@ -156,11 +156,11 @@ const PHOTO_SCALES = [1, 0.75, 0.5];
 const MARGIN = 16, OLD_SCALE = 0.50, POPUP_SCALE = 0.50; // gameplay popups are smaller than the full size; old ones smaller still
 
 // Size factor of a gameplay popup: re-shown (old) pictures are smaller, except on touch devices where all are as large as new ones and TOUCH_BOOST times bigger (phones are too small to read them otherwise).
-const TOUCH_BOOST = 1.75;
+const TOUCH_BOOST = 1.75, TOUCH_SCALES = [1, 0.9]; // on touch, popups barely shrink: a crowded portrait screen is better covered a little than unreadable
 export const popupScale = (old, coarse) => POPUP_SCALE * (coarse ? TOUCH_BOOST : old ? OLD_SCALE : 1);
 
 // Picks the screen corner (0 right-top, 1 left-top, 2 right-bottom, 3 left-bottom) and size factor for a popup of full size w x h: the current corner is kept while it is free, otherwise the first free one; if no corner is free at full size the popup shrinks (PHOTO_SCALES). `blocked` are screen rects to keep clear (touch controls) and `avoid` the rects of other popups (`{ x, y, w, h }`), `truck` the forklift circle.
-export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], avoid = [], truck = null, m = MARGIN }) {
+export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], avoid = [], truck = null, m = MARGIN, scales = PHOTO_SCALES }) {
   const rect = (k, f) => { const rw = w * f, rh = h * f; return { x: k & 1 ? m : vw - rw - m, y: k & 2 ? vh - rh - m : m, w: rw, h: rh }; };
   const hit = (k, f) => {
     const r = rect(k, f);
@@ -168,11 +168,11 @@ export function placePhoto({ vw, vh, w, h, corner = 0, blocked = [], avoid = [],
     if (avoid.some((b) => r.x < b.x + b.w + 8 && r.x + r.w > b.x - 8 && r.y < b.y + b.h + 8 && r.y + r.h > b.y - 8)) return true;
     return !!truck && Math.hypot(truck.x - Math.max(r.x, Math.min(truck.x, r.x + r.w)), truck.y - Math.max(r.y, Math.min(truck.y, r.y + r.h))) < truck.r + 24;
   };
-  for (const f of PHOTO_SCALES) {
+  for (const f of scales) {
     const k = hit(corner, f) ? [0, 1, 2, 3].find((c) => !hit(c, f)) : corner;
     if (k !== undefined) return { corner: k, scale: f, fits: true, ...rect(k, f) };
   }
-  return { corner, fits: false, scale: PHOTO_SCALES.at(-1), ...rect(corner, PHOTO_SCALES.at(-1)) };
+  return { corner, fits: false, scale: scales.at(-1), ...rect(corner, scales.at(-1)) };
 }
 
 // Several pictures can be on screen at once (at most MAX_POPUPS, the oldest goes first); each is its own canvas with its own timers.
@@ -233,7 +233,7 @@ export function dodgePhoto() {
   for (const q of popups) {
     if (q.fixed) { placed.push(q.rect); continue; } // gallery pictures keep the spot they were given
     const w = q.el.offsetWidth / q.scale, h = q.el.offsetHeight / q.scale; // already includes q.k
-    const p = placePhoto({ vw: innerWidth, vh: innerHeight, w, h, corner: q.corner, blocked, avoid: placed, truck });
+    const p = placePhoto({ vw: innerWidth, vh: innerHeight, w, h, corner: q.corner, blocked, avoid: placed, truck, scales: matchMedia('(pointer: coarse)').matches && !gallery ? TOUCH_SCALES : PHOTO_SCALES });
     place(q, p);
     placed.push(p);
   }
