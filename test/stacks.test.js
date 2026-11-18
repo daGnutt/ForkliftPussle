@@ -616,8 +616,8 @@ console.log('stacks tests passed');
   flatWorld(g);
   const f = g.fl;
   g.carried = [0]; g.carriedPen = [{ crash: 0, sq: 0 }]; g.carriedRots = [0]; g.carriedOffs = [{ x: 0, y: 0 }]; g.carriedRel = 0;
-  g.stacks = [{ x: f.x + 3.3, y: f.y, layers: [1], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
-  f.a = 0; f.speed = 1;
+  g.stacks = [{ x: f.x + 3.6, y: f.y, layers: [1], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
+  f.a = 0; f.speed = 2;
   g.H = 0;
   assert.equal(crashAlert(g), true);
   g.H = 1; // carried above the low stack
@@ -625,12 +625,12 @@ console.log('stacks tests passed');
   g.H = 0; f.speed = 0; // standing still: still sees what is just beyond the fork tips
   g.stacks[0].x = f.x + 2.2;
   assert.equal(crashAlert(g), true);
-  g.stacks[0].x = f.x + 3.3;
+  g.stacks[0].x = f.x + 3.6;
   f.speed = 1; f.gear = 'R';
   assert.equal(crashAlert(g), false, 'not in gear R');
-  f.gear = 'D'; g.stacks[0].x = f.x + 5; // beyond 2 s at 1 tile/s
+  f.gear = 'D'; g.stacks[0].x = f.x + 5; // beyond 1 s at 1 tile/s
   assert.equal(crashAlert(g), false);
-  f.speed = 2.5; // 2 s ahead now reaches it
+  f.speed = 5; // 1 s ahead now reaches it
   assert.equal(crashAlert(g), true);
   f.speed = 0.1; g.stacks[0].x = f.x + 2.2; // slow: still looks 1 tile past the fork tips
   assert.equal(crashAlert(g), true);
@@ -643,7 +643,7 @@ console.log('stacks tests passed');
   flatWorld(g);
   const f = g.fl;
   g.carried = [0]; g.carriedPen = [{ crash: 0, sq: 0 }]; g.carriedRots = [0]; g.carriedOffs = [{ x: 0, y: 0 }]; g.carriedRel = 0;
-  f.a = 0; f.speed = 3; g.H = 0; f.steer = 0;
+  f.a = 0; f.speed = 5; g.H = 0; f.steer = 0;
   g.stacks = [{ x: f.x + 5, y: f.y + 1.6, layers: [1], rots: [0], pen: [{ crash: 0, sq: 0 }], a: 0 }];
   assert.equal(crashAlert(g), false, 'straight ahead misses a stack off to the side');
   f.steer = 0.2;

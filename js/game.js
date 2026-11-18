@@ -267,7 +267,7 @@ export const dropLift = (g, st) => (st.dropFrom != null ? Math.max(0, (g.root.tr
 
 // Proximity alert (any gear but R, occupied forks only, even when coasting or standing still): the area the carried stack sweeps in the next ALERT_AHEAD seconds along the current steering arc,
 // plus a close probe reaching at least ALERT_MIN_REACH tiles beyond the fork tips. Returns the probe polygons (also drawn in debug mode).
-const ALERT_AHEAD = 2, ALERT_STEP = 0.2, ALERT_MIN_REACH = 1, ALERT_MAX_TURN = Math.PI / 4; // the sweep stops once the heading has turned 45° either way (90° in total)
+const ALERT_AHEAD = 1, ALERT_STEP = 0.2, ALERT_MIN_REACH = 1, ALERT_MAX_TURN = Math.PI / 4; // the sweep stops once the heading has turned 45° either way (90° in total)
 export function crashProbes(g) {
   const f = g.fl;
   if (!g.carried || g.status === 'over' || f.gear === 'R') return [];
