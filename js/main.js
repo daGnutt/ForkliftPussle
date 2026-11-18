@@ -493,14 +493,14 @@ const TUTORIAL = [
     : `Press <b>${wasd() ? 'E' : 'A'}</b> to raise the forks and <b>${wasd() ? 'Q' : 'Z'}</b> to lower them. Drive the forks in under a stack to lift it.`; } },
   { done: 'zone', html: isTouch
     ? 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Restart if you get stuck.'
-    : 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Game → Restart level if you get stuck.' },
+    : 'Set a stack down on the zone of the matching colour (exactly the shown count), then park on the marked spot. Use <b>Menu</b> → Restart level if you get stuck.' },
   { done: 'cab', html: 'For a more immersive experience, press <b>Tab</b> or <b>M</b> to switch to the cab view (and again to return to the overview).' },
   { done: 'info', get html() { return isTouch
     ? 'Hold two fingers on the canvas to <b>honk</b>. Open <b>Menu</b> → <b>Info</b> for scoring and more tips.'
     : 'Extras: <b>C</b> chase camera, <b>,</b>/<b>.</b> rotate the camera (or drag it), hold <b>H</b> to honk, <b>F</b> full screen. Press <b>P</b> / <b>Esc</b> for the menu → <b>Info</b> for scoring and more tips.'; },
     extra: () => (theme().dark
-      ? ' Prefer a brighter scene? Switch <b>Colour mode</b> to <b>Light</b> under Visuals.'
-      : ' Try <b>Dark</b> colour mode under Visuals for headlights, ambient lights and disco lights.') },
+      ? ' Prefer a brighter scene? Switch <b>Colour mode</b> to <b>Light</b> under Graphics.'
+      : ' Try <b>Dark</b> colour mode under Graphics for headlights, ambient lights and disco lights.') },
 ];
 if (isTouch) TUTORIAL.splice(3, 1);
 const TUT_MIN_MS = 2500, TUT_INFO_MS = 20000;
@@ -1085,7 +1085,7 @@ window.addEventListener('keydown', (e) => {
   if (typing || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
   const actions = {
     KeyM: () => { muteOpt.checked = !muteOpt.checked; muteOpt.dispatchEvent(new Event('change')); },
-    KeyG: () => { showPage('game'); menuLevel.focus(); menuLevel.select(); },
+    KeyG: () => { showPage('play'); menuLevel.focus(); menuLevel.select(); },
   };
   if (actions[e.code]) { e.preventDefault(); actions[e.code](); }
 }, true);
@@ -1150,7 +1150,7 @@ applyPause();
 
 const debug = debugEnabled(location.search) ? createDebug() : null;
 initTestingBanner();
-if (!isTesting()) menuEl.querySelector('[data-go="state"]')?.remove();
+if (!isTesting()) document.getElementById('stateSection')?.remove();
 const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 if (new URLSearchParams(location.search).has('endless')) loadEndless();
