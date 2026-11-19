@@ -1088,7 +1088,7 @@ function drawStatusStrip(ctx, g, view, mm, title, bestText, globalText, hint, wi
   line(formatTime(g.time), lx, 0, '#eee', 'right', lw);
   line(globalText, rx, 3, '#c5e1a5', 'left', rw);
   line(bestText, rx, 2, '#b3e5fc', 'left', rw);
-  line(`Damage −${lost.crash} (locked)`, rx, 1, '#ef9a9a', 'left', rw);
+  line(`Damage −${lost.repairableCrash} repairable, −${lost.permanentCrash} permanent`, rx, 1, '#ef9a9a', 'left', rw);
   line(`Placement −${lost.square} (fixable)`, rx, 0, '#ffe082', 'left', rw);
   if (hint) {
     ctx.font = 'bold 14px sans-serif';

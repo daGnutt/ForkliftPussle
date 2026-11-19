@@ -28,7 +28,7 @@ import { Mesh } from '../js/gl/mesh.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
-// The desktop overview shows both kinds of damage, separate from placement.
+// The desktop overview and touch-landscape strip separate both kinds of damage from placement.
 {
   const g = newGame(1);
   g.started = true;
@@ -48,13 +48,18 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   globalThis.OffscreenCanvas = class { getContext() { return ctx; } };
   try {
     draw(ctx, g, { width: 1200, height: 800, dpr: 1 });
+    assert.ok(texts.includes('Damage: −2 repairable, −7 permanent'));
+    assert.ok(texts.some((text) => text.startsWith('Placement −')));
+    assert.ok(!texts.includes('Damage −2 (locked)'));
+
+    texts.length = 0;
+    draw(ctx, g, { width: 1200, height: 800, dpr: 1, touch: true });
+    assert.ok(texts.includes('Damage −2 repairable, −7 permanent'));
+    assert.ok(texts.some((text) => text.startsWith('Placement −')));
   } finally {
     if (previous === undefined) delete globalThis.OffscreenCanvas;
     else globalThis.OffscreenCanvas = previous;
   }
-  assert.ok(texts.includes('Damage: −2 repairable, −7 permanent'));
-  assert.ok(texts.some((text) => text.startsWith('Placement −')));
-  assert.ok(!texts.includes('Damage −2 (locked)'));
 }
 
 // The software cabin view renders with and without the repair-station hint.
