@@ -29,7 +29,7 @@ import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
 import { batterySaverOption, canvasDpr, shouldDraw } from './power.js';
-import { startAudio, playDroid as droid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
+import { startAudio, playDroid as droid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, setPageHidden, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
 const resultsCanvas = document.getElementById('results'); // end-of-level panel, stacked above the gallery photos
@@ -1187,7 +1187,11 @@ function applyPause() {
 const pauseOnBlur = () => { if (!splashOn && !recordOpen && !mp && lostFocus()) toggleMenu(true); };
 window.addEventListener('blur', pauseOnBlur);
 window.addEventListener('focus', applyPause);
-document.addEventListener('visibilitychange', pauseOnBlur);
+document.addEventListener('visibilitychange', () => {
+  setPageHidden(document.hidden);
+  pauseOnBlur();
+});
+setPageHidden(document.hidden);
 pauseOnBlur();
 applyPause();
 

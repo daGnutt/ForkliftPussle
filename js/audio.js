@@ -15,6 +15,7 @@ let randomOn = localStorage.getItem(RANDOM_KEY) !== '0';
 let onTrackChange = null;
 let timer = null, noiseBuf = null;
 let trackIdx = 0, trackBus = null;
+let pageHidden = false, audioStarted = false;
 const engines = new Map(); // truck id -> engine voice
 const beepers = new Map(); // truck id -> reversing beeper voice
 
@@ -330,22 +331,35 @@ export function setMusicTrack(id) {
 }
 
 function tick() {
-  if (ctx) midiTick();
+  if (ctx && !pageHidden) midiTick();
+}
+
+function startScheduler() {
+  if (!timer && !pageHidden) {
+    tick();
+    timer = setInterval(tick, 100);
+  }
+}
+
+function resumeAudio() {
+  if (!ctx || !audioStarted || pageHidden) return;
+  if (ctx.state === 'suspended') {
+    // A browser may block an automatic resume; the next user gesture calls startAudio again.
+    ctx.resume().then(startScheduler, () => {});
+  } else {
+    startScheduler();
+  }
 }
 
 // Call from a user gesture (browsers block audio before the first key press).
 export function startAudio() {
   init();
   if (!ctx) return;
-  if (ctx.state === 'suspended') ctx.resume();
-  if (!timer) {
-    tick();
-    timer = setInterval(tick, 100);
-  }
+  audioStarted = true;
+  resumeAudio();
 }
 
-// Silence everything (focus lost / manual pause) by suspending the audio clock.
-// Mutes the sound effects (pause menu / focus lost); the music keeps playing.
+// Mute sound effects during a pause; the music keeps playing.
 let silenced = false;
 const masterGain = () => (allMuted ? 0 : MASTER_VOL * vols.master);
 function applyVolumes() {
@@ -363,6 +377,21 @@ export function setSilenced(s) {
   if (ctx) {
     sfxMix.gain.setTargetAtTime(silenced ? 0 : SFX_VOL, ctx.currentTime, 0.02);
     if (silenced && !wasSilenced) stopContinuousEffects();
+  }
+}
+
+export function setPageHidden(hidden) {
+  hidden = !!hidden;
+  if (hidden === pageHidden) return;
+  pageHidden = hidden;
+  if (pageHidden) {
+    if (timer) clearInterval(timer);
+    timer = null;
+    if (ctx && ctx.state !== 'suspended') {
+      ctx.suspend().catch((err) => console.error('Unable to suspend audio context', err));
+    }
+  } else {
+    resumeAudio();
   }
 }
 
