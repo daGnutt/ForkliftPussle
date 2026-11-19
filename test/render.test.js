@@ -12,7 +12,7 @@ import { popupScale, placePhoto, drawPhoto, boxStatus, issues, stripHeight, scor
 import { projectPoint } from '../js/gl/mat.js';
 import { oilDropMark } from '../js/decals.js';
 import { setThemeMode } from '../js/theme.js';
-import { drawForkGauge } from '../js/render.js';
+import { draw, drawForkGauge } from '../js/render.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
 import { createHost } from '../js/net/host.js';
@@ -26,6 +26,35 @@ import { addParticles, setParticlesEnabled, shouldSpawnSetdownDust } from '../js
 import { Mesh } from '../js/gl/mesh.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
+
+// The desktop overview shows both kinds of damage, separate from placement.
+{
+  const g = newGame(1);
+  g.started = true;
+  g.stacks[0].pen[0].crash = 2;
+  const wide = wonkyStack({ x: 4, y: 4, layers: [0], wide: true });
+  wide.pen[0].crash = 7;
+  g.stacks.push(wide);
+  const texts = [];
+  const canvas = { width: 1200, height: 800 };
+  const ctx = new Proxy({}, {
+    get: (t, k) => k === 'canvas' ? canvas : k === 'fillText' ? (text) => texts.push(text)
+      : k === 'measureText' ? (text) => ({ width: text.length * 7 })
+        : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
+    set: () => true,
+  });
+  const previous = globalThis.OffscreenCanvas;
+  globalThis.OffscreenCanvas = class { getContext() { return ctx; } };
+  try {
+    draw(ctx, g, { width: 1200, height: 800, dpr: 1 });
+  } finally {
+    if (previous === undefined) delete globalThis.OffscreenCanvas;
+    else globalThis.OffscreenCanvas = previous;
+  }
+  assert.ok(texts.includes('Damage: −2 repairable, −7 permanent'));
+  assert.ok(texts.some((text) => text.startsWith('Placement −')));
+  assert.ok(!texts.includes('Damage −2 (locked)'));
+}
 
 // Set-down dust is suppressed when its landing point is inside any drop zone.
 {
