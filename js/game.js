@@ -766,7 +766,13 @@ function resolve(g) {
         const ws = 1 / ((s.layers.length - from) * boxMass(s));
         if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && relH(g, s) > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? relH(g, s) : s.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: s.rots });
         if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 's', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
-        if (!sh.carried && !sh.tine && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) g.aligning?.add(s);
+        if (!sh.carried && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) {
+          const h = relH(g, s), from = sh.tine ? h : 0, to = Math.min(s.layers.length - 1, h + 1);
+          if (from <= to) {
+            const range = g.aligning?.get(s);
+            g.aligning?.set(s, { from: Math.min(range?.from ?? from, from), to: Math.max(range?.to ?? to, to) });
+          }
+        }
         const d = m.depth * 1.001;
         moveF(m.x * d * (wf / (wf + ws)), m.y * d * (wf / (wf + ws)));
         if (!sh.tine && Math.abs(f.speed) >= CRASH_MIN_SPEED) {
@@ -835,16 +841,18 @@ function resolve(g) {
   }
 }
 
-// Driving slowly into a stack turns every box square to the forklift's heading.
-function alignStack(g, s, dt, heading = g.fl.a) {
+// A gentle contact squares only the stack boxes reached by the pushing forklift part.
+function alignStack(g, s, dt, heading = g.fl.a, from = 0, to = s.layers.length - 1) {
   const q = Math.PI / 2, step = ALIGN_RATE * dt;
   const turn = (a) => {
     const diff = ((heading - a) % q + q * 1.5) % q - q / 2; // signed distance to nearest square angle
     return Math.max(-step, Math.min(step, diff));
   };
   ensure(s);
-  s.rots = s.rots.map((r) => r + turn(r));
-  s.a = (s.a || 0) + turn(s.a || 0);
+  const topTurn = turn(s.rots[to]);
+  for (let i = from; i <= to; i++) s.rots[i] += turn(s.rots[i]);
+  for (let i = to + 1; i < s.rots.length; i++) s.rots[i] += topTurn;
+  if (from === 0) s.a = (s.a || 0) + turn(s.a || 0);
 }
 
 // A pallet on the tines is held sideways with the forks (the whole stack moves) but can still slide along them;
@@ -1140,14 +1148,14 @@ function stepTruck(g, input, dt) {
   if (f.speed !== 0) g.started = true; // the level timer starts when a truck first moves
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;
-  g.aligning = new Set();
+  g.aligning = new Map();
   g.wallAligning = new Set();
   g.carriedAligning = false;
   if (forked && f.a !== prevA) glideWithForks(g, forked, forkedY, f.a - prevA, relH(g, forked));
   const speed0 = f.speed;
   resolve(g);
   impactKick(g, speed0, dt);
-  for (const s of g.aligning) alignStack(g, s, dt);
+  for (const [s, range] of g.aligning) alignStack(g, s, dt, g.fl.a, range.from, range.to);
   for (const s of g.wallAligning) alignStack(g, s, dt, 0); // walls are axis-aligned
   if (g.carried && g.carriedAligning) {
     const q = Math.PI / 2, diff = ((0 - g.carriedRel - f.a) % q + q * 1.5) % q - q / 2;
