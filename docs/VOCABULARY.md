@@ -102,7 +102,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Dent / crumple** | Cosmetic damage shape on a box | `dents.js` |
 | **Final score** | Score minus time penalty, submitted to the high scores | `finalScore` |
 | **Local / global top list** | Local top 10 / online top 10 per seed+level | `highscores.js`, `globalscores.js` |
-| **Endless save** | Autosaved endless game in progress, resumed by Start endless after a browser restart; game over clears it | `forklift-endless-state`, `serializeEndless` |
+| **Endless save** | Endless game checkpoint saved on opening the pause menu or starting/loading a run, resumed by Start endless after a browser restart; game over clears it | `forklift-endless-state`, `serializeEndless` |
 | **Skid marks / smoke** | Splash-animation effects | `splash.js` |
 
 ## Decals (cosmetic)
@@ -124,7 +124,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 
 | Term | Meaning | In code |
 |------|---------|---------|
-| **Battery Saver** | Graphics-menu section with independent options to lower resolution, limit drawing to 30 fps, reduce decorative effects and save less often; the frame-rate limit is off by default | `forklift-battery-saver-resolution`, `forklift-battery-saver-frame-rate`, `forklift-battery-saver-effects`, `forklift-battery-saver-autosave` |
+| **Battery Saver** | Graphics-menu section with independent options to lower resolution, limit drawing to 30 fps and reduce decorative effects; the frame-rate limit is off by default | `forklift-battery-saver-resolution`, `forklift-battery-saver-frame-rate`, `forklift-battery-saver-effects` |
 
 ## Views and cameras
 

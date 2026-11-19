@@ -28,7 +28,7 @@ import { startSplash3d } from './splash3d.js';
 import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
-import { batterySaverOption, canvasDpr, shouldDraw, autosaveIntervalMs } from './power.js';
+import { batterySaverOption, canvasDpr, shouldDraw } from './power.js';
 import { startAudio, playDroid as droid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
@@ -40,7 +40,6 @@ const isTouch = matchMedia('(pointer: coarse)').matches;
 let lowerResolutionOn = batterySaverOption(localStorage, 'resolution', isTouch);
 let limitFrameRateOn = batterySaverOption(localStorage, 'frame-rate', isTouch);
 let reduceEffectsOn = batterySaverOption(localStorage, 'effects', isTouch);
-let saveLessOftenOn = batterySaverOption(localStorage, 'autosave', isTouch);
 let rafPending = false;
 function scheduleFrame() {
   if (!rafPending && !view.paused) { rafPending = true; requestAnimationFrame(frame); }
@@ -657,6 +656,7 @@ function startGame(endless = false) {
   showTutorial();
   setFullscreen(true);
   splashOn = false;
+  saveState();
   applyPause();
   splash.classList.add('hide');
   last = performance.now();
@@ -829,7 +829,6 @@ const decalOpt = document.getElementById('decalOpt');
 const batteryResolutionOpt = document.getElementById('batteryResolutionOpt');
 const batteryFrameRateOpt = document.getElementById('batteryFrameRateOpt');
 const batteryEffectsOpt = document.getElementById('batteryEffectsOpt');
-const batteryAutosaveOpt = document.getElementById('batteryAutosaveOpt');
 const glOpt = document.getElementById('glOpt');
 const glParam = new URLSearchParams(location.search).get('gl');
 setGlEnabled(glParam ? glParam !== '0' : localStorage.getItem('forklift-gl-off') !== '1');
@@ -900,6 +899,7 @@ function padMenuNav(dir) {
   }
 }
 function toggleMenu(open) {
+  if (open && !view.menuOpen) saveState();
   view.menuOpen = open;
   setFullscreen(!open);
   menuEl.classList.toggle('hide', !open);
@@ -910,7 +910,6 @@ function toggleMenu(open) {
     batteryResolutionOpt.checked = lowerResolutionOn;
     batteryFrameRateOpt.checked = limitFrameRateOn;
     batteryEffectsOpt.checked = reduceEffectsOn;
-    batteryAutosaveOpt.checked = saveLessOftenOn;
     decalOpt.checked = decalsPreference;
     glOpt.checked = glEnabled();
     discoOpt.checked = discoPreference;
@@ -964,10 +963,6 @@ batteryEffectsOpt.addEventListener('change', () => {
     clearPhotos();
     galleryGame = null;
   }
-});
-batteryAutosaveOpt.addEventListener('change', () => {
-  saveLessOftenOn = batteryAutosaveOpt.checked;
-  saveBatteryOption('autosave', saveLessOftenOn);
 });
 glOpt.addEventListener('change', () => {
   setGlEnabled(glOpt.checked);
@@ -1180,16 +1175,6 @@ document.getElementById('stateImport').addEventListener('click', async () => {
   saveState();
   toggleMenu(false);
 });
-window.addEventListener('pagehide', saveState);
-let lastAutosave = performance.now();
-setInterval(() => {
-  const now = performance.now();
-  if (!splashOn && !view.paused && now - lastAutosave >= autosaveIntervalMs(saveLessOftenOn)) {
-    saveState();
-    lastAutosave = now;
-  }
-}, 1000);
-
 const lostFocus = () => document.hidden || !document.hasFocus();
 function applyPause() {
   const p = !!view.menuOpen && !mp; // the others keep driving, so a party never pauses

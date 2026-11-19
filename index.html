@@ -63,7 +63,6 @@
         <label title="Cap the canvas at DPR 1 and about 0.9 million pixels; on by default on touch devices"><input type="checkbox" id="batteryResolutionOpt"> Lower resolution</label>
         <label title="Limit game and splash drawing to 30 fps; off by default to keep gameplay smooth"><input type="checkbox" id="batteryFrameRateOpt"> Limit frame rate to 30 fps</label>
         <label title="Reduce decorative effects; on by default on touch devices"><input type="checkbox" id="batteryEffectsOpt"> Reduce decorative effects</label>
-        <label title="Save progress every five seconds instead of every second; on by default on touch devices"><input type="checkbox" id="batteryAutosaveOpt"> Save less often</label>
         <label class="row"><span>Colour mode</span> <select id="themeSel"><option value="auto">Follow OS</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
         <label><input type="checkbox" id="decalOpt"> Decals</label>
         <label><input type="checkbox" id="glOpt"> 3D graphics (WebGL)</label>
@@ -236,7 +235,7 @@
       (await caches.keys()).forEach((k) => caches.delete(k));
       return;
     }
-    // Reload once when a new worker takes over (state autosaves); skip the first install.
+    // Reload once when a new worker takes over; skip the first install.
     let reloaded = false, had = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !reloaded) { reloaded = true; location.reload(); } had = true; });
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((r) => {
