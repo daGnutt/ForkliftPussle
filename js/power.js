@@ -17,7 +17,3 @@ export function canvasDpr(deviceDpr, width, height, lowerResolution) {
 export function shouldDraw(now, lastDraw, limitFrameRate) {
   return !limitFrameRate || now - lastDraw >= 1000 / 30;
 }
-
-export function autosaveIntervalMs(saveLessOften) {
-  return saveLessOften ? 5000 : 1000;
-}

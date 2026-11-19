@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { batterySaverOption, canvasDpr, shouldDraw, autosaveIntervalMs } from '../js/power.js';
+import { batterySaverOption, canvasDpr, shouldDraw } from '../js/power.js';
 
 const storage = (values = {}) => ({ getItem: (key) => values[key] ?? null });
 
@@ -23,11 +23,9 @@ const storage = (values = {}) => ({ getItem: (key) => values[key] ?? null });
   assert.equal(canvasDpr(3, 2000, 1000, false), Math.sqrt(3e6 / 2e6));
 }
 
-// Frame-rate limit and save cadence are independent.
+// The frame-rate limit only skips draws inside the 30 fps interval.
 {
   assert.equal(shouldDraw(0, 0, true), false);
   assert.equal(shouldDraw(1000 / 30, 0, true), true);
   assert.equal(shouldDraw(1, 0, false), true);
-  assert.equal(autosaveIntervalMs(true), 5000);
-  assert.equal(autosaveIntervalMs(false), 1000);
 }
