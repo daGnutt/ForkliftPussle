@@ -2,6 +2,7 @@ import { createDemo } from './demo.js';
 import { overviewCamera, chaseCamera, clearChaseTilt, CHASE_TILT } from './gl/camera.js';
 import { drawGl, glAvailable } from './gl/renderer.js';
 import { toWorld, FL } from './forklift.js';
+import { startVisibleLoop } from './visible-loop.js';
 
 // WebGL splash diorama: the scripted forklift of demo.js shuffles stacks round a small room while the camera cuts between
 // an orbiting overview, the chase camera and a chase camera swinging round the truck. Returns false (nothing started) when WebGL is unavailable, so
@@ -15,7 +16,10 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 export function startSplash3d(canvas, isActive, isLowResolution = () => false, isFrameRateLimited = () => false) {
   if (!glAvailable()) return false;
   const demo = createDemo(), g = demo.g;
-  for (let i = 0; i < 60 * 3; i++) demo.step(1 / 60); // already mid-job when the splash opens
+  let preDriven = !document.hidden;
+  if (preDriven) {
+    for (let i = 0; i < 60 * 3; i++) demo.step(1 / 60); // already mid-job when the splash opens
+  }
   let shot = 0, shotT = 0, last = null, heading = g.fl.a, clock = 0, saverAge = 0;
   const ctx = canvas.getContext('2d');
 
@@ -47,30 +51,31 @@ export function startSplash3d(canvas, isActive, isLowResolution = () => false, i
     return true;
   }
 
-  if (!draw()) return false;
+  if (!document.hidden && !draw()) return false;
   canvas.hidden = false;
 
-  const schedule = (delay = 0) => {
-    if (delay) setTimeout(() => requestAnimationFrame(frame), delay);
-    else requestAnimationFrame(frame);
-  };
-  function frame(now) {
-    if (!isActive()) return;
+  startVisibleLoop(isActive, (now) => {
+    if (!preDriven) {
+      for (let i = 0; i < 60 * 3; i++) demo.step(1 / 60);
+      preDriven = true;
+    }
     const saver = isFrameRateLimited();
-    if (saver && saverAge >= 20) { schedule(1000); return; }
+    if (saver && saverAge >= 20) return 1000;
     const dt = last === null ? 0 : Math.min(0.05, (now - last) / 1000);
     last = now;
     if (saver) saverAge += dt;
     else saverAge = 0;
-    if (saver && saverAge >= 20) { schedule(1000); return; }
+    if (saver && saverAge >= 20) return 1000;
     clock += dt;
     demo.step(dt);
     heading += wrap(g.fl.a - heading) * (1 - Math.exp(-dt / 0.35));
     shotT += dt;
     if (shotT >= SHOTS[shot].secs) { shotT = 0; shot = (shot + 1) % SHOTS.length; }
     draw();
-    schedule(saver ? 1000 / 30 : 0);
-  }
-  requestAnimationFrame(frame);
+    return saver ? 1000 / 30 : 0;
+  }, () => {
+    last = null;
+    saverAge = 0;
+  });
   return true;
 }

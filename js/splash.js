@@ -1,5 +1,7 @@
 // Splash animation: a forklift drives a figure eight and drifts through the two end turns,
 // leaving skidmarks and tyre smoke. Purely decorative; independent of the game state.
+import { startVisibleLoop } from './visible-loop.js';
+
 const W = 440, H = 190;
 const A = 165, B = 90; // x = A sin t, y = B sin t cos t (Gerono lemniscate)
 const SPEED = 210;     // px/s along the path
@@ -80,6 +82,7 @@ export function startSplashAnimation(canvas, isActive, isLowResolution = () => f
   sctx.strokeStyle = 'rgba(20,20,20,.13)';
   const smoke = []; // {x,y,vx,vy,born,r}
   let t = 0, slip = 0, last = null, markAcc = 0, clock = 0, saverAge = 0;
+  let preDriven = !document.hidden;
   let prev = null, f = null;
 
   function step(dt) {
@@ -105,23 +108,26 @@ export function startSplashAnimation(canvas, isActive, isLowResolution = () => f
     while (smoke.length && clock - smoke[0].born > 2) smoke.shift();
   }
 
-  for (let i = 0; i < 60 * 14; i++) step(1 / 60);
+  if (preDriven) {
+    for (let i = 0; i < 60 * 14; i++) step(1 / 60);
+  }
   smoke.length = 0;
   prev = null;
 
-  const schedule = (delay = 0) => {
-    if (delay) setTimeout(() => requestAnimationFrame(frame), delay);
-    else requestAnimationFrame(frame);
-  };
-  function frame(now) {
-    if (!isActive()) return;
+  startVisibleLoop(isActive, (now) => {
+    if (!preDriven) {
+      for (let i = 0; i < 60 * 14; i++) step(1 / 60);
+      smoke.length = 0;
+      prev = null;
+      preDriven = true;
+    }
     const saver = isFrameRateLimited();
-    if (saver && saverAge >= 20) { schedule(1000); return; }
+    if (saver && saverAge >= 20) return 1000;
     const dt = last === null ? 0 : Math.min(0.05, (now - last) / 1000);
     last = now;
     if (saver) saverAge += dt;
     else saverAge = 0;
-    if (saver && saverAge >= 20) { schedule(1000); return; }
+    if (saver && saverAge >= 20) return 1000;
     step(dt);
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -136,7 +142,9 @@ export function startSplashAnimation(canvas, isActive, isLowResolution = () => f
       ctx.arc(s.x + s.vx * (clock - s.born), s.y + s.vy * (clock - s.born), s.r + a * 14, 0, Math.PI * 2);
       ctx.fill();
     }
-    schedule(saver ? 1000 / 30 : 0);
-  }
-  requestAnimationFrame(frame);
+    return saver ? 1000 / 30 : 0;
+  }, () => {
+    last = null;
+    saverAge = 0;
+  });
 }
