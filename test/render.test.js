@@ -4,7 +4,7 @@ import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
-import { chaseOrbit } from '../js/gl/camera.js';
+import { chaseOrbit, lookYawDelta } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
@@ -13,6 +13,7 @@ import { projectPoint } from '../js/gl/mat.js';
 import { oilDropMark } from '../js/decals.js';
 import { setThemeMode } from '../js/theme.js';
 import { draw, drawForkGauge } from '../js/render.js';
+import { drawHintArrow, repairHintOn, setRepairHint } from '../js/repairhint.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
 import { createHost } from '../js/net/host.js';
@@ -54,6 +55,44 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(texts.includes('Damage: −2 repairable, −7 permanent'));
   assert.ok(texts.some((text) => text.startsWith('Placement −')));
   assert.ok(!texts.includes('Damage −2 (locked)'));
+}
+
+// The software cabin view renders with and without the repair-station hint.
+{
+  const g = newGame(1), fills = [];
+  assert.ok(g.repair, 'the test level has a repair station');
+  const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
+    get: (t, k) => k in t ? t[k] : k === 'fill' ? () => fills.push(t.fillStyle)
+      : k === 'measureText' ? (text) => ({ width: text.length * 7 })
+        : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
+  });
+  const hint = repairHintOn();
+  try {
+    for (const on of [false, true]) {
+      setRepairHint(on);
+      fills.length = 0;
+      draw(ctx, g, { width: 1200, height: 800, dpr: 1, povBig: true });
+      assert.equal(fills.includes('#42a5f5'), on, 'the cabin repair arrow follows the hint state');
+    }
+  } finally {
+    setRepairHint(hint);
+  }
+}
+
+// The repair arrow's outline leaves its blue shaft visible in world and pixel units.
+{
+  for (const size of [0.5, 20]) {
+    const points = [];
+    let outline;
+    const ctx = new Proxy({
+      moveTo: (x, y) => points.push([x, y]),
+      lineTo: (x, y) => points.push([x, y]),
+      stroke() { outline = this.lineWidth; },
+    }, { get: (t, k) => k in t ? t[k] : () => {} });
+    drawHintArrow(ctx, 0, 0, 0, size, 0);
+    const shaftWidth = Math.abs(points[3][1] - points[4][1]);
+    assert.ok(outline > 0 && outline < shaftWidth, `outline must not cover the shaft at size ${size}`);
+  }
 }
 
 // Set-down dust is suppressed when its landing point is inside any drop zone.
@@ -242,6 +281,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 {
   const g = newGame(3);
   g.fl.x = 6; g.fl.y = 5; g.fl.a = 0;
+  assert.ok(lookYawDelta(1, true) > 0 && lookYawDelta(-1, true) < 0, 'cabin right/left inputs turn the view in the matching direction');
+  assert.equal(lookYawDelta(1, false), -1, 'overview drag direction is unchanged');
   const cam = povCamera(g, 800, 500);
   const ahead = projectPoint(cam.vp, g.fl.x + 6, g.fl.y, 0.5, 800, 500);
   assert.ok(ahead && Math.abs(ahead[0] - 400) < 1, 'a point straight ahead projects to the screen centre');

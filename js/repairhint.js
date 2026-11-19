@@ -23,7 +23,7 @@ export function drawHintArrow(ctx, x, y, ang, size, clock) {
   ctx.moveTo(k * 0.6, 0); ctx.lineTo(-k * 0.1, -k * 0.5); ctx.lineTo(-k * 0.1, -k * 0.2); ctx.lineTo(-k * 0.6, -k * 0.2);
   ctx.lineTo(-k * 0.6, k * 0.2); ctx.lineTo(-k * 0.1, k * 0.2); ctx.lineTo(-k * 0.1, k * 0.5); ctx.closePath();
   ctx.fillStyle = '#42a5f5'; ctx.fill();
-  ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1, size / 8); ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.strokeStyle = '#111'; ctx.lineWidth = size / 8; ctx.lineJoin = 'round'; ctx.stroke();
   ctx.restore();
 }
 

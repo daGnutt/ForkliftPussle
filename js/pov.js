@@ -2,6 +2,7 @@ import { theme } from './theme.js';
 import { discoOn, drawDiscoPov } from './disco.js';
 import { toWorld } from './forklift.js';
 import { liftedHf } from './game.js';
+import { drawRepairEdgeArrow } from './repairhint.js';
 import { makeCamera, EYE_X, EYE_Z, EYE_FOLLOW, EYE_TILT, HFOV, BOX_H, PAL, MAX_DIST } from './pov/camera.js';
 import { buildFaces } from './pov/scene.js';
 import { drawFace } from './pov/face.js';
