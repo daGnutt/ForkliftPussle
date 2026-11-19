@@ -49,6 +49,7 @@
 
 ## Rendering (`render.js`)
 - Height is faked with a parallax offset (`PX`/`PY`). Draw order: floor/grid → areas → zones → low stacks → forklift body → tines → high stacks → carried stack → pillars → HUD.
+- The minimap alternates high-contrast colours on open drop points compatible with a single-colour, single-type carried load; mixed loads and already-filled zones are not highlighted. Oil-barrel targets also require an intact barrel pair.
 - GL set-down dust (`js/gl/particles.js`) is emitted only when the landing point is outside every drop-zone rectangle; completed zones still emit confetti.
 - The forklift is drawn from extruded `block(ctx, f, x0, y0, x1, y1, z0, z1, col)` calls in its local frame (wheels, chassis, counterweight, mast, overhead guard) using the same parallax as boxes.
 - `drawStack(ctx, layers, x, y, z0, rots)` draws boxes as extruded cubes (shaded side faces facing the floor-ward parallax direction, gradient lid with tape strip), each with its own angle from `rots`; the top box shows its colour and the boxes below appear as coloured numbers.

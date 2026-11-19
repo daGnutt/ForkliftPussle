@@ -467,6 +467,18 @@ function miniSize(g, maxW, maxH) {
   const s = Math.min(maxW / g.w, maxH / g.h);
   return { s, w: g.w * s, h: g.h * s };
 }
+const MINIMAP_TARGET_COLORS = ['#ffeb3b', '#00e5ff'];
+function minimapTarget(g, z) {
+  const layers = g.carried, pens = g.carriedPen;
+  if (!layers?.length || !pens || pens.length !== layers.length || layers.some((c) => c !== layers[0])) return false;
+  const wide = !!pens[0]?.wide;
+  if (pens.some((p) => !!p?.wide !== wide)) return false;
+  if (layers[0] === BARREL_COLOR) {
+    return layers.length === 2 && pens[0]?.barrelPart === 'base' && pens[1]?.barrelPart === 'top' &&
+      z.color === BARREL_COLOR && z.count === 1 && !z.wide;
+  }
+  return z.color === layers[0] && !!z.wide === wide;
+}
 function drawMiniMap(ctx, g, cam, x, y, s) {
   const w = g.w * s, h = g.h * s;
   ctx.save();
@@ -476,8 +488,9 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   ctx.fillStyle = theme().floor;
   ctx.fillRect(0, 0, w, h);
   for (const z of g.zones) {
-    ctx.fillStyle = ZONE_COLORS[z.color];
-    ctx.globalAlpha = zoneDone(g, z) ? 1 : 0.5;
+    const target = !zoneDone(g, z) && minimapTarget(g, z);
+    ctx.fillStyle = target ? MINIMAP_TARGET_COLORS[Math.floor(g.clock * 4) % 2] : ZONE_COLORS[z.color];
+    ctx.globalAlpha = target || zoneDone(g, z) ? 1 : 0.5;
     const e = zoneExt(z);
     ctx.fillRect((z.x - e.x) * s, (z.y - e.y) * s, 2 * e.x * s, 2 * e.y * s);
   }

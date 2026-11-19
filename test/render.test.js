@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { generateLevel, parseSeed, isReachable } from '../js/level.js';
+import { BARREL_COLOR, ZONE_COLORS, generateLevel, parseSeed, isReachable } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
@@ -77,6 +77,39 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   } finally {
     setRepairHint(hint);
   }
+}
+
+// A carried oil barrel makes its compatible minimap drop point alternate between visible highlight colours.
+{
+  const g = newGame(3), fills = [];
+  g.w = 20; g.h = 12;
+  const zone = { x: 8, y: 6, color: BARREL_COLOR, count: 1 };
+  g.zones = [zone];
+  g.stacks = [];
+  g.carried = [BARREL_COLOR, BARREL_COLOR];
+  g.carriedPen = [{ barrelPart: 'base' }, { barrelPart: 'top' }];
+  const s = 16, rect = [(zone.x - 0.6) * s, (zone.y - 0.6) * s, 1.2 * s, 1.2 * s];
+  const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
+    get: (t, k) => k in t ? t[k] : k === 'fillRect' ? (...args) => fills.push({ args, color: t.fillStyle, alpha: t.globalAlpha })
+      : k === 'measureText' ? (text) => ({ width: text.length * 7 })
+        : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
+  });
+  const drawAt = (clock) => {
+    g.clock = clock;
+    fills.length = 0;
+    draw(ctx, g, { width: 1200, height: 800, dpr: 1, povBig: true });
+    const fill = fills.find((f) => f.args.length === 4 && f.args.every((v, i) => Math.abs(v - rect[i]) < 0.001));
+    assert.ok(fill, 'minimap contains the barrel drop point');
+    return fill;
+  };
+  const first = drawAt(0), second = drawAt(0.25);
+  assert.notEqual(first.color, second.color, 'the target alternates colours');
+  assert.ok([first.color, second.color].every((color) => color !== ZONE_COLORS[BARREL_COLOR]), 'neither phase falls back to the dim barrel-zone colour');
+  assert.equal(first.alpha, 1, 'the highlighted target is fully opaque');
+  g.carried = [BARREL_COLOR, 0];
+  const mixed = drawAt(0);
+  assert.equal(mixed.color, ZONE_COLORS[BARREL_COLOR], 'mixed cargo does not show a target hint');
+  assert.equal(mixed.alpha, 0.5, 'an unhinted open zone keeps its normal minimap opacity');
 }
 
 // The repair arrow's outline leaves its blue shaft visible in world and pixel units.
