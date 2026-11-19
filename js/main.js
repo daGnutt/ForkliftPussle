@@ -28,7 +28,7 @@ import { startSplash3d } from './splash3d.js';
 import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
-import { batterySaverDefault, canvasDpr, shouldDraw, autosaveIntervalMs } from './power.js';
+import { batterySaverOption, canvasDpr, shouldDraw, autosaveIntervalMs } from './power.js';
 import { startAudio, playDroid as droid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
@@ -37,18 +37,21 @@ const resultsCtx = resultsCanvas.getContext('2d');
 const ctx = canvas.getContext('2d');
 attachGlCanvas(document.getElementById('gameGl'), ctx);
 const isTouch = matchMedia('(pointer: coarse)').matches;
-let batterySaverOn = batterySaverDefault(localStorage, isTouch);
+let lowerResolutionOn = batterySaverOption(localStorage, 'resolution', isTouch);
+let limitFrameRateOn = batterySaverOption(localStorage, 'frame-rate', isTouch);
+let reduceEffectsOn = batterySaverOption(localStorage, 'effects', isTouch);
+let saveLessOftenOn = batterySaverOption(localStorage, 'autosave', isTouch);
 let rafPending = false;
 function scheduleFrame() {
   if (!rafPending && !view.paused) { rafPending = true; requestAnimationFrame(frame); }
 }
-const view = { width: 0, height: 0, dpr: 1, batterySaver: batterySaverOn, povBig: !isTouch && localStorage.getItem('forklift-cab-view') === '1', chase: localStorage.getItem('forklift-chase-cam') === '1', chaseZoom: localStorage.getItem('forklift-chase-zoom') === null ? null : Number(localStorage.getItem('forklift-chase-zoom')), zoom: localStorage.getItem('forklift-ov-zoom') === null ? null : Number(localStorage.getItem('forklift-ov-zoom')), touch: isTouch };
+const view = { width: 0, height: 0, dpr: 1, povBig: !isTouch && localStorage.getItem('forklift-cab-view') === '1', chase: localStorage.getItem('forklift-chase-cam') === '1', chaseZoom: localStorage.getItem('forklift-chase-zoom') === null ? null : Number(localStorage.getItem('forklift-chase-zoom')), zoom: localStorage.getItem('forklift-ov-zoom') === null ? null : Number(localStorage.getItem('forklift-ov-zoom')), touch: isTouch };
 
 function resize() {
   view.width = canvas.clientWidth;
   view.height = canvas.clientHeight;
   if (isTouch && view.height > view.width) view.povBig = false; // portrait has no cab view
-  view.dpr = canvasDpr(window.devicePixelRatio, view.width, view.height, batterySaverOn, matchMedia('(pointer: coarse)').matches);
+  view.dpr = canvasDpr(window.devicePixelRatio, view.width, view.height, lowerResolutionOn);
   canvas.width = Math.round(view.width * view.dpr);
   canvas.height = Math.round(view.height * view.dpr);
   resultsCanvas.width = canvas.width;
@@ -143,8 +146,8 @@ function watchBots() {
     if ((b.shooting || 0) > 0 && !p.shoot) playDroid('scan', vol, pitch);
     if (b.cleaning && !p.clean) playDroid('mumble', vol, pitch);
   }
-  if (game.photo && !botSaid.has(game.photo)) { botSaid.add(game.photo); if (!batterySaverOn && !loaded && game.status !== 'won') showPhoto(game.photo); } // after the level the gallery shows them
-  if (game.forkPhoto && !botSaid.has(game.forkPhoto)) { botSaid.add(game.forkPhoto); if (!batterySaverOn) showPhoto(game.forkPhoto.photo, undefined, true); } // tines in a damaged stack: show the observer's last picture of it again
+  if (game.photo && !botSaid.has(game.photo)) { botSaid.add(game.photo); if (!reduceEffectsOn && !loaded && game.status !== 'won') showPhoto(game.photo); } // after the level the gallery shows them
+  if (game.forkPhoto && !botSaid.has(game.forkPhoto)) { botSaid.add(game.forkPhoto); if (!reduceEffectsOn) showPhoto(game.forkPhoto.photo, undefined, true); } // tines in a damaged stack: show the observer's last picture of it again
   for (const h of game.hits || []) {
     if (!h.check || botSaid.has(h)) continue;
     botSaid.add(h);
@@ -823,13 +826,16 @@ const muteOpt = document.getElementById('muteOpt');
 const menuLevel = document.getElementById('menuLevel');
 const menuEndRun = document.getElementById('menuEndRun');
 const decalOpt = document.getElementById('decalOpt');
-const batterySaverOpt = document.getElementById('batterySaverOpt');
+const batteryResolutionOpt = document.getElementById('batteryResolutionOpt');
+const batteryFrameRateOpt = document.getElementById('batteryFrameRateOpt');
+const batteryEffectsOpt = document.getElementById('batteryEffectsOpt');
+const batteryAutosaveOpt = document.getElementById('batteryAutosaveOpt');
 const glOpt = document.getElementById('glOpt');
 const glParam = new URLSearchParams(location.search).get('gl');
 setGlEnabled(glParam ? glParam !== '0' : localStorage.getItem('forklift-gl-off') !== '1');
-if (!startSplash3d(document.getElementById('splashGl'), () => splashOn, () => batterySaverOn)) startSplashAnimation(document.getElementById('splashAnim'), () => splashOn, () => batterySaverOn);
+if (!startSplash3d(document.getElementById('splashGl'), () => splashOn, () => lowerResolutionOn, () => limitFrameRateOn)) startSplashAnimation(document.getElementById('splashAnim'), () => splashOn, () => lowerResolutionOn, () => limitFrameRateOn);
 let decalsPreference = localStorage.getItem('forklift-decals-off') !== '1';
-setDecalsEnabled(decalsPreference && !batterySaverOn);
+setDecalsEnabled(decalsPreference && !reduceEffectsOn);
 const themeSel = document.getElementById('themeSel');
 setThemeMode(localStorage.getItem('forklift-theme'));
 const bareOpt = document.getElementById('bareOpt');
@@ -838,21 +844,8 @@ const chaseZoomSel = document.getElementById('chaseZoom');
 setBareForks(localStorage.getItem('forklift-bare-forks') === '1');
 const discoOpt = document.getElementById('discoOpt');
 let discoPreference = localStorage.getItem('forklift-disco') === '1';
-setDiscoEnabled(discoPreference && !batterySaverOn);
-setParticlesEnabled(!batterySaverOn);
-function applyBatterySaver(on) {
-  const wasOn = batterySaverOn;
-  batterySaverOn = !!on;
-  view.batterySaver = batterySaverOn;
-  setDecalsEnabled(decalsPreference && !batterySaverOn);
-  setDiscoEnabled(discoPreference && !batterySaverOn);
-  setParticlesEnabled(!batterySaverOn);
-  if (batterySaverOn && !wasOn) {
-    clearPhotos();
-    galleryGame = null;
-  }
-  resize();
-}
+setDiscoEnabled(discoPreference && !reduceEffectsOn);
+setParticlesEnabled(!reduceEffectsOn);
 const menuHardOpt = document.getElementById('menuHardOpt');
 const localOpt = document.getElementById('localOpt');
 function stopLocal() {
@@ -914,7 +907,10 @@ function toggleMenu(open) {
     muteOpt.checked = isAllMuted();
     for (const el of volSliders) el.value = Math.round(getVolume(el.dataset.vol) * 100);
     musicOpt.checked = !isMusicMuted();
-    batterySaverOpt.checked = batterySaverOn;
+    batteryResolutionOpt.checked = lowerResolutionOn;
+    batteryFrameRateOpt.checked = limitFrameRateOn;
+    batteryEffectsOpt.checked = reduceEffectsOn;
+    batteryAutosaveOpt.checked = saveLessOftenOn;
     decalOpt.checked = decalsPreference;
     glOpt.checked = glEnabled();
     discoOpt.checked = discoPreference;
@@ -942,12 +938,36 @@ muteOpt.addEventListener('change', () => setAllMuted(muteOpt.checked));
 for (const el of volSliders) el.addEventListener('input', () => { setVolume(el.dataset.vol, Number(el.value) / 100); startAudio(); });
 decalOpt.addEventListener('change', () => {
   decalsPreference = decalOpt.checked;
-  setDecalsEnabled(decalsPreference && !batterySaverOn);
+  setDecalsEnabled(decalsPreference && !reduceEffectsOn);
   localStorage.setItem('forklift-decals-off', decalOpt.checked ? '0' : '1');
 });
-batterySaverOpt.addEventListener('change', () => {
-  localStorage.setItem('forklift-battery-saver', batterySaverOpt.checked ? '1' : '0');
-  applyBatterySaver(batterySaverOpt.checked);
+function saveBatteryOption(option, enabled) {
+  localStorage.setItem(`forklift-battery-saver-${option}`, enabled ? '1' : '0');
+}
+batteryResolutionOpt.addEventListener('change', () => {
+  lowerResolutionOn = batteryResolutionOpt.checked;
+  saveBatteryOption('resolution', lowerResolutionOn);
+  resize();
+});
+batteryFrameRateOpt.addEventListener('change', () => {
+  limitFrameRateOn = batteryFrameRateOpt.checked;
+  saveBatteryOption('frame-rate', limitFrameRateOn);
+});
+batteryEffectsOpt.addEventListener('change', () => {
+  const wasOn = reduceEffectsOn;
+  reduceEffectsOn = batteryEffectsOpt.checked;
+  saveBatteryOption('effects', reduceEffectsOn);
+  setDecalsEnabled(decalsPreference && !reduceEffectsOn);
+  setDiscoEnabled(discoPreference && !reduceEffectsOn);
+  setParticlesEnabled(!reduceEffectsOn);
+  if (reduceEffectsOn && !wasOn) {
+    clearPhotos();
+    galleryGame = null;
+  }
+});
+batteryAutosaveOpt.addEventListener('change', () => {
+  saveLessOftenOn = batteryAutosaveOpt.checked;
+  saveBatteryOption('autosave', saveLessOftenOn);
 });
 glOpt.addEventListener('change', () => {
   setGlEnabled(glOpt.checked);
@@ -959,7 +979,7 @@ themeSel.addEventListener('change', () => {
 });
 discoOpt.addEventListener('change', () => {
   discoPreference = discoOpt.checked;
-  setDiscoEnabled(discoPreference && !batterySaverOn);
+  setDiscoEnabled(discoPreference && !reduceEffectsOn);
   localStorage.setItem('forklift-disco', discoPreference ? '1' : '0');
 });
 const zoomSlider = document.getElementById('zoomSlider');
@@ -1164,7 +1184,7 @@ window.addEventListener('pagehide', saveState);
 let lastAutosave = performance.now();
 setInterval(() => {
   const now = performance.now();
-  if (!splashOn && !view.paused && now - lastAutosave >= autosaveIntervalMs(batterySaverOn)) {
+  if (!splashOn && !view.paused && now - lastAutosave >= autosaveIntervalMs(saveLessOftenOn)) {
     saveState();
     lastAutosave = now;
   }
@@ -1308,10 +1328,10 @@ function frame(now) {
   setSqueal(won ? 0 : slipV, slipVol);
   if (game.bonks !== bonkCount) { if (game.bonks > bonkCount) playBonk(game.bonkPower); bonkCount = game.bonks; }
   if (game.status === 'won' && !game.endless) {
-    if (!batterySaverOn && galleryGame !== game) { galleryGame = game; startGallery(() => endPhotos(game)); }
-    else if (batterySaverOn && galleryGame) { galleryGame = null; stopGallery(); }
+    if (!reduceEffectsOn && galleryGame !== game) { galleryGame = game; startGallery(() => endPhotos(game)); }
+    else if (reduceEffectsOn && galleryGame) { galleryGame = null; stopGallery(); }
   } else if (galleryGame) { galleryGame = null; stopGallery(); }
-  if (shouldDraw(now, lastDraw, batterySaverOn)) {
+  if (shouldDraw(now, lastDraw, limitFrameRateOn)) {
     lastDraw = now;
     const t2 = performance.now();
     view.fullscreen = !!document.fullscreenElement;

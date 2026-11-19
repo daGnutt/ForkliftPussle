@@ -12,7 +12,7 @@ const ROOM_MID = { x: 9, y: 5 };
 
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
-export function startSplash3d(canvas, isActive, isBatterySaver = () => false) {
+export function startSplash3d(canvas, isActive, isLowResolution = () => false, isFrameRateLimited = () => false) {
   if (!glAvailable()) return false;
   const demo = createDemo(), g = demo.g;
   for (let i = 0; i < 60 * 3; i++) demo.step(1 / 60); // already mid-job when the splash opens
@@ -31,7 +31,7 @@ export function startSplash3d(canvas, isActive, isBatterySaver = () => false) {
   }
 
   function draw() {
-    const dpr = Math.min(isBatterySaver() ? 1 : 2, window.devicePixelRatio || 1);
+    const dpr = Math.min(isLowResolution() ? 1 : 2, window.devicePixelRatio || 1);
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return true;
     const pw = Math.round(w * dpr), ph = Math.round(h * dpr);
@@ -56,7 +56,7 @@ export function startSplash3d(canvas, isActive, isBatterySaver = () => false) {
   };
   function frame(now) {
     if (!isActive()) return;
-    const saver = isBatterySaver();
+    const saver = isFrameRateLimited();
     if (saver && saverAge >= 20) { schedule(1000); return; }
     const dt = last === null ? 0 : Math.min(0.05, (now - last) / 1000);
     last = now;

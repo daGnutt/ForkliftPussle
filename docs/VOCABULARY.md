@@ -124,7 +124,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 
 | Term | Meaning | In code |
 |------|---------|---------|
-| **Battery saver** | Graphics-menu setting (default on touch devices) that caps canvas resolution, limits drawing to 30 fps, reduces decorative effects, slows autosaving and freezes the splash animation after 20 seconds | `forklift-battery-saver`, `view.batterySaver` |
+| **Battery Saver** | Graphics-menu section with independent options to lower resolution, limit drawing to 30 fps, reduce decorative effects and save less often; the frame-rate limit is off by default | `forklift-battery-saver-resolution`, `forklift-battery-saver-frame-rate`, `forklift-battery-saver-effects`, `forklift-battery-saver-autosave` |
 
 ## Views and cameras
 

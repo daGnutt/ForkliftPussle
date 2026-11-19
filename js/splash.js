@@ -65,8 +65,8 @@ function drawForklift(ctx, f) {
   ctx.restore();
 }
 
-export function startSplashAnimation(canvas, isActive, isBatterySaver = () => false) {
-  const dpr = Math.min(isBatterySaver() ? 1 : 2, window.devicePixelRatio || 1);
+export function startSplashAnimation(canvas, isActive, isLowResolution = () => false, isFrameRateLimited = () => false) {
+  const dpr = Math.min(isLowResolution() ? 1 : 2, window.devicePixelRatio || 1);
   canvas.width = W * dpr;
   canvas.height = H * dpr;
   const ctx = canvas.getContext('2d');
@@ -115,7 +115,7 @@ export function startSplashAnimation(canvas, isActive, isBatterySaver = () => fa
   };
   function frame(now) {
     if (!isActive()) return;
-    const saver = isBatterySaver();
+    const saver = isFrameRateLimited();
     if (saver && saverAge >= 20) { schedule(1000); return; }
     const dt = last === null ? 0 : Math.min(0.05, (now - last) / 1000);
     last = now;
