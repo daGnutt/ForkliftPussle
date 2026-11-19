@@ -23,11 +23,13 @@ import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetwee
 import { stackSig } from '../js/bot.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
-// Nudging a box slowly squares it to the forklift; it causes no damage.
+// A slow front/mast nudge squares boxes through one level above the forks and carries that turn into higher boxes.
 {
   const g = newGame(1);
   flatWorld(g);
-  g.stacks = [{ x: 9.2, y: 5, layers: [0, 1], rots: [0.4, 0.4], pen: [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }], a: 0.4 }];
+  const rots = [0.35, 0.4, 0.45, 0.3, 0.7];
+  g.stacks = [{ x: 9.2, y: 5, layers: [0, 1, 2, 3, 4], rots: [...rots], pen: Array.from({ length: 5 }, () => ({ crash: 0, sq: 0 })), a: rots[0] }];
+  g.H = 1;
   const f = g.fl;
   f.x = 7; f.y = 5; f.a = 0; f.speed = 0;
   for (let i = 0; i < 600; i++) {
@@ -36,10 +38,30 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     if (f.speed > 0.6) f.speed = 0.5;
   }
   const s = g.stacks[0];
-  assert.ok(Math.abs(s.a) < 0.01 && Math.abs(s.rots[1]) < 0.01, 'stack turned square to the forklift');
+  assert.ok(s.rots.slice(0, 3).every((r) => Math.abs(r) < 0.01), 'levels 0 through H+1 turn square to the forklift');
+  assert.ok(s.rots.slice(3).every((r, i) => Math.abs((r - rots[i + 3]) - (s.rots[2] - rots[2])) < 0.01), 'all boxes above H+1 follow the same turn as the box beneath them');
+  assert.ok(Math.abs(s.a) < 0.01, 'the bottom box turns square with the stack');
   assert.equal(s.pen[0].crash, 0, 'nudging does not damage the bottom box');
   assert.equal(s.pen[1].crash, 0, 'upper box undamaged');
   console.log('box-align ok');
+}
+
+// A slow tine nudge squares only the box at fork level and the one above, carrying that turn into higher boxes.
+{
+  const g = newGame(1, 0, true);
+  flatWorld(g);
+  g.H = 2;
+  const rots = [0.1, 0.2, 0.3, 0.35, 0.75];
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1, 2, 3, 4], rots: [...rots], pen: Array.from({ length: 5 }, () => ({ crash: 0, sq: 0 })), a: rots[0] }];
+  Object.assign(g.fl, { x: 7.9, y: 5, a: 0, speed: 0 });
+  run(g, { thr: 0.1 }, 1);
+  const s = g.stacks[0];
+  assert.ok(g.fl.x + FL.front < s.x - 0.5, 'the front/mast has not contacted the stack');
+  assert.equal(s.layers.length, 5, 'the stack remains intact');
+  assert.ok(s.rots.slice(0, 2).every((r, i) => Math.abs(r - rots[i]) < 0.01), 'boxes below the tines keep their angle');
+  assert.ok(s.rots.slice(2, 4).every((r) => Math.abs(r) < 0.2), 'boxes at the tine level and one above straighten');
+  assert.ok(Math.abs((s.rots[4] - rots[4]) - (s.rots[3] - rots[3])) < 0.01, 'boxes above the tine level +1 follow the same turn as the box beneath them');
+  assert.ok(s.pen.every((p) => p.crash === 0), 'slow tine nudging does not damage the stack');
 }
 
 // Boxes that topple off a stack tumble visually: the logical stack is at its landing spot at once, fallView interpolates.
