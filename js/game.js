@@ -312,6 +312,9 @@ function ensure(S) {
   while (S.offs.length < S.layers.length) S.offs.push({ x: 0, y: 0 });
 }
 
+const forgetInspection = (pens) => { for (const p of pens || []) delete p.inspected; };
+const touchStack = (s) => { s.touched = true; forgetInspection(s.pen); };
+
 // World-frame offsets of the carried boxes relative to the carried bottom box.
 export function carriedWorldOffs(g) {
   const c = Math.cos(g.fl.a), sn = Math.sin(g.fl.a);
@@ -713,6 +716,7 @@ function resolve(g) {
           if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 'c', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
           // a carried stack (or the tines holding it) touching a wall turns on the forks: squares up when gentle, snags and twists when hard
           if (g.carried && (sh.carried || sh.tine)) {
+            forgetInspection(g.carriedPen);
             if (Math.abs(f.speed) < CRASH_MIN_SPEED) g.carriedAligning = true;
             else turnCarried(g, tip, m);
           }
@@ -732,6 +736,8 @@ function resolve(g) {
           if (apart && sh.carried && q === theirCarried) continue;
           const m = sat(sh.poly, q);
           if (!m) continue;
+          if (sh.carried) forgetInspection(g.carriedPen);
+          if (q === theirCarried) forgetInspection(o.carriedPen);
           const d = m.depth * 0.5005;
           moveF(m.x * d, m.y * d);
           o.fl.x -= m.x * d; o.fl.y -= m.y * d;
@@ -752,8 +758,9 @@ function resolve(g) {
         let m = null, from = 0;
         for (const t of sh.targets(s)) { m = sat(sh.poly, t.poly); if (m) { from = t.from; break; } }
         if (!m) continue;
-        s.touched = true; // any contact with a forklift sends the inspector round again (see pendingZones)
         ensure(s);
+        touchStack(s);
+        if (sh.carried) forgetInspection(g.carriedPen);
         const ws = 1 / ((s.layers.length - from) * boxMass(s));
         if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && relH(g, s) > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? relH(g, s) : s.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: s.rots });
         if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 's', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
@@ -780,6 +787,7 @@ function resolve(g) {
         if (s.x + r < w.x || s.x - r > w.x + w.w || s.y + r < w.y || s.y - r > w.y + w.h) continue;
         const m = sat(stackPoly(s), w.poly);
         if (m) {
+          touchStack(s);
           s.x += m.x * m.depth; s.y += m.y * m.depth;
           const sp = Math.abs(f.speed);
           if (sp < CRASH_MIN_SPEED) g.wallAligning?.add(s); // pressed gently: the stack squares up to the wall
@@ -805,6 +813,7 @@ function resolve(g) {
         const m = sat(stackPoly(a), stackPoly(b));
         if (!m) continue;
         ensure(a); ensure(b);
+        touchStack(a); touchStack(b);
         crash(g, a.pen, a, a.pen.length, { kind: 's', dx: -m.x, dy: -m.y, rots: a.rots });
         crash(g, b.pen, b, b.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: b.rots });
         const wa = 1 / (a.layers.length * boxMass(a)), wb = 1 / (b.layers.length * boxMass(b));
@@ -839,6 +848,7 @@ function alignStack(g, s, dt, heading = g.fl.a) {
 // A pallet on the tines is held sideways with the forks (the whole stack moves) but can still slide along them;
 // only the boxes from the fork level upward turn with the forks.
 function glideWithForks(g, S, ly, da, from) {
+  touchStack(S);
   const f = g.fl;
   const ux = Math.cos(f.a), uy = Math.sin(f.a), rx = -uy, ry = ux;
   const c = boxPos(S, from);
@@ -988,8 +998,8 @@ function hornWave(root, t) {
     const d = Math.hypot(s.x - o.x, s.y - o.y);
     if (d >= WAVE_RADIUS) return;
     s.jolt = root.clock;
-    s.touched = true; // the honk nudge counts as a touch: the inspector comes round again
     ensure(s);
+    touchStack(s);
     s.x += WIGGLE_BOTTOM * noise(n, seed + 4); s.y += WIGGLE_BOTTOM * noise(n, seed + 5);
     const da = WIGGLE_BOTTOM * noise(n, seed + 6);
     s.rots[0] += da; s.a = (s.a || 0) + da;
@@ -1001,6 +1011,7 @@ function hornWave(root, t) {
     const c = toWorld(u.fl, FL.carryX, 0);
     if (Math.hypot(c.x - o.x, c.y - o.y) >= WAVE_RADIUS) continue;
     u.jolt = root.clock;
+    forgetInspection(u.carriedPen);
     while (u.carriedOffs.length < u.carried.length) u.carriedOffs.push({ x: 0, y: 0 });
     while (u.carriedRots.length < u.carried.length) u.carriedRots.push(u.carriedRel);
     wiggleBoxes(u.carriedOffs, u.carriedRots, seed + u.id * 11, 1);

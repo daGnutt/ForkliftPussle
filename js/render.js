@@ -11,7 +11,7 @@ import { drawPov } from './pov.js';
 import { labelRows, hitRows, honkers, drawHonk, drawFlag } from './pov/overlay.js';
 import { chaseTiles as chaseTilesFor, chaseRig, clearChaseTilt, CHASE_TILT, CHASE_TILES, CHASE_DEFAULT, headTurn } from './gl/camera.js';
 import { beginGlFrame } from './gl/renderer.js';
-import { clearTruckSpot, setTruckSpot, addHudRect } from './photo.js';
+import { clearTruckSpot, setTruckSpot, addHudRect, boxStatus } from './photo.js';
 import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
@@ -1171,7 +1171,38 @@ function drawDockWaits(ctx, g, width, touchLand) {
 }
 
 // Fork height gauge of one truck view: 0 = floor; box layer i fills the cell at height i-1
-function drawForkGauge(ctx, g, gx, gy) {
+function drawBoxStatus(ctx, x, y, kind) {
+  ctx.save();
+  if (kind === 'damaged') {
+    ctx.beginPath();
+    ctx.moveTo(x, y - 4);
+    ctx.lineTo(x + 4, y + 3);
+    ctx.lineTo(x - 4, y + 3);
+    ctx.closePath();
+    ctx.fillStyle = '#ffeb3b';
+    ctx.fill();
+    ctx.strokeStyle = '#b71c1c';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    ctx.fillStyle = '#b71c1c';
+    ctx.font = 'bold 6px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('!', x, y + 1);
+    ctx.restore();
+    return;
+  }
+  ctx.translate(x, y);
+  ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = '#ffe082';
+  ctx.strokeStyle = '#4e342e';
+  ctx.lineWidth = 1;
+  ctx.fillRect(-2.5, -2.5, 5, 5);
+  ctx.strokeRect(-2.5, -2.5, 5, 5);
+  ctx.restore();
+}
+
+export function drawForkGauge(ctx, g, gx, gy) {
   const cell = 26, top = 5;
   addHudRect(gx - 28, gy - 26, gx + 54, gy + top * cell + cell + 8);
   const yOf = (lvl) => gy + (top - lvl) * cell;
@@ -1195,21 +1226,26 @@ function drawForkGauge(ctx, g, gx, gy) {
     ctx.fillStyle = '#aaa';
     ctx.fillText(String(lvl), gx - 10, yOf(lvl) + cell / 2);
   }
-  const cellBox = (lvl, color, alpha, open) => {
+  const cellBox = (lvl, color, alpha, pen) => {
     if (lvl > top) return;
     ctx.globalAlpha = alpha;
     ctx.fillStyle = COLORS[color];
     ctx.fillRect(gx + 3, yOf(lvl) + 3, 24, cell - 8);
     ctx.globalAlpha = 1;
-    if (open) { // open-top box: nothing can be stacked on it
+    if (pen?.open) { // open-top box: nothing can be stacked on it
       ctx.font = '15px sans-serif';
       ctx.fillText('🚫', gx + 15, yOf(lvl) + cell / 2);
       ctx.font = '12px sans-serif';
     }
+    const status = pen?.inspected ? boxStatus(pen) : null, icons = [];
+    if (status?.damaged) icons.push('damaged');
+    if (status?.crooked) icons.push('crooked');
+    const xs = icons.length > 1 ? [gx + 9, gx + 21] : [gx + 21];
+    icons.forEach((kind, i) => drawBoxStatus(ctx, xs[i], yOf(lvl) + cell / 2, kind));
   };
   const under = stackInZone(g);
-  if (under) under.layers.forEach((c, i) => cellBox(i, c, 0.85, under.pen?.[i]?.open));
-  if (g.carried) g.carried.forEach((c, i) => cellBox(g.H + i, c, 1, g.carriedPen?.[i]?.open));
+  if (under) under.layers.forEach((c, i) => cellBox(i, c, 0.85, under.pen?.[i]));
+  if (g.carried) g.carried.forEach((c, i) => cellBox(g.H + i, c, 1, g.carriedPen?.[i]));
   ctx.strokeStyle = tc.body;
   ctx.lineWidth = 3;
   ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);

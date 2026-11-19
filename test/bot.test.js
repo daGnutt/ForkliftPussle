@@ -128,7 +128,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(zs.length, 2);
   run(g, NONE, 2);
   assert.equal(g.inspector.show, 0, 'nothing is inspected while no drop point is done');
-  g.stacks = zs.map((z) => ({ x: z.x, y: z.y, layers: Array(z.count).fill(z.color), pen: [], rots: [] }));
+  g.stacks = zs.map((z) => ({ x: z.x, y: z.y, layers: Array(z.count).fill(z.color), pen: Array.from({ length: z.count }, () => ({ crash: 0, sq: 0 })), rots: Array(z.count).fill(0) }));
   const spots = [[1, 1], [g.w - 1, 1], [1, g.h - 1], [g.w - 1, g.h - 1]].map(([x, y]) => ({ x, y, d: Math.min(Math.hypot(x - g.hatch.x, y - g.hatch.y), ...g.zones.map((z) => Math.hypot(x - z.x, y - z.y))) }));
   Object.assign(g.fl, spots.sort((a, b) => b.d - a.d)[0]);
   const done = g.zones.filter((z) => zoneDone(g, z));
@@ -147,17 +147,21 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(g.inspector.seen.length, done.length, 'all completed drop points were photographed');
   assert.equal(flashes, done.length, 'one photo each');
   assert.ok(g.photo && g.photo.n === done.length && typeof g.photo.ok === 'boolean' && g.photo.layers.length > 0, 'each photo leaves a snapshot for the popup');
+  assert.ok(g.stacks.every((s) => s.pen.every((p) => p.inspected === true)), 'inspection marks every photographed box');
   assert.equal(flaggedStacks(g).length, done.filter((z) => zoneWonky(g, z)).length, 'every inspected crooked stack is flagged with a "!"');
   if (g.stacks.length) { // touching a photographed stack clears its flag and sends the inspector back
     const st = g.stacks[0];
-    st.touched = true; // a bare touch, nothing moved
-    update(g, NONE, 1 / 120);
+    Object.assign(g.fl, { x: st.x - 2, y: st.y, a: 0, speed: 0 });
+    update(g, { horn: true }, 1 / 120);
+    Object.assign(g.fl, spots[0]);
     assert.ok(g.inspector.seen.length < done.length, 'a nudged stack is inspected again');
     assert.ok(!flaggedStacks(g).some((f) => f.x === st.x && f.y === st.y), 'its warning sign is gone');
+    assert.ok(st.pen.every((p) => !p.inspected), 'a nudge hides every box badge until reinspection');
   }
   assert.ok(g.inspector.roll !== 0, 'the wheels turned while driving');
   assert.ok(g.hits.length === 0 || g.hits.every((h) => h.check === 'perfect' || h.check === 'warn'), 'verdict labels');
   run(g, NONE, 60);
+  assert.ok(g.stacks.every((s) => s.pen.every((p) => p.inspected === true)), 'reinspection reveals the box badges again');
   assert.equal(g.inspector.mode, 'hidden', 'it goes back into the hatch');
   const g3 = newGame(1, 0);
   g3.inspector.seen = ['1,2,0'];
@@ -168,15 +172,19 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
 {
   const g = newGame(1, 0);
   flatWorld(g);
-  g.stacks = [{ x: 10, y: 5, layers: [0], pen: [], rots: [] }, { x: 3, y: 12, layers: [1], pen: [], rots: [] }];
+  g.stacks = [{ x: 10, y: 5, layers: [0], pen: [{ crash: 1, sq: 0, inspected: true }], rots: [0] }, { x: 3, y: 9, layers: [1], pen: [{ crash: 1, sq: 0, inspected: true }], rots: [0] }];
   g.fl.x = 5; g.fl.y = 5; g.fl.a = 0; g.H = 3;
   for (let i = 0; i < 6 * 120; i++) update(g, { up: true }, 1 / 120);
   assert.ok(g.stacks[0].touched, 'the forklift hit the stack');
   assert.ok(!g.stacks[1].touched, 'a stack that was left alone is untouched');
+  assert.ok(!g.stacks[0].pen[0].inspected, 'contact forgets the hit stack');
+  assert.ok(g.stacks[1].pen[0].inspected, 'contact does not forget an untouched stack');
   g.stacks[0].touched = false;
+  g.stacks[0].pen[0].inspected = true;
   g.fl.x = g.stacks[0].x - 2; g.fl.a = 0;
   run(g, { horn: true }, 0.1);
   assert.ok(g.stacks[0].touched, 'a honk nudge touches the stacks in range');
+  assert.ok(!g.stacks[0].pen[0].inspected, 'a honk also forgets the inspected status');
 }
 
 // Inspector targeting: nearest reachable drop point; threats are only forklifts driving towards it; route obstacles are ignored until met.

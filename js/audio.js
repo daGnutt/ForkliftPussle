@@ -358,8 +358,12 @@ function applyVolumes() {
   beepBus.gain.setTargetAtTime(vols.beeps, t, 0.03);
 }
 export function setSilenced(s) {
-  silenced = s;
-  if (ctx) sfxMix.gain.setTargetAtTime(s ? 0 : SFX_VOL, ctx.currentTime, 0.02);
+  const wasSilenced = silenced;
+  silenced = !!s;
+  if (ctx) {
+    sfxMix.gain.setTargetAtTime(silenced ? 0 : SFX_VOL, ctx.currentTime, 0.02);
+    if (silenced && !wasSilenced) stopContinuousEffects();
+  }
 }
 
 // Volume sliders: `name` is master / music / engine / beeps / sfx, `v` 0..1 (0 = muted).
@@ -369,6 +373,7 @@ export function setVolume(name, v) {
   vols[name] = Math.max(0, Math.min(1, v));
   localStorage.setItem('forklift-vol-' + name, String(Math.round(vols[name] * 100)));
   applyVolumes();
+  if (name === 'master' && vols.master === 0) stopContinuousEffects();
 }
 
 export function isAllMuted() { return allMuted; }
@@ -376,6 +381,7 @@ export function setAllMuted(m) {
   allMuted = m;
   localStorage.setItem(ALL_KEY, m ? '1' : '0');
   applyVolumes();
+  if (m) stopContinuousEffects();
 }
 
 export function isMusicMuted() { return muted; }
@@ -452,9 +458,13 @@ export function playBonk(power = 0.5, vol = 1) {
 // Metal scraping along a wall: gritty filtered noise whose level and pitch follow the sliding speed (0 = silent).
 let scrapeNode = null;
 export function setScrape(speed, vol = 1) {
-  if (!ctx || ctx.state !== 'running') return;
+  if (!ctx || ctx.state !== 'running' || silenced) return;
+  const t = ctx.currentTime;
+  if (speed <= 0) {
+    if (scrapeNode) { scrapeNode.g.gain.setTargetAtTime(0, t, 0.04); scrapeNode.src.stop(t + 0.15); scrapeNode = null; }
+    return;
+  }
   if (!scrapeNode) {
-    if (speed <= 0) return;
     if (!noiseBuf) noise(sfxBus, ctx.currentTime, 0.01, { gain: 0 });
     const src = ctx.createBufferSource();
     src.buffer = noiseBuf;
@@ -468,9 +478,9 @@ export function setScrape(speed, vol = 1) {
     f.connect(g);
     g.connect(sfxBus);
     src.start();
-    scrapeNode = { f, g };
+    scrapeNode = { src, f, g };
   }
-  const t = ctx.currentTime, v = Math.min(1, speed / 4);
+  const v = Math.min(1, speed / 4);
   scrapeNode.f.frequency.setTargetAtTime(900 + v * 1300, t, 0.05);
   scrapeNode.g.gain.setTargetAtTime(speed > 0 ? (0.05 + v * 0.12) * vol : 0, t, 0.04);
 }
@@ -478,9 +488,19 @@ export function setScrape(speed, vol = 1) {
 // Tyre squeal while the wheels spin (same condition as the tyre smoke): a thin, wobbling screech. slip 0 = silent.
 let squealNode = null;
 export function setSqueal(slip, vol = 1) {
-  if (!ctx || ctx.state !== 'running') return;
+  if (!ctx || ctx.state !== 'running' || silenced) return;
+  const t = ctx.currentTime;
+  if (slip <= 0.05) {
+    if (squealNode) {
+      squealNode.g.gain.setTargetAtTime(0, t, 0.05);
+      squealNode.src.stop(t + 0.2);
+      squealNode.o.stop(t + 0.2);
+      squealNode.lfo.stop(t + 0.2);
+      squealNode = null;
+    }
+    return;
+  }
   if (!squealNode) {
-    if (slip <= 0) return;
     if (!noiseBuf) noise(sfxBus, ctx.currentTime, 0.01, { gain: 0 });
     const src = ctx.createBufferSource();
     src.buffer = noiseBuf;
@@ -508,9 +528,8 @@ export function setSqueal(slip, vol = 1) {
     src.start();
     o.start();
     lfo.start();
-    squealNode = { f, o, g };
+    squealNode = { src, f, o, lfo, g };
   }
-  const t = ctx.currentTime;
   squealNode.f.frequency.setTargetAtTime(1500 + slip * 700, t, 0.05);
   squealNode.o.frequency.setTargetAtTime(700 + slip * 300, t, 0.05);
   squealNode.g.gain.setTargetAtTime(slip > 0.05 ? (0.08 + slip * 0.14) * vol : 0, t, 0.05);
@@ -616,7 +635,14 @@ function startEngine() {
 // Call every frame per truck. speed in tiles/s (signed); throttle: a drive key is held; id: truck id (each has its own
 // slightly different pitch); vol 0..1 scales the hum and the reversing beeper (by distance for other trucks).
 export function setEngine(speed, throttle, reversing = false, id = 0, vol = 1) {
-  if (!ctx || ctx.state !== 'running') return;
+  if (!ctx || ctx.state !== 'running' || silenced) return;
+  if (vol <= 0) {
+    const engine = engines.get(id);
+    if (engine) { engine.o.stop(); engine.o2.stop(); engines.delete(id); }
+    const beeper = beepers.get(id);
+    if (beeper) { beeper.o.stop(); beepers.delete(id); }
+    return;
+  }
   const t = ctx.currentTime;
   let engine = engines.get(id);
   if (!engine) {
@@ -638,11 +664,18 @@ export function setEngine(speed, throttle, reversing = false, id = 0, vol = 1) {
 const horns = new Map();
 const hornFreq = (id) => 196 * 1.06 ** id;
 export function setHorns(list) {
-  if (!ctx || ctx.state !== 'running') return;
+  if (!ctx || ctx.state !== 'running' || silenced) return;
   const t = ctx.currentTime;
   for (const { id, on, vol = 1 } of list) {
     let h = horns.get(id);
-    if (!h && !on) continue;
+    if (!on) {
+      if (h) {
+        h.g.gain.setTargetAtTime(0, t, 0.02);
+        for (const o of h.os) o.stop(t + 0.1);
+        horns.delete(id);
+      }
+      continue;
+    }
     if (!h) {
       const f = ctx.createBiquadFilter();
       const g = ctx.createGain();
@@ -662,7 +695,7 @@ export function setHorns(list) {
       h = { os, g };
       horns.set(id, h);
     }
-    h.g.gain.setTargetAtTime(on ? 0.07 * vol : 0, t, 0.02);
+    h.g.gain.setTargetAtTime(0.07 * vol, t, 0.02);
   }
 }
 
@@ -693,8 +726,11 @@ export function setCrashAlert(on) {
 // Reversing warning: 880 Hz soft sine beep, 0.4 s on / 0.4 s off while backing up.
 function setBeeper(reversing, t, id, vol) {
   let beeper = beepers.get(id);
+  if (!reversing) {
+    if (beeper) { beeper.g.gain.setTargetAtTime(0, t, 0.01); beeper.o.stop(t + 0.05); beepers.delete(id); }
+    return;
+  }
   if (!beeper) {
-    if (!reversing) return;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = 'sine';
@@ -706,6 +742,21 @@ function setBeeper(reversing, t, id, vol) {
     beeper = { o, g };
     beepers.set(id, beeper);
   }
-  const on = reversing && t % 0.8 < 0.4;
+  const on = t % 0.8 < 0.4;
   beeper.g.gain.setTargetAtTime(on ? 0.035 * vol : 0, t, 0.01);
+}
+
+function stopContinuousEffects() {
+  for (const { o, o2 } of engines.values()) { o.stop(); o2.stop(); }
+  engines.clear();
+  for (const { o } of beepers.values()) o.stop();
+  beepers.clear();
+  for (const { os } of horns.values()) for (const o of os) o.stop();
+  horns.clear();
+  scrapeNode?.src.stop();
+  scrapeNode = null;
+  squealNode?.src.stop();
+  squealNode?.o.stop();
+  squealNode?.lfo.stop();
+  squealNode = null;
 }

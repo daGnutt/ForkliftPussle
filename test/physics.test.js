@@ -199,6 +199,18 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('stack spin ok');
 }
 
+// A stack nudged by another stack forgets its previous inspection.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.fl.x = 2; g.fl.y = 2; g.fl.speed = 0;
+  const stack = (x) => ({ x, y: 5, layers: [0], rots: [0], a: 0, pen: [{ crash: 1, sq: 0, inspected: true }] });
+  g.stacks = [stack(8), stack(8.8), stack(12)];
+  update(g, NONE, 1 / 120);
+  assert.ok(g.stacks.slice(0, 2).every((s) => s.touched && !s.pen[0].inspected), 'both colliding stacks forget inspection');
+  assert.ok(g.stacks[2].pen[0].inspected, 'a distant stack keeps its inspection');
+}
+
 // A hard hit nudges the upper boxes of a tall stack sideways, toppling the top when pushed far enough; a gentle push does not.
 {
   const mk = (speed) => {

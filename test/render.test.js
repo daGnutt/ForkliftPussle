@@ -8,10 +8,11 @@ import { chaseOrbit } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
-import { popupScale, placePhoto, drawPhoto, issues, stripHeight, scoreText } from '../js/photo.js';
+import { popupScale, placePhoto, drawPhoto, boxStatus, issues, stripHeight, scoreText } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { oilDropMark } from '../js/decals.js';
 import { setThemeMode } from '../js/theme.js';
+import { drawForkGauge } from '../js/render.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
 import { createHost } from '../js/net/host.js';
@@ -21,7 +22,7 @@ import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
-import { addParticles, shouldSpawnSetdownDust } from '../js/gl/particles.js';
+import { addParticles, setParticlesEnabled, shouldSpawnSetdownDust } from '../js/gl/particles.js';
 import { Mesh } from '../js/gl/mesh.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
@@ -56,6 +57,19 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
       g.clock += 1 / 120;
       addParticles(om, tm, g, eye);
       assert.equal(tm.count, onZone ? 0 : 7 * 6, `${other ? 'other' : 'local'} truck emits seven dust quads only off-zone`);
+    }
+  }
+
+  // Battery saver drops cosmetic GL particles and lights, then allows them again.
+  {
+    const g = newGame(1), om = new Mesh(), tm = new Mesh();
+    const eye = [g.fl.x, g.fl.y - 3, 3];
+    setParticlesEnabled(false);
+    try {
+      assert.deepEqual(addParticles(om, tm, g, eye), []);
+      assert.equal(om.count + tm.count, 0);
+    } finally {
+      setParticlesEnabled(true);
     }
   }
 }
@@ -385,6 +399,9 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 console.log('render tests passed');
 
 { // damaged boxes carry a warning symbol in the inspector photo
+  assert.deepEqual(boxStatus({ crash: 10, sq: 5 }), { damaged: true, crooked: true });
+  assert.deepEqual(boxStatus({ crash: 10, wide: true, sq: 5 }), { damaged: false, crooked: true });
+  assert.deepEqual(boxStatus({ crash: 10, barrelPart: 'base' }), { damaged: false, crooked: false });
   const photo = { n: 1, ok: false, layers: [0, 1], rots: [0, 0], offs: [{ x: 0, y: 0 }, { x: 0, y: 0 }], pens: [{ crash: 0 }, { crash: 10 }], view: 0, dist: 2 };
   const symbols = (p) => {
     let n = 0, style = '';
@@ -406,6 +423,32 @@ console.log('render tests passed');
   assert.deepEqual(issues({ ...photo, pens: [{ crash: 30, wide: true, sq: 5 }, { crash: 20, barrelPart: 'base' }, { crash: 20, barrelPart: 'top' }] }), ['Box 1 is wonky'], 'damage on wide boxes and barrels is not listed (cannot be repaired), wonkiness is');
   assert.ok(stripHeight(bad) > stripHeight(photo), 'the caption strip grows with the list');
   console.log('damage symbol ok');
+}
+
+// Gauge badges follow each box's inspection state before and after lifting.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1], a: 0, rots: [0, 0], offs: [{ x: 0, y: 0 }, { x: 0, y: 0 }], pen: [{ crash: 10, sq: 5 }, { crash: 10, sq: 5, inspected: true }] }];
+  faceStack(g, 0);
+  const symbols = () => {
+    let warnings = 0, diamonds = 0, style;
+    const ctx = new Proxy({}, {
+      get: (t, k) => k === 'fillRect' ? () => { if (style === '#ffe082') diamonds++; }
+        : k === 'fillText' ? (text) => { if (text === '!') warnings++; } : () => {},
+      set: (t, k, v) => { if (k === 'fillStyle') style = v; return true; },
+    });
+    drawForkGauge(ctx, g, 100, 100);
+    return [warnings, diamonds];
+  };
+  assert.deepEqual(symbols(), [1, 1], 'uninspected damaged and crooked boxes have no badges');
+  g.H = 1;
+  forkUp(g);
+  assert.deepEqual(symbols(), [1, 1], 'inspection follows the top box when the stack is split');
+  g.stacks[0].pen[0].inspected = true;
+  assert.deepEqual(symbols(), [2, 2], 'each inspected box gets its own badges');
+  update(g, { horn: true }, 1 / 120);
+  assert.deepEqual(symbols(), [0, 0], 'nudging floor and carried boxes immediately hides their badges');
 }
 
 { // tape strips stay on the lid and grow with the repair
