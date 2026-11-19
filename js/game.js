@@ -473,16 +473,18 @@ export function maxScore(g) {
   return g.stacks.reduce((n, s) => n + sum(s.layers, s.pen), 0) + g.root.trucks.reduce((n, t) => n + (t.carried ? sum(t.carried, t.carriedPen) : 0), 0);
 }
 
-// Points lost to crashes (permanent) and to crooked placement (recoverable).
+// Points lost to crashes and to crooked placement.
 export function lostBreakdown(g) {
-  let crashLost = 0, squareLost = 0;
+  let crashLost = 0, repairableLost = 0, squareLost = 0;
+  const addCrash = (p) => { crashLost += p.crash; if (repairable(p)) repairableLost += p.crash; };
   for (const S of g.stacks) {
     refreshSquare(S);
-    for (const p of S.pen) crashLost += p.crash;
+    for (const p of S.pen) addCrash(p);
     if (g.zones.some((z) => stackFillsZone(S, z))) for (const p of S.pen) squareLost += p.sq;
   }
-  for (const t of g.root.trucks) for (const p of t.carriedPen) crashLost += p.crash;
-  return { crash: Math.round(crashLost), square: Math.round(squareLost) };
+  for (const t of g.root.trucks) for (const p of t.carriedPen) addCrash(p);
+  const crash = Math.round(crashLost), repairableCrash = Math.round(repairableLost);
+  return { crash, repairableCrash, permanentCrash: crash - repairableCrash, square: Math.round(squareLost) };
 }
 
 // Points earned: only boxes in a stack that completes a zone count, but crash damage anywhere (loose stacks, carried boxes) is already deducted,

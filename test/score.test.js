@@ -3,6 +3,7 @@ import { generateLevel, parseSeed, isReachable } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
+import { stepRepair } from '../js/repair.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
 import { chaseOrbit } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
@@ -27,6 +28,35 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(score(g), 0);
   g.stacks[0].pen[0].crash = 30;
   assert.equal(score(g), -30, 'damage shows before the stack is dropped');
+}
+
+// Damage on all floor and carried boxes is split by repair eligibility, without changing scoring.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.zones = [{ x: 10, y: 5, color: 0, count: 1 }];
+  g.stacks = [
+    { x: 10, y: 5, layers: [0], rots: [Math.PI / 4], pen: [{ crash: 3, sq: 0 }] },
+    { x: 4, y: 4, layers: [0], rots: [0], pen: [{ crash: 10, sq: 0 }] },
+    { x: 6, y: 4, layers: [0], pen: [{ crash: 7, sq: 0, wide: true }] },
+    { x: 8, y: 4, layers: [0, 0], pen: [{ crash: 4, sq: 0, barrelPart: 'base' }, { crash: 5, sq: 0, barrelPart: 'top' }] },
+  ];
+  const other = truckView(g, addTruck(g, 'Other'));
+  other.carried = [0, 0];
+  other.carriedPen = [{ crash: 6, sq: 0 }, { crash: 8, sq: 0, wide: true }];
+  g.repair = { x: 4, y: 4, acc: 0, ang: 0 };
+  Object.assign(g.fl, { x: 18, y: 10 });
+  Object.assign(other.fl, { x: 18, y: 10 });
+
+  const before = lostBreakdown(g), beforeScore = score(g);
+  assert.deepEqual([before.repairableCrash, before.permanentCrash, before.crash], [19, 24, 43]);
+  assert.ok(before.square > 0, 'placement is a separate deduction');
+  assert.equal(beforeScore, 100 - before.crash - before.square);
+  stepRepair(g, 3, [g.fl, other.fl]);
+  const after = lostBreakdown(g);
+  assert.deepEqual([after.repairableCrash, after.permanentCrash, after.crash], [16, 24, 40]);
+  assert.equal(after.square, before.square);
+  assert.equal(score(g), beforeScore + 3);
 }
 
 

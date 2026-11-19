@@ -1390,7 +1390,7 @@ export function draw(ctx, g, view) {
   const lostNow = lostBreakdown(g);
   const ready = g.status === 'play' && isSolved(g);
   const now = performance.now();
-  const sig = `${g.level}|${g.seed}|${done}|${score(g)}|${lostNow.crash}|${lostNow.square}|${hint}`;
+  const sig = `${g.level}|${g.seed}|${done}|${score(g)}|${lostNow.repairableCrash}|${lostNow.permanentCrash}|${lostNow.square}|${hint}`;
   // A change only (re)triggers the HUD while it is hidden or on its way up; otherwise it is locked.
   const hudTrigger = view.hudSig !== undefined && view.hudSig !== sig;
   view.hudSig = sig;
@@ -1430,7 +1430,9 @@ export function draw(ctx, g, view) {
     ctx.font = 'bold 20px sans-serif';
     let boxW = ctx.measureText(title).width;
     ctx.font = '14px sans-serif';
-    boxW = Math.max(boxW, 380 + Math.max(E ? 0 : ctx.measureText(bestText).width, ctx.measureText(globalText).width));
+    const damageText = `Damage: −${lostNow.repairableCrash} repairable, −${lostNow.permanentCrash} permanent`;
+    const bestX = Math.max(380, ctx.measureText(damageText).width + 20);
+    boxW = Math.max(boxW, bestX + Math.max(E ? 0 : ctx.measureText(bestText).width, ctx.measureText(globalText).width));
     ctx.font = 'bold 16px sans-serif';
     if (hint) boxW = Math.max(boxW, ctx.measureText(hint).width);
     ctx.fillStyle = 'rgba(0,0,0,0.45)';
@@ -1440,15 +1442,14 @@ export function draw(ctx, g, view) {
     ctx.fillText(title, hx0, 25);
     ctx.font = '14px sans-serif';
     ctx.fillStyle = '#b3e5fc';
-    if (!E) ctx.fillText(bestText, hx0 + 380, 48); // endless: Bays is already in the title
+    if (!E) ctx.fillText(bestText, hx0 + bestX, 48); // endless: Bays is already in the title
     ctx.fillStyle = '#c5e1a5';
-    ctx.fillText(globalText, hx0 + 380, 68);
-    const lost = lostBreakdown(g);
+    ctx.fillText(globalText, hx0 + bestX, 68);
     ctx.font = '14px sans-serif';
     ctx.fillStyle = '#ef9a9a';
-    ctx.fillText(`Damage −${lost.crash} (locked)`, hx0, 48);
+    ctx.fillText(damageText, hx0, 48);
     ctx.fillStyle = '#ffe082';
-    ctx.fillText(`Placement −${lost.square} (fixable)`, hx0, 68);
+    ctx.fillText(`Placement −${lostNow.square} (fixable)`, hx0, 68);
     ctx.fillStyle = '#eee';
 
     if (hint) {
