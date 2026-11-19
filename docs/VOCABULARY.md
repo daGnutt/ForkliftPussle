@@ -75,6 +75,8 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Tines / forks / blades** | The two prongs that go into a pallet | `addForks` |
 | **Tine tips** | Thin tapered ends; look-at point of the cabin camera | `g.ef` |
 | **Fork level** | Integer 0–5 height of the tines in box heights | `g.H` |
+| **Fork gauge** | HUD ladder showing fork height, boxes under the forks and the carried stack | `drawForkGauge` |
+| **Box status badge** | In the fork gauge, after inspection and until the stack is nudged, a warning triangle marks repairable damage and a tilted diamond marks crookedness | `boxStatus`, `drawBoxStatus` |
 | **Smoothed fork height** | Animated height used only for drawing | `g.hf`, `g.ef` |
 | **Fork up / fork down** | Keys A / Z | `forkUp`, `forkDown` |
 | **Lifted / perched truck** | A truck riding on another truck's tines (`liftedBy`, cannot move) or sitting on top of stacks (`perchZ`) | `forkUp`, `liftedHf` |
@@ -117,6 +119,12 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Overhead decals / fixtures** | Light bars and fans on the ceiling | `overheadDecals` |
 | **Box decals** | This-side-up arrows, fragile glass, barcode label | `boxDecalKind` |
 | **Charger decals** | High-voltage markings | `chargerDecal` |
+
+## Performance settings
+
+| Term | Meaning | In code |
+|------|---------|---------|
+| **Battery saver** | Graphics-menu setting (default on touch devices) that caps canvas resolution, limits drawing to 30 fps, reduces decorative effects, slows autosaving and freezes the splash animation after 20 seconds | `forklift-battery-saver`, `view.batterySaver` |
 
 ## Views and cameras
 

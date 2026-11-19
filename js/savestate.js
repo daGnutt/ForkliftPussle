@@ -1,6 +1,7 @@
 import { newGame } from './game.js';
 import { newEndless, endlessSnapshot, restoreEndless } from './endless.js';
 import { MAX_H, MAX_LAYERS } from './forklift.js';
+import { stackSig } from './bot.js';
 
 const SAVE_VERSION = 1;
 const LEVEL_LAYOUT_VERSION = 4;
@@ -11,6 +12,7 @@ const arr = (a, n, ok) => Array.isArray(a) && a.length === n && a.every(ok);
 const okRot = num;
 const okOff = (o) => !!o && num(o.x) && num(o.y);
 const okPen = (p) => !!p && num(p.crash) && num(p.sq) &&
+  (p.inspected === undefined || typeof p.inspected === 'boolean') &&
   (p.oilDropped === undefined || Number.isInteger(p.oilDropped) && p.oilDropped >= 0 && p.oilDropped <= 50) &&
   (p.oilFraction === undefined || num(p.oilFraction) && p.oilFraction >= 0 && p.oilFraction < 1);
 const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'oil', 'repair', 'bot', 'inspector', 'photo', 'bonks', 'H', 'hf', 'status', 'time', 'started', 'clock'];
@@ -19,7 +21,19 @@ const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carrie
 export function serializeGame(g, seedText = '') {
   const state = {};
   for (const k of DYNAMIC) if (g[k] !== undefined) state[k] = clone(g[k]);
-  return { version: SAVE_VERSION, layoutVersion: LEVEL_LAYOUT_VERSION, level: g.level, seed: g.seed, seedText, hard: g.hard, state };
+  return { version: SAVE_VERSION, layoutVersion: LEVEL_LAYOUT_VERSION, inspectionVersion: 1, level: g.level, seed: g.seed, seedText, hard: g.hard, state };
+}
+
+// Older saves tracked inspections by zone; only recover boxes still matching a recorded photo.
+function restoreInspections(g, data) {
+  for (const st of g.stacks) if (st.touched) for (const pen of st.pen || []) delete pen.inspected;
+  if (data.inspectionVersion !== undefined) return;
+  for (const z of g.zones) {
+    const key = `${z.x},${z.y},${z.color}`, sig = g.inspector?.sigs?.[key];
+    if (!sig || !g.inspector.seen?.includes(key)) continue;
+    const st = g.stacks.find((s) => !s.touched && Math.abs(s.x - z.x) < 0.5 && Math.abs(s.y - z.y) < 0.5 && stackSig(s) === sig);
+    if (st?.pen) for (const pen of st.pen) pen.inspected = true;
+  }
 }
 
 function checkState(s) {
@@ -51,6 +65,7 @@ export function deserializeGame(data) {
   const boxes = (stacks, carried) => stacks.reduce((n, st) => n + st.layers.length, 0) + (carried ? carried.length : 0);
   if (boxes(s.stacks, s.carried) !== boxes(g.stacks, null)) throw new Error('State does not match level');
   Object.assign(g, clone(s));
+  restoreInspections(g, data);
   const ph = g.photo; // the observer's last picture; a malformed one is dropped rather than failing the load
   if (ph != null && !(Array.isArray(ph.layers) && Array.isArray(ph.pens) && Array.isArray(ph.rots) && Array.isArray(ph.offs) && num(ph.at?.x) && num(ph.at?.y))) g.photo = null;
   if (!num(g.hf)) g.hf = g.H;
@@ -90,7 +105,7 @@ const ENDLESS_VERSION = 1;
 export function serializeEndless(g) {
   const state = {};
   for (const k of DYNAMIC) if (g[k] !== undefined) state[k] = clone(g[k]);
-  return { version: ENDLESS_VERSION, seed: g.seed, hard: g.hard, state, endless: clone(endlessSnapshot(g)) };
+  return { version: ENDLESS_VERSION, inspectionVersion: 1, seed: g.seed, hard: g.hard, state, endless: clone(endlessSnapshot(g)) };
 }
 
 // Returns the resumed endless game, or throws if the data is not a valid snapshot.
@@ -106,5 +121,6 @@ export function deserializeEndless(data) {
   if (!num(g.bonks)) g.bonks = 0;
   g.started = false; // the start board (with the high scores) shows until the truck moves again
   restoreEndless(g, clone(data.endless));
+  restoreInspections(g, data);
   return g;
 }

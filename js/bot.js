@@ -575,7 +575,7 @@ function inspectorStep(g, dt, done, wonky) {
         if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
           g.photo = makePhoto(st, !wonky(target) && !st?.pen?.some((q) => q?.crash > 0 && repairable(q)), Math.atan2(target.y - bot.y, target.x - bot.x), Math.hypot(target.x - bot.x, target.y - bot.y), (g.photo?.n || 0) + 1, g.clock); // the snapshot shown as a popup (js/photo.js)
           (bot.sigs ||= {})[zoneKey(target)] = stackSig(st);
-          if (st) { st.touched = false; g.photo.at = { x: st.x, y: st.y }; g.photo.sig = stackSig(st); }
+          if (st) { for (const pen of st.pen || []) pen.inspected = true; st.touched = false; g.photo.at = { x: st.x, y: st.y }; g.photo.sig = stackSig(st); }
           if (st) (bot.photos ||= {})[zoneKey(target)] = g.photo; // kept per drop point: the flagged stack's own picture
           bot.seen.push(zoneKey(target)); bot.shooting = 0; bot.flash = 1; bot.target = null; bot.repath = 0;
           (g.hits ||= []).push({ x: bot.x, y: bot.y, z: 0.5, t: g.clock, owner: null, check: !g.photo.ok ? 'warn' : 'perfect' }); // verdict floats up from the bot

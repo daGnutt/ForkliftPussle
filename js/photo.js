@@ -44,15 +44,19 @@ function drawBarrel(ctx, P, col, cx, cz, y0, y1, poly, line) {
 
 const hurt = (pen) => (pen?.crash || 0) > 0 && repairable(pen); // no damage symbol on what can't be repaired
 
+export function boxStatus(pen) {
+  return { damaged: hurt(pen), crooked: (pen?.sq || 0) > 0 };
+}
+
 // What is wrong with the stack, one line per box (the lowest box is box 1): its damage points and whether it sits crooked.
 // A barrel pair counts as one box (damage of both halves).
 export function issues(photo) {
   const out = [];
   (photo.pens || []).forEach((pen, i) => {
     if (pen?.barrelPart === 'top') return;
-    const pts = repairable(pen) ? Math.round(pen?.crash || 0) : 0, bits = [];
+    const status = boxStatus(pen), pts = status.damaged ? Math.round(pen?.crash || 0) : 0, bits = [];
     if (pts > 0) bits.push(`has ${pts} pt damage`);
-    if ((pen?.sq || 0) > 0) bits.push('is wonky');
+    if (status.crooked) bits.push('is wonky');
     if (bits.length) out.push(`Box ${i + 1} ${bits.join(' and ')}`);
   });
   return out;
@@ -191,6 +195,10 @@ export function startGallery(photos) {
 export function stopGallery() {
   if (!gallery) return;
   gallery = null;
+  [...popups].forEach(hidePopup);
+}
+export function clearPhotos() {
+  stopGallery();
   [...popups].forEach(hidePopup);
 }
 

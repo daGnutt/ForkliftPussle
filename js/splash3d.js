@@ -12,11 +12,11 @@ const ROOM_MID = { x: 9, y: 5 };
 
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
-export function startSplash3d(canvas, isActive) {
+export function startSplash3d(canvas, isActive, isBatterySaver = () => false) {
   if (!glAvailable()) return false;
   const demo = createDemo(), g = demo.g;
   for (let i = 0; i < 60 * 3; i++) demo.step(1 / 60); // already mid-job when the splash opens
-  let shot = 0, shotT = 0, last = null, heading = g.fl.a, clock = 0;
+  let shot = 0, shotT = 0, last = null, heading = g.fl.a, clock = 0, saverAge = 0;
   const ctx = canvas.getContext('2d');
 
   function camera(w, h) {
@@ -31,7 +31,7 @@ export function startSplash3d(canvas, isActive) {
   }
 
   function draw() {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(isBatterySaver() ? 1 : 2, window.devicePixelRatio || 1);
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return true;
     const pw = Math.round(w * dpr), ph = Math.round(h * dpr);
@@ -50,17 +50,26 @@ export function startSplash3d(canvas, isActive) {
   if (!draw()) return false;
   canvas.hidden = false;
 
+  const schedule = (delay = 0) => {
+    if (delay) setTimeout(() => requestAnimationFrame(frame), delay);
+    else requestAnimationFrame(frame);
+  };
   function frame(now) {
     if (!isActive()) return;
-    requestAnimationFrame(frame);
+    const saver = isBatterySaver();
+    if (saver && saverAge >= 20) { schedule(1000); return; }
     const dt = last === null ? 0 : Math.min(0.05, (now - last) / 1000);
     last = now;
+    if (saver) saverAge += dt;
+    else saverAge = 0;
+    if (saver && saverAge >= 20) { schedule(1000); return; }
     clock += dt;
     demo.step(dt);
     heading += wrap(g.fl.a - heading) * (1 - Math.exp(-dt / 0.35));
     shotT += dt;
     if (shotT >= SHOTS[shot].secs) { shotT = 0; shot = (shot + 1) % SHOTS.length; }
     draw();
+    schedule(saver ? 1000 / 30 : 0);
   }
   requestAnimationFrame(frame);
   return true;

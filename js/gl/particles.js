@@ -16,6 +16,8 @@ const MAX = 700, FAR = 45, MAX_STEP = 0.1;
 const rnd = (a = 0, b = 1) => a + Math.random() * (b - a);
 
 const states = new WeakMap();
+let particlesEnabled = true;
+export function setParticlesEnabled(on) { particlesEnabled = !!on; }
 
 function stateFor(g) {
   let s = states.get(g.root);
@@ -205,6 +207,13 @@ function quad(m, o, a, b, color, emissive) {
 // point lights (sparks flashes, dark mode only).
 export function addParticles(om, tm, g, eye) {
   const s = stateFor(g), now = g.root.clock;
+  if (!particlesEnabled) {
+    s.ps.length = 0;
+    s.flashes.length = 0;
+    s.clock = null;
+    s.zones = null;
+    return [];
+  }
   if (s.clock === null || now < s.clock || now - s.clock > 1) { s.ps.length = 0; s.flashes.length = 0; s.clock = now; if (s.zones === null) watchZones(s, g.root); }
   else if (now > s.clock) { const dt = Math.min(MAX_STEP, now - s.clock); s.clock = now; step(s, g, dt); }
   const dark = theme().dark ? 0.55 : 1;

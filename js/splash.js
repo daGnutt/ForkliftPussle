@@ -65,8 +65,8 @@ function drawForklift(ctx, f) {
   ctx.restore();
 }
 
-export function startSplashAnimation(canvas, isActive) {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+export function startSplashAnimation(canvas, isActive, isBatterySaver = () => false) {
+  const dpr = Math.min(isBatterySaver() ? 1 : 2, window.devicePixelRatio || 1);
   canvas.width = W * dpr;
   canvas.height = H * dpr;
   const ctx = canvas.getContext('2d');
@@ -79,7 +79,7 @@ export function startSplashAnimation(canvas, isActive) {
   sctx.lineWidth = 4;
   sctx.strokeStyle = 'rgba(20,20,20,.13)';
   const smoke = []; // {x,y,vx,vy,born,r}
-  let t = 0, slip = 0, last = null, markAcc = 0, clock = 0;
+  let t = 0, slip = 0, last = null, markAcc = 0, clock = 0, saverAge = 0;
   let prev = null, f = null;
 
   function step(dt) {
@@ -109,11 +109,19 @@ export function startSplashAnimation(canvas, isActive) {
   smoke.length = 0;
   prev = null;
 
+  const schedule = (delay = 0) => {
+    if (delay) setTimeout(() => requestAnimationFrame(frame), delay);
+    else requestAnimationFrame(frame);
+  };
   function frame(now) {
     if (!isActive()) return;
-    requestAnimationFrame(frame);
+    const saver = isBatterySaver();
+    if (saver && saverAge >= 20) { schedule(1000); return; }
     const dt = last === null ? 0 : Math.min(0.05, (now - last) / 1000);
     last = now;
+    if (saver) saverAge += dt;
+    else saverAge = 0;
+    if (saver && saverAge >= 20) { schedule(1000); return; }
     step(dt);
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -128,6 +136,7 @@ export function startSplashAnimation(canvas, isActive) {
       ctx.arc(s.x + s.vx * (clock - s.born), s.y + s.vy * (clock - s.born), s.r + a * 14, 0, Math.PI * 2);
       ctx.fill();
     }
+    schedule(saver ? 1000 / 30 : 0);
   }
   requestAnimationFrame(frame);
 }
