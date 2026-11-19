@@ -21,7 +21,7 @@ import { setDecalsEnabled } from './decals.js';
 import { glEnabled, setGlEnabled, attachGlCanvas } from './gl/renderer.js';
 import { themeMode, setThemeMode, theme } from './theme.js';
 import { setDiscoEnabled } from './disco.js';
-import { chaseDrift, chaseOrbit, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
+import { chaseDrift, chaseOrbit, lookYawDelta, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner, isTesting } from './testing.js';
 import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
@@ -364,7 +364,7 @@ function lookState() {
 function lookBy(dyaw, dpitch) {
   const o = lookState();
   o.goal = null;
-  if (view.chase) { view.chaseGoal = null; swingChase(-dyaw); } else o.yaw = wrap(o.yaw - dyaw);
+  if (view.chase) { view.chaseGoal = null; swingChase(-dyaw); } else o.yaw = wrap(o.yaw + lookYawDelta(dyaw, view.povBig));
   if (view.povBig) o.pitch = Math.min(LOOK_PITCH_MAX, Math.max(-LOOK_PITCH_MAX, o.pitch + dpitch));
   else o.tilt = Math.min(ORBIT_TILT_MAX, Math.max(0.05, o.tilt + dpitch));
 }

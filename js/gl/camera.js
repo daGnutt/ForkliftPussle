@@ -16,6 +16,10 @@ export function headTurn(f) {
   return HEAD_TURN * (f.steer / FL.maxSteer);
 }
 
+export function lookYawDelta(delta, cabinView) {
+  return cabinView ? delta : -delta;
+}
+
 // Cabin view (always looks forward, also in reverse): eye fixed at seat height (no up/down translation); the camera
 // only pitches to look at the fork tips (smoothed level g.ef), so the view tilts up and down as the forks rise and fall. `look` ({ yaw, pitch } radians) turns the head.
 export function povCamera(g, w, h, look = null) {
