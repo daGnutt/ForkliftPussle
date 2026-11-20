@@ -53,7 +53,7 @@ const hitZ = (z) => PAL + Math.max(0, z - 0.5) * BOX_H;
 export function shouldSpawnSetdownDust(p, zones) {
   return !zones.some((z) => {
     const e = zoneExt(z);
-    return Math.abs(p.x - z.x) <= e.x && Math.abs(p.y - z.y) <= e.y;
+    return Math.abs(p.x - z.x) <= e.x + 1e-9 && Math.abs(p.y - z.y) <= e.y + 1e-9;
   });
 }
 

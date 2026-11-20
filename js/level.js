@@ -1,4 +1,4 @@
-import { pointRectDist } from './geom.js';
+import { pointRectDist, zoneExt } from './geom.js';
 import { FL } from './forklift.js';
 
 export const COLORS = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#9e9e9e', '#39484b'];
@@ -519,7 +519,19 @@ export function generateLevel(n, seed = 0) {
   // Keep varying the attempt number (deterministic) until a valid level of this very number turns up.
   for (let attempt = 0; attempt < 5000; attempt++) {
     const lvl = tryGenerate(n, attempt, seed);
-    if (lvl) return lvl;
+    if (lvl) {
+      for (const a of lvl.areas) {
+        const rects = lvl.zones.filter((z) => z.color === a.color).map((z) => {
+          const e = zoneExt(z);
+          return { x0: z.x - e.x, x1: z.x + e.x, y0: z.y - e.y, y1: z.y + e.y };
+        });
+        const x = Math.min(...rects.map((r) => r.x0)), y = Math.min(...rects.map((r) => r.y0));
+        a.x = x; a.y = y;
+        a.w = Math.max(...rects.map((r) => r.x1)) - x;
+        a.h = Math.max(...rects.map((r) => r.y1)) - y;
+      }
+      return lvl;
+    }
   }
   throw new Error(`No valid layout found for level ${n} (seed ${seed})`);
 }

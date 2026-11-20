@@ -296,8 +296,10 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
   const hard = drop(12, Math.PI / 4, 0, true);
   assert.deepEqual(scores(hard), [{ total: 200 }], 'Hard mode keeps delivery points but hides placement popups');
+  Object.assign(hard.fl, { x: 2, y: 2 });
+  Object.assign(hard.stacks[0], { x: 12, y: 5, a: 0 });
   hard.stacks[0].rots = [0, 0];
-  hard.stacks[0].offs[1].y = 0.18;
+  hard.stacks[0].offs[1].y = 0.22;
   update(hard, {}, 1 / 120);
   const shifted = zonePoints(hard, hard.zones[0]);
   assert.ok(shifted.square > 0 && zoneWonky(hard, hard.zones[0]), 'sideways shift alone is wonky');
@@ -309,7 +311,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   Object.assign(hard.stacks[0], { x: 12.1, y: 5, offs: [{ x: 0, y: 0 }, { x: 0, y: 0.1 }] });
   assert.equal(zonePoints(hard, hard.zones[0]).square, 0, 'the extra clearance forgives a 0.1 tile shift at both levels');
   hard.stacks[0].x += 0.15;
-  assert.ok(zonePoints(hard, hard.zones[0]).square > 0, 'bottom box is judged against the centre of its zone');
+  assert.ok(zonePoints(hard, hard.zones[0]).square > 0, 'a bottom box extending beyond the drop point is wonky');
   hard.status = 'won';
   assert.equal(score(hard, true), score(hard), 'final score counts all placement losses');
   const normal = drop(12, 0);
@@ -321,6 +323,49 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(zonePoints(drop(8, 0), g.zones[0]), null, 'open zone has no points');
   assert.ok(!zoneWonky(drop(12, 0), { x: 12, y: 5, color: 0, count: 2 }));
   console.log('stack points ok');
+}
+
+// Hard-mode sideways placement checks every box corner against the enlarged drop point.
+{
+  const g = newGame(1, 0, true), z = { x: 10, y: 5, color: 0, count: 2 };
+  flatWorld(g);
+  g.zones = [z];
+  const s = { x: 10.18, y: 5.18, layers: [0, 0], rots: [0, 0], a: 0,
+    offs: [{ x: 0, y: 0 }, { x: -0.28, y: -0.28 }] };
+  g.stacks = [s];
+  assert.equal(zonePoints(g, z).square, 0, 'diagonally offset boxes inside the zone have no sideways penalty');
+  s.x = 10.19; s.y = 5.19; s.offs[1] = { x: 0, y: 0 };
+  assert.equal(zonePoints(g, z).square, 0, 'touching the drop-point edges is allowed');
+  s.offs[1].x = 0.001;
+  assert.ok(zonePoints(g, z).square > 0, 'an upper box poking outside is penalized');
+  assert.equal(s.pen[0].shift, 0, 'the bottom box still fits');
+  s.x = 10.15; s.y = 5; s.offs[1] = { x: 0.15, y: 0 };
+  zonePoints(g, z);
+  assert.ok(s.pen[1].shift > 0, 'upper offsets are measured from the drop point, not just the supporting box');
+  s.x = 10.17; s.offs[1] = { x: 0, y: 0 }; s.rots = [4 * Math.PI / 180, 0];
+  zonePoints(g, z);
+  assert.equal(s.pen[0].sq, 0, 'rotation within the existing allowance remains free');
+  assert.ok(s.pen[0].shift > 0, 'a rotated corner outside the zone counts as overhang');
+  s.x = 10; s.rots = [Math.PI / 8, 0];
+  zonePoints(g, z);
+  assert.equal(s.pen[0].shift, 0, 'a rotated box fully inside has no sideways penalty');
+  assert.ok(s.pen[0].sq > 0, 'rotation penalties remain independent of containment');
+}
+
+// Wide drop points use their world-axis extents in both orientations.
+{
+  for (const a of [0, Math.PI / 2]) {
+    const g = newGame(1, 0, true), vertical = a !== 0;
+    const z = { x: 10, y: 5, color: 5, count: 1, wide: true, a,
+      hx: vertical ? 1.1 : 0.6, hy: vertical ? 0.6 : 1.1 };
+    const s = { x: 10 + (vertical ? 0.25 : 0.18), y: 5 + (vertical ? 0.18 : 0.25),
+      layers: [5], rots: [a], a, pen: [{ wide: true, crash: 0, sq: 0 }] };
+    g.stacks = [s]; g.zones = [z];
+    assert.equal(zonePoints(g, z).square, 0, 'a wide box inside its enlarged drop point is not shifted');
+    s.x += vertical ? 0.02 : 0;
+    s.y += vertical ? 0 : 0.02;
+    assert.ok(zonePoints(g, z).square > 0, 'overhang along the long axis is penalized');
+  }
 }
 
 {

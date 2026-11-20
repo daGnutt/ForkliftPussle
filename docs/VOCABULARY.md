@@ -28,7 +28,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Top box** | The box drawn in its colour; lower ones show as coloured numbers | `drawStack` |
 | **Open-top box** | Box with an open lid and a "do not stack" sign on top and its two fork-entry faces, but not on the runner-blocked sides; a dark-gray tape strap across its opening shows the fork-entry axis and rotates with the box (`pen.open`, `stack.open` in layouts) | `topOpen`, `newPen`, `OPEN_BOX_DECAL_EDGES` |
 | **Wide box** | Always gray; 1×2 box (long side across the forks) on two pallets; lifted only with both tines under it and heading within ~27° of its local x axis, stacks only with other wide boxes; worth 200 and only fits a wide zone (`pen.wide`, `stack.wide` in layouts) | `wideBox`, `halfY`, `boxPoints`, `markWide` |
-| **Wide zone** | 1×2 drop point for a stack of 1–3 wide boxes, grouped with the other wide zones in the one gray area (`zone.wide`, `hx`/`hy` half extents, `a`) | `zoneExt`, `tryWide` |
+| **Wide zone** | 1.38×2.53 drop point (or swapped orientation) for a stack of 1–3 full-size wide boxes, grouped with the other wide zones in the one gray area (`zone.wide`, base `hx`/`hy` half extents, `a`) | `zoneExt`, `tryWide` |
 | **Oil barrel** | A rigid, two-box-high load of its own type (`BARREL_COLOR`) that cannot be stacked on; one barrel counts as one item in its dedicated zone (`pen.barrelPart`) | `markOilBarrel`, `BARREL_COLOR`, `barrelPart` |
 | **Oil slick** | Persistent floor puddle formed by merging nearby oil drops; each barrel holds 50 drops and leaks one per damage point per ten seconds. Affects drive and steering tires independently, allowing rear-axle drift | `g.oil`, `dropOil`, `wheelOilGrip`, `axleOilGrip`, `stepOil` |
 | **Cleaning bot** | Small (about a quarter forklift) M-O-style robot that emerges from the **bot hatch** when there is oil, mops each drop in 5 s and flees from nearby forklifts | `g.bot`, `js/bot.js` |
@@ -47,7 +47,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 
 | Term | Meaning | In code |
 |------|---------|---------|
-| **Drop point / drop-off** | Target spot for one stack of an exact colour and box count | `g.zones` |
+| **Drop point / drop-off** | Target spot for one stack of an exact colour and box count; standard marking is 1.38×1.38 tiles, with sideways wonkiness forgiven while each box stays inside | `g.zones`, `zoneExt` |
 | **Zone label** | Floating `×count` marker on a drop point | `zoneLabelItems` |
 | **Drop-off area** | Tinted region holding all drop points of one colour | `g.areas` |
 | **Done zone** | Drop point holding exactly `count` items of its colour (barrels count as one item despite being two heights) | `zoneDone` |
@@ -84,7 +84,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Blocked fork down** | Refused lowering onto a box; 10 crash points | `'blocked'` |
 | **Nudge / align** | Slow forward contact straightens a stack | `g.aligning` |
 | **Glide** | Pallet on the tines turns with them (hard mode) | `glideWithForks` |
-| **Hard mode** | Realistic pallets (runner collisions and torque) and inspector-only placement feedback. Off-centre and rotated boxes both cost wonkiness points. | `g.hard` |
+| **Hard mode** | Realistic pallets (runner collisions and torque) and inspector-only placement feedback. Boxes extending outside their drop point cost sideways wonkiness; contained offsets are allowed. Rotated boxes still cost rotation points. | `g.hard` |
 | **Reversing light** | Blue disc behind the truck when backing | `revlight.js` |
 | **Steering lock** | Max wheel angle; shrinks with speed | `maxSteerFor` |
 

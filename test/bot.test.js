@@ -322,7 +322,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   const g = newGame(1, 0, true);
   const z = g.zones[0];
   const s = { x: z.x, y: z.y, layers: [z.color, z.color], a: Math.PI / 8,
-    rots: [Math.PI / 8, 0], offs: [{ x: 0, y: 0 }, { x: 0, y: 0.18 }] };
+    rots: [Math.PI / 8, 0], offs: [{ x: 0, y: 0 }, { x: 0, y: 0.22 }] };
   z.count = 2;
   g.stacks = [s];
   clearOf(g, z);

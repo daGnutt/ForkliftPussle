@@ -52,7 +52,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(missed.stacks.some((s) => s.fall), 'the missed box falls normally');
 }
 
-// A carried crate can pass a neighbouring stack with less than one tile between their centres.
+// A full-size carried crate pushes a neighbouring stack less than one tile from its path.
 {
   const g = newGame(1, 0, true);
   flatWorld(g);
@@ -67,10 +67,10 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   forkDown(g);
   update(g, NONE, 1 / 120);
   assert.ok(zoneDone(g, g.zones[0]));
-  assert.equal(neighbour.y, 5.95, 'the adjacent stack was not pushed');
+  assert.ok(neighbour.y > 5.95, 'the full-size crate pushes the overlapping adjacent stack');
 }
 
-// Shrinking a wide pallet still leaves both tine slots open on a straight approach.
+// Full-size wide pallets leave both tine slots open on a straight approach.
 {
   const g = newGame(1, 0, true);
   flatWorld(g);
@@ -218,6 +218,40 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   };
   assert.ok(turned(20) > 0.05, 'turns towards a positive heading');
   assert.ok(turned(-20) < -0.05, 'turns towards a negative heading');
+}
+
+// A slow off-centre push against a pallet's closed side turns it clockwise, even when square to the truck.
+{
+  for (const speed of [0.02, 0.3]) {
+    const g = newGame(9, 0, true), rotation = 2.637474002998607;
+    const s = { x: 17.161711292836376, y: 5.845426538217926, layers: [1, 2],
+      rots: [rotation, rotation], a: rotation, offs: [{ x: 0, y: 0 }, { x: -0.02722295492130797, y: -0.04391507610620465 }] };
+    g.stacks = [s];
+    Object.assign(g.fl, { x: 17.63925829868377, y: 7.866128459991518, a: 4.208270329793503, speed: 0, steer: 0 });
+    for (let i = 0; i < 120; i++) {
+      g.fl.speed = speed;
+      update(g, { thr: speed * 0.1 / 3.2 }, 1 / 120);
+    }
+    assert.ok(s.rots[0] > rotation + 0.005, 'off-centre tine contact rotates the pallet clockwise');
+    assert.equal(s.rots[1], s.rots[0], 'the box above follows the pallet rotation');
+    assert.ok(s.pen.every((p) => p.crash === 0), 'gentle side contact does not damage the boxes');
+  }
+}
+
+// Mirrored closed-side tine pushes produce opposite rotations instead of snapping square.
+{
+  for (const side of [-1, 1]) {
+    const g = newGame(1, 0, true);
+    flatWorld(g);
+    const s = { x: 10, y: 5 + side * 0.558, layers: [0], rots: [Math.PI / 2], a: Math.PI / 2 };
+    g.stacks = [s];
+    Object.assign(g.fl, { x: 8, y: 5, a: 0, speed: 0, steer: 0 });
+    for (let i = 0; i < 120; i++) {
+      g.fl.speed = 0.3;
+      update(g, { thr: 0.3 * 0.1 / 3.2 }, 1 / 120);
+    }
+    assert.ok(side * (s.rots[0] - Math.PI / 2) > 0.05, 'rotation follows the side of the push');
+  }
 }
 
 // Turning with the forks in a pallet glides it with the forks sideways (and turns it) without lifting it.
