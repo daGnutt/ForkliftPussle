@@ -31,6 +31,30 @@ import { Mesh } from '../js/gl/mesh.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
+// Toppled boxes keep their drawing-only fall height in both 3D renderers.
+{
+  const g = newGame(1);
+  g.zones = []; g.hatch = null; g.bot = null; g.inspector = null; g.repair = null;
+  Object.assign(g.fl, { x: 3, y: 3, a: 0, speed: 0 });
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0, offs: [{ x: 0, y: 0 }], pen: [{ crash: 0, sq: 0, deco: 0 }],
+    fall: { t0: 0, dx: 0, dy: 0, dr: 0, z: 2, from: 0 } }];
+  const tops = [];
+  for (const clock of [0, 0.25, 0.5]) {
+    g.clock = clock;
+    const mesh = dynamicMeshes(g, 'pov', [8, 5]).opaque, zs = [];
+    for (let i = 0; i < mesh.n; i += 10) {
+      if (mesh.a[i] > 9 && mesh.a[i] < 11 && mesh.a[i + 1] > 4 && mesh.a[i + 1] < 6) zs.push(mesh.a[i + 2]);
+    }
+    const top = Math.max(...zs);
+    const faces = buildPovFaces(g, makeCamera({ x: 8, y: 5 }, 2, 0, Math.PI / 2, 0, 0, 800, 400));
+    const softwareTop = Math.max(...faces.filter((f) => f.color === COLORS[0]).flatMap((f) => f.quad.map((p) => p[2])));
+    assert.ok(Math.abs(top - softwareTop) < 0.02, 'software and GL render the falling box at matching heights');
+    tops.push(top);
+  }
+  assert.ok(tops[0] > tops[1] && tops[1] > tops[2], 'the box visibly descends before landing');
+  assert.ok(Math.abs(tops[2] - 0.6) < 0.02, 'the landed box rests on the floor');
+}
+
 // Barrel pallets retain the full-size footprint and leave room for the tines beneath the deck.
 {
   const layers = [BARREL_COLOR, BARREL_COLOR], pen = [{ barrelPart: 'base' }, { barrelPart: 'top' }];
@@ -475,16 +499,14 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 }
 
 
-// The chase camera only looks back after reversing for a while; the cabin camera always looks forward
+// The cabin camera keeps facing forward while the truck reverses
 {
   const g = newGame(1);
   run(g, { down: true }, 0.6);
-  assert.ok(g.fl.gear === 'R' && g.rv < 0.01, 'short reverse keeps looking forward');
-  run(g, { down: true }, 1.5);
-  assert.ok(g.rv > 0.9, 'long reverse looks back');
+  assert.equal(g.fl.gear, 'R', 'truck is reversing');
   const cab = povCamera(g, 800, 500), back = projectPoint(cab.vp, g.fl.x + Math.cos(g.fl.a) * 6, g.fl.y + Math.sin(g.fl.a) * 6, 0.5, 800, 500);
   assert.ok(back && Math.abs(back[0] - 400) < 400, 'cabin camera still looks along the heading in reverse');
-  console.log('look back delay ok');
+  console.log('cabin camera reverse view ok');
 }
 
 // chase camera orbits upwards when a wall hides the forklift

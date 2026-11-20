@@ -10,7 +10,6 @@ export const SPOT_R = 2.6;
 const SPOTS = 3;
 
 let enabled = true;
-export const discoEnabled = () => enabled;
 export function setDiscoEnabled(on) { enabled = !!on; }
 export const discoOn = () => enabled && theme().disco === true;
 

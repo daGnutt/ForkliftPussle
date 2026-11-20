@@ -141,7 +141,7 @@
       <div class="page" data-page="play" hidden>
         <h3>Play</h3>
         <label title="Applies when the level is restarted (Restart level is on the main page)"><input type="checkbox" id="menuHardOpt"> Hard mode (on restart)</label>
-        <button type="button" id="menuEndless" class="sec" data-hostonly title="Boxes arrive on a conveyor belt; fill the delivery trucks before too many reach the end">Start endless mode</button>
+        <button type="button" id="menuEndless" class="sec" data-hostonly title="Unload incoming trucks and fill the delivery trucks before all docks are occupied">Start endless mode</button>
         <button type="button" id="menuEndRun" class="sec" data-hostonly hidden title="Finish this endless run now and record its points">End endless run</button>
         <form id="menuGoto" autocomplete="off" data-hostonly><label><u>G</u>o to level <input type="number" id="menuLevel" min="1" step="1"></label> <button type="submit" class="sec">Go</button></form>
         <button type="button" id="menuLowest" class="sec" data-hostonly title="Lowest level with no saved score on this seed">Jump to lowest unscored level</button>
@@ -192,7 +192,7 @@
     <p>Stack the boxes. Park the forklift. Mind the tail swing.</p>
     <form id="seedForm" autocomplete="off">
       <button type="submit" id="startBtn">Start</button>
-      <button type="submit" id="endlessStart" title="Boxes arrive on a conveyor belt; fill the delivery trucks">&#9854; Start endless</button>
+      <button type="submit" id="endlessStart" title="Unload incoming trucks and fill the delivery trucks">&#9854; Start endless</button>
     </form>
     <label class="opt"><input type="checkbox" id="tutorialOpt"> Show tutorial</label>
     <label class="opt" title="Line up with the pallet slots. The inspector reports rotated and off-centre boxes; no instant placement warnings."><input type="checkbox" id="hardOpt"> Hard mode (pallets + inspections)</label>

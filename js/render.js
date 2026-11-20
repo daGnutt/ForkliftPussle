@@ -836,9 +836,9 @@ function drawWorldObjects(ctx, g, vis) {
   // Stacks whose top is below the tines are drawn first; stacks the tines
   // slide under are drawn over them.
   const shown = g.stacks.map((st) => fallView(g, st)).filter((st) => seen(st.x - 1.2, st.y - 1.2, 2.4, 2.4));
-  const low = shown.filter((st) => stackZ(g, st) + st.layers.length <= g.hf);
-  const high = shown.filter((st) => stackZ(g, st) + st.layers.length > g.hf);
-  const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, stackZ(g, st), st.rots, st.offs, st.pen);
+  const low = shown.filter((st) => stackZ(st) + st.layers.length <= g.hf);
+  const high = shown.filter((st) => stackZ(st) + st.layers.length > g.hf);
+  const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, stackZ(st), st.rots, st.offs, st.pen);
   for (const st of low) dstack(st);
   // other trucks first, so the local one is always on top; ghosts are translucent
   const trucks = [...otherTrucksShown(g), g];

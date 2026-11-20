@@ -308,11 +308,9 @@ export function buildFaces(g, cam) {
     addPrism(faces, cam, w.x + w.w / 2, w.y + w.h / 2, 0, w.w / 2, w.h / 2, lo, top, w.roller ? '#c9cfd6' : w.truck.part === 'gate' ? '#b9bec5' : truckPaint(w.truck.color));
   }
   for (const r of truckRoofs(g)) addPrism(faces, cam, (r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, 0, (r.x1 - r.x0) / 2, (r.y1 - r.y0) / 2, TRUCK_H - 0.03, TRUCK_H, truckPaint(r.color), false, 1);
-  const lw = g.lowWalls?.[0];
-  if (lw) addPrism(faces, cam, lw.x + lw.w / 2, lw.y + lw.h / 2, 0, lw.w / 2, lw.h / 2, 0, BOX_H + PAL, '#1c1e22', false, 1, 0, true, true); // the raised belt; its top is painted with the floor marks
   addOil(faces, cam, g);
   addBot(faces, cam, g);
-  for (const st0 of g.stacks) { const st = fallView(g, st0); addStack(faces, cam, st.x, st.y, st.rots || [], st.layers, stackZ(g, st), st.offs, st.dropFrom ?? 0,
+  for (const st0 of g.stacks) { const st = fallView(g, st0); addStack(faces, cam, st.x, st.y, st.rots || [], st.layers, stackZ(st), st.offs, st.dropFrom ?? 0,
       dropLift(g, st), st.pen); }
   if (g.carried) {
     const p = toWorld(g.fl, FL.carryX, 0);

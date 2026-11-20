@@ -16,7 +16,7 @@ import { createHost } from '../js/net/host.js';
 import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
-import { rectPoly, sat } from '../js/geom.js';
+import { rectPoly, sat, overlapArea, halfY } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ, crashAlert, crashBlink, crashProbes, alertTriggers } from '../js/game.js';
 
@@ -180,6 +180,144 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   }
   assert.ok(Math.abs(c.fl.a + c.carriedRel) < 0.05, 'carried stack squares to the wall on the forks');
   console.log('wall-align ok');
+}
+
+// Wall contact slides protruding carried boxes back without clipping or gentle-contact damage.
+{
+  const g = newGame(10, 0, true);
+  g.stacks = []; g.zones = []; g.bot = null; g.inspector = null; g.repair = null;
+  Object.assign(g.fl, { x: 10.045584556050366, y: 15.206415970192738, a: 21.965472688463088, speed: 0, steer: 0 });
+  g.H = 1; g.hf = 1;
+  g.carried = [4, 0]; g.carriedRel = -22.019411022077236;
+  g.carriedRots = [-22.019411022077236, -21.943390779548526];
+  g.carriedOffs = [{ x: 0.4451031871673399, y: -0.051937301654630064 }, { x: 0.851283635704168, y: 0.037105325895694596 }];
+  g.carriedPen = [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }];
+  const polys = () => g.carried.map((_, i) => {
+    const o = g.carriedOffs[i], c = toWorld(g.fl, FL.carryX + o.x, o.y);
+    return rectPoly(c.x, c.y, 0.5, halfY(g.carriedPen[i]), g.fl.a + g.carriedRots[i]);
+  });
+  assert.ok(g.walls.some((w) => (sat(polys()[1], w.poly)?.depth || 0) > 0.3), 'saved upper box starts inside the wall');
+  const bottom = { ...g.carriedOffs[0] }, x = g.fl.x;
+  update(g, NONE, 1 / 120);
+  assert.ok(g.carriedOffs[1].x < 0.6, 'the upper box slides toward the forklift');
+  assert.deepEqual(g.carriedOffs[0], bottom, 'upper contact does not slide the bottom box');
+  assert.ok(Math.abs(g.fl.x - x) < 1e-6, 'repairing the upper overlap need not shove the truck');
+  for (let i = 0; i < 720; i++) {
+    g.fl.speed = 0.3;
+    update(g, NONE, 1 / 120);
+    const p = polys();
+    assert.ok(p.every((poly) => g.walls.every((w) => (sat(poly, w.poly)?.depth || 0) < 1e-6)), 'every carried box clears walls after each step');
+    assert.ok(overlapArea(p[0], p[1]) >= 0.5 - 1e-6, 'gentle sliding preserves upper-box support');
+    assert.ok(g.carriedPen.every((pen) => pen.crash === 0 && !pen.dent), 'gentle pushing never damages or dents the boxes');
+  }
+  const beforeDrop = polys().map((p) => p.map((v) => ({ ...v })));
+  forkDown(g);
+  assert.equal(g.carried, null, 'the adjusted load can be put down');
+  const s = g.stacks[0];
+  s.layers.forEach((_, i) => {
+    const p = rectPoly(s.x + s.offs[i].x, s.y + s.offs[i].y, 0.5, halfY(s.pen[i]), s.rots[i]);
+    p.forEach((v, k) => assert.ok(Math.hypot(v.x - beforeDrop[i][k].x, v.y - beforeDrop[i][k].y) < 1e-8, 'set-down keeps each box position'));
+  });
+}
+
+// Sliding stops at the mast/support limits, including corners, wide pallets and rigid barrels.
+{
+  const mk = (pens, angle = 0) => {
+    const g = newGame(1);
+    g.stacks = []; g.zones = []; g.bot = null; g.inspector = null; g.repair = null;
+    g.walls = [{ x: 12, y: 0, w: 1, h: 20, poly: rectPoly(12.5, 10, 0.5, 10) }];
+    Object.assign(g.fl, { x: 10.6, y: 5, a: angle, speed: 0, steer: 0 });
+    g.H = 1; g.hf = 1;
+    g.carried = pens.map(() => 0); g.carriedRel = 0;
+    g.carriedRots = pens.map(() => 0);
+    g.carriedOffs = pens.map((_, i) => ({ x: i * 0.3, y: 0 }));
+    g.carriedPen = pens.map((p) => ({ crash: 0, sq: 0, ...p }));
+    return g;
+  };
+  const check = (g) => {
+    const polys = g.carried.map((_, i) => {
+      const o = g.carriedOffs[i], c = toWorld(g.fl, FL.carryX + o.x, o.y);
+      return rectPoly(c.x, c.y, 0.5, halfY(g.carriedPen[i]), g.fl.a + g.carriedRots[i]);
+    });
+    polys.forEach((p, i) => {
+      assert.ok(g.walls.every((w) => (sat(p, w.poly)?.depth || 0) < 1e-6), 'every layer clears its wall blockers');
+      assert.ok(p.every((v) => toLocal(g.fl, v.x, v.y).x >= FL.front - 1e-6), 'no carried box passes through the mast');
+      if (i > 0) assert.ok(overlapArea(p, polys[i - 1]) >= 0.5 * (g.carriedPen[i].wide ? 2 : 1) - 1e-6, 'upper layers stay supported');
+    });
+    assert.ok(g.carriedPen.every((p) => p.crash === 0 && !p.dent), 'slow contacts add no damage or dents');
+  };
+  const plain = mk([{}, {}]);
+  plain.carriedOffs.forEach((o) => { o.x += 0.3; });
+  const corner = mk([{}, {}], 0.2);
+  corner.walls.push({ x: 0, y: 6, w: 20, h: 1, poly: rectPoly(10, 6.5, 10, 0.5) });
+  const wide = mk([{ wide: true }, { wide: true }], 0.12);
+  const barrel = mk([{ barrelPart: 'base' }, { barrelPart: 'top' }]);
+  barrel.carriedOffs[1] = { ...barrel.carriedOffs[0] };
+  const mast = mk([{}, {}], 0.12);
+  mast.carriedOffs[1] = { x: 0, y: 0 }; mast.carriedRots[1] = 0.35;
+  for (const g of [plain, corner, wide, barrel, mast]) {
+    for (let i = 0; i < 600; i++) {
+      g.fl.speed = 0.3;
+      update(g, NONE, 1 / 120);
+      check(g);
+    }
+  }
+  assert.ok(plain.carriedOffs[0].x < 0.1, 'bottom contact slides the protruding load backward on the forks');
+  assert.ok(plain.fl.x < 11, 'the truck cannot keep advancing once sliding room runs out');
+  assert.deepEqual(barrel.carriedOffs[0], barrel.carriedOffs[1], 'the two barrel layers slide together');
+  assert.equal(barrel.carriedRots[0], barrel.carriedRots[1], 'the barrel remains rigid while turning');
+  assert.ok(mast.carriedOffs[1].x < 0, 'the angled upper box uses the sliding room in front of the mast');
+
+  const fast = mk([{}, {}]);
+  fast.fl.speed = 2.5;
+  update(fast, NONE, 1 / 120);
+  assert.ok(fast.carriedPen.every((p) => p.crash > 0 && p.dent), 'fast wall impacts still damage the carried load');
+}
+
+// Offset upper boxes of floor stacks cannot clip through walls either.
+{
+  const g = newGame(1);
+  g.zones = []; g.bot = null; g.inspector = null; g.repair = null;
+  g.walls = [{ x: 12, y: 0, w: 1, h: 20, poly: rectPoly(12.5, 10, 0.5, 10) }];
+  g.stacks = [{ x: 11.45, y: 5, layers: [0, 1], a: 0, rots: [0, 0.2],
+    offs: [{ x: 0, y: 0 }, { x: 0.25, y: 0 }], pen: [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }] }];
+  Object.assign(g.fl, { x: 8.5, y: 5, a: 0, speed: 0, steer: 0 });
+  update(g, NONE, 1 / 120);
+  const s = g.stacks[0];
+  assert.equal(s.x, 11.45, 'the upper-box wall correction need not move the bottom box');
+  assert.ok(s.offs[1].x < 0.1, 'the protruding upper box slides back over its support');
+  for (let i = 0; i < 1200; i++) {
+    g.fl.speed = 0.3;
+    update(g, NONE, 1 / 120);
+    assert.equal(g.stacks.length, 1, 'gentle wall contact does not topple boxes');
+    const polys = s.layers.map((_, j) => rectPoly(s.x + s.offs[j].x, s.y + s.offs[j].y, 0.5, 0.5, s.rots[j]));
+    assert.ok(polys.every((p) => g.walls.every((w) => (sat(p, w.poly)?.depth || 0) < 1e-6)), 'all floor-stack layers remain outside walls');
+    assert.ok(overlapArea(polys[0], polys[1]) >= 0.5 - 1e-6, 'the upper floor box retains support');
+    assert.ok(s.pen.every((p) => p.crash === 0 && !p.dent), 'gentle floor-stack contacts cause no damage');
+  }
+}
+
+// A later multiplayer horn cannot leave an already-stepped truck's upper load inside a wall.
+{
+  const g = newGame(1);
+  g.stacks = []; g.zones = []; g.bot = null; g.inspector = null; g.repair = null;
+  g.walls = [{ x: 12, y: 0, w: 1, h: 20, poly: rectPoly(12.5, 10, 0.5, 10) }];
+  Object.assign(g.fl, { x: 10.49, y: 5, a: 0, speed: 0, steer: 0 });
+  g.H = 1; g.carried = [0, 1]; g.carriedRel = 0; g.carriedRots = [0, 0];
+  g.carriedOffs = [{ x: 0, y: 0 }, { x: 0.049, y: 0 }];
+  g.carriedPen = [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }];
+  const id = addTruck(g, 'horn'), other = truckView(g, id);
+  Object.assign(other.fl, { x: 10.3, y: 6.4, a: 0, speed: 0, steer: 0 });
+  for (let i = 0; i < 600; i++) {
+    other.truck.input = { horn: i % 60 === 0 };
+    update(g, NONE, 1 / 120);
+    g.carried.forEach((_, j) => {
+      const o = g.carriedOffs[j], c = toWorld(g.fl, FL.carryX + o.x, o.y);
+      const p = rectPoly(c.x, c.y, 0.5, 0.5, g.fl.a + g.carriedRots[j]);
+      assert.ok(g.walls.every((w) => (sat(p, w.poly)?.depth || 0) < 1e-6), 'multiplayer horn leaves every carried box clear of walls');
+    });
+    assert.ok(g.carriedPen.every((p) => p.crash === 0 && !p.dent), 'horn-induced clearance adds no damage');
+  }
 }
 
 
@@ -680,7 +818,17 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(g.walls.filter((w) => !w.mast).some((w) => pointRectDist(r.mast.x + 0.18, r.mast.y + 0.18, w) < 0.18 + 0.36), 'the mast is on the wall side');
   assert.ok(g.walls.filter((w) => !w.mast).every((w) => pointRectDist(r.x, r.y, w) > 0.65), 'the pad is clear of walls');
   assert.ok(g.walls.some((w) => w.mast) && pointRectDist(r.x, r.y, r.mast) > 0.65, 'the film mast is a solid post beside the turntable');
-  g.stacks = [{ x: r.x, y: r.y, layers: [0], rots: [0], a: 0, pen: [{ crash: 10, sq: 0, dent: { t: 1, c: [0, 0, 0, 0], s: [0, 0, 0, 0] } }], offs: [{ x: 0, y: 0 }] }];
+  const droppedA = 0.37;
+  g.stacks = []; g.zones = []; g.H = 0;
+  Object.assign(g.fl, { x: r.x - FL.carryX, y: r.y, a: 0, speed: 0 });
+  g.carried = [0]; g.carriedRel = droppedA; g.carriedRots = [droppedA];
+  g.carriedPen = [{ crash: 10, sq: 0, dent: { t: 1, c: [0, 0, 0, 0], s: [0, 0, 0, 0] } }];
+  g.carriedOffs = [{ x: 0, y: 0 }];
+  forkDown(g);
+  assert.equal(g.repair.dropA, droppedA, 'set-down records the box orientation before the truck moves');
+  Object.assign(g.fl, { x: r.x - 2.15, y: r.y, a: 0, speed: 0 });
+  run(g, NONE, 1);
+  assert.ok(g.stacks[0].pen[0].crash === 10 && g.stacks[0].a === droppedA && !g.repair.on, 'forks stay clear of the full rotation area before spinning starts');
   Object.assign(g.fl, { x: g.parking.x, y: g.parking.y, a: g.parking.a, speed: 0 }); // the truck stays in the parking spot, out of reach
   const far = { x: r.x + 12, y: r.y, a: 0, speed: 0 };
   Object.assign(g.fl, far);
@@ -693,10 +841,14 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   run(g, NONE, 2);
   assert.ok(g.stacks[0].pen[0].crash === 7 && g.stacks[0].a === a && !g.repair.on, 'a close truck pauses the spin and the repair');
   Object.assign(g.fl, far);
-  run(g, NONE, 20);
+  run(g, NONE, 7.01);
   const pen = g.stacks[0].pen[0];
-  assert.ok(pen.crash === 0 && pen.tape > 1 && !pen.dent, 'fully repaired: more tape, dents gone');
-  assert.ok(Math.abs(g.stacks[0].a / (Math.PI / 2) - Math.round(g.stacks[0].a / (Math.PI / 2))) < 1e-9 && !g.repair.on, 'it stops spinning, squared up');
+  assert.ok(pen.crash === 0 && pen.tape > 1 && !pen.dent && g.repair.on, 'the repaired box keeps turning to its drop-off orientation');
+  const repairedA = g.stacks[0].a;
+  run(g, NONE, 0.2);
+  assert.ok(g.stacks[0].a > repairedA, 'it continues rotating after repair is complete');
+  run(g, NONE, 2);
+  assert.ok(Math.abs(Math.sin(g.stacks[0].a - droppedA)) < 1e-9 && !g.repair.on, 'it stops at its drop-off orientation or 180 degrees from it');
   g.stacks = [{ x: r.x, y: r.y, layers: [0, 1], rots: [0, 0], a: 0, pen: [{ crash: 5, sq: 0 }, { crash: 5, sq: 0 }], offs: [{ x: 0, y: 0 }, { x: 0, y: 0 }] }];
   run(g, NONE, 2);
   assert.ok(g.stacks[0].pen.every((p) => p.crash === 5) && !g.repair.on, 'a stack of several boxes is not repaired');

@@ -496,7 +496,7 @@ export function dynamicMeshes(g, mode, eye) {
     const st = fallView(g, st0);
     const ghost = st.ghost?.includes(g.truck.id);
     if (ghost) tm.alpha = 0.4;
-    addStack(ghost ? tm : om, tm, st.x, st.y, st.rots || [], st.layers, stackZ(g, st), st.offs, st.dropFrom ?? 0,
+    addStack(ghost ? tm : om, tm, st.x, st.y, st.rots || [], st.layers, stackZ(st), st.offs, st.dropFrom ?? 0,
       dropLift(g, st), st.pen);
     tm.alpha = 1;
   }
