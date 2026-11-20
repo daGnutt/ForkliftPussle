@@ -1,4 +1,5 @@
 import { COLORS } from './level.js';
+import { BOX_HALF_X, halfY } from './geom.js';
 import { TAPE_FILL, repairable } from './repair.js';
 
 // The inspector's snapshot, seen from its own vantage point: a camera ~0.3 tiles off the floor, tilted up so the whole stack fits.
@@ -45,7 +46,7 @@ function drawBarrel(ctx, P, col, cx, cz, y0, y1, poly, line) {
 const hurt = (pen) => (pen?.crash || 0) > 0 && repairable(pen); // no damage symbol on what can't be repaired
 
 export function boxStatus(pen) {
-  return { damaged: hurt(pen), crooked: (pen?.sq || 0) > 0 };
+  return { damaged: hurt(pen), crooked: (pen?.sq || 0) > 0 || (pen?.shift || 0) > 0 };
 }
 
 // What is wrong with the stack, one line per box (the lowest box is box 1): its damage points and whether it sits crooked.
@@ -56,7 +57,11 @@ export function issues(photo) {
     if (pen?.barrelPart === 'top') return;
     const status = boxStatus(pen), pts = status.damaged ? Math.round(pen?.crash || 0) : 0, bits = [];
     if (pts > 0) bits.push(`has ${pts} pt damage`);
-    if (status.crooked) bits.push('is wonky');
+    if (pen?.shift === undefined) {
+      if (status.crooked) bits.push('is wonky');
+    } else if (status.crooked) {
+      bits.push(`is ${[pen.sq > 0 && 'rotated', pen.shift > 0 && 'shifted sideways'].filter(Boolean).join(' and ')}`);
+    }
     if (bits.length) out.push(`Box ${i + 1} ${bits.join(' and ')}`);
   });
   return out;
@@ -110,8 +115,8 @@ export function drawPhoto(ctx, photo, w = W, h = H) {
       continue;
     }
     const phi = (photo.rots?.[i] ?? view) - view, sn = Math.sin(phi), cs = Math.cos(phi), y1 = y0 + 1;
-    const hy = pen?.wide ? 1 : 0.5; // a double-wide box is two tiles across its local y axis
-    const cor = [[-0.5, -hy], [0.5, -hy], [0.5, hy], [-0.5, hy]].map(([u, v]) => [cx + u * sn + v * cs, cz + u * cs - v * sn]);
+    const hx = BOX_HALF_X, hy = halfY(pen);
+    const cor = [[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy]].map(([u, v]) => [cx + u * sn + v * cs, cz + u * cs - v * sn]);
     if (y0 > CAM_H) poly(cor.map(([x, z]) => P(x, y0, z)), shade(col, 0.6)); // underside, seen from below
     for (let k = 0; k < 4; k++) {
       const [ax, az] = cor[k], [bx, bz] = cor[(k + 1) % 4], ex = bx - ax, ez = bz - az, nx = -ez, nz = ex; // outward normal for this winding

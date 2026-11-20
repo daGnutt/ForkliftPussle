@@ -17,7 +17,8 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark } from './decals.js';
-import { liftedHf, carriedWorldOffs, halfY, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
+import { liftedHf, carriedWorldOffs, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
+import { BOX_SCALE, BOX_HALF_X, halfY } from './geom.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -95,7 +96,8 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
   };
   if (z0 > 0) {
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    at(x + (offs[0]?.x || 0) + 0.1, y + (offs[0]?.y || 0) + 0.1, 0, () => ctx.fillRect(-h, -halfY(pens[0]), size, 2 * halfY(pens[0])));
+    const hx = BOX_HALF_X, hy = halfY(pens[0]);
+    at(x + (offs[0]?.x || 0) + 0.1, y + (offs[0]?.y || 0) + 0.1, 0, () => ctx.fillRect(-hx, -hy, 2 * hx, 2 * hy));
   }
   const cx = x + (offs[n - 1]?.x || 0) + (z0 + n - 1) * PX, cy = y + (offs[n - 1]?.y || 0) + (z0 + n - 1) * PY;
   for (let i = 0; i < n; i++) {
@@ -158,10 +160,11 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
         return;
       }
       const col = COLORS[layers[i]];
-      const hy = halfY(pens[i]), sh = 2 * hy; // a wide box is 1 × 2
+      const scale = BOX_SCALE, hy = halfY(pens[i]) / scale, sh = 2 * hy;
+      ctx.scale(scale, scale);
       const a = rots[i] || 0, ca = Math.cos(a), sa = Math.sin(a);
       // extrusion towards the floor, expressed in the box's local frame
-      const ex = -PX * ca - PY * sa, ey = PX * sa - PY * ca;
+      const ex = (-PX * ca - PY * sa) / scale, ey = (PX * sa - PY * ca) / scale;
       const edges = [[0, -1, -h, -hy, h, -hy], [1, 0, h, -hy, h, hy], [0, 1, h, hy, -h, hy], [-1, 0, -h, hy, -h, -hy]];
       extrudeSides(ctx, edges, ex, ey, a, col, 'rgba(0,0,0,0.65)', 0.04);
       ctx.fillStyle = col;
@@ -224,7 +227,8 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
   at(cx, cy, n - 1, () => {
     ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.lineWidth = 0.04;
-    const hy = halfY(pens[n - 1]);
+    const scale = BOX_SCALE, hy = halfY(pens[n - 1]) / scale;
+    ctx.scale(scale, scale);
     ctx.strokeRect(-h + 0.12, -hy + 0.12, size - 0.24, 2 * hy - 0.24);
     if (n > 1) {
       ctx.font = 'bold 0.34px sans-serif';
@@ -1068,9 +1072,8 @@ function drawStartBoard(ctx, g, view, width, height) {
   drawTopLists(ctx, view, width / 2, y + 40, w / 2);
 }
 
-function drawStatusStrip(ctx, g, view, mm, title, bestText, globalText, hint, width, height) {
-  const PAD = 156, lost = lostBreakdown(g);
-  const done = g.zones.filter((z) => zoneDone(g, z)).length;
+function drawStatusStrip(ctx, g, mm, scoreLine, lost, bestText, globalText, hint, width, height) {
+  const PAD = 156;
   const bottom = height - 10, lh = 17, rows = 4;
   const line = (text, x, row, color, align, w, bold) => {
     ctx.font = `${bold ? 'bold ' : ''}13px sans-serif`;
@@ -1086,12 +1089,12 @@ function drawStatusStrip(ctx, g, view, mm, title, bestText, globalText, hint, wi
   const lw = lx - PAD, rw = width - PAD - rx;
   const E = g.endless;
   line(E ? 'Endless' : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}`, lx, 2, '#eee', 'right', lw, true);
-  line(E ? `Trucks ${E.delivered}   Score ${endlessScore(E)}` : `Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}`, lx, 1, '#eee', 'right', lw);
+  line(scoreLine, lx, 1, '#eee', 'right', lw);
   line(formatTime(g.time), lx, 0, '#eee', 'right', lw);
   line(globalText, rx, 3, '#c5e1a5', 'left', rw);
   line(bestText, rx, 2, '#b3e5fc', 'left', rw);
   line(`Damage −${lost.repairableCrash} repairable, −${lost.permanentCrash} permanent`, rx, 1, '#ef9a9a', 'left', rw);
-  line(`Placement −${lost.square} (fixable)`, rx, 0, '#ffe082', 'left', rw);
+  line(`Placement −${lost.square} (${g.hard ? 'reported' : 'fixable'})`, rx, 0, '#ffe082', 'left', rw);
   if (hint) {
     ctx.font = 'bold 14px sans-serif';
     const tw = Math.min(width - 2 * PAD, ctx.measureText(hint).width);
@@ -1396,16 +1399,18 @@ export function draw(ctx, g, view) {
   const done = g.zones.filter((z) => zoneDone(g, z)).length;
   const best = view.best;
   const E = g.endless;
-  const title = E ? `Endless   Trucks ${E.delivered}   Boxes ${E.boxes}   Bays ${E.docks.filter((d) => d.state !== 'free').length}/${DOCKS}   Score ${endlessScore(E)}   ${formatTime(g.time)}` : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   Zones ${done}/${g.zones.length}   Score ${score(g)}/${maxScore(g)}   ${formatTime(g.time)}`;
+  const liveScore = E ? endlessScore(E) : score(g, true);
+  const scoreLine = E ? `Trucks ${E.delivered}   Score ${liveScore}` : `Zones ${done}/${g.zones.length}   Score ${liveScore}/${maxScore(g)}`;
+  const title = E ? `Endless   Trucks ${E.delivered}   Boxes ${E.boxes}   Bays ${E.docks.filter((d) => d.state !== 'free').length}/${DOCKS}   Score ${liveScore}   ${formatTime(g.time)}` : `Level ${g.level}${g.seed ? ` (seed ${g.seed})` : ''}   ${scoreLine}   ${formatTime(g.time)}`;
   const bestText = E ? `Bays ${E.docks.filter((d) => d.state !== 'free').length}/${DOCKS}` : best ? `Best ${best.score} by ${best.name} (${formatTime(best.time)})` : 'Best: none yet';
   const globalText = E ? '' : globalLine(view.global);
   const hint = g.status === 'play' && isSolved(g)
     ? 'All zones filled – return to the parking spot (P)'
     : '';
-  const lostNow = lostBreakdown(g);
+  const lostNow = lostBreakdown(g, true);
   const ready = g.status === 'play' && isSolved(g);
   const now = performance.now();
-  const sig = `${g.level}|${g.seed}|${done}|${score(g)}|${lostNow.repairableCrash}|${lostNow.permanentCrash}|${lostNow.square}|${hint}`;
+  const sig = `${g.level}|${g.seed}|${done}|${liveScore}|${lostNow.repairableCrash}|${lostNow.permanentCrash}|${lostNow.square}|${hint}`;
   // A change only (re)triggers the HUD while it is hidden or on its way up; otherwise it is locked.
   const hudTrigger = view.hudSig !== undefined && view.hudSig !== sig;
   view.hudSig = sig;
@@ -1438,7 +1443,7 @@ export function draw(ctx, g, view) {
   ctx.translate(0, -hudOff);
   if (hudHidden) { /* hidden in full screen */ }
   else if (view.povBig && view.touch && width > height) { /* cab view on touch landscape: no scoring HUD */ }
-  else if (mmBox) drawStatusStrip(ctx, g, view, mmBox, title, bestText, globalText, hint, width, height);
+  else if (mmBox) drawStatusStrip(ctx, g, mmBox, scoreLine, lostNow, bestText, globalText, hint, width, height);
   else {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -1464,7 +1469,7 @@ export function draw(ctx, g, view) {
     ctx.fillStyle = '#ef9a9a';
     ctx.fillText(damageText, hx0, 48);
     ctx.fillStyle = '#ffe082';
-    ctx.fillText(`Placement −${lostNow.square} (fixable)`, hx0, 68);
+    ctx.fillText(`Placement −${lostNow.square} (${g.hard ? 'reported' : 'fixable'})`, hx0, 68);
     ctx.fillStyle = '#eee';
 
     if (hint) {
@@ -1521,7 +1526,7 @@ export function drawResults(ctx, g, view) {
   ctx.font = 'bold 36px sans-serif';
   ctx.fillText('Level complete!', width / 2, height / 2 - 64);
   ctx.font = '18px sans-serif';
-  ctx.fillText(`Boxes in zones: ${pts + lost.crash + lost.square} − crashes ${lost.crash} − squareness ${lost.square} = ${pts}`, width / 2, height / 2 - 28);
+  ctx.fillText(`Boxes in zones: ${pts + lost.crash + lost.square} − crashes ${lost.crash} − ${g.hard ? 'wonkiness' : 'squareness'} ${lost.square} = ${pts}`, width / 2, height / 2 - 28);
   ctx.fillText(`Time ${formatTime(g.time)}: −${timePenalty(g.time)} (1 point per 10 s)`, width / 2, height / 2 - 2);
   ctx.font = 'bold 22px sans-serif';
   ctx.fillText(`Final score: ${finalScore(pts, g.time)}`, width / 2, height / 2 + 30);

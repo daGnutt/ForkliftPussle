@@ -6,6 +6,7 @@ import { decalsEnabled, overheadDecals, boxDeco, OPEN_BOX_DECAL_EDGES } from '..
 import { FL, toWorld, truckColor } from '../forklift.js';
 import { carriedWorldOffs, carriedJoltZ, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf } from '../game.js';
 import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam } from './camera.js';
+import { BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims, BARREL_PALLET_RISE } from '../geom.js';
 
 // Scene geometry: everything is a prism (walls, pallets, boxes, tines, fixtures) split into
 // faces, back-face culled and sorted far to near (painter's algorithm).
@@ -42,7 +43,7 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, spli
       const um = (u0 + u1) / 2;
       faces.push({
         quad: [at(u0, -hw), at(u1, -hw), at(u1, hw), at(u0, hw)],
-        mx: x + um * c, my: y + um * s, mz: z, color, shade, lit, boxFlat: !wall && hl === 0.5 && hw === 0.5,
+        mx: x + um * c, my: y + um * s, mz: z, color, shade, lit, boxFlat: !wall && hl === BOX_HALF_X && hw === BOX_HALF_X,
       });
     }
   };
@@ -86,7 +87,6 @@ function addBarrelDecals(faces, cam, x, y, z0, r, rot) {
   }
 }
 
-const PAL_RUNNERS = [[0, 0.12], [-0.47, 0.03], [0.47, 0.03]]; // [lateral offset, half width], as in gl/models.js
 const PAL_SLATS = [-0.42, -0.21, 0, 0.21, 0.42];
 
 // Stack with a pallet under every box; level h sits at height h * (BOX_H + PAL).
@@ -96,28 +96,29 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
     if (pens[i]?.barrelPart === 'top') return;
     const x = x0 + (offs[i]?.x || 0), y = y0 + (offs[i]?.y || 0);
     const z = (level + i + (i >= from ? extra : 0)) * (BOX_H + PAL), r = rots[i] ?? 0;
-    const cr = Math.cos(r), sr = Math.sin(r), hy = pens[i]?.wide ? 1 : 0.5, slots = hy > 0.5 ? [-0.5, 0.5] : [0]; // a wide box rests on two pallets
+    const cr = Math.cos(r), sr = Math.sin(r), pen = pens[i], scale = BOX_SCALE, hx = BOX_HALF_X, hy = halfY(pen);
+    const rise = pen?.barrelPart === 'base' ? BARREL_PALLET_RISE : 0, deck = z + PAL + rise;
     // as in the GL view: three runners along local x, five deck slats across them (perpendicular to the box tape)
     if (Math.hypot(x - cam.x, y - cam.y) < 14) {
-      for (const sl of slots) for (const [o, hw] of PAL_RUNNERS) { const off = sl + o; addPrism(faces, cam, x - sr * off, y + cr * off, r, 0.5, hw, z, z + PAL - 0.025, PALLET_COLOR, false, 0, 0, true, i > 0); }
-      for (const u of PAL_SLATS) addPrism(faces, cam, x + cr * u, y + sr * u, r, 0.075, hy, z + PAL - 0.03, z + PAL, PALLET_COLOR, false, 0, 0, false, true);
-    } else addPrism(faces, cam, x, y, r, 0.5, hy, z, z + PAL, PALLET_COLOR, false, 0, 0, true, i > 0);
+      for (const [off, hw] of palletRunnerDims(pen)) addPrism(faces, cam, x - sr * off, y + cr * off, r, hx, hw, z, deck - 0.025, PALLET_COLOR, false, 0, 0, true, i > 0);
+      for (const u of PAL_SLATS) addPrism(faces, cam, x + cr * u * scale, y + sr * u * scale, r, 0.075 * scale, hy, deck - 0.03, deck, PALLET_COLOR, false, 0, 0, false, true);
+    } else addPrism(faces, cam, x, y, r, hx, hy, z, deck, PALLET_COLOR, false, 0, 0, true, i > 0);
     const first = faces.length;
     if (pens[i]?.barrelPart === 'base') {
-      const top = z + 2 * (BOX_H + PAL);
-      addCylinder(faces, cam, x, y, 0.38, z + PAL, top, COLORS[col]);
-      if (decalsEnabled()) addBarrelDecals(faces, cam, x, y, z + PAL, 0.38, r);
-      for (const h of [0.52, 1.48]) addCylinder(faces, cam, x, y, 0.395, z + PAL + h * BOX_H, z + PAL + h * BOX_H + 0.035, '#a8afb0');
+      const top = z + 2 * (BOX_H + PAL) + rise;
+      addCylinder(faces, cam, x, y, 0.38, deck, top, COLORS[col]);
+      if (decalsEnabled()) addBarrelDecals(faces, cam, x, y, deck, 0.38, r);
+      for (const h of [0.52, 1.48]) addCylinder(faces, cam, x, y, 0.395, deck + h * BOX_H, deck + h * BOX_H + 0.035, '#a8afb0');
       addCylinder(faces, cam, x, y, 0.35, top, top + 0.008, '#20292b');
       return;
     }
-    addPrism(faces, cam, x, y, r, 0.5, hy, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? boxDeco(pens[i], col, i) : 0,
+    addPrism(faces, cam, x, y, r, hx, hy, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? boxDeco(pens[i], col, i) : 0,
       false, false, pens[i]?.open ? OPEN_BOX_DECAL_EDGES : null);
     if (pens[i]?.open) {
-      addPrism(faces, cam, x, y, r, 0.4, 0.4, z + PAL + BOX_H, z + PAL + BOX_H + 0.01, '#1b1b1b', false, 0, 0, false, true);
-      addPrism(faces, cam, x, y, r, 0.07, 0.4, z + PAL + BOX_H + 0.012, z + PAL + BOX_H + 0.024, '#555b60', false, 0, 0, false, true);
+      addPrism(faces, cam, x, y, r, 0.4 * scale, 0.4 * scale, z + PAL + BOX_H, z + PAL + BOX_H + 0.01, '#1b1b1b', false, 0, 0, false, true);
+      addPrism(faces, cam, x, y, r, 0.07 * scale, 0.4 * scale, z + PAL + BOX_H + 0.012, z + PAL + BOX_H + 0.024, '#555b60', false, 0, 0, false, true);
     }
-    if (pens[i]?.dent || pens[i]?.tape) for (let k = first; k < faces.length; k++) { faces[k].pen = pens[i]; faces[k].dseed = i + Math.round(col * 7); faces[k].box = { x, y, r }; }
+    if (pen?.dent || pen?.tape) for (let k = first; k < faces.length; k++) { faces[k].pen = pen; faces[k].dseed = i + Math.round(col * 7); faces[k].box = { x, y, r, scale }; }
   });
 }
 

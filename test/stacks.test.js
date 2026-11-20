@@ -32,13 +32,13 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     g.stacks = [{ x: 10, y: 5, layers: [0, 1], rots: [0, 0], a: 0,
       offs: [{ x: 0, y: 0 }, { x: 0, y: 0 }], pen: [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }] }];
     Object.assign(g.fl, { x: 7.6, y, a: 0, speed: 0 });
-    for (let i = 0; i < 360 && !g.carried; i++) {
+    for (let i = 0; i < 360 && !g.carried && !g.stacks.some((s) => s.fall); i++) {
       g.fl.speed = 1.5;
       update(g, { up: true }, 1 / 120);
     }
     return g;
   };
-  const caught = push(5);
+  const caught = push(5.08);
   assert.deepEqual(caught.carried, [1], 'the displaced upper box is caught');
   assert.equal(caught.stacks[0].layers.length, 1, 'the lower box remains on the floor');
   assert.ok(caught.carriedOffs[0].x || caught.carriedOffs[0].y, 'the caught box keeps its offset on the forks');
@@ -50,6 +50,37 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const missed = push(5.6);
   assert.equal(missed.carried, null, 'a box outside the tine footprint is not caught');
   assert.ok(missed.stacks.some((s) => s.fall), 'the missed box falls normally');
+}
+
+// A carried crate can pass a neighbouring stack with less than one tile between their centres.
+{
+  const g = newGame(1, 0, true);
+  flatWorld(g);
+  g.zones = [{ x: 12, y: 5, count: 1, color: 0 }];
+  const neighbour = { x: 12.4, y: 5.95, a: 0, layers: [1] };
+  g.stacks = [{ x: 9, y: 5, a: 0, layers: [0] }, neighbour];
+  Object.assign(g.fl, { x: 7, y: 5, a: 0, speed: 0 });
+  driveUntil(g, 9, 7.5);
+  forkUp(g);
+  assert.deepEqual(g.carried, [0]);
+  driveUntil(g, 12, 10.5);
+  forkDown(g);
+  update(g, NONE, 1 / 120);
+  assert.ok(zoneDone(g, g.zones[0]));
+  assert.equal(neighbour.y, 5.95, 'the adjacent stack was not pushed');
+}
+
+// Shrinking a wide pallet still leaves both tine slots open on a straight approach.
+{
+  const g = newGame(1, 0, true);
+  flatWorld(g);
+  const wide = { x: 10, y: 5, a: 0, layers: [5], pen: [{ wide: true, crash: 0, sq: 0 }] };
+  g.stacks = [wide];
+  Object.assign(g.fl, { x: 8, y: 5, a: 0, speed: 0 });
+  driveUntil(g, 10, 8.5);
+  assert.equal(wide.x, 10, 'the forks did not push the wide pallet');
+  forkUp(g);
+  assert.deepEqual(g.carried, [5]);
 }
 
 // A slow front/mast nudge squares boxes through one level above the forks and carries that turn into higher boxes.

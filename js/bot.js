@@ -455,14 +455,16 @@ export const stackSig = (s) => (s ? [s.x, s.y, ...s.layers, ...(s.rots || []), .
 const zoneKey = (z) => `${z.x},${z.y},${z.color}`;
 
 // Completed drop points that have not been photographed yet.
-export function pendingZones(g, done) {
+export function pendingZones(g, done, stackAt = (z) => g.stacks.find((s) => Math.hypot(s.x - z.x, s.y - z.y) < 0.5)) {
   const insp = g.inspector;
   if (!insp) return [];
   const doneKeys = new Set(done.map(zoneKey));
   // a stack that was touched since its photo (nudged, straightened, re-placed) is inspected again
   const changed = new Set(done.filter((z) => {
-    const q = g.stacks.find((o) => Math.hypot(o.x - z.x, o.y - z.y) < 0.5);
-    return q?.touched || (insp.sigs?.[zoneKey(z)] !== undefined && insp.sigs[zoneKey(z)] !== stackSig(q));
+    const key = zoneKey(z), q = stackAt(z);
+    const outdated = g.hard && insp.seen.includes(key) && insp.photos?.[key]?.pens?.[0]?.shift === undefined;
+    if (outdated) for (const p of q?.pen || []) delete p.inspected;
+    return outdated || q?.touched || (insp.sigs?.[key] !== undefined && insp.sigs[key] !== stackSig(q));
   }).map(zoneKey));
   insp.seen = insp.seen.filter((k) => doneKeys.has(k) && !changed.has(k)); // a drop point that was undone is inspected again once it is completed anew
   if (insp.photos) for (const k of Object.keys(insp.photos)) if (!insp.seen.includes(k)) delete insp.photos[k];
@@ -472,7 +474,7 @@ export function pendingZones(g, done) {
 export const WHEEL_R = 0.12;
 
 // The snapshot of stack `st` that the photo popup draws (js/photo.js): `ok` is the verdict, `view` the angle it is seen from and `dist` the distance. Also used to fake a picture at the end of a level.
-export const makePhoto = (st, ok, view, dist, n, t) => ({ n, t, ok, layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [], pens: st?.pen ? st.pen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide, crash: q?.crash || 0, sq: q?.sq || 0, tape: q?.tape || 0 })) : [], view, dist });
+export const makePhoto = (st, ok, view, dist, n, t) => ({ n, t, ok, layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [], pens: st?.pen ? st.pen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide, crash: q?.crash || 0, sq: q?.sq || 0, shift: q?.shift, tape: q?.tape || 0 })) : [], view, dist });
 
 // Has the stack in the observer's last picture (`photo.at`, `photo.sig`) been touched, changed or taken away since?
 function photoTampered(g) {
@@ -483,12 +485,12 @@ function photoTampered(g) {
 }
 
 // Steps the inspector and turns its wheels (`roll`, radians) by the distance it drove.
-export function stepInspector(g, dt, done, wonky = () => false) {
+export function stepInspector(g, dt, done, stackAt, wonky) {
   const bot = g.inspector;
   if (!bot) return;
   const x = bot.x, y = bot.y;
-  if (g.photo && photoTampered(g)) g.photo = null; // the stack in the last picture was touched: the picture no longer shows what is there
-  inspectorStep(g, dt, done, wonky);
+  if (g.photo && (photoTampered(g) || (g.hard && g.photo.pens?.[0]?.shift === undefined))) g.photo = null;
+  inspectorStep(g, dt, done, stackAt, wonky);
   bot.roll = ((bot.roll || 0) + ((bot.x - x) * Math.cos(bot.a) + (bot.y - y) * Math.sin(bot.a)) / WHEEL_R) % (Math.PI * 2);
 }
 
@@ -507,11 +509,11 @@ function blockedAhead(g, bot) {
 
 // Inspector targeting: pick the nearest reachable pending drop point, pathfind to it and go. Obstacles that appear on the route are ignored until
 // the bot actually meets one (then it picks a target afresh); a forklift driving towards it makes it run away first, then it picks afresh.
-function inspectorStep(g, dt, done, wonky) {
+function inspectorStep(g, dt, done, stackAt, wonky) {
   const bot = g.inspector;
   if (!bot || !g.hatch) return;
   const home = botLane(g.hatch);
-  const todo = pendingZones(g, done);
+  const todo = pendingZones(g, done, stackAt);
   bot.flash = Math.max(0, bot.flash - dt / FLASH_SECS);
   if (bot.target && !todo.some((z) => zoneKey(z) === bot.target)) { bot.target = null; bot.shooting = 0; bot.path = []; }
   if (bot.mode === 'hidden') {
@@ -569,11 +571,11 @@ function inspectorStep(g, dt, done, wonky) {
       const d = Math.hypot(target.x - bot.x, target.y - bot.y);
       if (!bot.path.length && d >= PHOTO_DIST + 0.5) { bot.target = null; bot.shooting = 0; bot.repath = 0; } // route ended short of the drop point: pick again
       else if (!bot.path.length) {
-        const st = g.stacks.find((q) => Math.hypot(q.x - target.x, q.y - target.y) < 0.5);
+        const st = stackAt(target);
         bot.aim = { x: target.x, y: target.y, h: st ? st.layers.length : 1 };
         if (Math.abs(turnTo(bot, Math.atan2(target.y - bot.y, target.x - bot.x), dt)) < 0.15) bot.shooting += dt;
         if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
-          g.photo = makePhoto(st, !wonky(target) && !st?.pen?.some((q) => q?.crash > 0 && repairable(q)), Math.atan2(target.y - bot.y, target.x - bot.x), Math.hypot(target.x - bot.x, target.y - bot.y), (g.photo?.n || 0) + 1, g.clock); // the snapshot shown as a popup (js/photo.js)
+          g.photo = makePhoto(st, !wonky(st, target) && !st.pen.some((q) => q?.crash > 0 && repairable(q)), Math.atan2(target.y - bot.y, target.x - bot.x), Math.hypot(target.x - bot.x, target.y - bot.y), (g.photo?.n || 0) + 1, g.clock); // the snapshot shown as a popup (js/photo.js)
           (bot.sigs ||= {})[zoneKey(target)] = stackSig(st);
           if (st) { for (const pen of st.pen || []) pen.inspected = true; st.touched = false; g.photo.at = { x: st.x, y: st.y }; g.photo.sig = stackSig(st); }
           if (st) (bot.photos ||= {})[zoneKey(target)] = g.photo; // kept per drop point: the flagged stack's own picture
