@@ -7,6 +7,9 @@ import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndl
 import { chaseOrbit, lookYawDelta } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
+import { addStack as addGLStack } from '../js/gl/models.js';
+import { buildFaces as buildPovFaces } from '../js/pov/scene.js';
+import { makeCamera } from '../js/pov/camera.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
 import { popupScale, placePhoto, drawPhoto, boxStatus, issues, stripHeight, scoreText } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
@@ -27,6 +30,50 @@ import { addParticles, setParticlesEnabled, shouldSpawnSetdownDust } from '../js
 import { Mesh } from '../js/gl/mesh.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
+
+// The open-top tape strap stays aligned with the standard box tape when the box rotates.
+{
+  const bounds = (rot) => {
+    const mesh = new Mesh();
+    addGLStack(mesh, new Mesh(), 0, 0, [rot], [0], 0, [], 0, 0, [{ open: true }]);
+    const strap = [];
+    for (let i = 0; i < mesh.n; i += 10) {
+      if (Math.abs(mesh.a[i + 6] - 85 / 255) < 1e-4 && Math.abs(mesh.a[i + 7] - 91 / 255) < 1e-4 && Math.abs(mesh.a[i + 8] - 96 / 255) < 1e-4) strap.push([mesh.a[i], mesh.a[i + 1]]);
+    }
+    const xs = strap.map(([x]) => x), ys = strap.map(([, y]) => y);
+    return [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)];
+  };
+  const [wideX, wideY] = bounds(0), [tallX, tallY] = bounds(Math.PI / 2);
+  assert.ok(wideY > wideX && tallX > tallY, 'the strap follows the same local axis as standard-box tape');
+}
+
+// Open-top warning decals appear on the two fork-entry faces, not the blocked sides.
+{
+  const decals = new Mesh();
+  addGLStack(new Mesh(), decals, 0, 0, [0], [0], 0, [], 0, 0, [{ open: true }]);
+  let entryFaces = 0, blockedSideFaces = 0;
+  for (let i = 0; i < decals.n; i += 30) {
+    const tri = [0, 10, 20].map((j) => [decals.a[i + j], decals.a[i + j + 1], decals.a[i + j + 2]]);
+    if (Math.max(...tri.map((p) => p[2])) >= 0.6) continue;
+    const xs = tri.map((p) => p[0]), ys = tri.map((p) => p[1]);
+    const sameX = Math.max(...xs) - Math.min(...xs) < 1e-4;
+    const sameY = Math.max(...ys) - Math.min(...ys) < 1e-4;
+    if (sameX && Math.abs(Math.abs(xs[0]) - 0.5) < 0.01) entryFaces++;
+    if (sameY && Math.abs(Math.abs(ys[0]) - 0.5) < 0.01) blockedSideFaces++;
+  }
+  assert.ok(entryFaces > 0, 'warning decals remain on the fork-entry ends');
+  assert.equal(blockedSideFaces, 0, 'no warning decals are on the runner-blocked sides');
+}
+
+// The cabin view shows open-top warning decals only on the two fork-entry faces.
+{
+  const g = newGame(1);
+  g.stacks = [{ x: 10, y: 10, layers: [0], rots: [0], a: 0, pen: [{ open: true }] }];
+  const visibleDecalEdges = (x, yaw) => buildPovFaces(g, makeCamera({ x, y: 10 }, 2, yaw, Math.PI / 2, 0, 0, 800, 400))
+    .filter((face) => face.deco === 4).map((face) => face.edge);
+  assert.deepEqual(visibleDecalEdges(8, 0), [3], 'the back entry face has its decal');
+  assert.deepEqual(visibleDecalEdges(12, Math.PI), [1], 'the front entry face has its decal');
+}
 
 // The desktop overview and touch-landscape strip separate both kinds of damage from placement.
 {

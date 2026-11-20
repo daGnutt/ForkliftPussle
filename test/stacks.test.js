@@ -23,6 +23,35 @@ import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetwee
 import { stackSig } from '../js/bot.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
+// A displaced box rides the forks only when both tines catch it.
+{
+  const push = (y) => {
+    const g = newGame(1, 0, true);
+    flatWorld(g);
+    g.H = 1;
+    g.stacks = [{ x: 10, y: 5, layers: [0, 1], rots: [0, 0], a: 0,
+      offs: [{ x: 0, y: 0 }, { x: 0, y: 0 }], pen: [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }] }];
+    Object.assign(g.fl, { x: 7.6, y, a: 0, speed: 0 });
+    for (let i = 0; i < 360 && !g.carried; i++) {
+      g.fl.speed = 1.5;
+      update(g, { up: true }, 1 / 120);
+    }
+    return g;
+  };
+  const caught = push(5);
+  assert.deepEqual(caught.carried, [1], 'the displaced upper box is caught');
+  assert.equal(caught.stacks[0].layers.length, 1, 'the lower box remains on the floor');
+  assert.ok(caught.carriedOffs[0].x || caught.carriedOffs[0].y, 'the caught box keeps its offset on the forks');
+  const before = toWorld(caught.fl, FL.carryX + caught.carriedOffs[0].x, caught.carriedOffs[0].y);
+  caught.fl.speed = 1;
+  update(caught, { up: true }, 1 / 120);
+  const after = toWorld(caught.fl, FL.carryX + caught.carriedOffs[0].x, caught.carriedOffs[0].y);
+  assert.ok(Math.hypot(after.x - before.x, after.y - before.y) > 0.001, 'the caught box moves with the forklift');
+  const missed = push(5.6);
+  assert.equal(missed.carried, null, 'a box outside the tine footprint is not caught');
+  assert.ok(missed.stacks.some((s) => s.fall), 'the missed box falls normally');
+}
+
 // A slow front/mast nudge squares boxes through one level above the forks and carries that turn into higher boxes.
 {
   const g = newGame(1);
@@ -206,7 +235,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(s.rots[1] > 0.05 && Math.abs(s.rots[1] - g.fl.a) < 1e-6 && s.rots[2] === s.rots[1], 'boxes from the forks up turn');
 }
 
-// Pushing a stack with the forks in a higher box only damages the boxes below the forks, unless fast.
+// Fork contact damages only the pallet at tine height, at every impact speed.
 {
   const push = (speed) => {
     const g = newGame(1, 0, true);
@@ -220,8 +249,27 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     return g.stacks[0].pen.map((p) => p.crash);
   };
   const slow = push(1.9), fast = push(3);
-  assert.ok(slow[0] > 0 && slow[1] === 0 && slow[2] === 0, 'slow: only box below the forks');
-  assert.ok(fast[1] > 0 && fast[2] > 0, 'fast: whole stack');
+  assert.ok(slow[1] > 0 && slow[0] === 0 && slow[2] === 0, 'slow: only box at the forks');
+  assert.ok(fast[1] > 0 && fast[0] === 0 && fast[2] === 0, 'fast: still only box at the forks');
+}
+
+// Hard-mode pallets shrug off light impacts and take less damage from harder impacts.
+{
+  const damage = (hard, speed) => {
+    const g = newGame(1, 0, hard);
+    flatWorld(g);
+    const pen = { crash: 0, sq: 0 };
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], pen: [pen], a: 0 }];
+    Object.assign(g.fl, { x: 8.5, y: 5, a: 0, speed });
+    for (let i = 0; i < 120 && pen.crash === 0; i++) {
+      g.fl.speed = speed;
+      update(g, { up: true }, 1 / 120);
+    }
+    return pen.crash;
+  };
+  assert.ok(damage(true, 3) < damage(false, 3), 'hard-mode pallet cushions a hard bump');
+  assert.equal(damage(false, 1), 1, 'a standard-mode bump still damages the pallet');
+  assert.equal(damage(true, 1), 0, 'a light hard-mode bump does not damage the pallet');
 }
 
 // Without hard mode, forks slide into a pallet from any angle and nothing is pushed or turned.

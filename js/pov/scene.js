@@ -2,7 +2,7 @@ import { COLORS } from '../level.js';
 import { botDrawPos } from '../bot.js';
 import { truckPaint, TRUCK_H, truckRoofs, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
-import { decalsEnabled, overheadDecals, boxDeco } from '../decals.js';
+import { decalsEnabled, overheadDecals, boxDeco, OPEN_BOX_DECAL_EDGES } from '../decals.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
 import { carriedWorldOffs, carriedJoltZ, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf } from '../game.js';
 import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam } from './camera.js';
@@ -13,7 +13,7 @@ import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam
 // Adds the faces of a rectangular prism (centre x,y, heading a, half sizes hl,hw, heights z0..z1).
 // split: max segment length; long faces are cut up so far-to-near sorting stays right (walls, tines).
 // wall = true: colourless, checker-tinted tiles.
-function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, split = wall ? 1 : 0, deco = 0, skipTop = false, skipBottom = false) {
+function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, split = wall ? 1 : 0, deco = 0, skipTop = false, skipBottom = false, decoEdges = null) {
   const c = Math.cos(a), s = Math.sin(a);
   const p = [[-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].map(([u, v]) => [x + u * c - v * s, y + u * s + v * c]);
   if (Math.hypot(x - cam.x, y - cam.y) - Math.hypot(hl, hw) > MAX_DIST || offscreen(cam, p)) return;
@@ -30,7 +30,7 @@ function addPrism(faces, cam, x, y, a, hl, hw, z0, z1, color, wall = false, spli
         quad: [[q0[0], q0[1], z0], [q1[0], q1[1], z0], [q1[0], q1[1], z1], [q0[0], q0[1], z1]],
         mx: (q0[0] + q1[0]) / 2, my: (q0[1] + q1[1]) / 2, mz: (z0 + z1) / 2,
         color, shade, tile: wall ? Math.floor((q0[0] + q0[1] + (q1[0] + q1[1])) / 2) : null,
-        side: [q0, q1, z0, z1], k, n, deco, edge: i,
+        side: [q0, q1, z0, z1], k, n, deco: decoEdges && !decoEdges.includes(i) ? 0 : deco, edge: i,
       });
     }
   }
@@ -111,8 +111,12 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
       addCylinder(faces, cam, x, y, 0.35, top, top + 0.008, '#20292b');
       return;
     }
-    addPrism(faces, cam, x, y, r, 0.5, hy, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? boxDeco(pens[i], col, i) : 0);
-    if (pens[i]?.open) addPrism(faces, cam, x, y, r, 0.4, 0.4, z + PAL + BOX_H, z + PAL + BOX_H + 0.01, '#1b1b1b', false, 0, 0, false, true);
+    addPrism(faces, cam, x, y, r, 0.5, hy, z + PAL, z + PAL + BOX_H, COLORS[col], false, 0, decalsEnabled() ? boxDeco(pens[i], col, i) : 0,
+      false, false, pens[i]?.open ? OPEN_BOX_DECAL_EDGES : null);
+    if (pens[i]?.open) {
+      addPrism(faces, cam, x, y, r, 0.4, 0.4, z + PAL + BOX_H, z + PAL + BOX_H + 0.01, '#1b1b1b', false, 0, 0, false, true);
+      addPrism(faces, cam, x, y, r, 0.07, 0.4, z + PAL + BOX_H + 0.012, z + PAL + BOX_H + 0.024, '#555b60', false, 0, 0, false, true);
+    }
     if (pens[i]?.dent || pens[i]?.tape) for (let k = first; k < faces.length; k++) { faces[k].pen = pens[i]; faces[k].dseed = i + Math.round(col * 7); faces[k].box = { x, y, r }; }
   });
 }
