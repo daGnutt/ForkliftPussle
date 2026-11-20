@@ -6,6 +6,7 @@ import { tapeShapes, TAPE_FILL } from '../repair.js';
 import { decalsEnabled, boxDeco, boxDecalShapes, OPEN_BOX_DECAL_EDGES } from '../decals.js';
 import { carriedWorldOffs, carriedJoltZ, liftedHf, crashBlink } from '../game.js';
 import { parseColor, shade, mix } from './mesh.js';
+import { BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims, BARREL_PALLET_RISE } from '../geom.js';
 
 // Geometry of the movable things (forklift, pallets, boxes). Heights in tiles; a box is BOX_H tall, a pallet PAL.
 export const BOX_H = 0.5;
@@ -18,8 +19,6 @@ const WHITE = [1, 1, 1, 1];
 export const HEAD_Z = 1.4, TAIL_Z = 0.7, LAMP_Y = 0.38;
 export const HEAD_X = FL.front + 0.02, TAIL_X = FL.back - 0.03;
 
-// Runners along the fork axis [lateral offset, half width], as in game.js (a slot for each tine between them).
-const RUNNERS = [[0, 0.12], [-0.47, 0.03], [0.47, 0.03]];
 const SLATS = [-0.42, -0.21, 0, 0.21, 0.42];
 
 function addBarrelDecals(m, x, y, z0, r, rot) {
@@ -41,40 +40,40 @@ function addBarrelDecals(m, x, y, z0, r, rot) {
 // `dent`/`deco` decals go to the transparent mesh `tm` (drawn after, blended over the box top).
 function addBox(m, tm, x, y, r, z, col, pen, level) {
   const co = Math.cos(r), si = Math.sin(r), wood = parseColor(PALLET_COLOR);
-  const hy = pen?.wide ? 1 : 0.5; // a wide box is 1 × 2 and rests on two pallets side by side
-  for (const sl of pen?.wide ? [-0.5, 0.5] : [0]) for (const [o, hw] of RUNNERS) { const off = sl + o; m.cuboid(x - si * off, y + co * off, r, 0.5, hw, z, z + PAL - 0.025, shade(wood, 0.82), { top: false, bottom: level === 0 }); }
-  SLATS.forEach((u, i) => m.cuboid(x + co * u, y + si * u, r, 0.075, hy, z + PAL - 0.03, z + PAL, shade(wood, i & 1 ? 1 : 0.92), { bottom: false }));
+  const scale = BOX_SCALE, hx = BOX_HALF_X, hy = halfY(pen);
+  const rise = pen?.barrelPart === 'base' ? BARREL_PALLET_RISE : 0;
+  const z0 = z + PAL + rise, z1 = z0 + BOX_H;
+  for (const [off, hw] of palletRunnerDims(pen)) m.cuboid(x - si * off, y + co * off, r, hx, hw, z, z0 - 0.025, shade(wood, 0.82), { top: false, bottom: level === 0 });
+  SLATS.forEach((u, i) => m.cuboid(x + co * u * scale, y + si * u * scale, r, 0.075 * scale, hy, z0 - 0.03, z0, shade(wood, i & 1 ? 1 : 0.92), { bottom: false }));
   const dented = !!pen?.dent;
   const base = parseColor(COLORS[col]);
   const body = dented ? shade(base, 0.82) : base;
-  const z0 = z + PAL, z1 = z0 + BOX_H;
   if (pen?.barrelPart === 'base') {
-    const top = z + 2 * (BOX_H + PAL);
+    const top = z + 2 * (BOX_H + PAL) + rise;
     m.cylinder(x, y, z0, top, 0.38, body, 16, r);
     for (const h of [0.52, 1.48]) m.cylinder(x, y, z0 + h * BOX_H, z0 + h * BOX_H + 0.035, 0.395, '#a8afb0', 16, r);
     m.disc(x, y, top + 0.008, 0.13, '#a8afb0', 12);
     if (decalsEnabled()) addBarrelDecals(m, x, y, z0, 0.38, r);
     return;
   }
-  m.cuboid(x, y, r, 0.5, hy, z0, z1, body, { bottom: false });
+  m.cuboid(x, y, r, hx, hy, z0, z1, body, { bottom: false });
   if (pen?.open) {
-    m.cuboid(x, y, r, 0.4, 0.4, z1, z1 + 0.012, shade(body, 0.2), { bottom: false });
-    m.cuboid(x, y, r, 0.07, 0.4, z1 + 0.012, z1 + 0.024, '#555b60', { bottom: false });
+    m.cuboid(x, y, r, 0.4 * scale, 0.4 * scale, z1, z1 + 0.012, shade(body, 0.2), { bottom: false });
+    m.cuboid(x, y, r, 0.07 * scale, 0.4 * scale, z1 + 0.012, z1 + 0.024, '#555b60', { bottom: false });
   } else {
-    m.cuboid(x, y, r, 0.46, hy - 0.04, z1, z1 + 0.012, shade(mix(body, WHITE, 0.18), 1), { bottom: false });
-    m.cuboid(x, y, r, 0.07, hy + 0.005, z0, z1 + 0.018, mix(body, WHITE, 0.45), { bottom: false });
-    if (pen?.wide) m.cuboid(x, y, r, 0.505, 0.012, z0, z1 + 0.016, shade(body, 0.55), { bottom: false }); // seam between the two pallets
+    m.cuboid(x, y, r, 0.46 * scale, hy - 0.04 * scale, z1, z1 + 0.012, shade(mix(body, WHITE, 0.18), 1), { bottom: false });
+    m.cuboid(x, y, r, 0.07 * scale, hy + 0.005 * scale, z0, z1 + 0.018, mix(body, WHITE, 0.45), { bottom: false });
+    if (pen?.wide) m.cuboid(x, y, r, 0.505 * scale, 0.012 * scale, z0, z1 + 0.016, shade(body, 0.55), { bottom: false }); // seam between the two pallets
   }
   const top = z1 + 0.02;
-  const place = (u, v) => [x + u * co - v * si, y + u * si + v * co];
+  const place = (u, v) => [x + (u * co - v * si) * scale, y + (u * si + v * co) * scale];
   if (dented) for (const poly of topShapes(pen, level + Math.round(col * 7))) tm.poly(poly.map(([u, v]) => place(u, v)), top, [...parseColor(DENT_FILL).slice(0, 3), 0.6]);
   if (pen?.tape) for (const poly of tapeShapes(pen)) tm.poly(poly.map(([u, v]) => place(u, v)), top + 0.002, [...parseColor(TAPE_FILL).slice(0, 3), 0.9]);
   if (pen?.open && decalsEnabled()) {
     // The "do not stack" sign appears only on the two pallet-entry sides.
     const corners = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
-    const world = ([u, v]) => [x + u * co - v * si, y + u * si + v * co];
     for (const k of OPEN_BOX_DECAL_EDGES) {
-      const [a, b] = [world(corners[k]), world(corners[(k + 1) % 4])];
+      const [a, b] = [place(...corners[k]), place(...corners[(k + 1) % 4])];
       const du = corners[(k + 1) % 4][0] - corners[k][0], dv = corners[(k + 1) % 4][1] - corners[k][1];
       const nx = dv * co + du * si, ny = dv * si - du * co;
       for (const d of boxDecalShapes(4)) tm.vpoly(a[0], a[1], b[0], b[1], nx, ny, 0.004, d.pts.map(([u, v]) => [0.5 - u * 0.46, (z0 + z1) / 2 + v * 0.46]), d.fill);

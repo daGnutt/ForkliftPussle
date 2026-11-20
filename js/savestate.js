@@ -12,6 +12,7 @@ const arr = (a, n, ok) => Array.isArray(a) && a.length === n && a.every(ok);
 const okRot = num;
 const okOff = (o) => !!o && num(o.x) && num(o.y);
 const okPen = (p) => !!p && num(p.crash) && num(p.sq) &&
+  (p.shift === undefined || num(p.shift) && p.shift >= 0 && p.shift <= 50) &&
   (p.inspected === undefined || typeof p.inspected === 'boolean') &&
   (p.oilDropped === undefined || Number.isInteger(p.oilDropped) && p.oilDropped >= 0 && p.oilDropped <= 50) &&
   (p.oilFraction === undefined || num(p.oilFraction) && p.oilFraction >= 0 && p.oilFraction < 1);

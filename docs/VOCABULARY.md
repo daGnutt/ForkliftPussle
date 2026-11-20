@@ -84,7 +84,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Blocked fork down** | Refused lowering onto a box; 10 crash points | `'blocked'` |
 | **Nudge / align** | Slow forward contact straightens a stack | `g.aligning` |
 | **Glide** | Pallet on the tines turns with them (hard mode) | `glideWithForks` |
-| **Hard mode** | Realistic pallets: runner collisions, torque | `g.hard` |
+| **Hard mode** | Realistic pallets (runner collisions and torque) and inspector-only placement feedback. Off-centre and rotated boxes both cost wonkiness points. | `g.hard` |
 | **Reversing light** | Blue disc behind the truck when backing | `revlight.js` |
 | **Steering lock** | Max wheel angle; shrinks with speed | `maxSteerFor` |
 

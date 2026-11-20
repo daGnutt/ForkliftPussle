@@ -1,7 +1,7 @@
 # State, rules, scoring, level generation, rendering
 
 ## Units and coordinates
-- Simulation units are tiles; one box is 1×1. The renderer scales the canvas.
+- Simulation units are tiles. Crates and pallets are 0.9×0.9 (wide: 0.9×1.8). Barrel pallets use the same footprint and have a taller deck to clear the tines in 3D without changing logical fork levels. `geom.js` shares footprint and pallet-runner dimensions between physics and renderers.
 - x right, y down; angle `a` in radians, 0 = facing +x.
 - Forklift local frame: x forward, y right, origin at the **front** axle; rear wheels steer. `toWorld`/`toLocal` convert.
 
@@ -22,7 +22,7 @@
 ## Rules (see `game.js`)
 - Fork level `H` = box heights above the floor. A stack of n boxes spans heights 0..n. `forkUp` lifts the box at height `H` and everything above it; level 0 lifts the whole stack.
 - Raised forks are top-heavy and slow the forklift down: top speed and acceleration scale by `heightSpeedFactor(g.H)` (`forklift.js`, linear from 1 at `H=0` to `MIN_SPEED_FACTOR` at `H=MAX_H`); exceeding the new cap after raising the forks bleeds off like rolling resistance rather than snapping instantly. Braking is unaffected by height.
-- **Hard mode** (`g.hard`, `newGame(n, seed, hard)`; splash checkbox `#hardOpt`, persisted in `localStorage` `forklift-hard`, toggling restarts the current level) enables the pallet rules below (pallet runner collisions, tine torque, gliding, split damage). Off by default: forks lift from any angle and tines never collide.
+- **Hard mode** (`g.hard`, splash `#hardOpt`, persisted as `forklift-hard`; toggling restarts the level) enables pallet collisions, tine torque, gliding, split damage, and inspector-only placement feedback. Off by default: forks lift from any angle and tines never collide.
 - In hard mode, floor stacks ignore crash impacts below 1.5 tiles/s; harder impacts deal 25% less damage, rounded to whole points with a minimum of 1 per impact.
 - There is no entry-angle rule: forks only get into a pallet because the tines physically fit its slots (below); `forkUp` lifts the stack whose box at the fork level is in the fork zone (`forkedStack`). A pallet on the tines glides with them (`glideWithForks`): while the forklift turns it stays fixed sideways relative to the forks and turns with them, but keeps its world position along the fork axis, so driving in/out slides the forks through it. The whole stack moves, but only boxes from the fork level upward (`rots[i]`, i ≥ `H`) turn; `a` (bottom box) only changes at level 0. Not lifted.
 - A tine push that damages a stack affects only the box at fork height; boxes above and below it are not damaged by that contact. In hard mode, if a shifted upper box loses support while both tines are beneath it, it is caught and carried when the load fits under the ceiling; other unsupported boxes fall normally.
@@ -40,7 +40,8 @@
 ## Scoring (`game.js`)
 - Each box is worth 100 points, but only boxes in a stack that completes a zone count towards `score(g)`; score = sum of (100 − crash − square) over those boxes, so it starts at 0 on every `newGame` and rises as zones are filled; `maxScore` is 100 × all boxes.
 - Crash (up to 50 per box): forklift body or carried boxes hitting a floor stack, stack-vs-stack contact, or carried boxes hitting a wall, at forklift speed ≥ 0.8 (1–5 points, 0.4 s cooldown per stack/carried group).
-- Squareness (up to 50 per box): on release in `forkDown`, deduction scales with the box's deviation from the nearest multiple of 90° (free within 5°, then floored to steps of 5 points); `sq` of floor stacks is recomputed from the current `rots` whenever `score`/`lostBreakdown` run (`refreshSquare`), so nudging a stack straight or crooked, or re-placing a box, changes its squareness points immediately. `lostBreakdown(g)` returns `{crash, repairableCrash, permanentCrash, square}` totals: crash includes all floor and carried boxes, split by repair-station eligibility; `square` only counts stacks that fill a zone. The top-left HUD shows repairable and permanent damage separately from placement.
+- Placement (up to 50 per box): `refreshPlacement` computes `pen.sq` from rotation away from the nearest multiple of 90° (free within 5°, then floored in steps of 5 points). Hard mode adds `pen.shift` from horizontal distance to the box below or, for the bottom box, the drop point centre (0.11 tiles free; 50 at 0.35 tiles; no separate offset for a barrel top). The inspector photo snapshot saves both and labels rotated and shifted boxes separately. In Hard mode there is no immediate wonkiness popup or sound, and the HUD shows placement deductions only once a current photo exists; final scores include unreported deductions.
+- `lostBreakdown(g)` reports all crash damage split by repair eligibility and `square` (placement lost only on completed drop points). `score`, `zonePoints` and `lostBreakdown` default to full deductions; pass `true` for the live, report-gated values.
 
 ## Level generation (`level.js`)
 - Deterministic per (level number, seed) via `mulberry32`; `generateLevel(n, seed = 0)`, seed 0 = the default layouts. `parseSeed(text)` maps splash input to an int (integers as-is, other text hashed). `newGame(n, seed)` stores `g.seed`; retries up to 5000 deterministic attempts for that same level number and throws if none is valid (no level-1 fallback).

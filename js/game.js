@@ -1,5 +1,5 @@
 import { boxDecalKind } from './decals.js';
-import { rectPoly, sat, overlapArea } from './geom.js';
+import { rectPoly, sat, overlapArea, BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
@@ -16,6 +16,7 @@ const HARD_PALLET_DAMAGE_FACTOR = 0.75;
 const HARD_PALLET_CRASH_MIN_SPEED = 1.5;
 const SQUARE_POINTS = 50;
 const SQUARE_ALLOWANCE = (5 * Math.PI) / 180;
+const SHIFT_ALLOWANCE = 0.06 + (1 - BOX_SCALE) / 2, SHIFT_MAX = 0.35;
 const CRASH_MIN_SPEED = 0.8;
 const CRASH_COOLDOWN = 0.4;
 const BONK_MIN_SPEED = 1.2;
@@ -38,8 +39,9 @@ const newPen = (col = 0, seed = 0, open = false, wide = false) => ({ crash: 0, s
 export const topOpen = (pens) => !!pens?.[pens.length - 1]?.open;
 const blocksStacking = (pens) => topOpen(pens) || pens?.[pens.length - 1]?.barrelPart === 'top';
 const wideBox = (pens) => !!pens?.[0]?.wide;
-export const halfY = (pen) => (pen?.wide ? 1 : 0.5); // half extent across the box's local x axis (the fork axis)
-const reach = (s) => (wideBox(s.pen) ? 1.13 : 0.71); // radius that contains the whole box
+const boxPoly = (x, y, a, pen) => rectPoly(x, y, BOX_HALF_X, halfY(pen), a);
+const boxArea = (pen) => 4 * BOX_HALF_X * halfY(pen);
+const reach = (s) => Math.hypot(BOX_HALF_X, halfY(s.pen?.[0]));
 const boxMass = (s) => (wideBox(s.pen) ? 2 : 1);
 const WIDE_ALIGN = 0.45; // max |sin| of the angle between truck heading and a wide box's local x axis for the tines to get under it
 const boxPoints = (pen) => (pen?.wide ? 2 * BOX_POINTS : BOX_POINTS);
@@ -190,7 +192,7 @@ const carriedCenter = (t, i = 0) => {
 const carriedPoly = (t) => {
   if (!t.carried) return null;
   const c = carriedCenter(t);
-  return rectPoly(c.x, c.y, 0.5, halfY(t.carriedPen?.[0]), t.fl.a + t.carriedRel);
+  return boxPoly(c.x, c.y, t.fl.a + t.carriedRel, t.carriedPen?.[0]);
 };
 export const solidPolys = (t) => [bodyPoly(t), carriedPoly(t)].filter(Boolean);
 const trucksOverlap = (a, b) => {
@@ -204,7 +206,7 @@ export const ghostBetween = (g, i, j) => g.root.ghostPairs.some(([a, b]) => (a =
 export const isGhost = (g, i) => g.root.ghostPairs.some((p) => p.includes(i));
 
 // Stacks under a truck that spawns carry `ghost` = [truck ids]: those trucks pass through them (drawn translucent) until clear.
-const stackUnder = (t, s) => sat(bodyPoly(t), rectPoly(s.x, s.y, 0.5, halfY(s.pen?.[0]), s.a || 0));
+const stackUnder = (t, s) => sat(bodyPoly(t), boxPoly(s.x, s.y, s.a || 0, s.pen?.[0]));
 function markSpawnStacks(g, i) {
   const t = g.trucks[i];
   for (const s of g.stacks) {
@@ -278,7 +280,7 @@ export function crashProbes(g) {
   if (!g.carried || g.status === 'over' || f.gear === 'R') return [];
   const hy = halfY(g.carriedPen?.[0]);
   const o = g.carriedOffs?.[0] || { x: 0, y: 0 };
-  const x0 = FL.carryX - 0.5 + o.x, x1 = FL.tineX1 + ALERT_MIN_REACH + o.x;
+  const x0 = FL.carryX - BOX_HALF_X + o.x, x1 = FL.tineX1 + ALERT_MIN_REACH + o.x;
   const m = toWorld(f, (x0 + x1) / 2, o.y), probes = [rectPoly(m.x, m.y, (x1 - x0) / 2, hy, f.a)];
   const v = Math.max(0, f.speed);
   let { x, y, a } = f;
@@ -342,8 +344,8 @@ function shiftBoxes(S, i, dx, dy) {
 
 // Where fallen boxes land: 1.45 from the stack along (dx, dy), but never in or beyond a wall (e.g. the sides of a delivery trailer, which
 // would leave them unreachable outside the map): walks outwards and stops at the first wall, then tries other directions if too close.
-function fallSpot(g, S, dx, dy) {
-  const free = (x, y) => { const p = rectPoly(x, y, 0.5, 0.5, 0); return !g.walls.some((w) => sat(p, w.poly)); };
+function fallSpot(g, S, dx, dy, a, pen) {
+  const free = (x, y) => { const p = boxPoly(x, y, a, pen); return !g.walls.some((w) => sat(p, w.poly)); };
   const reach = (ux, uy) => { let d = 0; while (d < 1.45 - 1e-9 && free(S.x + ux * Math.min(1.45, d + 0.05), S.y + uy * Math.min(1.45, d + 0.05))) d += 0.05; return d; };
   let best = { d: reach(dx, dy), ux: dx, uy: dy };
   for (let k = 1; best.d < 1.0 && k <= 7; k++) {
@@ -385,7 +387,7 @@ function settle(g, S) {
   for (let i = 1; i < S.layers.length; i++) {
     if (S.pen[i]?.barrelPart === 'top') continue;
     const a = boxPos(S, i), b = boxPos(S, i - 1);
-    if (overlapArea(rectPoly(a.x, a.y, 0.5, 0.5, S.rots[i]), rectPoly(b.x, b.y, 0.5, 0.5, S.rots[i - 1])) >= MIN_SUPPORT) continue;
+    if (overlapArea(boxPoly(a.x, a.y, S.rots[i], S.pen[i]), boxPoly(b.x, b.y, S.rots[i - 1], S.pen[i - 1])) >= MIN_SUPPORT * boxArea(S.pen[i])) continue;
     if (catchFallingBoxes(g, S, i)) return;
     let dx = a.x - b.x, dy = a.y - b.y;
     const len = Math.hypot(dx, dy) || 1;
@@ -396,7 +398,7 @@ function settle(g, S) {
     hurt(g, pen, CRASH_POINTS, S.x + dx * 1.45, S.y + dy * 1.45, pen.length);
     const offs = S.offs.splice(i);
     const rots = S.rots.splice(i);
-    const { x: nx, y: ny } = fallSpot(g, S, dx, dy);
+    const { x: nx, y: ny } = fallSpot(g, S, dx, dy, rots[0], pen[0]);
     const layers = S.layers.splice(i);
     const rel = offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y }));
     // Landing within stackable reach of another stack's top box, the fallen boxes come to rest on it.
@@ -471,11 +473,26 @@ function squareLoss(a) {
   return Math.floor((t * SQUARE_POINTS) / 5) * 5;
 }
 
-// Crookedness of resting boxes is always judged by their current angle, so nudging a stack straight or crooked counts.
-function refreshSquare(S) {
+// Measure upper boxes against their supporting box, and the bottom box against the drop point.
+function refreshPlacement(g, S, z) {
   ensure(S);
-  S.pen.forEach((p, i) => { p.sq = squareLoss(S.rots[i]); });
+  S.pen.forEach((p, i) => {
+    p.sq = squareLoss(S.rots[i]);
+    if (!g.hard) return;
+    const o = S.offs[i], below = S.offs[i - 1];
+    const d = p.barrelPart === 'top' ? 0 : below ? Math.hypot(o.x - below.x, o.y - below.y)
+      : Math.hypot(S.x + o.x - z.x, S.y + o.y - z.y);
+    p.shift = d <= SHIFT_ALLOWANCE ? 0 : Math.min(SQUARE_POINTS, 5 * Math.ceil(10 * (d - SHIFT_ALLOWANCE) / (SHIFT_MAX - SHIFT_ALLOWANCE)));
+  });
 }
+
+const placementLoss = (g, p) => Math.min(SQUARE_POINTS, p.sq + (g.hard ? p.shift || 0 : 0));
+const inspectionKey = (z) => `${z.x},${z.y},${z.color}`;
+function hasReport(g, s, z) {
+  const key = inspectionKey(z), bot = g.inspector;
+  return !s.touched && bot?.seen.includes(key) && bot.sigs?.[key] === stackSig(s) && bot.photos?.[key]?.pens?.[0]?.shift !== undefined;
+}
+const showPlacement = (g, s, z, reportedOnly) => !g.hard || !reportedOnly || g.status === 'won' || hasReport(g, s, z);
 
 export function maxScore(g) {
   const sum = (layers, pens) => layers.reduce((n, _, i) => n + boxPoints(pens?.[i]), 0);
@@ -483,13 +500,17 @@ export function maxScore(g) {
 }
 
 // Points lost to crashes and to crooked placement.
-export function lostBreakdown(g) {
+export function lostBreakdown(g, reportedOnly = false) {
   let crashLost = 0, repairableLost = 0, squareLost = 0;
   const addCrash = (p) => { crashLost += p.crash; if (repairable(p)) repairableLost += p.crash; };
   for (const S of g.stacks) {
-    refreshSquare(S);
+    ensure(S);
     for (const p of S.pen) addCrash(p);
-    if (g.zones.some((z) => stackFillsZone(S, z))) for (const p of S.pen) squareLost += p.sq;
+    const z = g.zones.find((z) => stackFillsZone(S, z));
+    if (z && showPlacement(g, S, z, reportedOnly)) {
+      refreshPlacement(g, S, z);
+      for (const p of S.pen) squareLost += placementLoss(g, p);
+    }
   }
   for (const t of g.root.trucks) for (const p of t.carriedPen) addCrash(p);
   const crash = Math.round(crashLost), repairableCrash = Math.round(repairableLost);
@@ -498,15 +519,16 @@ export function lostBreakdown(g) {
 
 // Points earned: only boxes in a stack that completes a zone count, but crash damage anywhere (loose stacks, carried boxes) is already deducted,
 // so it is not deducted again when that stack is dropped on a drop point.
-export function score(g) {
+export function score(g, reportedOnly = false) {
   let pts = 0;
   const counted = new Set();
   for (const z of g.zones) {
-    const S = g.stacks.find((s) => stackFillsZone(s, z));
+    const S = stackForZone(g, z);
     if (!S || counted.has(S)) continue;
     counted.add(S);
-    refreshSquare(S);
-    for (const p of S.pen) pts += boxPoints(p) - p.crash - p.sq;
+    const reveal = showPlacement(g, S, z, reportedOnly);
+    refreshPlacement(g, S, z);
+    for (const p of S.pen) pts += boxPoints(p) - p.crash - (reveal ? placementLoss(g, p) : 0);
   }
   for (const S of g.stacks) if (!counted.has(S)) { ensure(S); for (const p of S.pen) pts -= p.crash; }
   for (const t of g.root.trucks) for (const p of t.carriedPen) pts -= p.crash;
@@ -585,7 +607,7 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
   return g;
 }
 
-const stackPoly = (s) => rectPoly(s.x, s.y, 0.5, halfY(s.pen?.[0]), s.a || 0);
+const stackPoly = (s) => boxPoly(s.x, s.y, s.a || 0, s.pen?.[0]);
 
 // Boxes above the fork level that have slid more than SLID_MIN off the box below them: the truck body and the fork plate hit these
 // (the tines never touch them, even offset), so such a box can be pushed back into line.
@@ -597,7 +619,7 @@ function slidBoxes(g, s) {
   for (let i = Math.max(1, relH(g, s) + 1); i < Math.min(s.layers.length, relH(g, s) + BODY_REACH); i++) {
     if (Math.hypot(s.offs[i].x - s.offs[i - 1].x, s.offs[i].y - s.offs[i - 1].y) <= SLID_MIN) continue;
     const c = boxPos(s, i);
-    out.push({ poly: rectPoly(c.x, c.y, 0.5, halfY(s.pen?.[i]), s.rots[i]), from: i });
+    out.push({ poly: boxPoly(c.x, c.y, s.rots[i], s.pen?.[i]), from: i });
   }
   return out;
 }
@@ -611,7 +633,7 @@ function forkShapes(g) {
   const boxes = (from) => (s) => {
     ensure(s);
     const out = [];
-    for (let i = from; i < s.layers.length; i++) { const c = boxPos(s, i); out.push({ poly: rectPoly(c.x, c.y, 0.5, halfY(s.pen?.[i]), s.rots[i]), from: i }); }
+    for (let i = from; i < s.layers.length; i++) { const c = boxPos(s, i); out.push({ poly: boxPoly(c.x, c.y, s.rots[i], s.pen?.[i]), from: i }); }
     return out;
   };
   const shapes = [
@@ -626,7 +648,7 @@ function forkShapes(g) {
   }
   if (g.carried) {
     const c = carriedCenter(g);
-    shapes.push({ poly: rectPoly(c.x, c.y, 0.5, halfY(g.carriedPen?.[0]), f.a + g.carriedRel), stackFilter: (s) => s.layers.length > relH(g, s), carried: true, targets: (s) => boxes(Math.max(0, relH(g, s)))(s) });
+    shapes.push({ poly: boxPoly(c.x, c.y, f.a + g.carriedRel, g.carriedPen?.[0]), stackFilter: (s) => s.layers.length > relH(g, s), carried: true, targets: (s) => boxes(Math.max(0, relH(g, s)))(s) });
   }
   const blocks = (s) => relH(g, s) >= 0 && s.layers.length > relH(g, s) && s.pen?.[relH(g, s)]?.barrelPart !== 'top' && g.hard;
   const tineTargets = (s) => palletRunners(g, s).map((poly) => ({ poly, from: relH(g, s) }));
@@ -640,7 +662,7 @@ function catchFallingBoxes(g, S, from) {
   if (S.pen[from]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[from])) > WIDE_ALIGN) return false;
   const c = boxPos(S, from), local = toLocal(g.fl, c.x, c.y);
   if (Math.abs(local.x - FL.carryX) >= 0.55 || Math.abs(local.y) >= 0.5) return false;
-  const box = rectPoly(c.x, c.y, 0.5, halfY(S.pen[from]), S.rots[from]);
+  const box = boxPoly(c.x, c.y, S.rots[from], S.pen[from]);
   const tines = forkShapes(g).filter((shape) => shape.tine);
   if (tines.length !== 2 || !tines.every((tine) => sat(box, tine.poly))) return false;
 
@@ -662,13 +684,11 @@ function liftBoxes(g, S, from) {
 
 // A pallet is three runners along the box's local x axis (perpendicular to its tape) with a slot for each tine between them,
 // so tines only fit when driving along that axis (either way); from the sides they hit the runners.
-const RUNNERS = [[0, 0.12], [-0.47, 0.03], [0.47, 0.03]]; // [lateral offset, half width]
 function palletRunners(g, s) {
   ensure(s);
   const k = relH(g, s), ang = s.rots[k], c = boxPos(s, k);
   const ux = Math.cos(ang), uy = Math.sin(ang);
-  const slots = wideBox(s.pen) ? [-0.5, 0.5] : [0]; // a wide box rests on two pallets side by side
-  return slots.flatMap((sl) => RUNNERS.map(([off, hw]) => rectPoly(c.x - uy * (sl + off), c.y + ux * (sl + off), 0.5, hw, ang)));
+  return palletRunnerDims(s.pen[k]).map(([off, hw]) => rectPoly(c.x - uy * off, c.y + ux * off, BOX_HALF_X, hw, ang));
 }
 
 // Pushing a stack off its centre turns it by the lever arm of the push (the boxes from `from` upward).
@@ -1001,7 +1021,10 @@ export function update(g, input, dt) {
   watchForkedStack(root);
   stepRepair(root, dt, root.trucks.flatMap((t, i) => (t.gone ? [] : [truckView(root, i).fl])));
   stepBot(root, dt, OIL_DROP_AREA);
-  stepInspector(root, dt, root.zones.filter((z) => zoneDone(root, z)), (z) => zoneWonky(root, z));
+  stepInspector(root, dt, root.zones.filter((z) => zoneDone(root, z)), (z) => stackForZone(root, z), (s, z) => {
+    refreshPlacement(root, s, z);
+    return s.pen.some((p) => placementLoss(root, p) > 0);
+  });
   updateGhosts(root);
   if (root.status === 'play' && root.started) root.time += dt; // the level timer runs from the first move until solved
   scorePopups(root);
@@ -1018,7 +1041,7 @@ const noise = (i, k) => { const v = Math.sin(i * 12.9898 + k * 78.233) * 43758.5
 // Randomly shifts and turns boxes 1.. of a stack given as arrays (`offs` relative to any common origin, `rots` angles),
 // keeping every box within WIGGLE_MAX_OFF / WIGGLE_MAX_TURN of the one below and on at least WIGGLE_SUPPORT of its
 // area; if the result would break that the stack is left as it was.
-function wiggleBoxes(offs, rots, seed, k) {
+function wiggleBoxes(offs, rots, pens, seed, k) {
   const o0 = offs.map((o) => ({ ...o })), r0 = rots.slice();
   for (let j = 1; j < offs.length; j++) {
     offs[j].x += WIGGLE_MOVE * k * noise(j, seed + 1); offs[j].y += WIGGLE_MOVE * k * noise(j, seed + 2);
@@ -1028,8 +1051,8 @@ function wiggleBoxes(offs, rots, seed, k) {
     rots[j] = rots[j - 1] + Math.max(-WIGGLE_MAX_TURN, Math.min(WIGGLE_MAX_TURN, rots[j] - rots[j - 1]));
   }
   for (let j = 1; j < offs.length; j++) {
-    const a = rectPoly(offs[j].x, offs[j].y, 0.5, 0.5, rots[j]), b = rectPoly(offs[j - 1].x, offs[j - 1].y, 0.5, 0.5, rots[j - 1]);
-    if (overlapArea(a, b) < WIGGLE_SUPPORT) { offs.forEach((o, i) => Object.assign(o, o0[i])); rots.splice(0, rots.length, ...r0); return; }
+    const a = boxPoly(offs[j].x, offs[j].y, rots[j], pens[j]), b = boxPoly(offs[j - 1].x, offs[j - 1].y, rots[j - 1], pens[j - 1]);
+    if (overlapArea(a, b) < WIGGLE_SUPPORT * boxArea(pens[j])) { offs.forEach((o, i) => Object.assign(o, o0[i])); rots.splice(0, rots.length, ...r0); return; }
   }
 }
 
@@ -1052,7 +1075,7 @@ function hornWave(root, t) {
     s.x += WIGGLE_BOTTOM * noise(n, seed + 4); s.y += WIGGLE_BOTTOM * noise(n, seed + 5);
     const da = WIGGLE_BOTTOM * noise(n, seed + 6);
     s.rots[0] += da; s.a = (s.a || 0) + da;
-    wiggleBoxes(s.offs, s.rots, seed + n * 7, 1);
+    wiggleBoxes(s.offs, s.rots, s.pen, seed + n * 7, 1);
     keepBarrelsRigid(s.pen, s.offs, s.rots);
   });
   for (const u of root.trucks) {
@@ -1063,7 +1086,7 @@ function hornWave(root, t) {
     forgetInspection(u.carriedPen);
     while (u.carriedOffs.length < u.carried.length) u.carriedOffs.push({ x: 0, y: 0 });
     while (u.carriedRots.length < u.carried.length) u.carriedRots.push(u.carriedRel);
-    wiggleBoxes(u.carriedOffs, u.carriedRots, seed + u.id * 11, 1);
+    wiggleBoxes(u.carriedOffs, u.carriedRots, u.carriedPen, seed + u.id * 11, 1);
     keepBarrelsRigid(u.carriedPen, u.carriedOffs, u.carriedRots);
   }
 }
@@ -1240,8 +1263,8 @@ function scorePopups(g) {
       add(was.n, { total: -was.base });
     } else if (!was && now) {
       add(now.n, { total: now.base });
-      if (now.square) add(now.n, { wonky: -now.square });
-    } else if (was && now && was.square !== now.square) {
+      if (!g.hard && now.square) add(now.n, { wonky: -now.square });
+    } else if (!g.hard && was && now && was.square !== now.square) {
       const old = popup(i, 'wonky');
       const change = was.square - now.square + (old ? old.score.wonky : 0);
       drop(old);
@@ -1565,17 +1588,20 @@ const stackFillsZone = (s, z) => {
     (!z.wide || Math.abs(Math.sin((s.a || 0) - (z.a || 0))) < 0.4);
 };
 
-// A completed drop point holds a stack with crooked boxes (squareness points lost).
+const stackForZone = (g, z) => g.stacks.find((s) => stackFillsZone(s, z));
+
+// A completed drop point holds a stack with placement points lost.
 export function zoneWonky(g, z) {
-  return g.stacks.some((s) => stackFillsZone(s, z) && (refreshSquare(s), s.pen.some((p) => p.sq > 0)));
+  return (zonePoints(g, z)?.square || 0) > 0;
 }
 
 // Points of the stack completing zone z: `base` (max for the stack: what the popup shows, since crash damage is already in the live score), `total` (base minus crash and crooked placement `square`); null while the zone is open.
-export function zonePoints(g, z) {
-  const S = g.stacks.find((s) => stackFillsZone(s, z));
+export function zonePoints(g, z, reportedOnly = false) {
+  const S = stackForZone(g, z);
   if (!S) return null;
-  refreshSquare(S);
-  const crash = S.pen.reduce((n, p) => n + p.crash, 0), square = S.pen.reduce((n, p) => n + p.sq, 0);
+  const reveal = showPlacement(g, S, z, reportedOnly);
+  refreshPlacement(g, S, z);
+  const crash = S.pen.reduce((n, p) => n + p.crash, 0), square = reveal ? S.pen.reduce((n, p) => n + placementLoss(g, p), 0) : 0;
   const base = S.pen.reduce((n, p) => n + boxPoints(p), 0);
   return { n: S.layers.length, base, total: base - Math.round(crash) - Math.round(square), crash: Math.round(crash), square: Math.round(square) };
 }
@@ -1587,9 +1613,9 @@ const endCache = new WeakMap();
 export function endPhotos(g) {
   const out = [];
   for (const z of g.zones) {
-    const S = g.stacks.find((s) => stackFillsZone(s, z)), pts = zonePoints(g, z);
+    const S = stackForZone(g, z), pts = zonePoints(g, z);
     if (!S || !pts) continue;
-    const photo = g.inspector?.photos?.[`${z.x},${z.y},${z.color}`], src = photo || S;
+    const photo = (!g.hard || hasReport(g, S, z)) && g.inspector?.photos?.[inspectionKey(z)], src = photo || S;
     if (!endCache.has(src)) {
       const base = photo || makePhoto(S, !pts.crash && !pts.square, Math.PI / 4 + (S.rots?.[0] ?? 0), 1.4, 0, g.clock);
       endCache.set(src, { ...base, score: { base: pts.base, crash: pts.crash, square: pts.square, total: pts.total } }); // one object per picture, so the gallery can tell which are up
@@ -1603,14 +1629,15 @@ export function endPhotos(g) {
 export function flaggedStacks(g) {
   const out = [];
   for (const z of g.zones) {
-    if (!g.inspector?.seen.includes(`${z.x},${z.y},${z.color}`)) continue;
-    const s = g.stacks.find((q) => stackFillsZone(q, z));
-    if (s?.touched) continue;
-    if (s && g.inspector.sigs?.[`${z.x},${z.y},${z.color}`] !== undefined && g.inspector.sigs[`${z.x},${z.y},${z.color}`] !== stackSig(s)) continue; // touched since the photo
-    if (!s) continue;
-    refreshSquare(s);
-    const wonky = s.pen.some((p) => p.sq > 0), damaged = s.pen.some((p) => p.crash > 0 && repairable(p));
-    if (wonky || damaged) out.push({ x: s.x, y: s.y, h: s.layers.length, key: `${z.x},${z.y},${z.color}`, wonky, damaged });
+    const key = inspectionKey(z);
+    if (!g.inspector?.seen.includes(key)) continue;
+    const s = stackForZone(g, z);
+    if (!s || s.touched || (g.hard && !hasReport(g, s, z))) continue;
+    if (!g.hard && g.inspector.sigs?.[key] !== undefined && g.inspector.sigs[key] !== stackSig(s)) continue; // touched since the photo
+    refreshPlacement(g, s, z);
+    const wonky = s.pen.some((p) => placementLoss(g, p) > 0);
+    const damaged = s.pen.some((p) => p.crash > 0 && repairable(p));
+    if (wonky || damaged) out.push({ x: s.x, y: s.y, h: s.layers.length, key, wonky, damaged });
   }
   return out;
 }

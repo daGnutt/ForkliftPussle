@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { newGame, update, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos } from '../js/game.js';
+import { newGame, update, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
+import { issues } from '../js/photo.js';
 import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { run, NONE, flatWorld } from './common.js';
@@ -314,6 +315,33 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   fresh.photo = g.photo;
   const back = deserializeGame(JSON.parse(JSON.stringify(serializeGame(fresh))));
   assert.deepEqual(back.photo, JSON.parse(JSON.stringify(g.photo)), 'the last picture survives save and load');
+}
+
+// In Hard mode the inspector reveals whether each box is turned, shifted, or both.
+{
+  const g = newGame(1, 0, true);
+  const z = g.zones[0];
+  const s = { x: z.x, y: z.y, layers: [z.color, z.color], a: Math.PI / 8,
+    rots: [Math.PI / 8, 0], offs: [{ x: 0, y: 0 }, { x: 0, y: 0.18 }] };
+  z.count = 2;
+  g.stacks = [s];
+  clearOf(g, z);
+  assert.equal(flaggedStacks(g).length, 0);
+  assert.equal(score(g, true), 200);
+  for (let t = 0; t < 120 && !g.photo; t += 1 / 120) update(g, NONE, 1 / 120);
+  assert.ok(g.photo, 'hard stack was photographed');
+  assert.equal(g.photo.ok, false);
+  assert.deepEqual(issues(g.photo), ['Box 1 is rotated', 'Box 2 is shifted sideways']);
+  assert.equal(score(g, true), score(g), 'reported placement losses now show in the live score');
+  assert.equal(flaggedStacks(g)[0].wonky, true);
+
+  s.rots[1] = Math.PI / 8;
+  update(g, NONE, 1 / 120);
+  assert.equal(g.photo, null, 'the old report no longer applies');
+  assert.equal(score(g, true), 200);
+  for (let t = 0; t < 120 && !g.photo; t += 1 / 120) update(g, NONE, 1 / 120);
+  assert.ok(g.photo, 'changed stack was photographed again');
+  assert.equal(issues(g.photo)[1], 'Box 2 is rotated and shifted sideways');
 }
 
 // End of level: every stack gets a picture with the points it contributed, longest-dormant stack first; a missing photo is faked from the stack.

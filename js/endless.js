@@ -378,7 +378,7 @@ export function stepEndless(g, dt) {
   e.margin = Math.min(MARGIN_MAX, Math.max(MARGIN_MIN, e.margin + (occupied < TARGET_DOCKS ? -MARGIN_RATE : MARGIN_RATE) * dt));
   if (e.arriveT <= 0) {
     const d = e.docks.find((o) => o.state === 'free');
-    if (!d) { e.over = true; g.status = 'over'; return; }
+    if (!d) { e.over = true; g.status = 'over'; if (g.hard) e.live = liveBayPoints(g); return; }
     d.off = OUT_DIST; d.state = 'arriving'; loadDock(g, d);
     e.arrived++;
     if (e.arrived === 1) e.wBoxes = RATE_PRIOR * RATE_PRIOR_T * Math.max(1, liveTrucks(g).length); // the prior scales with the crew
@@ -387,15 +387,15 @@ export function stepEndless(g, dt) {
   for (const d of e.docks) stepDock(g, d, dt);
   measureRate(g, e, dt);
   for (const b of e.bays) stepBay(g, b, dt);
-  e.live = liveBayPoints(g);
+  e.live = liveBayPoints(g, true);
 }
 
 // Points of the loads still at a drop point (gate not yet closed); they go up and down with the stacks and are banked into `e.points` when the gate closes.
-function liveBayPoints(g) {
+function liveBayPoints(g, reportedOnly = false) {
   let n = 0;
   for (const b of g.endless.bays) {
     if (b.state !== 'open' && b.state !== 'closing') continue;
-    for (const z of b.zones) { const p = zonePoints(g, z); if (p) n += p.total; }
+    for (const z of b.zones) { const p = zonePoints(g, z, reportedOnly); if (p) n += p.total; }
   }
   return n;
 }

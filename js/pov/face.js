@@ -404,7 +404,7 @@ function drawDents(ctx, cam, f, dark) {
       decalPoly(ctx, cam, poly.map(([u, v]) => [q0[0] + (q1[0] - q0[0]) * u, q0[1] + (q1[1] - q0[1]) * u, z0 + (z1 - z0) * v]), DENT_FILL, dark);
     }
   } else if (f.boxFlat && f.lit) {
-    const { x, y, r } = f.box, c = Math.cos(r), s = Math.sin(r), z = f.quad[0][2];
+    const { x, y, r, scale } = f.box, c = Math.cos(r) * scale, s = Math.sin(r) * scale, z = f.quad[0][2];
     if (f.pen.dent) for (const poly of topShapes(f.pen, f.dseed)) decalPoly(ctx, cam, poly.map(([u, v]) => [x + u * c - v * s, y + u * s + v * c, z]), DENT_FILL, dark);
     if (f.pen.tape) for (const poly of tapeShapes(f.pen)) decalPoly(ctx, cam, poly.map(([u, v]) => [x + u * c - v * s, y + u * s + v * c, z]), TAPE_FILL, dark);
   }

@@ -1292,7 +1292,7 @@ function frame(now) {
   watchBots();
   const done = doneSet();
   const fresh = [...done].filter((z) => !doneZones.has(z));
-  if (fresh.length) (fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();
+  if (fresh.length) (!game.hard && fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();
   doneZones = done;
   if (game.hitCount !== hitCount) {
     if (game.hitCount > hitCount) { const h = game.hits?.[game.hits.length - 1]; playBreak(h ? hearVol(h.x, h.y) : 1); }

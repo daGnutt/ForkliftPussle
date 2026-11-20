@@ -239,8 +239,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
 // Score popups: separate popups for the stack's points (completed / moved off) and its wonkiness (placed / nudged).
 {
-  const drop = (x, rot, crash = 0) => {
-    const g = newGame(1);
+  const drop = (x, rot, crash = 0, hard = false) => {
+    const g = newGame(1, 0, hard);
     flatWorld(g);
     g.zones = [{ x: 12, y: 5, color: 0, count: 2 }];
     g.stacks = [];
@@ -293,6 +293,28 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const hurt = zonePoints(g, g.zones[0]);
   assert.deepEqual([hurt.crash, hurt.total], [10, 200 - 10 - pts.square]);
   assert.equal(hurt.total, score(g));
+
+  const hard = drop(12, Math.PI / 4, 0, true);
+  assert.deepEqual(scores(hard), [{ total: 200 }], 'Hard mode keeps delivery points but hides placement popups');
+  hard.stacks[0].rots = [0, 0];
+  hard.stacks[0].offs[1].y = 0.18;
+  update(hard, {}, 1 / 120);
+  const shifted = zonePoints(hard, hard.zones[0]);
+  assert.ok(shifted.square > 0 && zoneWonky(hard, hard.zones[0]), 'sideways shift alone is wonky');
+  assert.equal(shifted.total, score(hard));
+  assert.equal(shifted.square, lostBreakdown(hard).square);
+  assert.equal(score(hard, true), 200, 'live score does not leak unreported losses');
+  assert.equal(lostBreakdown(hard, true).square, 0);
+  assert.deepEqual(scores(hard), [{ total: 200 }], 'nudging does not spawn a placement popup either');
+  Object.assign(hard.stacks[0], { x: 12.1, y: 5, offs: [{ x: 0, y: 0 }, { x: 0, y: 0.1 }] });
+  assert.equal(zonePoints(hard, hard.zones[0]).square, 0, 'the extra clearance forgives a 0.1 tile shift at both levels');
+  hard.stacks[0].x += 0.15;
+  assert.ok(zonePoints(hard, hard.zones[0]).square > 0, 'bottom box is judged against the centre of its zone');
+  hard.status = 'won';
+  assert.equal(score(hard, true), score(hard), 'final score counts all placement losses');
+  const normal = drop(12, 0);
+  normal.stacks[0].offs[1].y = 0.18;
+  assert.equal(zonePoints(normal, normal.zones[0]).square, 0, 'Normal mode still scores rotation only');
   assert.equal(hurt.base, 200, 'popup shows full points; the crash was deducted when it happened');
   assert.ok(zoneWonky(g, g.zones[0]));
   assert.equal(zonePoints(drop(12, 0), { x: 12, y: 5, color: 0, count: 2 }).total, 200, 'straight stack is worth full points');

@@ -1,3 +1,15 @@
+export const BOX_SCALE = 0.9;
+export const BOX_HALF_X = BOX_SCALE / 2;
+export const halfY = (pen) => BOX_SCALE * (pen?.wide ? 1 : 0.5);
+export const BARREL_PALLET_RISE = 0.04; // leaves 0.01 tiles over a full-height tine under the deck
+
+export function palletRunnerDims(pen) {
+  // The wide pallet straddles the tines between its two centre runners.
+  const runners = [[0, pen?.wide ? 0.075 : 0.12], [-0.47, 0.03], [0.47, 0.03]];
+  return (pen?.wide ? [-0.5, 0.5] : [0]).flatMap((slot) =>
+    runners.map(([off, hw]) => [(slot + off) * BOX_SCALE, hw * BOX_SCALE]));
+}
+
 export function rectPoly(cx, cy, hx, hy, ang = 0) {
   const c = Math.cos(ang), s = Math.sin(ang);
   return [[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy]].map(([x, y]) => ({
