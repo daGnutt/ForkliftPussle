@@ -86,6 +86,42 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(Math.abs(o.x + 0.1) < 1e-9 && Math.abs(o.y - 0.3) < 1e-9, 'offset turns with the forklift');
 }
 
+// Picking up a load off-center changes only its height; the offset turns with the truck.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  Object.assign(g.fl, { x: 9, y: 5, a: Math.PI / 2 });
+  const p = toWorld(g.fl, FL.carryX + 0.3, -0.2);
+  g.stacks = [{ ...p, layers: [0] }];
+  forkUp(g);
+  assert.deepEqual(g.carried, [0]);
+  const o = g.carriedOffs[0];
+  assert.ok(Math.abs(o.x - 0.3) < 1e-9 && Math.abs(o.y + 0.2) < 1e-9, 'keeps depth and lateral offsets in the fork frame');
+  g.fl.a = Math.PI;
+  const expected = toWorld(g.fl, FL.carryX + 0.3, -0.2);
+  forkDown(g);
+  assert.equal(g.carried, null);
+  const s = g.stacks[0];
+  assert.ok(Math.hypot(s.x - expected.x, s.y - expected.y) < 1e-9, 'lands where the off-center load was carried');
+}
+
+// Lifting and immediately replacing a crooked upper box does not straighten it.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1], offs: [{ x: 0, y: 0 }, { x: 0.3, y: 0.1 }] }];
+  Object.assign(g.fl, { x: 10.65 - FL.carryX, y: 5.2, a: 0 });
+  g.H = 1;
+  forkUp(g);
+  assert.deepEqual(g.carried, [1]);
+  forkDown(g);
+  assert.equal(g.carried, null);
+  assert.equal(g.stacks.length, 1, 'lowers onto the box under the load, not under the center of the forks');
+  assert.deepEqual(g.stacks[0].layers, [0, 1]);
+  const o = g.stacks[0].offs[1];
+  assert.ok(Math.abs(o.x - 0.3) < 1e-9 && Math.abs(o.y - 0.1) < 1e-9, 'upper box stays crooked without truck movement');
+}
+
 // Whole stack from level 0; release on the floor at level 0.
 {
   const g = newGame(1);
