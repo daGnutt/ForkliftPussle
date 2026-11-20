@@ -4,7 +4,7 @@ export function batterySaverOption(storage, option, touch) {
   if (saved !== null) return saved === '1';
   const legacy = storage.getItem('forklift-battery-saver');
   if (legacy !== null) return legacy === '1';
-  return option === 'frame-rate' ? false : touch;
+  return option === 'resolution' || option === 'frame-rate' ? touch : false;
 }
 
 export function canvasDpr(deviceDpr, width, height, lowerResolution) {

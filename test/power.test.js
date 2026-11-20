@@ -7,8 +7,11 @@ const storage = (values = {}) => ({ getItem: (key) => values[key] ?? null });
 // Each option defaults independently; old all-in-one preferences remain respected.
 {
   assert.equal(batterySaverOption(storage(), 'resolution', true), true);
+  assert.equal(batterySaverOption(storage(), 'frame-rate', true), true);
   assert.equal(batterySaverOption(storage(), 'effects', false), false);
-  assert.equal(batterySaverOption(storage(), 'frame-rate', true), false);
+  assert.equal(batterySaverOption(storage(), 'resolution', false), false);
+  assert.equal(batterySaverOption(storage(), 'frame-rate', false), false);
+  assert.equal(batterySaverOption(storage(), 'effects', true), false);
   assert.equal(batterySaverOption(storage({ 'forklift-battery-saver-resolution': '0' }), 'resolution', true), false);
   assert.equal(batterySaverOption(storage({ 'forklift-battery-saver': '1' }), 'frame-rate', false), true);
   assert.equal(batterySaverOption(storage({
