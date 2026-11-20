@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { BARREL_COLOR, generateLevel, parseSeed, isReachable } from '../js/level.js';
-import { pointRectDist } from '../js/geom.js';
+import { pointRectDist, zoneExt } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
@@ -25,7 +25,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 for (let n = 1; n <= 40; n++) {
   const l = generateLevel(n);
   for (const z of l.zones) {
-    const ex = z.hx ?? 0.6, ey = z.hy ?? 0.6;
+    const { x: ex, y: ey } = zoneExt(z);
     assert.ok(l.areas.some((a) => a.color === z.color && z.x - ex >= a.x - 1e-9 && z.x + ex <= a.x + a.w + 1e-9 &&
       z.y - ey >= a.y - 1e-9 && z.y + ey <= a.y + a.h + 1e-9), `level ${n} zone in an area of its colour`);
   }
@@ -49,8 +49,8 @@ for (let n = 1; n <= 40; n++) {
   const l = generateLevel(n);
   for (const a of l.areas.filter((o) => o.color < 5)) {
     const zs = l.zones.filter((z) => z.color === a.color);
-    const minX = Math.min(...zs.map((z) => z.x)) - 0.6, maxX = Math.max(...zs.map((z) => z.x)) + 0.6;
-    const minY = Math.min(...zs.map((z) => z.y)) - 0.6, maxY = Math.max(...zs.map((z) => z.y)) + 0.6;
+    const minX = Math.min(...zs.map((z) => z.x - zoneExt(z).x)), maxX = Math.max(...zs.map((z) => z.x + zoneExt(z).x));
+    const minY = Math.min(...zs.map((z) => z.y - zoneExt(z).y)), maxY = Math.max(...zs.map((z) => z.y + zoneExt(z).y));
     assert.ok(Math.abs(a.x - minX) < 1e-9 && Math.abs(a.w - (maxX - minX)) < 1e-9, `level ${n} area width fits its drop points`);
     assert.ok(Math.abs(a.y - minY) < 1e-9 && Math.abs(a.h - (maxY - minY)) < 1e-9, `level ${n} area height fits its drop points`);
   }

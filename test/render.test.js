@@ -31,7 +31,7 @@ import { Mesh } from '../js/gl/mesh.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
-// Barrel pallets fit the smaller footprint and leave room for the tines beneath the deck.
+// Barrel pallets retain the full-size footprint and leave room for the tines beneath the deck.
 {
   const layers = [BARREL_COLOR, BARREL_COLOR], pen = [{ barrelPart: 'base' }, { barrelPart: 'top' }];
   const wood = [], drums = [], x = 6, y = 5;
@@ -39,7 +39,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   addGLStack(mesh, new Mesh(), x, y, [0, 0], layers, 0, [], 0, 0, pen);
   const maxX = Math.max(...wood.map(([cx, , , hx]) => cx + hx));
   const maxY = Math.max(...wood.map(([, cy, , , hy]) => cy + hy));
-  assert.ok(Math.abs(maxX - x - 0.45) < 1e-8 && Math.abs(maxY - y - 0.45) < 1e-8);
+  assert.ok(Math.abs(maxX - x - 0.5) < 1e-8 && Math.abs(maxY - y - 0.5) < 1e-8);
   assert.ok(wood.filter((p) => p[5] > 0).every((p) => p[5] > PAL), 'GL deck clears the full-height tine');
   assert.equal(drums[0][2], Math.max(...wood.map((p) => p[6])), 'the drum sits on the deck');
 
@@ -80,8 +80,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     const xs = tri.map((p) => p[0]), ys = tri.map((p) => p[1]);
     const sameX = Math.max(...xs) - Math.min(...xs) < 1e-4;
     const sameY = Math.max(...ys) - Math.min(...ys) < 1e-4;
-    if (sameX && Math.abs(Math.abs(xs[0]) - 0.45) < 0.01) entryFaces++;
-    if (sameY && Math.abs(Math.abs(ys[0]) - 0.45) < 0.01) blockedSideFaces++;
+    if (sameX && Math.abs(Math.abs(xs[0]) - 0.5) < 0.01) entryFaces++;
+    if (sameY && Math.abs(Math.abs(ys[0]) - 0.5) < 0.01) blockedSideFaces++;
   }
   assert.ok(entryFaces > 0, 'warning decals remain on the fork-entry ends');
   assert.equal(blockedSideFaces, 0, 'no warning decals are on the runner-blocked sides');
@@ -162,7 +162,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   g.stacks = [];
   g.carried = [BARREL_COLOR, BARREL_COLOR];
   g.carriedPen = [{ barrelPart: 'base' }, { barrelPart: 'top' }];
-  const s = 16, rect = [(zone.x - 0.6) * s, (zone.y - 0.6) * s, 1.2 * s, 1.2 * s];
+  const s = 16, rect = [(zone.x - 0.69) * s, (zone.y - 0.69) * s, 1.38 * s, 1.38 * s];
   const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
     get: (t, k) => k in t ? t[k] : k === 'fillRect' ? (...args) => fills.push({ args, color: t.fillStyle, alpha: t.globalAlpha })
       : k === 'measureText' ? (text) => ({ width: text.length * 7 })
@@ -206,8 +206,9 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 {
   const zones = [{ x: 5, y: 6, color: 3, count: 4, hx: 0.6, hy: 0.4 }];
   assert.equal(shouldSpawnSetdownDust({ x: 5, y: 6 }, zones), false, 'a zone suppresses dust regardless of its required contents');
-  assert.equal(shouldSpawnSetdownDust({ x: 5.6, y: 6 }, zones), false, 'the zone boundary counts as inside');
-  assert.equal(shouldSpawnSetdownDust({ x: 5.61, y: 6 }, zones), true, 'a landing point outside the zone still gets dust even if the stack overlaps its edge');
+  assert.equal(shouldSpawnSetdownDust({ x: 5.68, y: 6.45 }, zones), false, 'the enlarged zone suppresses dust in its added margin');
+  assert.equal(shouldSpawnSetdownDust({ x: 5.69, y: 6 }, zones), false, 'the enlarged zone boundary counts as inside');
+  assert.equal(shouldSpawnSetdownDust({ x: 5.70, y: 6 }, zones), true, 'a landing point outside the zone still gets dust even if the stack overlaps its edge');
   assert.equal(shouldSpawnSetdownDust({ x: 5, y: 6 }, []), true, 'without zones, dust is unchanged');
 }
 

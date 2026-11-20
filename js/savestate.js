@@ -5,6 +5,7 @@ import { stackSig } from './bot.js';
 
 const SAVE_VERSION = 1;
 const LEVEL_LAYOUT_VERSION = 4;
+const INSPECTION_VERSION = 2;
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const num = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -22,12 +23,22 @@ const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carrie
 export function serializeGame(g, seedText = '') {
   const state = {};
   for (const k of DYNAMIC) if (g[k] !== undefined) state[k] = clone(g[k]);
-  return { version: SAVE_VERSION, layoutVersion: LEVEL_LAYOUT_VERSION, inspectionVersion: 1, level: g.level, seed: g.seed, seedText, hard: g.hard, state };
+  return { version: SAVE_VERSION, layoutVersion: LEVEL_LAYOUT_VERSION, inspectionVersion: INSPECTION_VERSION, level: g.level, seed: g.seed, seedText, hard: g.hard, state };
 }
 
 // Older saves tracked inspections by zone; only recover boxes still matching a recorded photo.
 function restoreInspections(g, data) {
   for (const st of g.stacks) if (st.touched) for (const pen of st.pen || []) delete pen.inspected;
+  if (g.hard && data.inspectionVersion !== INSPECTION_VERSION) {
+    for (const pens of [...g.stacks.map((s) => s.pen || []), g.carriedPen || []]) for (const p of pens) delete p.inspected;
+    if (g.inspector) {
+      g.inspector.seen = [];
+      delete g.inspector.sigs;
+      delete g.inspector.photos;
+    }
+    g.photo = null;
+    return;
+  }
   if (data.inspectionVersion !== undefined) return;
   for (const z of g.zones) {
     const key = `${z.x},${z.y},${z.color}`, sig = g.inspector?.sigs?.[key];
@@ -106,7 +117,7 @@ const ENDLESS_VERSION = 1;
 export function serializeEndless(g) {
   const state = {};
   for (const k of DYNAMIC) if (g[k] !== undefined) state[k] = clone(g[k]);
-  return { version: ENDLESS_VERSION, inspectionVersion: 1, seed: g.seed, hard: g.hard, state, endless: clone(endlessSnapshot(g)) };
+  return { version: ENDLESS_VERSION, inspectionVersion: INSPECTION_VERSION, seed: g.seed, hard: g.hard, state, endless: clone(endlessSnapshot(g)) };
 }
 
 // Returns the resumed endless game, or throws if the data is not a valid snapshot.

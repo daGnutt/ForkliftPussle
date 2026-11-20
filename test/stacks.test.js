@@ -52,7 +52,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(missed.stacks.some((s) => s.fall), 'the missed box falls normally');
 }
 
-// A carried crate can pass a neighbouring stack with less than one tile between their centres.
+// A full-size carried crate pushes a neighbouring stack less than one tile from its path.
 {
   const g = newGame(1, 0, true);
   flatWorld(g);
@@ -67,10 +67,10 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   forkDown(g);
   update(g, NONE, 1 / 120);
   assert.ok(zoneDone(g, g.zones[0]));
-  assert.equal(neighbour.y, 5.95, 'the adjacent stack was not pushed');
+  assert.ok(neighbour.y > 5.95, 'the full-size crate pushes the overlapping adjacent stack');
 }
 
-// Shrinking a wide pallet still leaves both tine slots open on a straight approach.
+// Full-size wide pallets leave both tine slots open on a straight approach.
 {
   const g = newGame(1, 0, true);
   flatWorld(g);

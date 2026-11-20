@@ -1,5 +1,6 @@
 import { boxDecalKind } from './decals.js';
-import { rectPoly, sat, overlapArea, BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims } from './geom.js';
+import { rectPoly, sat, overlapArea, BOX_HALF_X, halfY, palletRunnerDims, zoneExt } from './geom.js';
+export { zoneExt } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
@@ -16,7 +17,7 @@ const HARD_PALLET_DAMAGE_FACTOR = 0.75;
 const HARD_PALLET_CRASH_MIN_SPEED = 1.5;
 const SQUARE_POINTS = 50;
 const SQUARE_ALLOWANCE = (5 * Math.PI) / 180;
-const SHIFT_ALLOWANCE = 0.06 + (1 - BOX_SCALE) / 2, SHIFT_MAX = 0.35;
+const SHIFT_MAX = 0.35;
 const CRASH_MIN_SPEED = 0.8;
 const CRASH_COOLDOWN = 0.4;
 const BONK_MIN_SPEED = 1.2;
@@ -473,16 +474,17 @@ function squareLoss(a) {
   return Math.floor((t * SQUARE_POINTS) / 5) * 5;
 }
 
-// Measure upper boxes against their supporting box, and the bottom box against the drop point.
+// Sideways placement is allowed while every corner of the box stays inside the drop point.
 function refreshPlacement(g, S, z) {
   ensure(S);
+  const e = zoneExt(z);
   S.pen.forEach((p, i) => {
     p.sq = squareLoss(S.rots[i]);
     if (!g.hard) return;
-    const o = S.offs[i], below = S.offs[i - 1];
-    const d = p.barrelPart === 'top' ? 0 : below ? Math.hypot(o.x - below.x, o.y - below.y)
-      : Math.hypot(S.x + o.x - z.x, S.y + o.y - z.y);
-    p.shift = d <= SHIFT_ALLOWANCE ? 0 : Math.min(SQUARE_POINTS, 5 * Math.ceil(10 * (d - SHIFT_ALLOWANCE) / (SHIFT_MAX - SHIFT_ALLOWANCE)));
+    const c = boxPos(S, i);
+    const outside = p.barrelPart === 'top' ? 0 : Math.max(0, ...boxPoly(c.x, c.y, S.rots[i], p).flatMap((v) =>
+      [Math.abs(v.x - z.x) - e.x, Math.abs(v.y - z.y) - e.y]));
+    p.shift = outside <= 1e-9 ? 0 : Math.min(SQUARE_POINTS, 5 * Math.ceil(10 * outside / SHIFT_MAX));
   });
 }
 
@@ -1574,9 +1576,6 @@ export function isFinished(g) {
 export function isSolved(g) {
   return g.zones.every((z) => zoneDone(g, z));
 }
-
-// Half extents (world x, y) of a drop point; a wide zone (`wide`, `hx`/`hy` set by the level) is 1×2 tiles plus margin.
-export const zoneExt = (z) => ({ x: z.hx ?? 0.6, y: z.hy ?? 0.6 });
 
 const stackFillsZone = (s, z) => {
   const barrel = z.color === BARREL_COLOR;
