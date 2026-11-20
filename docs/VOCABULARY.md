@@ -26,7 +26,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Stack** | 1–5 boxes on top of each other on the floor | `g.stacks` |
 | **Layer** | One box's position/colour in a stack (bottom → top) | `layers` |
 | **Top box** | The box drawn in its colour; lower ones show as coloured numbers | `drawStack` |
-| **Open-top box** | Box with an open lid and a "do not stack" sign; nothing can be put on it, so it is only ever the top box (`pen.open`, `stack.open` in layouts) | `topOpen`, `newPen`, `boxDecalShapes(4)` |
+| **Open-top box** | Box with an open lid and a "do not stack" sign on top and its two fork-entry faces, but not on the runner-blocked sides; a dark-gray tape strap across its opening shows the fork-entry axis and rotates with the box (`pen.open`, `stack.open` in layouts) | `topOpen`, `newPen`, `OPEN_BOX_DECAL_EDGES` |
 | **Wide box** | Always gray; 1×2 box (long side across the forks) on two pallets; lifted only with both tines under it and heading within ~27° of its local x axis, stacks only with other wide boxes; worth 200 and only fits a wide zone (`pen.wide`, `stack.wide` in layouts) | `wideBox`, `halfY`, `boxPoints`, `markWide` |
 | **Wide zone** | 1×2 drop point for a stack of 1–3 wide boxes, grouped with the other wide zones in the one gray area (`zone.wide`, `hx`/`hy` half extents, `a`) | `zoneExt`, `tryWide` |
 | **Oil barrel** | A rigid, two-box-high load of its own type (`BARREL_COLOR`) that cannot be stacked on; one barrel counts as one item in its dedicated zone (`pen.barrelPart`) | `markOilBarrel`, `BARREL_COLOR`, `barrelPart` |
@@ -117,7 +117,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Roller door** | Closed two-segment wall decal | `drawWallDecals` |
 | **Wall base stripe** | Yellow / chevron stripe along a wall foot | `wallBase` |
 | **Overhead decals / fixtures** | Light bars and fans on the ceiling | `overheadDecals` |
-| **Box decals** | This-side-up arrows, fragile glass, barcode label | `boxDecalKind` |
+| **Box decals** | This-side-up arrows, fragile glass, barcode label; the open-top tape strap is always shown | `boxDecalKind` |
 | **Charger decals** | High-voltage markings | `chargerDecal` |
 
 ## Performance settings

@@ -3,7 +3,7 @@ import { theme } from '../theme.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
 import { topShapes, DENT_FILL } from '../dents.js';
 import { tapeShapes, TAPE_FILL } from '../repair.js';
-import { decalsEnabled, boxDeco, boxDecalShapes } from '../decals.js';
+import { decalsEnabled, boxDeco, boxDecalShapes, OPEN_BOX_DECAL_EDGES } from '../decals.js';
 import { carriedWorldOffs, carriedJoltZ, liftedHf, crashBlink } from '../game.js';
 import { parseColor, shade, mix } from './mesh.js';
 
@@ -57,8 +57,10 @@ function addBox(m, tm, x, y, r, z, col, pen, level) {
     return;
   }
   m.cuboid(x, y, r, 0.5, hy, z0, z1, body, { bottom: false });
-  if (pen?.open) m.cuboid(x, y, r, 0.4, 0.4, z1, z1 + 0.012, shade(body, 0.2), { bottom: false });
-  else {
+  if (pen?.open) {
+    m.cuboid(x, y, r, 0.4, 0.4, z1, z1 + 0.012, shade(body, 0.2), { bottom: false });
+    m.cuboid(x, y, r, 0.07, 0.4, z1 + 0.012, z1 + 0.024, '#555b60', { bottom: false });
+  } else {
     m.cuboid(x, y, r, 0.46, hy - 0.04, z1, z1 + 0.012, shade(mix(body, WHITE, 0.18), 1), { bottom: false });
     m.cuboid(x, y, r, 0.07, hy + 0.005, z0, z1 + 0.018, mix(body, WHITE, 0.45), { bottom: false });
     if (pen?.wide) m.cuboid(x, y, r, 0.505, 0.012, z0, z1 + 0.016, shade(body, 0.55), { bottom: false }); // seam between the two pallets
@@ -68,10 +70,10 @@ function addBox(m, tm, x, y, r, z, col, pen, level) {
   if (dented) for (const poly of topShapes(pen, level + Math.round(col * 7))) tm.poly(poly.map(([u, v]) => place(u, v)), top, [...parseColor(DENT_FILL).slice(0, 3), 0.6]);
   if (pen?.tape) for (const poly of tapeShapes(pen)) tm.poly(poly.map(([u, v]) => place(u, v)), top + 0.002, [...parseColor(TAPE_FILL).slice(0, 3), 0.9]);
   if (pen?.open && decalsEnabled()) {
-    // the "do not stack" sign also on every side of the box
+    // The "do not stack" sign appears only on the two pallet-entry sides.
     const corners = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
     const world = ([u, v]) => [x + u * co - v * si, y + u * si + v * co];
-    for (let k = 0; k < 4; k++) {
+    for (const k of OPEN_BOX_DECAL_EDGES) {
       const [a, b] = [world(corners[k]), world(corners[(k + 1) % 4])];
       const du = corners[(k + 1) % 4][0] - corners[k][0], dv = corners[(k + 1) % 4][1] - corners[k][1];
       const nx = dv * co + du * si, ny = dv * si - du * co;

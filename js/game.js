@@ -12,6 +12,8 @@ const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, e
 // SQUARE_POINTS lost for being placed crooked. Points are only ever deducted.
 const BOX_POINTS = 100;
 const CRASH_POINTS = 50;
+const HARD_PALLET_DAMAGE_FACTOR = 0.75;
+const HARD_PALLET_CRASH_MIN_SPEED = 1.5;
 const SQUARE_POINTS = 50;
 const SQUARE_ALLOWANCE = (5 * Math.PI) / 180;
 const CRASH_MIN_SPEED = 0.8;
@@ -21,7 +23,6 @@ const BONK_LOSS = 0.4; // fraction of forward motion lost in one step that count
 const BONK_COOLDOWN = 0.2;
 const LOOK_BACK_DELAY = 1; // s in gear R before the chase camera swings round to look backwards
 const SCRAPE_MIN_SPEED = 0.3; // speed while touching a wall that scrapes
-const FORK_PUSH_FAST = 2; // above this speed a fork push damages the whole stack, not just the boxes below the forks
 const FORK_BLOCK_POINTS = 10;
 const CEILING_LEVELS = 6; // the carried stack's top (H + boxes) may not go above this many box heights
 const CEILING_POINTS = 10; // crash points per box on the forks each time they hit the ceiling
@@ -182,9 +183,13 @@ function releaseLifted(root, carrier) {
   }
   carrier.lifting = -1;
 }
+const carriedCenter = (t) => {
+  const o = t.carriedOffs?.[0];
+  return toWorld(t.fl, FL.carryX + (o?.x || 0), o?.y || 0);
+};
 const carriedPoly = (t) => {
   if (!t.carried) return null;
-  const c = toWorld(t.fl, FL.carryX, 0);
+  const c = carriedCenter(t);
   return rectPoly(c.x, c.y, 0.5, halfY(t.carriedPen?.[0]), t.fl.a + t.carriedRel);
 };
 export const solidPolys = (t) => [bodyPoly(t), carriedPoly(t)].filter(Boolean);
@@ -272,15 +277,16 @@ export function crashProbes(g) {
   const f = g.fl;
   if (!g.carried || g.status === 'over' || f.gear === 'R') return [];
   const hy = halfY(g.carriedPen?.[0]);
-  const x0 = FL.carryX - 0.5, x1 = FL.tineX1 + ALERT_MIN_REACH;
-  const m = toWorld(f, (x0 + x1) / 2, 0), probes = [rectPoly(m.x, m.y, (x1 - x0) / 2, hy, f.a)];
+  const o = g.carriedOffs?.[0] || { x: 0, y: 0 };
+  const x0 = FL.carryX - 0.5 + o.x, x1 = FL.tineX1 + ALERT_MIN_REACH + o.x;
+  const m = toWorld(f, (x0 + x1) / 2, o.y), probes = [rectPoly(m.x, m.y, (x1 - x0) / 2, hy, f.a)];
   const v = Math.max(0, f.speed);
   let { x, y, a } = f;
   for (let t = 0; t < ALERT_AHEAD; t += ALERT_STEP) {
     x += Math.cos(a) * v * ALERT_STEP; y += Math.sin(a) * v * ALERT_STEP;
     a += (v * Math.tan(f.steer) / FL.L) * ALERT_STEP;
     if (Math.abs(a - f.a) > ALERT_MAX_TURN) break;
-    const c = toWorld({ x, y, a }, FL.carryX, 0);
+    const c = toWorld({ x, y, a }, FL.carryX + o.x, o.y);
     probes.push(rectPoly(c.x, c.y, 0.5, hy, a + g.carriedRel));
   }
   return probes;
@@ -380,6 +386,7 @@ function settle(g, S) {
     if (S.pen[i]?.barrelPart === 'top') continue;
     const a = boxPos(S, i), b = boxPos(S, i - 1);
     if (overlapArea(rectPoly(a.x, a.y, 0.5, 0.5, S.rots[i]), rectPoly(b.x, b.y, 0.5, 0.5, S.rots[i - 1])) >= MIN_SUPPORT) continue;
+    if (catchFallingBoxes(g, S, i)) return;
     let dx = a.x - b.x, dy = a.y - b.y;
     const len = Math.hypot(dx, dy) || 1;
     dx /= len; dy /= len;
@@ -441,10 +448,12 @@ function dentBoxes(pens, count, dent) {
 
 function crash(g, pens, owner, count = pens.length, dent = null) {
   const speed = Math.abs(g.fl.speed);
-  if (speed < CRASH_MIN_SPEED || g.clock - (owner.hitAt ?? -1) < CRASH_COOLDOWN) return;
+  const hardPallet = g.hard && g.stacks.includes(owner);
+  if (speed < (hardPallet ? HARD_PALLET_CRASH_MIN_SPEED : CRASH_MIN_SPEED) || g.clock - (owner.hitAt ?? -1) < CRASH_COOLDOWN) return;
   owner.hitAt = g.clock;
-  const pts = Math.min(5, Math.max(1, Math.round(speed)));
-  const c = owner === g ? toWorld(g.fl, FL.carryX, 0) : owner;
+  let pts = Math.min(5, Math.max(1, Math.round(speed)));
+  if (hardPallet) pts = Math.max(1, Math.round(pts * HARD_PALLET_DAMAGE_FACTOR));
+  const c = owner === g ? carriedCenter(g) : owner;
   hurt(g, pens.slice(0, count), pts, c.x, c.y, owner === g ? g.H + pens.length : pens.length, owner);
   if (dent) dentBoxes(pens, Math.min(count, pens.length), dent);
 }
@@ -616,13 +625,38 @@ function forkShapes(g) {
     if (vc) shapes.push({ poly: vc, stackFilter: (s) => s.layers.length > relH(g, s) + v.rideLv + v.H, targets: (s) => [{ poly: stackPoly(s), from: 0 }] });
   }
   if (g.carried) {
-    const c = toWorld(f, FL.carryX, 0);
+    const c = carriedCenter(g);
     shapes.push({ poly: rectPoly(c.x, c.y, 0.5, halfY(g.carriedPen?.[0]), f.a + g.carriedRel), stackFilter: (s) => s.layers.length > relH(g, s), carried: true, targets: (s) => boxes(Math.max(0, relH(g, s)))(s) });
   }
   const blocks = (s) => relH(g, s) >= 0 && s.layers.length > relH(g, s) && s.pen?.[relH(g, s)]?.barrelPart !== 'top' && g.hard;
   const tineTargets = (s) => palletRunners(g, s).map((poly) => ({ poly, from: relH(g, s) }));
   for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks, tineTargets), tine: true });
   return shapes;
+}
+
+function catchFallingBoxes(g, S, from) {
+  const count = S.layers.length - from;
+  if (!g.hard || g.carried || g.lifting >= 0 || relH(g, S) !== from || g.H + count >= CEILING_LEVELS) return false;
+  if (S.pen[from]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[from])) > WIDE_ALIGN) return false;
+  const c = boxPos(S, from), local = toLocal(g.fl, c.x, c.y);
+  if (Math.abs(local.x - FL.carryX) >= 0.55 || Math.abs(local.y) >= 0.5) return false;
+  const box = rectPoly(c.x, c.y, 0.5, halfY(S.pen[from]), S.rots[from]);
+  const tines = forkShapes(g).filter((shape) => shape.tine);
+  if (tines.length !== 2 || !tines.every((tine) => sat(box, tine.poly))) return false;
+
+  const p = toWorld(g.fl, FL.carryX, 0), co = Math.cos(g.fl.a), si = Math.sin(g.fl.a);
+  const positions = S.layers.slice(from).map((_, i) => boxPos(S, from + i));
+  g.carriedOffs = positions.map((pos) => {
+    const dx = pos.x - p.x, dy = pos.y - p.y;
+    return { x: dx * co + dy * si, y: -dx * si + dy * co };
+  });
+  g.carried = S.layers.splice(from);
+  g.carriedRots = S.rots.splice(from).map((r) => r - g.fl.a);
+  g.carriedPen = S.pen.splice(from);
+  S.offs.splice(from);
+  g.carriedRel = g.carriedRots[0];
+  if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
+  return true;
 }
 
 // A pallet is three runners along the box's local x axis (perpendicular to its tape) with a slot for each tine between them,
@@ -675,7 +709,7 @@ const CARRIED_TURN_MAX = 0.35; // rad a carried stack can twist on the forks awa
 
 // Turns the carried stack about its centre by the lever arm of a wall's push (tip = contact point, (m.x, m.y) = push-out normal).
 function turnCarried(g, tip, m) {
-  const c = toWorld(g.fl, FL.carryX, 0);
+  const c = carriedCenter(g);
   const rx = tip.x - c.x, ry = tip.y - c.y;
   const raw = (rx * m.y - ry * m.x) * m.depth / (rx * rx + ry * ry + PALLET_INERTIA);
   twistCarried(g, Math.max(-0.01, Math.min(0.01, raw)));
@@ -764,7 +798,11 @@ function resolve(g) {
         touchStack(s);
         if (sh.carried) forgetInspection(g.carriedPen);
         const ws = 1 / ((s.layers.length - from) * boxMass(s));
-        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && relH(g, s) > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? relH(g, s) : s.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: s.rots });
+        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) {
+          const hit = sh.tine ? relH(g, s) : 0;
+          crash(g, sh.tine ? s.pen.slice(hit, hit + 1) : s.pen, s, sh.tine ? 1 : s.pen.length,
+            { kind: 's', dx: m.x, dy: m.y, rots: sh.tine ? s.rots.slice(hit, hit + 1) : s.rots });
+        }
         if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 's', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
         if (!sh.carried && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) {
           const h = relH(g, s), from = sh.tine ? h : 0, to = Math.min(s.layers.length - 1, h + 1);
@@ -1018,7 +1056,7 @@ function hornWave(root, t) {
   });
   for (const u of root.trucks) {
     if (u.gone || !u.carried) continue;
-    const c = toWorld(u.fl, FL.carryX, 0);
+    const c = carriedCenter(u);
     if (Math.hypot(c.x - o.x, c.y - o.y) >= WAVE_RADIUS) continue;
     u.jolt = root.clock;
     forgetInspection(u.carriedPen);
@@ -1316,7 +1354,7 @@ function liftBlocked(g, v, hit = false) {
   if (!hit && g.H + extent < CEILING_LEVELS) return false;
   if (v.carried) {
     while (v.carriedPen.length < v.carried.length) v.carriedPen.push(newPen(v.carried[v.carriedPen.length], v.carriedPen.length));
-    const c = toWorld(v.fl, FL.carryX, 0);
+    const c = carriedCenter(v);
     hurt(g, v.carriedPen, CEILING_POINTS, c.x, c.y, g.H + v.H + v.carried.length, v);
     addDent(v.carriedPen[v.carriedPen.length - 1], 't');
   }
@@ -1381,7 +1419,7 @@ export function forkUp(g) {
     if (g.H + g.carried.length + (rider ? (rider.carried ? Math.max(1, rider.H + rider.carried.length) : 1) : 0) >= CEILING_LEVELS) {
       if (rider?.carried) liftBlocked(g, rider, true);
       while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen(g.carried[g.carriedPen.length], g.carriedPen.length));
-      const c = toWorld(g.fl, FL.carryX, 0);
+      const c = carriedCenter(g);
       hurt(g, g.carriedPen, CEILING_POINTS, c.x, c.y, g.H + g.carried.length, g);
       addDent(g.carriedPen[g.carriedPen.length - 1], 't');
       return 'blocked';
