@@ -175,6 +175,8 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
       if (pens[i]?.open) {
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.fillRect(-h + 0.1, -h + 0.1, size - 0.2, size - 0.2);
+        ctx.fillStyle = '#555b60';
+        ctx.fillRect(-0.07, -0.4, 0.14, 0.8);
       } else {
         ctx.fillStyle = 'rgba(255,255,255,0.18)';
         ctx.fillRect(-0.07, -hy, 0.14, sh);

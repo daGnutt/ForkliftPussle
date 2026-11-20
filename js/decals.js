@@ -244,6 +244,8 @@ export function boxDecalKind(col, i) {
 export const boxDeco = (pen, col, i) => (pen?.open ? 4 : pen?.deco ?? boxDecalKind(col, i));
 
 const INK = 'rgba(25,25,25,0.8)';
+// Box edges 1 and 3 face the pallet's fork-entry slots; the other two edges are blocked by its runners.
+export const OPEN_BOX_DECAL_EDGES = Object.freeze([1, 3]);
 const arrow = (u) => [
   { pts: [[u - 0.05, -0.35], [u + 0.05, -0.35], [u + 0.05, 0.1], [u - 0.05, 0.1]], fill: INK },
   { pts: [[u - 0.15, 0.1], [u + 0.15, 0.1], [u, 0.38]], fill: INK },

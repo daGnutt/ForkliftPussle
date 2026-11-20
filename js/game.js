@@ -12,6 +12,8 @@ const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, e
 // SQUARE_POINTS lost for being placed crooked. Points are only ever deducted.
 const BOX_POINTS = 100;
 const CRASH_POINTS = 50;
+const HARD_PALLET_DAMAGE_FACTOR = 0.75;
+const HARD_PALLET_CRASH_MIN_SPEED = 1.5;
 const SQUARE_POINTS = 50;
 const SQUARE_ALLOWANCE = (5 * Math.PI) / 180;
 const CRASH_MIN_SPEED = 0.8;
@@ -21,7 +23,6 @@ const BONK_LOSS = 0.4; // fraction of forward motion lost in one step that count
 const BONK_COOLDOWN = 0.2;
 const LOOK_BACK_DELAY = 1; // s in gear R before the chase camera swings round to look backwards
 const SCRAPE_MIN_SPEED = 0.3; // speed while touching a wall that scrapes
-const FORK_PUSH_FAST = 2; // above this speed a fork push damages the whole stack, not just the boxes below the forks
 const FORK_BLOCK_POINTS = 10;
 const CEILING_LEVELS = 6; // the carried stack's top (H + boxes) may not go above this many box heights
 const CEILING_POINTS = 10; // crash points per box on the forks each time they hit the ceiling
@@ -182,9 +183,13 @@ function releaseLifted(root, carrier) {
   }
   carrier.lifting = -1;
 }
+const carriedCenter = (t, i = 0) => {
+  const o = t.carriedOffs?.[i];
+  return toWorld(t.fl, FL.carryX + (o?.x || 0), o?.y || 0);
+};
 const carriedPoly = (t) => {
   if (!t.carried) return null;
-  const c = toWorld(t.fl, FL.carryX, 0);
+  const c = carriedCenter(t);
   return rectPoly(c.x, c.y, 0.5, halfY(t.carriedPen?.[0]), t.fl.a + t.carriedRel);
 };
 export const solidPolys = (t) => [bodyPoly(t), carriedPoly(t)].filter(Boolean);
@@ -244,14 +249,14 @@ export function removeTruck(g, i) {
   if (!t || t.gone) return;
   if (t.carried) {
     const v = truckView(g, i);
-    const p = toWorld(t.fl, FL.carryX, 0), c = Math.cos(t.fl.a), sn = Math.sin(t.fl.a);
     const n = t.carried.length;
     while (t.carriedPen.length < n) t.carriedPen.push(newPen(t.carried[t.carriedPen.length], t.carriedPen.length));
     while (t.carriedRots.length < n) t.carriedRots.push(t.carriedRel);
     while (t.carriedOffs.length < n) t.carriedOffs.push({ x: 0, y: 0 });
+    const p = carriedCenter(t), world = carriedWorldOffs(t), base = world[0];
     g.stacks.push({
       x: p.x, y: p.y, layers: t.carried, rots: t.carriedRots.map((r) => r + t.fl.a), pen: t.carriedPen,
-      offs: t.carriedOffs.map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c })), a: t.fl.a + t.carriedRel,
+      offs: world.map((o) => ({ x: o.x - base.x, y: o.y - base.y })), a: t.fl.a + t.carriedRel,
     });
     Object.assign(v, { carried: null, carriedRots: [], carriedPen: [], carriedOffs: [] });
   }
@@ -272,15 +277,16 @@ export function crashProbes(g) {
   const f = g.fl;
   if (!g.carried || g.status === 'over' || f.gear === 'R') return [];
   const hy = halfY(g.carriedPen?.[0]);
-  const x0 = FL.carryX - 0.5, x1 = FL.tineX1 + ALERT_MIN_REACH;
-  const m = toWorld(f, (x0 + x1) / 2, 0), probes = [rectPoly(m.x, m.y, (x1 - x0) / 2, hy, f.a)];
+  const o = g.carriedOffs?.[0] || { x: 0, y: 0 };
+  const x0 = FL.carryX - 0.5 + o.x, x1 = FL.tineX1 + ALERT_MIN_REACH + o.x;
+  const m = toWorld(f, (x0 + x1) / 2, o.y), probes = [rectPoly(m.x, m.y, (x1 - x0) / 2, hy, f.a)];
   const v = Math.max(0, f.speed);
   let { x, y, a } = f;
   for (let t = 0; t < ALERT_AHEAD; t += ALERT_STEP) {
     x += Math.cos(a) * v * ALERT_STEP; y += Math.sin(a) * v * ALERT_STEP;
     a += (v * Math.tan(f.steer) / FL.L) * ALERT_STEP;
     if (Math.abs(a - f.a) > ALERT_MAX_TURN) break;
-    const c = toWorld({ x, y, a }, FL.carryX, 0);
+    const c = toWorld({ x, y, a }, FL.carryX + o.x, o.y);
     probes.push(rectPoly(c.x, c.y, 0.5, hy, a + g.carriedRel));
   }
   return probes;
@@ -315,7 +321,7 @@ function ensure(S) {
 const forgetInspection = (pens) => { for (const p of pens || []) delete p.inspected; };
 const touchStack = (s) => { s.touched = true; forgetInspection(s.pen); };
 
-// World-frame offsets of the carried boxes relative to the carried bottom box.
+// World-frame offsets of the carried boxes relative to the fork carry point.
 export function carriedWorldOffs(g) {
   const c = Math.cos(g.fl.a), sn = Math.sin(g.fl.a);
   return (g.carriedOffs || []).map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c }));
@@ -380,6 +386,7 @@ function settle(g, S) {
     if (S.pen[i]?.barrelPart === 'top') continue;
     const a = boxPos(S, i), b = boxPos(S, i - 1);
     if (overlapArea(rectPoly(a.x, a.y, 0.5, 0.5, S.rots[i]), rectPoly(b.x, b.y, 0.5, 0.5, S.rots[i - 1])) >= MIN_SUPPORT) continue;
+    if (catchFallingBoxes(g, S, i)) return;
     let dx = a.x - b.x, dy = a.y - b.y;
     const len = Math.hypot(dx, dy) || 1;
     dx /= len; dy /= len;
@@ -441,10 +448,12 @@ function dentBoxes(pens, count, dent) {
 
 function crash(g, pens, owner, count = pens.length, dent = null) {
   const speed = Math.abs(g.fl.speed);
-  if (speed < CRASH_MIN_SPEED || g.clock - (owner.hitAt ?? -1) < CRASH_COOLDOWN) return;
+  const hardPallet = g.hard && g.stacks.includes(owner);
+  if (speed < (hardPallet ? HARD_PALLET_CRASH_MIN_SPEED : CRASH_MIN_SPEED) || g.clock - (owner.hitAt ?? -1) < CRASH_COOLDOWN) return;
   owner.hitAt = g.clock;
-  const pts = Math.min(5, Math.max(1, Math.round(speed)));
-  const c = owner === g ? toWorld(g.fl, FL.carryX, 0) : owner;
+  let pts = Math.min(5, Math.max(1, Math.round(speed)));
+  if (hardPallet) pts = Math.max(1, Math.round(pts * HARD_PALLET_DAMAGE_FACTOR));
+  const c = owner === g ? carriedCenter(g) : owner;
   hurt(g, pens.slice(0, count), pts, c.x, c.y, owner === g ? g.H + pens.length : pens.length, owner);
   if (dent) dentBoxes(pens, Math.min(count, pens.length), dent);
 }
@@ -616,13 +625,39 @@ function forkShapes(g) {
     if (vc) shapes.push({ poly: vc, stackFilter: (s) => s.layers.length > relH(g, s) + v.rideLv + v.H, targets: (s) => [{ poly: stackPoly(s), from: 0 }] });
   }
   if (g.carried) {
-    const c = toWorld(f, FL.carryX, 0);
+    const c = carriedCenter(g);
     shapes.push({ poly: rectPoly(c.x, c.y, 0.5, halfY(g.carriedPen?.[0]), f.a + g.carriedRel), stackFilter: (s) => s.layers.length > relH(g, s), carried: true, targets: (s) => boxes(Math.max(0, relH(g, s)))(s) });
   }
   const blocks = (s) => relH(g, s) >= 0 && s.layers.length > relH(g, s) && s.pen?.[relH(g, s)]?.barrelPart !== 'top' && g.hard;
   const tineTargets = (s) => palletRunners(g, s).map((poly) => ({ poly, from: relH(g, s) }));
   for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks, tineTargets), tine: true });
   return shapes;
+}
+
+function catchFallingBoxes(g, S, from) {
+  const count = S.layers.length - from;
+  if (!g.hard || g.carried || g.lifting >= 0 || relH(g, S) !== from || g.H + count >= CEILING_LEVELS) return false;
+  if (S.pen[from]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[from])) > WIDE_ALIGN) return false;
+  const c = boxPos(S, from), local = toLocal(g.fl, c.x, c.y);
+  if (Math.abs(local.x - FL.carryX) >= 0.55 || Math.abs(local.y) >= 0.5) return false;
+  const box = rectPoly(c.x, c.y, 0.5, halfY(S.pen[from]), S.rots[from]);
+  const tines = forkShapes(g).filter((shape) => shape.tine);
+  if (tines.length !== 2 || !tines.every((tine) => sat(box, tine.poly))) return false;
+
+  liftBoxes(g, S, from);
+  return true;
+}
+
+function liftBoxes(g, S, from) {
+  g.carriedOffs = S.offs.splice(from).map((o) => {
+    const l = toLocal(g.fl, S.x + o.x, S.y + o.y);
+    return { x: l.x - FL.carryX, y: l.y };
+  });
+  g.carried = S.layers.splice(from);
+  g.carriedRots = S.rots.splice(from).map((r) => r - g.fl.a);
+  g.carriedPen = S.pen.splice(from);
+  g.carriedRel = g.carriedRots[0];
+  if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
 }
 
 // A pallet is three runners along the box's local x axis (perpendicular to its tape) with a slot for each tine between them,
@@ -675,7 +710,7 @@ const CARRIED_TURN_MAX = 0.35; // rad a carried stack can twist on the forks awa
 
 // Turns the carried stack about its centre by the lever arm of a wall's push (tip = contact point, (m.x, m.y) = push-out normal).
 function turnCarried(g, tip, m) {
-  const c = toWorld(g.fl, FL.carryX, 0);
+  const c = carriedCenter(g);
   const rx = tip.x - c.x, ry = tip.y - c.y;
   const raw = (rx * m.y - ry * m.x) * m.depth / (rx * rx + ry * ry + PALLET_INERTIA);
   twistCarried(g, Math.max(-0.01, Math.min(0.01, raw)));
@@ -764,7 +799,11 @@ function resolve(g) {
         touchStack(s);
         if (sh.carried) forgetInspection(g.carriedPen);
         const ws = 1 / ((s.layers.length - from) * boxMass(s));
-        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) crash(g, s.pen, s, sh.tine && g.hard && relH(g, s) > 0 && Math.abs(f.speed) < FORK_PUSH_FAST ? relH(g, s) : s.pen.length, { kind: 's', dx: m.x, dy: m.y, rots: s.rots });
+        if (!(f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED && !sh.carried)) {
+          const hit = sh.tine ? relH(g, s) : 0;
+          crash(g, sh.tine ? s.pen.slice(hit, hit + 1) : s.pen, s, sh.tine ? 1 : s.pen.length,
+            { kind: 's', dx: m.x, dy: m.y, rots: sh.tine ? s.rots.slice(hit, hit + 1) : s.rots });
+        }
         if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 's', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
         if (!sh.carried && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) {
           const h = relH(g, s), from = sh.tine ? h : 0, to = Math.min(s.layers.length - 1, h + 1);
@@ -1018,7 +1057,7 @@ function hornWave(root, t) {
   });
   for (const u of root.trucks) {
     if (u.gone || !u.carried) continue;
-    const c = toWorld(u.fl, FL.carryX, 0);
+    const c = carriedCenter(u);
     if (Math.hypot(c.x - o.x, c.y - o.y) >= WAVE_RADIUS) continue;
     u.jolt = root.clock;
     forgetInspection(u.carriedPen);
@@ -1213,13 +1252,14 @@ function scorePopups(g) {
 
 export function stackInZone(g) {
   const f = g.fl;
+  const o = g.carried ? g.carriedOffs?.[0] : null;
   let best = null, bd = Infinity;
   for (const s of g.stacks) {
     ensure(s);
     const i = g.carried ? s.layers.length - 1 : Math.min(Math.max(0, relH(g, s)), s.layers.length - 1);
     const c = boxPos(s, i);
     const l = toLocal(f, c.x, c.y);
-    const dx = Math.abs(l.x - FL.carryX), dy = Math.abs(l.y);
+    const dx = Math.abs(l.x - FL.carryX - (o?.x || 0)), dy = Math.abs(l.y - (o?.y || 0));
     // a wide box is found while both tines are under it (centre within 0.6 of the middle of the forks)
     if (dx < 0.55 && dy < (s.pen?.[i]?.wide && !g.carried ? 0.6 : 0.5) && dx + dy < bd) { best = s; bd = dx + dy; }
   }
@@ -1240,28 +1280,24 @@ function forkedStack(g) {
 }
 
 // Moves the boxes from index `k` up of the stack on `from`'s forks onto `to`'s forks (k > 0 splits the stack), keeping their
-// world angles. With `onto` they are put on top of the stack `to` already carries instead; otherwise `to` carries nothing yet.
+// world positions and angles. With `onto` they are put on top of the stack `to` already carries instead.
 function transferCarried(from, to, k = 0, onto = false) {
   const n = from.carried.length;
   while (from.carriedPen.length < n) from.carriedPen.push(newPen(from.carried[from.carriedPen.length], from.carriedPen.length));
   while (from.carriedRots.length < n) from.carriedRots.push(from.carriedRel);
   while (from.carriedOffs.length < n) from.carriedOffs.push({ x: 0, y: 0 });
-  const d = from.fl.a - to.fl.a, c = Math.cos(d), sn = Math.sin(d);
-  const rot = (o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c });
-  const base = from.carriedOffs[k];
-  let shift = { x: 0, y: 0 };
-  if (onto) {
-    // from's bottom box relative to to's bottom box, in to's frame
-    const pf = toWorld(from.fl, FL.carryX, 0), pt = toWorld(to.fl, FL.carryX, 0);
-    shift = toLocal({ x: 0, y: 0, a: to.fl.a }, pf.x - pt.x, pf.y - pt.y);
-  }
-  const offs = from.carriedOffs.slice(k).map((o) => { const r = rot({ x: o.x - base.x, y: o.y - base.y }); return { x: r.x + shift.x, y: r.y + shift.y }; });
+  const d = from.fl.a - to.fl.a;
+  const offs = from.carriedOffs.slice(k).map((_, i) => {
+    const p = carriedCenter(from, k + i), l = toLocal(to.fl, p.x, p.y);
+    return { x: l.x - FL.carryX, y: l.y };
+  });
   const rots = from.carriedRots.slice(k).map((r) => r + d);
   const layers = from.carried.slice(k), pen = from.carriedPen.slice(k);
   if (onto) {
     to.carried = to.carried.concat(layers);
     to.carriedPen = to.carriedPen.concat(pen);
     to.carriedRots = to.carriedRots.concat(rots);
+    while (to.carriedOffs.length < to.carried.length - layers.length) to.carriedOffs.push({ x: 0, y: 0 });
     to.carriedOffs = to.carriedOffs.concat(offs);
   } else {
     to.carried = layers;
@@ -1283,9 +1319,9 @@ function transferCarried(from, to, k = 0, onto = false) {
   }
 }
 
-const atCarryPoint = (g, o) => {
-  const p = toWorld(g.fl, FL.carryX, 0), l = toLocal(o.fl, p.x, p.y);
-  return Math.abs(l.x - FL.carryX) < 0.55 && Math.abs(l.y) < 0.5;
+const atCarryPoint = (g, o, from = 0, onto = -1) => {
+  const p = carriedCenter(g, from), l = toLocal(o.fl, p.x, p.y), base = o.carriedOffs?.[onto];
+  return Math.abs(l.x - FL.carryX - (base?.x || 0)) < 0.55 && Math.abs(l.y - (base?.y || 0)) < 0.5;
 };
 
 // Trucks hand stacks over on their tines. A truck whose empty tines are under another truck's carried stack takes it by raising
@@ -1295,15 +1331,16 @@ const atCarryPoint = (g, o) => {
 function stackOnMyTines(g) {
   for (const o of otherTrucks(g)) {
     if (!o.carried || wideBox(o.carriedPen) || o.H > g.H + 1 || g.H >= o.H + o.carried.length || ghostBetween(g, g.truck.id, o.truck.id)) continue;
-    if (o.carriedPen[Math.max(g.H, o.H) - o.H]?.barrelPart === 'top') continue;
-    if (atCarryPoint(o, g)) return o;
+    const k = Math.max(g.H, o.H) - o.H;
+    if (o.carriedPen[k]?.barrelPart === 'top') continue;
+    if (atCarryPoint(o, g, k)) return o;
   }
   return null;
 }
 
 function tinesUnderMyStack(g) {
   for (const o of otherTrucks(g)) {
-    if (wideBox(g.carriedPen) || wideBox(o.carriedPen) || ghostBetween(g, g.truck.id, o.truck.id) || !atCarryPoint(g, o)) continue;
+    if (wideBox(g.carriedPen) || wideBox(o.carriedPen) || ghostBetween(g, g.truck.id, o.truck.id) || !atCarryPoint(g, o, 0, (o.carried?.length || 0) - 1)) continue;
     if (!o.carried && o.H <= g.H) return o;
     if (o.carried && o.H + o.carried.length <= g.H && o.carried.length + g.carried.length <= MAX_LAYERS && !blocksStacking(o.carriedPen)) return o;
   }
@@ -1316,7 +1353,7 @@ function liftBlocked(g, v, hit = false) {
   if (!hit && g.H + extent < CEILING_LEVELS) return false;
   if (v.carried) {
     while (v.carriedPen.length < v.carried.length) v.carriedPen.push(newPen(v.carried[v.carriedPen.length], v.carriedPen.length));
-    const c = toWorld(v.fl, FL.carryX, 0);
+    const c = carriedCenter(v);
     hurt(g, v.carriedPen, CEILING_POINTS, c.x, c.y, g.H + v.H + v.carried.length, v);
     addDent(v.carriedPen[v.carriedPen.length - 1], 't');
   }
@@ -1381,7 +1418,7 @@ export function forkUp(g) {
     if (g.H + g.carried.length + (rider ? (rider.carried ? Math.max(1, rider.H + rider.carried.length) : 1) : 0) >= CEILING_LEVELS) {
       if (rider?.carried) liftBlocked(g, rider, true);
       while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen(g.carried[g.carriedPen.length], g.carriedPen.length));
-      const c = toWorld(g.fl, FL.carryX, 0);
+      const c = carriedCenter(g);
       hurt(g, g.carriedPen, CEILING_POINTS, c.x, c.y, g.H + g.carried.length, g);
       addDent(g.carriedPen[g.carriedPen.length - 1], 't');
       return 'blocked';
@@ -1394,16 +1431,7 @@ export function forkUp(g) {
     const k = relH(g, S);
     if (S.pen?.[k]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[k])) > WIDE_ALIGN) return 'blocked'; // the tines don't both fit under it
     const rider = perchedOn(g, S);
-    g.carried = S.layers.splice(k);
-    g.carriedRots = S.rots.splice(k).map((r) => r - g.fl.a);
-    g.carriedPen = S.pen.splice(k);
-    const ox = S.offs[k].x, oy = S.offs[k].y, c = Math.cos(g.fl.a), sn = Math.sin(g.fl.a);
-    g.carriedOffs = S.offs.splice(k).map((o) => {
-      const dx = o.x - ox, dy = o.y - oy;
-      return { x: dx * c + dy * sn, y: -dx * sn + dy * c };
-    });
-    g.carriedRel = g.carriedRots[0];
-    if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
+    liftBoxes(g, S, k);
     if (rider) { // a truck perched on top of the stack rides along on it
       const l = toLocal(g.fl, rider.fl.x, rider.fl.y);
       rider.truck.liftedBy = g.truck.id;
@@ -1468,7 +1496,7 @@ export function forkDown(g) {
   const S = stackInZone(g);
   if (S) ensure(S);
   const cnt = S ? S.layers.length : 0;
-  const cp = toWorld(g.fl, FL.carryX, 0);
+  const cp = carriedCenter(g);
   const n = cnt + (S ? stackZ(g, S) : zAt(g, cp.x, cp.y)); // resting height: on the belt that is one level up
   const minH = cnt + g.carried.length <= MAX_LAYERS && !(S && (blocksStacking(S.pen) || wideBox(S.pen) !== wideBox(g.carriedPen))) ? n : n + 1;
   if (g.H > minH) g.H = Math.max(minH, g.H - 1);
@@ -1479,9 +1507,8 @@ export function forkDown(g) {
     const worldRots = g.carriedRots.map((r) => r + g.fl.a);
     g.carriedPen.forEach((p, i) => { p.sq = squareLoss(worldRots[i]); });
     const p = toWorld(g.fl, FL.carryX, 0);
-    const c = Math.cos(g.fl.a), sn = Math.sin(g.fl.a);
     while (g.carriedOffs.length < g.carried.length) g.carriedOffs.push({ x: 0, y: 0 });
-    const world = g.carriedOffs.map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c }));
+    const world = carriedWorldOffs(g);
     if (S) {
       S.layers.push(...g.carried);
       S.rots.push(...worldRots);
@@ -1491,7 +1518,8 @@ export function forkDown(g) {
       S.dropTruck = g.truck.id;
       settle(g, S);
     } else {
-      g.stacks.push({ x: p.x, y: p.y, layers: g.carried, rots: worldRots, pen: g.carriedPen, offs: world, a: g.fl.a + g.carriedRel, dropFrom: 0, dropTruck: g.truck.id });
+      const base = world[0], offs = world.map((o) => ({ x: o.x - base.x, y: o.y - base.y }));
+      g.stacks.push({ x: cp.x, y: cp.y, layers: g.carried, rots: worldRots, pen: g.carriedPen, offs, a: g.fl.a + g.carriedRel, dropFrom: 0, dropTruck: g.truck.id });
     }
     g.carried = null;
     g.carriedRots = [];
