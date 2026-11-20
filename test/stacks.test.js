@@ -106,7 +106,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('box-align ok');
 }
 
-// A slow tine nudge squares only the box at fork level and the one above, carrying that turn into higher boxes.
+// Hard-mode tines push and torque the boxes at fork level and above without automatic squaring.
 {
   const g = newGame(1, 0, true);
   flatWorld(g);
@@ -119,9 +119,11 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(g.fl.x + FL.front < s.x - 0.5, 'the front/mast has not contacted the stack');
   assert.equal(s.layers.length, 5, 'the stack remains intact');
   assert.ok(s.rots.slice(0, 2).every((r, i) => Math.abs(r - rots[i]) < 0.01), 'boxes below the tines keep their angle');
-  assert.ok(s.rots.slice(2, 4).every((r) => Math.abs(r) < 0.2), 'boxes at the tine level and one above straighten');
-  assert.ok(Math.abs((s.rots[4] - rots[4]) - (s.rots[3] - rots[3])) < 0.01, 'boxes above the tine level +1 follow the same turn as the box beneath them');
-  assert.ok(s.pen.every((p) => p.crash === 0), 'slow tine nudging does not damage the stack');
+  const turn = s.rots[2] - rots[2];
+  assert.ok(Math.abs(turn) > 0.02 && Math.abs(s.rots[2]) > 0.2, 'tine contact rotates the box at fork level instead of squaring it');
+  assert.ok(s.rots.slice(3).every((r, i) => Math.abs((r - rots[i + 3]) - turn) < 0.01), 'upper boxes follow the physical turn without aligning independently');
+  assert.ok(s.offs.slice(2).some((o) => Math.hypot(o.x, o.y) > 0.05), 'tines push the boxes at and above fork level');
+  assert.ok(s.pen.every((p) => p.crash === 0), 'slow tine contact does not damage the stack');
 }
 
 // Boxes that topple off a stack tumble visually: the logical stack is at its landing spot at once, fallView interpolates.

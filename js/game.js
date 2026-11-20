@@ -973,11 +973,8 @@ function resolve(g) {
             { kind: 's', dx: m.x, dy: m.y, rots: sh.tine ? s.rots.slice(hit, hit + 1) : s.rots });
         }
         if (sh.carried) crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 's', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
-        const alignMinSpeed = sh.tine ? 0 : ALIGN_MIN_SPEED;
-        const angle = f.a - s.rots[from];
-        const entrySide = !sh.tine || Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle));
-        if (!sh.carried && entrySide && f.speed > alignMinSpeed && f.speed < CRASH_MIN_SPEED) {
-          const h = g.H, from = sh.tine ? h : 0, to = Math.min(s.layers.length - 1, h + 1);
+        if (!sh.carried && !sh.tine && f.speed > ALIGN_MIN_SPEED && f.speed < CRASH_MIN_SPEED) {
+          const from = 0, to = Math.min(s.layers.length - 1, g.H + 1);
           if (from <= to) {
             const range = g.aligning?.get(s);
             g.aligning?.set(s, { from: Math.min(range?.from ?? from, from), to: Math.max(range?.to ?? to, to) });
