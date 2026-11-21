@@ -92,6 +92,8 @@ footer b { color: var(--accent); }
 #menu .keymap svg text { fill: currentColor; font: bold 12px sans-serif; text-anchor: middle; }
 #menu .keymap svg text.cap { font-size: 10px; font-weight: normal; }
 #menu .ctl[hidden] { display: none; }
+#rumbleFeatures { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
+#rumbleSupport { font-size: .8em; opacity: .75; }
 #menu .ctl ul { margin: 2px 0 0; padding-left: 18px; font-size: .85em; opacity: .85; }
 #menu .padmap { margin: 4px 0; text-align: center; }
 #menu .padmap svg { width: 100%; height: auto; }
