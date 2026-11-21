@@ -155,6 +155,36 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   }
 }
 
+// Portrait touch banners reserve space above the overview without changing other layouts.
+{
+  const g = newGame(1);
+  g.started = true;
+  const rects = [];
+  const ctx = new Proxy({ canvas: { width: 390, height: 844 } }, {
+    get: (t, k) => k in t ? t[k] : k === 'rect' ? (...args) => rects.push(args)
+      : k === 'measureText' ? (text) => ({ width: text.length * 7 })
+        : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
+  });
+  const overviewTop = (view) => {
+    rects.length = 0;
+    draw(ctx, g, { dpr: 1, zoom: 0.5, ...view });
+    return rects.find(([x, , w]) => x === 20 && w === view.width - 40)?.[1];
+  };
+  const previous = globalThis.OffscreenCanvas;
+  globalThis.OffscreenCanvas = class { getContext() { return ctx; } };
+  try {
+    const portrait = { width: 390, height: 844, touch: true };
+    assert.equal(overviewTop({ ...portrait, tutorialBottom: 270 }), 282);
+    assert.ok(overviewTop(portrait) < 282, 'the field returns when the banner hides');
+    assert.equal(overviewTop({ ...portrait, touch: false, tutorialBottom: 270 }), overviewTop({ ...portrait, touch: false }));
+    const landscape = { width: 844, height: 390, touch: true };
+    assert.equal(overviewTop({ ...landscape, tutorialBottom: 270 }), overviewTop(landscape));
+  } finally {
+    if (previous === undefined) delete globalThis.OffscreenCanvas;
+    else globalThis.OffscreenCanvas = previous;
+  }
+}
+
 // The software cabin view renders with and without the repair-station hint.
 {
   const g = newGame(1), fills = [];
