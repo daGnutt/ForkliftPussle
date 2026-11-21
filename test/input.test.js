@@ -251,7 +251,7 @@ console.log('input tests passed');
 
 // Rumble: dual-rumble where available, Firefox hapticActuators otherwise; pulses fade, throttled sends, stop when disabled
 {
-  const { createRumble, sendRumble } = await import('../js/rumble.js');
+  const { createRumble, sendRumble, rumbleSupport } = await import('../js/rumble.js');
   const dual = [], pulses = [[], []];
   const chromePad = { vibrationActuator: { effects: ['dual-rumble'], playEffect: (t, o) => { dual.push([t, o.strongMagnitude, o.weakMagnitude]); return Promise.resolve(); } } };
   const act = (i) => ({ pulse: (v, ms) => { pulses[i].push([v, ms]); return Promise.resolve(true); } });
@@ -262,9 +262,16 @@ console.log('input tests passed');
   sendRumble({ hapticActuators: [act(0), act(1)] }, 0.3, 0.7);
   assert.deepEqual([pulses[0][1][0], pulses[1][0][0]], [0.3, 0.7], 'two actuators: strong and weak motors');
   assert.equal(sendRumble({ vibrationActuator: null, hapticActuators: [] }, 1, 1), null);
+  const trig = [];
+  const xboxPad = { vibrationActuator: { effects: ['dual-rumble', 'trigger-rumble'], playEffect: (t, o) => { trig.push([t, o.strongMagnitude, o.leftTrigger]); return Promise.resolve(); } } };
+  assert.deepEqual(rumbleSupport(xboxPad), ['dual', 'trigger', 'triggers']);
+  assert.equal(sendRumble(xboxPad, 0.4, 0.2, 100, 'triggers'), 'triggers');
+  assert.deepEqual(trig[0], ['trigger-rumble', 0, 0.4], 'triggers only: motors off, triggers at the stronger value');
+  assert.equal(sendRumble(chromePad, 0.4, 0.2, 100, 'pulse'), null, 'a chosen effect the pad lacks plays nothing');
 
   const r = createRumble();
-  r.pulse(1, 0.5, 0.2);
+  r.strength = 1;
+  r.pulse('bonk', 1, 0.5, 0.2);
   dual.length = 0;
   assert.equal(r.frame(0.01, chromePad).strong, 0.95);
   r.frame(0.01, chromePad);
@@ -272,9 +279,16 @@ console.log('input tests passed');
   for (let i = 0; i < 30; i++) r.frame(0.01, chromePad);
   assert.deepEqual(r.mix(), { strong: 0, weak: 0 }, 'pulse faded out');
   assert.deepEqual(dual.at(-1).slice(1), [0, 0], 'stopped once it faded');
-  r.pulse(1, 1, 1);
+  r.pulse('bonk', 1, 1, 1);
   r.frame(0.01, chromePad, false);
   assert.deepEqual(r.mix(), { strong: 0, weak: 0 }, 'disabled drops pending pulses');
+  r.setFeature('damage', false);
+  r.pulse('damage', 1, 1, 1);
+  assert.deepEqual(r.mix(), { strong: 0, weak: 0 }, 'a switched-off feature does not rumble');
+  r.strength = 0.5;
+  r.pulse('bonk', 1, 1, 1);
+  assert.deepEqual(r.mix(), { strong: 0.5, weak: 0.5 }, 'strength scales the mix');
+  r.clear(); r.strength = 1;
 
   // Truck feed: speeding up and fork travel rumble, a steady speed does not
   const t = { fl: { speed: 0 }, hf: 0, scrape: 0, slip: 0 };

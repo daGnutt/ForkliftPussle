@@ -27,7 +27,7 @@ import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
 import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
-import { createRumble } from './rumble.js';
+import { createRumble, sendRumble, rumbleSupport, RUMBLE_FEATURES, RUMBLE_EFFECTS, RUMBLE_STRENGTH } from './rumble.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
 import { batterySaverOption, canvasDpr, shouldDraw } from './power.js';
 import { startAudio, playDroid as droid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, setPageHidden, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
@@ -376,7 +376,7 @@ const input = createInput({
   menuToggle: () => { if (view.menuOpen) toggleMenu(false); else if (!splashOn && !recordOpen) toggleMenu(true); else if (splashOn) startBtn.click(); },
   menuNav: (dir) => padMenuNav(dir),
   menuSelect: () => { if (splashOn) startBtn.click(); else if (view.menuOpen) document.activeElement?.click?.(); },
-  menuBack: () => { if (!view.menuOpen) return; if (menuEl.dataset.page !== 'main') showPage('main'); else toggleMenu(false); },
+  menuBack: () => { if (!view.menuOpen) return; if (menuEl.dataset.page !== 'main') showPage(parentPage()); else toggleMenu(false); },
   blocked: () => splashOn || recordOpen || !!view.menuOpen,
 });
 
@@ -604,7 +604,7 @@ function checkEventTips() {
 function noteForkResult(dir, res) {
   if (res !== 'blocked') return;
   playBlocked();
-  rumble.pulse(0.5, 0.2, 0.12);
+  rumble.pulse('blocked', 0.5, 0.2, 0.12);
   if (dir === 'down') pendingTips.forkbox = true;
   else if (game.carried || game.lifting >= 0) pendingTips.ceiling = true;
 }
@@ -916,6 +916,55 @@ const chaseOpt = document.getElementById('chaseOpt');
 const rumbleOpt = document.getElementById('rumbleOpt');
 rumbleOpt.checked = localStorage.getItem('forklift-rumble') !== '0';
 rumbleOpt.addEventListener('change', () => localStorage.setItem('forklift-rumble', rumbleOpt.checked ? '1' : '0'));
+// Rumble subpage: effect, strength, one checkbox per feature (disabled ones saved as a comma list in forklift-rumble-off).
+const rumbleEffect = document.getElementById('rumbleEffect');
+const rumbleStrength = document.getElementById('rumbleStrength');
+const rumbleSupportEl = document.getElementById('rumbleSupport');
+for (const [id, name] of RUMBLE_EFFECTS) rumbleEffect.add(new Option(name, id));
+rumble.effect = RUMBLE_EFFECTS.some(([id]) => id === localStorage.getItem('forklift-rumble-effect')) ? localStorage.getItem('forklift-rumble-effect') : 'auto';
+rumbleEffect.value = rumble.effect;
+rumbleEffect.addEventListener('change', () => { rumble.effect = rumbleEffect.value; localStorage.setItem('forklift-rumble-effect', rumble.effect); });
+const savedStrength = Number(localStorage.getItem('forklift-rumble-strength') ?? NaN);
+rumble.strength = Number.isFinite(savedStrength) ? Math.max(0, Math.min(1, savedStrength)) : RUMBLE_STRENGTH;
+rumbleStrength.value = Math.round(rumble.strength * 100);
+rumbleStrength.addEventListener('input', () => { rumble.strength = rumbleStrength.value / 100; localStorage.setItem('forklift-rumble-strength', String(rumble.strength)); });
+const rumbleOff = new Set((localStorage.getItem('forklift-rumble-off') || '').split(',').filter(Boolean));
+for (const [id, name] of RUMBLE_FEATURES) {
+  const label = document.createElement('label');
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = !rumbleOff.has(id);
+  rumble.setFeature(id, box.checked);
+  box.addEventListener('change', () => {
+    rumble.setFeature(id, box.checked);
+    if (box.checked) rumbleOff.delete(id); else rumbleOff.add(id);
+    localStorage.setItem('forklift-rumble-off', [...rumbleOff].join(','));
+  });
+  label.append(box, ` ${name}`);
+  document.getElementById('rumbleFeatures').append(label);
+}
+document.getElementById('rumbleTest').addEventListener('click', () => {
+  const gp = standardPads()[0]?.gp;
+  const s = rumble.strength;
+  if (gp) sendRumble(gp, 0.8 * s, 0.6 * s, 250, rumble.effect);
+});
+// Temporary, only with ?controller: V opens the menu on the Rumble page, for tuning the rumble while testing a pad.
+if (new URLSearchParams(location.search).has('controller')) {
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'KeyV' || e.repeat || e.altKey || e.ctrlKey || e.metaKey || splashOn || recordOpen || view.menuOpen) return;
+    e.preventDefault();
+    toggleMenu(true);
+    showPage('rumble');
+  });
+}
+// What the first pad can play, shown under the effect drop-down while the menu is open.
+function showRumbleSupport() {
+  const gp = standardPads()[0]?.gp;
+  const can = gp ? rumbleSupport(gp) : null;
+  const text = !gp ? 'No gamepad found (press a button on it).' : can.length ? `This gamepad supports: ${RUMBLE_EFFECTS.filter(([id]) => can.includes(id)).map(([, n]) => n).join(', ')}.` : 'This gamepad/browser has no rumble.';
+  if (rumbleSupportEl.textContent !== text) rumbleSupportEl.textContent = text;
+}
+setInterval(() => { if (view.menuOpen && menuEl.dataset.page === 'rumble') showRumbleSupport(); }, 1000); // the game loop is paused in the menu
 const chaseZoomSel = document.getElementById('chaseZoom');
 setBareForks(localStorage.getItem('forklift-bare-forks') === '1');
 const discoOpt = document.getElementById('discoOpt');
@@ -948,7 +997,10 @@ function showPage(name) {
   for (const p of menuEl.querySelectorAll('.page')) p.hidden = p.dataset.page !== name;
   (menuEl.querySelector(`.page[data-page="${name}"] .primary, .page[data-page="${name}"] .back`)).focus();
   menuEl.dataset.page = name;
+  if (name === 'rumble') showRumbleSupport();
 }
+// The page the current page's Back button goes to (subpages like Rumble return to Controls).
+const parentPage = () => menuEl.querySelector('.page:not([hidden]) .back')?.dataset.go || 'main';
 menuEl.addEventListener('click', (e) => {
   const b = e.target.closest('[data-go]');
   if (b) showPage(b.dataset.go);
@@ -1200,7 +1252,7 @@ window.addEventListener('keydown', (e) => {
   if (e.target.closest?.('#keyMap')) { if (e.code === 'Enter' || e.code === 'Space') pickKeys(e); if (e.code !== 'Escape') return; }
   const typing = e.target === menuLevel || e.target === pullName;
   if (e.target === stateText) { if (e.code === 'Escape') { e.preventDefault(); showPage('main'); } return; }
-  if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage('main'); return; }
+  if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage(parentPage()); return; }
   if (e.code === 'Escape' || (e.code === 'KeyP' && !typing)) { e.preventDefault(); toggleMenu(false); return; }
   if (e.code === 'Enter' && e.target !== menuLevel && e.target !== pullName) { e.preventDefault(); toggleMenu(false); return; }
   if (e.target === trackSel || e.target === themeSel) return;
@@ -1382,7 +1434,7 @@ function frame(now) {
     if (game.hitCount > hitCount) {
       const h = game.hits?.[game.hits.length - 1];
       playBreak(h ? hearVol(h.x, h.y) : 1);
-      if (!h || Math.hypot(h.x - game.fl.x, h.y - game.fl.y) < RUMBLE_HIT_DIST) rumble.pulse(0.9, 0.6, 0.3);
+      if (!h || Math.hypot(h.x - game.fl.x, h.y - game.fl.y) < RUMBLE_HIT_DIST) rumble.pulse('damage', 0.9, 0.6, 0.3);
     }
     hitCount = game.hitCount;
   }
@@ -1404,7 +1456,7 @@ function frame(now) {
   setScrape(won ? 0 : scrapeV, scrapeVol);
   setSqueal(won ? 0 : slipV, slipVol);
   if (game.bonks !== bonkCount) {
-    if (game.bonks > bonkCount) { const pw = game.bonkPower || 0.5; playBonk(game.bonkPower); rumble.pulse(0.35 + 0.65 * pw, 0.3 + 0.5 * pw, 0.12 + 0.18 * pw); }
+    if (game.bonks > bonkCount) { const pw = game.bonkPower || 0.5; playBonk(game.bonkPower); rumble.pulse('bonk', 0.35 + 0.65 * pw, 0.3 + 0.5 * pw, 0.12 + 0.18 * pw); }
     bonkCount = game.bonks;
   }
   const rumbleOn = rumbleOpt.checked && !splashOn && !view.paused && !view.menuOpen && !won && !document.hidden

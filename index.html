@@ -78,6 +78,17 @@
         <button type="button" id="menuFullscreen" class="sec">Toggle full screen</button>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
       </div>
+      <div class="page" data-page="rumble" hidden>
+        <h3>Controller rumble</h3>
+        <label title="Gamepad vibration, only while you drive with the gamepad"><input type="checkbox" id="rumbleOpt" checked> Rumble on</label>
+        <label class="row" title="How the vibration is played. Auto: dual rumble where the browser has it (Chromium, Safari), else haptic pulse (Firefox). Trigger effects need a controller with trigger motors (Xbox) in a Chromium browser"><span>Effect</span> <select id="rumbleEffect"></select></label>
+        <small id="rumbleSupport" class="ctl"></small>
+        <label class="row" title="Overall rumble strength"><span>Strength</span> <input type="range" id="rumbleStrength" min="0" max="100" step="5"></label>
+        <h4>Rumble on</h4>
+        <div id="rumbleFeatures" class="ctl"></div>
+        <button type="button" id="rumbleTest" class="sec" title="A short bump on the gamepad, with the settings above">Test</button>
+        <button type="button" class="back" data-go="controls">&#9666; Back</button>
+      </div>
       <div class="page" data-page="controls" hidden>
         <h3>Controls</h3>
         <label id="touchLabel" class="row" hidden title="Layout of the on-screen controls"><span>Touch controls</span> <select id="touchSel"><option value="classic">Buttons (classic)</option><option value="rotated">Buttons (forks left, drive right)</option><option value="joystick">Joystick + fork buttons</option></select></label>
@@ -106,7 +117,7 @@
             <li>Tap the level-complete board: next level</li>
           </ul>
         </div>
-        <label title="Gamepad vibration on bumps, box damage, scraping, wheel spin, speeding up, braking and fork moves; only while you drive with the gamepad"><input type="checkbox" id="rumbleOpt" checked> Controller rumble</label>
+        <button type="button" class="nav" data-go="rumble"><span>Controller rumble</span><i>&#9656;</i></button>
         <figure class="padmap" id="padMap" title="Gamepad controls (standard mapping)">
           <svg viewBox="0 0 300 150" role="img" aria-label="Gamepad controls"><g class="g">
             <rect x="48" y="14" width="36" height="12" rx="5"/><rect x="216" y="14" width="36" height="12" rx="5"/>
