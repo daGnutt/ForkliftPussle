@@ -1,5 +1,5 @@
 import { theme } from '../theme.js';
-import { staticMeshes, dynamicMeshes, wallClip, wallCaps, LIGHT_MAX } from './scene.js';
+import { staticMeshes, dynamicMeshes, wallClip, wallCaps, ceilingClip, renderMode, LIGHT_MAX } from './scene.js';
 import { parseColor } from './mesh.js';
 import { projectPoint } from './mat.js';
 
@@ -264,8 +264,9 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
     canvas.width = Math.max(canvas.width, pw);
     canvas.height = Math.max(canvas.height, ph);
   }
-  const L = (theme().dark ? DARK_LIGHT : LIGHT)[mode];
-  const bg = mode === 'pov' ? fogColor() : parseColor(theme().bg);
+  const drawMode = renderMode(mode, cam);
+  const L = (theme().dark ? DARK_LIGHT : LIGHT)[drawMode];
+  const bg = drawMode === 'pov' ? fogColor() : parseColor(theme().bg);
 
   const st = staticBuffers(r, g, mode);
   const dyn = dynamicMeshes(g, mode, cam.eye);
@@ -278,7 +279,7 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
   gl.clearColor(bg[0], bg[1], bg[2], 1);
   gl.depthMask(true);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  if (mode === 'ov') {
+  if (drawMode === 'ov') {
     gl.disable(gl.DEPTH_TEST);
     gl.useProgram(r.sky);
     gl.uniformMatrix4fv(r.su.uVP, false, cam.vp);
@@ -316,7 +317,7 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
   gl.uniform4fv(u.uLD, ld);
 
   const off = [0, 0, 1e9, 1e9];
-  const clip = (mode === 'ov' && wallClip(cam)) || off;
+  const clip = (mode === 'pov' && ceilingClip(cam)) || (mode === 'ov' && wallClip(cam)) || off;
   gl.uniform4fv(u.uClip, clip);
   drawBuffer(r, st.opaque.buf, st.opaque.count);
   gl.uniform4fv(u.uClip, off);

@@ -22,16 +22,18 @@ export function lookYawDelta(delta, cabinView) {
 
 // Cabin view (always looks forward, also in reverse): eye fixed at seat height (no up/down translation); the camera
 // only pitches to look at the fork tips (smoothed level g.ef), so the view tilts up and down as the forks rise and fall. `look` ({ yaw, pitch } radians) turns the head.
-export function povCamera(g, w, h, look = null) {
+export function povCamera(g, w, h, look = null, autoHead = true) {
   const e = toWorld(g.fl, EYE_X, 0);
-  const a = g.fl.a + (look ? look.yaw : 0) + headTurn(g.fl);
+  const a = g.fl.a + (look ? look.yaw : 0) + (autoHead ? headTurn(g.fl) : 0);
   const tip = FL.tineX1 - EYE_X, pitch = Math.atan2(g.ef * (BOX_H + PAL) - EYE_Z, tip) + LOW_LIFT * Math.max(0, 1 - g.ef / 2) + (look ? look.pitch : 0);
   const cp = Math.cos(pitch), sp = Math.sin(pitch), c = Math.cos(a), s = Math.sin(a);
   const f2w = 1 / Math.tan(GL_HFOV / 2);
   const proj = perspective(f2w, (f2w * w) / h, 0, POV_NEAR, POV_FAR);
   const eye = [e.x, e.y, EYE_Z + (liftedHf(g) ?? 0) * (BOX_H + PAL)];
-  const view = viewBasis(eye, [-s, c, 0], [-c * sp, -s * sp, cp], [c * cp, s * cp, sp]);
-  return { vp: mul(proj, view), eye, w, h };
+  const r = [-s, c, 0], u = [-c * sp, -s * sp, cp], f = [c * cp, s * cp, sp];
+  const view = viewBasis(eye, r, u, f);
+  const f2h = (f2w * w) / h;
+  return { vp: mul(proj, view), eye, w, h, pose: { r, u, f, near: POV_NEAR, far: POV_FAR, f2h } };
 }
 
 const OV_TILT = 0.35; // radians off vertical
@@ -58,7 +60,7 @@ export function blendCameras(a, b, k) {
   const d = u[0] * f[0] + u[1] * f[1] + u[2] * f[2];
   u = norm(u.map((x, i) => x - d * f[i]));
   const r = [u[1] * f[2] - u[2] * f[1], u[2] * f[0] - u[0] * f[2], u[0] * f[1] - u[1] * f[0]];
-  const near = A.near + (B.near - A.near) * k, far = A.far + (B.far - A.far) * k, f2h = A.f2h;
+  const near = A.near + (B.near - A.near) * k, far = A.far + (B.far - A.far) * k, f2h = A.f2h + (B.f2h - A.f2h) * k;
   const proj = perspective((f2h * b.h) / b.w, f2h, 0, near, far);
   return { ...b, vp: mul(proj, viewBasis(eye, r, u, f)), eye, pose: { r, u, f, near, far, f2h } };
 }

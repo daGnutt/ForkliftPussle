@@ -268,6 +268,66 @@ function toggleChase() {
   localStorage.setItem('forklift-chase-cam', view.chase ? '1' : '0');
 }
 
+function setCameraOverview() {
+  if (!glEnabled()) return;
+  view.povBig = false;
+  view.chase = false;
+  view.orbit = null;
+  view.look = null;
+  view.manualCab = false;
+  view.chaseGoal = null;
+  view.camP = null;
+  localStorage.setItem('forklift-cab-view', '0');
+  localStorage.setItem('forklift-chase-cam', '0');
+}
+
+function setCameraCabin() {
+  if (!glEnabled() || isTouch) return;
+  view.povBig = true;
+  view.chase = false;
+  view.look = null;
+  view.manualCab = false;
+  view.orbit = null;
+  view.chaseGoal = null;
+  view.camP = null;
+  localStorage.setItem('forklift-cab-view', '1');
+  localStorage.setItem('forklift-chase-cam', '0');
+  tutDone.cab = true;
+}
+
+function setCameraChase() {
+  if (!glEnabled()) return;
+  view.povBig = false;
+  view.chase = true;
+  view.look = null;
+  view.manualCab = false;
+  view.orbit = null;
+  view.chaseGoal = null;
+  view.camP = null;
+  localStorage.setItem('forklift-cab-view', '0');
+  localStorage.setItem('forklift-chase-cam', '1');
+}
+
+function resetCamera() {
+  if (!glEnabled()) return;
+  view.look = null;
+  view.orbit = null;
+  view.manualCab = false;
+  view.chaseGoal = null;
+  view.camP = null;
+  view.camA = null;
+  view.snap = false;
+  view.chaseLiftTarget = 0;
+  view.chaseLift = 0;
+  if (view.chase) {
+    view.chaseZoom = null;
+    localStorage.removeItem('forklift-chase-zoom');
+  } else if (!view.povBig) {
+    view.zoom = null;
+    localStorage.removeItem('forklift-ov-zoom');
+  }
+}
+
 // Local multiplayer: gamepads join the running game as extra trucks (see local.js).
 const toggleCab = (slot) => {
   view.cabs ||= new Set();
@@ -279,6 +339,10 @@ const input = createInput({
   anyKey: startAudio,
   fullscreen: toggleFullscreen,
   toggleChase,
+  cameraOverview: setCameraOverview,
+  cameraCabin: setCameraCabin,
+  cameraChase: setCameraChase,
+  cameraReset: resetCamera,
   swapView: () => {
     if (isTouch) return;
     if (view.shared) { toggleCab(game.self); return; }
@@ -356,12 +420,13 @@ function lookState() {
   view.snap = false;
   return view.povBig ? (view.look ||= { yaw: 0, pitch: 0 }) : (view.orbit ||= { yaw: 0, tilt: orbitHome() });
 }
-function lookBy(dyaw, dpitch) {
+function lookBy(dyaw, dpitch, manualCab = false) {
   const o = lookState();
   o.goal = null;
   if (view.chase) { view.chaseGoal = null; swingChase(-dyaw); } else o.yaw = wrap(o.yaw + lookYawDelta(dyaw, view.povBig));
   if (view.povBig) o.pitch = Math.min(LOOK_PITCH_MAX, Math.max(-LOOK_PITCH_MAX, o.pitch + dpitch));
   else o.tilt = Math.min(ORBIT_TILT_MAX, Math.max(0.05, o.tilt + dpitch));
+  if (view.povBig && manualCab) view.manualCab = true;
 }
 function springBack(dt) {
   const k = 1 - Math.exp(-7 * dt);
@@ -377,7 +442,7 @@ function springBack(dt) {
       else { o.yaw = wrap(target); o.tilt = orbitHome(); }
     }
   }
-  if (l) { l.yaw -= l.yaw * k; l.pitch -= l.pitch * k; if (Math.abs(l.yaw) + Math.abs(l.pitch) < 0.003) view.look = null; }
+  if (l && !view.manualCab) { l.yaw -= l.yaw * k; l.pitch -= l.pitch * k; if (Math.abs(l.yaw) + Math.abs(l.pitch) < 0.003) view.look = null; }
   if ((!view.orbit || view.chase || view.orbit.yaw === Math.round(view.orbit.yaw / (Math.PI / 2)) * (Math.PI / 2)) && !view.look) view.snap = false;
 }
 let drag = null;
@@ -1227,12 +1292,17 @@ function frame(now) {
   let steps = 0;
   // Camera follow-up for one step of `dt` seconds (the heading of the chase camera, look-around spring-back).
   const cameraStep = (inp, dt) => {
+    view.gamepadCab = inp.motionSource === 'gamepad';
     if (inp.up || inp.down || inp.left || inp.right) view.snap = true;
     if (!splashOn && glEnabled()) {
-      if (view.povBig) { if (inp.lookL || inp.lookR) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * dt, 0); }
+      const pitch = (inp.lookU ? 1 : 0) - (inp.lookD ? 1 : 0);
+      if (view.povBig) {
+        if (inp.lookL || inp.lookR || inp.lookU || inp.lookD) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * dt, pitch * LOOK_SPEED * dt, true);
+      }
       else {
         if (inp.lookR && !view.lookHeld?.R) quarterTurn(1);
         if (inp.lookL && !view.lookHeld?.L) quarterTurn(-1);
+        if (inp.lookU || inp.lookD) lookBy(0, pitch * LOOK_SPEED * dt);
         turnStep(dt);
       }
       view.lookHeld = { L: inp.lookL, R: inp.lookR };

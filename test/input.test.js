@@ -21,7 +21,7 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   const inp = createInput({ up: () => calls.push('up'), menuNav: (d) => calls.push(d), menuSelect: () => calls.push('select'), menuBack: () => calls.push('back'), menuToggle: () => calls.push('menu'), blocked: () => blocked });
   pad = mkPad({ axes: [0.8, 0, 0, 0], pressed: [7] });
   let s = inp.state();
-  assert.ok(s.up && s.right && !s.left && !s.down);
+  assert.ok(s.up && s.right && !s.left && !s.down && s.motionSource === 'gamepad');
   pad = mkPad({ pressed: [0] });
   inp.state(); inp.state();
   assert.deepEqual(calls, ['up'], 'A fires fork up once per press');
@@ -38,7 +38,66 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   pad = mkPad({ pressed: [1] }); inp.state();
   assert.deepEqual(calls.slice(2), ['down', 'select', 'back'], 'd-pad navigates, A selects, B goes back in the menu');
   pad = null;
-  assert.ok(!inp.state().up, 'unplugging releases the controls');
+  s = inp.state();
+  assert.ok(!s.up && s.motionSource === 'gamepad', 'unplugging releases controls without changing the last motion source');
+}
+
+// D-pad selects GL camera modes and resets the active camera
+{
+  const calls = [];
+  const inp = createInput({
+    cameraOverview: () => calls.push('overview'),
+    cameraCabin: () => calls.push('cabin'),
+    cameraChase: () => calls.push('chase'),
+    cameraReset: () => calls.push('reset'),
+  });
+  pad = mkPad({ pressed: [12] }); inp.state();
+  pad = mkPad({ pressed: [14] }); inp.state();
+  pad = mkPad({ pressed: [15] }); inp.state();
+  pad = mkPad({ pressed: [13] }); inp.state();
+  pad = mkPad({ pressed: [13] }); inp.state();
+  pad = mkPad({ pressed: [11] }); inp.state();
+  assert.deepEqual(calls, ['overview', 'cabin', 'chase', 'reset', 'reset'], 'd-pad down and right-stick click reset once per press');
+  pad = null;
+}
+
+// Cabin steering follows the last driving or steering device, not controller connection.
+{
+  const listeners = {};
+  globalThis.window = { addEventListener: (type, f) => { (listeners[type] ??= []).push(f); } };
+  let blocked = false;
+  const inp = createInput({ blocked: () => blocked });
+  const key = (type, code) => listeners[type].forEach((f) => f({ code, repeat: false, preventDefault() {}, target: null }));
+  pad = mkPad();
+  assert.equal(inp.state().motionSource, 'keyboard', 'an idle connected controller does not change the default');
+  pad = mkPad({ axes: [0, 0, 0.8, 0] });
+  assert.equal(inp.state().motionSource, 'keyboard', 'camera look is not motion input');
+  pad = mkPad({ axes: [0.8, 0, 0, 0] });
+  assert.equal(inp.state().motionSource, 'gamepad', 'steering selects the controller');
+  pad = mkPad();
+  assert.equal(inp.state().motionSource, 'gamepad', 'releasing the stick retains the last source');
+  key('keydown', 'ArrowUp');
+  assert.equal(inp.state().motionSource, 'keyboard', 'keyboard motion wins with a controller connected');
+  pad = mkPad({ pressed: [7] });
+  assert.equal(inp.state().motionSource, 'gamepad', 'controller throttle switches back while a key remains held');
+  key('keydown', 'ArrowLeft');
+  assert.equal(inp.state().motionSource, 'keyboard', 'a new key press switches back even while the trigger is held');
+  assert.equal(inp.state().motionSource, 'keyboard', 'unchanged controller input does not immediately switch back');
+  pad = mkPad({ axes: [0.8, 0, 0, 0], pressed: [7] });
+  assert.equal(inp.state().motionSource, 'gamepad', 'new steering movement switches back');
+  key('keyup', 'ArrowUp'); key('keyup', 'ArrowLeft');
+  key('keydown', 'KeyH');
+  assert.equal(inp.state().motionSource, 'gamepad', 'non-motion keys do not switch the camera');
+  blocked = true;
+  key('keydown', 'ArrowRight');
+  assert.equal(inp.state().motionSource, 'gamepad', 'menu navigation does not change the motion source');
+  key('keyup', 'ArrowRight');
+  blocked = false;
+  inp.setLocalMode(true);
+  key('keydown', 'ArrowRight');
+  assert.equal(inp.state().motionSource, 'keyboard', 'local multiplayer pads do not override the keyboard truck');
+  pad = null;
+  globalThis.window = stub();
 }
 
 // Analog trigger and stick scale acceleration and steering
@@ -49,6 +108,10 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   const s = inp.state();
   assert.equal(s.thr, 0.5);
   assert.ok(s.str > 0.4 && s.str < 0.6 && s.right);
+  pad = mkPad({ axes: [0, 0, 0, -0.8] });
+  assert.ok(inp.state().lookU && !inp.state().lookD, 'right stick up looks up');
+  pad = mkPad({ axes: [0, 0, 0, 0.8] });
+  assert.ok(inp.state().lookD && !inp.state().lookU, 'right stick down looks down');
   const mk = () => ({ x: 0, y: 0, a: 0, speed: 0, steer: 0, gear: 'D' });
   const half = mk(), full = mk();
   drive(half, { thr: 0.5, str: 0 }, 0.5);
