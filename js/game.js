@@ -915,6 +915,55 @@ function clearWallOverlaps(g) {
   }
 }
 
+// Last line of defence against tunnelling: a box pushed (or knocked) deep enough into the 3-tile outer wall can be resolved out the far side,
+// so after every step any box poking outside the level rectangle is shifted back in, whatever the wall solver decided.
+// The same goes for inner walls: a box whose centre travelled through a wall rectangle since the last step is put back where it was.
+const crossesWall = (a, b, w) => {
+  const inside = (p) => p.x > w.x && p.x < w.x + w.w && p.y > w.y && p.y < w.y + w.h;
+  if (inside(a)) return false;
+  let t0 = 0, t1 = 1;
+  for (const [o, d, lo, hi] of [[a.x, b.x - a.x, w.x, w.x + w.w], [a.y, b.y - a.y, w.y, w.y + w.h]]) {
+    if (Math.abs(d) < 1e-12) { if (o <= lo || o >= hi) return false; continue; }
+    let u = (lo - o) / d, v = (hi - o) / d;
+    if (u > v) [u, v] = [v, u];
+    t0 = Math.max(t0, u); t1 = Math.min(t1, v);
+    if (t0 >= t1) return false;
+  }
+  return true;
+};
+
+function containStacks(g) {
+  for (const s of g.stacks) {
+    if (s.leaving) continue;
+    ensure(s);
+    const safe = s.safe;
+    if (safe && safe.offs.length === s.layers.length && safe.rots.length === s.rots.length) {
+      const tunnelled = s.layers.some((_, i) => {
+        const a = { x: safe.x + safe.offs[i].x, y: safe.y + safe.offs[i].y }, b = boxPos(s, i);
+        return g.walls.some((w) => crossesWall(a, b, w));
+      });
+      if (tunnelled) {
+        touchStack(s);
+        s.x = safe.x; s.y = safe.y;
+        s.offs = safe.offs.map((o) => ({ ...o })); s.rots = [...safe.rots];
+      }
+    }
+    for (let i = 0; i < s.layers.length; i++) {
+      const c = boxPos(s, i), r = Math.hypot(BOX_HALF_X, halfY(s.pen[i]));
+      if (c.x - r >= 0 && c.x + r <= g.w && c.y - r >= 0 && c.y + r <= g.h) continue;
+      const p = boxPoly(c.x, c.y, s.rots[i], s.pen[i]);
+      let dx = 0, dy = 0;
+      const lo = (k) => Math.min(...p.map((v) => v[k])), hi = (k) => Math.max(...p.map((v) => v[k]));
+      if (lo('x') < 0) dx = -lo('x'); else if (hi('x') > g.w) dx = g.w - hi('x');
+      if (lo('y') < 0) dy = -lo('y'); else if (hi('y') > g.h) dy = g.h - hi('y');
+      if (!dx && !dy) continue;
+      touchStack(s);
+      shiftBoxes(s, s.pen[i]?.barrelPart === 'top' ? i - 1 : i, dx, dy);
+    }
+    s.safe = { x: s.x, y: s.y, offs: s.offs.map((o) => ({ ...o })), rots: [...s.rots] };
+  }
+}
+
 function resolve(g) {
   const f = g.fl;
   g.wallPush = null;
@@ -1352,6 +1401,7 @@ function stepTruck(g, input, dt) {
     twistCarried(g, Math.max(-ALIGN_RATE * dt, Math.min(ALIGN_RATE * dt, diff)));
   }
   clearWallOverlaps(g);
+  containStacks(g);
 
   if (Math.abs(intended) > 1e-6) {
     const actual = (f.x - driven.x) * Math.cos(f.a) + (f.y - driven.y) * Math.sin(f.a) + intended;
