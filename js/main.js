@@ -27,6 +27,7 @@ import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
 import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
+import { createRumble } from './rumble.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
 import { batterySaverOption, canvasDpr, shouldDraw } from './power.js';
 import { startAudio, playDroid as droid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, setPageHidden, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
@@ -112,6 +113,9 @@ let hitCount = game.hitCount;
 let bonkCount = game.bonks;
 let otherBonks = new Map(); // truck id -> last seen bonk count (other trucks' bumps are heard, quieter with distance)
 const otherH = new Map(); // truck id -> last seen fork level
+// Controller rumble (js/rumble.js): only while the gamepad was the last driving input; menu option #rumbleOpt.
+const rumble = createRumble();
+const RUMBLE_HIT_DIST = 2.5; // tiles: box damage this close to the own truck is felt
 refreshBest();
 // Loudness 0..1 of a sound at (x, y), falling off with the distance from the local truck (same curve as the horns).
 // Other players' trucks pop in and out of existence: queue a pop (sound here, smoke in gl/particles.js) on every change.
@@ -600,6 +604,7 @@ function checkEventTips() {
 function noteForkResult(dir, res) {
   if (res !== 'blocked') return;
   playBlocked();
+  rumble.pulse(0.5, 0.2, 0.12);
   if (dir === 'down') pendingTips.forkbox = true;
   else if (game.carried || game.lifting >= 0) pendingTips.ceiling = true;
 }
@@ -908,6 +913,9 @@ const themeSel = document.getElementById('themeSel');
 setThemeMode(localStorage.getItem('forklift-theme'));
 const bareOpt = document.getElementById('bareOpt');
 const chaseOpt = document.getElementById('chaseOpt');
+const rumbleOpt = document.getElementById('rumbleOpt');
+rumbleOpt.checked = localStorage.getItem('forklift-rumble') !== '0';
+rumbleOpt.addEventListener('change', () => localStorage.setItem('forklift-rumble', rumbleOpt.checked ? '1' : '0'));
 const chaseZoomSel = document.getElementById('chaseZoom');
 setBareForks(localStorage.getItem('forklift-bare-forks') === '1');
 const discoOpt = document.getElementById('discoOpt');
@@ -1371,7 +1379,11 @@ function frame(now) {
   if (fresh.length) (!game.hard && fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();
   doneZones = done;
   if (game.hitCount !== hitCount) {
-    if (game.hitCount > hitCount) { const h = game.hits?.[game.hits.length - 1]; playBreak(h ? hearVol(h.x, h.y) : 1); }
+    if (game.hitCount > hitCount) {
+      const h = game.hits?.[game.hits.length - 1];
+      playBreak(h ? hearVol(h.x, h.y) : 1);
+      if (!h || Math.hypot(h.x - game.fl.x, h.y - game.fl.y) < RUMBLE_HIT_DIST) rumble.pulse(0.9, 0.6, 0.3);
+    }
     hitCount = game.hitCount;
   }
   let scrapeV = game.scrape, scrapeVol = 1, slipV = game.slip || 0, slipVol = 1;
@@ -1391,7 +1403,14 @@ function frame(now) {
   }
   setScrape(won ? 0 : scrapeV, scrapeVol);
   setSqueal(won ? 0 : slipV, slipVol);
-  if (game.bonks !== bonkCount) { if (game.bonks > bonkCount) playBonk(game.bonkPower); bonkCount = game.bonks; }
+  if (game.bonks !== bonkCount) {
+    if (game.bonks > bonkCount) { const pw = game.bonkPower || 0.5; playBonk(game.bonkPower); rumble.pulse(0.35 + 0.65 * pw, 0.3 + 0.5 * pw, 0.12 + 0.18 * pw); }
+    bonkCount = game.bonks;
+  }
+  const rumbleOn = rumbleOpt.checked && !splashOn && !view.paused && !view.menuOpen && !won && !document.hidden
+    && !localOpt.checked && !game.trucks[game.self]?.gone && st.motionSource === 'gamepad';
+  if (rumbleOn) rumble.feedTruck(game, dtReal);
+  rumble.frame(dtReal, standardPads()[0]?.gp ?? null, rumbleOn);
   if (game.status === 'won' && !game.endless) {
     if (!reduceEffectsOn && galleryGame !== game) { galleryGame = game; startGallery(() => endPhotos(game)); }
     else if (reduceEffectsOn && galleryGame) { galleryGame = null; stopGallery(); }
