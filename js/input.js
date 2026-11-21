@@ -160,7 +160,7 @@ export function createInput(handlers) {
     if (localMode) return;
     const b = (i) => !!gp.buttons[i]?.pressed;
     const rx = gp.axes[2] ?? 0;
-    const ly = gp.axes[1] ?? 0;
+    const ry = gp.axes[3] ?? 0;
     // analog: trigger travel is the throttle/brake, left stick X the steering
     ({ thr: pad.thr, str: pad.str } = padAxes(gp));
     pad.up = pad.thr > 0;
@@ -169,8 +169,8 @@ export function createInput(handlers) {
     pad.right = pad.str > 0;
     pad.lookL = rx < -DEAD;
     pad.lookR = rx > DEAD;
-    pad.lookU = ly < -DEAD;
-    pad.lookD = ly > DEAD;
+    pad.lookU = ry < -DEAD;
+    pad.lookD = ry > DEAD;
     pad.horn = b(2);
     for (const [i, act] of padActions) if (edge(i)) act();
     if (edge(12)) handlers.cameraOverview?.();

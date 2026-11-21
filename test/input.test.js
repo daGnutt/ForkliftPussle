@@ -67,10 +67,10 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   const s = inp.state();
   assert.equal(s.thr, 0.5);
   assert.ok(s.str > 0.4 && s.str < 0.6 && s.right);
-  pad = mkPad({ axes: [0, -0.8, 0, 0] });
-  assert.ok(inp.state().lookU && !inp.state().lookD, 'left stick up looks up');
-  pad = mkPad({ axes: [0, 0.8, 0, 0] });
-  assert.ok(inp.state().lookD && !inp.state().lookU, 'left stick down looks down');
+  pad = mkPad({ axes: [0, 0, 0, -0.8] });
+  assert.ok(inp.state().lookU && !inp.state().lookD, 'right stick up looks up');
+  pad = mkPad({ axes: [0, 0, 0, 0.8] });
+  assert.ok(inp.state().lookD && !inp.state().lookU, 'right stick down looks down');
   const mk = () => ({ x: 0, y: 0, a: 0, speed: 0, steer: 0, gear: 'D' });
   const half = mk(), full = mk();
   drive(half, { thr: 0.5, str: 0 }, 0.5);

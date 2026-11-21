@@ -24,4 +24,4 @@ Dependency direction: `main` → `game`, `input`, `render`, `audio` (`main` trig
 
 Gear: `g.fl.gear` is `'D'` or `'R'` (set in `drive`, flips only at standstill when the opposite throttle is held; idling in R — stopped, no throttle — for 3 s (`IDLE_TO_D`, timer in a `WeakMap` in `forklift.js`, not saved) flips back to D). R drives reverse lights/beeper; both cabin cameras keep looking forward in R.
 
-Gamepad camera look: left stick Y provides GL up/down look, right stick X provides left/right look, while d-pad switches overview/cabin/chase/reset and left stick X remains steering.
+Gamepad camera look: right stick X provides left/right look and right stick Y provides up/down look, while d-pad switches overview/cabin/chase/reset and left stick X remains steering.
