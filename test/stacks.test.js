@@ -972,3 +972,13 @@ console.log('stacks tests passed');
   g.repair = null;
   assert.equal(repairHintWanted(g, false), false, 'no station on this level');
 }
+
+{ // a box shoved deep into the outer wall must not tunnel out of the level
+  const g = newGame(1, 0, true);
+  const s = g.stacks[0];
+  for (const [x, y] of [[-2.6, 5], [g.w + 2.6, 5], [10, -2.6], [10, g.h + 2.6]]) {
+    s.x = x; s.y = y;
+    run(g, NONE, 0.1);
+    assert.ok(s.x > -0.01 && s.x < g.w + 0.01 && s.y > -0.01 && s.y < g.h + 0.01, `box at (${x}, ${y}) is back inside`);
+  }
+}

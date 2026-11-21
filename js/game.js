@@ -915,6 +915,27 @@ function clearWallOverlaps(g) {
   }
 }
 
+// Last line of defence against tunnelling: a box pushed (or knocked) deep enough into the 3-tile outer wall can be resolved out the far side,
+// so after every step any box poking outside the level rectangle is shifted back in, whatever the wall solver decided.
+function containStacks(g) {
+  for (const s of g.stacks) {
+    if (s.leaving) continue;
+    ensure(s);
+    for (let i = 0; i < s.layers.length; i++) {
+      const c = boxPos(s, i), r = Math.hypot(BOX_HALF_X, halfY(s.pen[i]));
+      if (c.x - r >= 0 && c.x + r <= g.w && c.y - r >= 0 && c.y + r <= g.h) continue;
+      const p = boxPoly(c.x, c.y, s.rots[i], s.pen[i]);
+      let dx = 0, dy = 0;
+      const lo = (k) => Math.min(...p.map((v) => v[k])), hi = (k) => Math.max(...p.map((v) => v[k]));
+      if (lo('x') < 0) dx = -lo('x'); else if (hi('x') > g.w) dx = g.w - hi('x');
+      if (lo('y') < 0) dy = -lo('y'); else if (hi('y') > g.h) dy = g.h - hi('y');
+      if (!dx && !dy) continue;
+      touchStack(s);
+      shiftBoxes(s, s.pen[i]?.barrelPart === 'top' ? i - 1 : i, dx, dy);
+    }
+  }
+}
+
 function resolve(g) {
   const f = g.fl;
   g.wallPush = null;
@@ -1352,6 +1373,7 @@ function stepTruck(g, input, dt) {
     twistCarried(g, Math.max(-ALIGN_RATE * dt, Math.min(ALIGN_RATE * dt, diff)));
   }
   clearWallOverlaps(g);
+  containStacks(g);
 
   if (Math.abs(intended) > 1e-6) {
     const actual = (f.x - driven.x) * Math.cos(f.a) + (f.y - driven.y) * Math.sin(f.a) + intended;
