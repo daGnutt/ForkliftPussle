@@ -8,7 +8,7 @@ let pad = null;
 Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [pad] }, configurable: true });
 const { createInput } = await import('../js/input.js');
 
-import { drive } from '../js/forklift.js';
+import { drive, maxForwardSpeed, maxReverseSpeed } from '../js/forklift.js';
 const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   connected: true, mapping: 'standard', axes,
   buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: pressed.includes(i) })),
@@ -41,6 +41,24 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   assert.ok(!inp.state().up, 'unplugging releases the controls');
 }
 
+// D-pad selects GL camera modes and resets the active camera
+{
+  const calls = [];
+  const inp = createInput({
+    cameraOverview: () => calls.push('overview'),
+    cameraCabin: () => calls.push('cabin'),
+    cameraChase: () => calls.push('chase'),
+    cameraReset: () => calls.push('reset'),
+  });
+  pad = mkPad({ pressed: [12] }); inp.state();
+  pad = mkPad({ pressed: [14] }); inp.state();
+  pad = mkPad({ pressed: [15] }); inp.state();
+  pad = mkPad({ pressed: [13] }); inp.state();
+  pad = mkPad({ pressed: [13] }); inp.state();
+  assert.deepEqual(calls, ['overview', 'cabin', 'chase', 'reset'], 'd-pad camera actions fire once per press');
+  pad = null;
+}
+
 // Analog trigger and stick scale acceleration and steering
 {
   const inp = createInput({ blocked: () => false });
@@ -59,6 +77,8 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   const stFull = mk();
   for (let i = 0; i < 100; i++) drive(stFull, { right: true }, 0.02);
   assert.ok(st.steer > 0 && st.steer < stFull.steer, 'half stick steers less than full');
+  assert.ok(maxForwardSpeed(5) < maxForwardSpeed(0), 'raised forks lower max forward speed');
+  assert.ok(maxReverseSpeed(5) < maxReverseSpeed(0), 'raised forks lower max reverse speed');
 }
 
 // Local multiplayer: gamepads join with A, each drives its own truck, level reloads keep them, unplugging removes the truck

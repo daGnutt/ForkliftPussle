@@ -129,7 +129,7 @@ export function createInput(handlers) {
   window.addEventListener('blur', () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); });
   // Gamepad (standard mapping), polled on every state() call. Held controls are merged into state(); buttons act on their press edge.
   // Drive: right trigger forward, left trigger back; steer: left stick X; fork up: A/RB; fork down: B/LB (hard mode: tap = next level, hold = fluid);
-  // horn: X; cabin view: Y; chase camera: right stick click; look: right stick X; menu: Start (also closes it).
+  // horn: X; look: right stick X; camera: d-pad up overview / left cabin / right chase / down reset; menu: Start (also closes it).
   // While the menu (or splash) is open the d-pad moves/adjusts, A selects and B goes back, via the menuNav/menuSelect/menuBack handlers.
   const DEAD = 0.3;
   let localMode = false; // local multiplayer: pads belong to local.js; only Start and the menu still use them
@@ -138,7 +138,7 @@ export function createInput(handlers) {
   const padActions = [
     [0, () => { handlers.up?.(); handlers.next?.(); }], [5, () => handlers.up?.()],
     [1, () => press('KeyZ')], [4, () => press('KeyZ')],
-    [3, () => handlers.swapView?.()], [11, () => handlers.toggleChase?.()],
+    [3, () => handlers.swapView?.()],
   ];
   const menuDirs = { 12: 'up', 13: 'down', 14: 'left', 15: 'right' };
   function pollPad() {
@@ -170,6 +170,10 @@ export function createInput(handlers) {
     pad.lookR = rx > DEAD;
     pad.horn = b(2);
     for (const [i, act] of padActions) if (edge(i)) act();
+    if (edge(12)) handlers.cameraOverview?.();
+    if (edge(14)) handlers.cameraCabin?.();
+    if (edge(15)) handlers.cameraChase?.();
+    if (edge(13)) handlers.cameraReset?.();
     // lowering is a held action: the key stays 'down' while either button is held
     if (b(1) || b(4)) down.add('KeyZ'); else if (was[1] || was[4]) down.delete('KeyZ');
     pad.forkUp = b(0) || b(5);
