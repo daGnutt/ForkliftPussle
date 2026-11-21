@@ -1294,10 +1294,14 @@ function frame(now) {
   const cameraStep = (inp, dt) => {
     if (inp.up || inp.down || inp.left || inp.right) view.snap = true;
     if (!splashOn && glEnabled()) {
-      if (view.povBig) { if (inp.lookL || inp.lookR) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * dt, 0, true); }
+      const pitch = (inp.lookU ? 1 : 0) - (inp.lookD ? 1 : 0);
+      if (view.povBig) {
+        if (inp.lookL || inp.lookR || inp.lookU || inp.lookD) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * dt, pitch * LOOK_SPEED * dt, true);
+      }
       else {
         if (inp.lookR && !view.lookHeld?.R) quarterTurn(1);
         if (inp.lookL && !view.lookHeld?.L) quarterTurn(-1);
+        if (inp.lookU || inp.lookD) lookBy(0, pitch * LOOK_SPEED * dt);
         turnStep(dt);
       }
       if (view.manualCab) {

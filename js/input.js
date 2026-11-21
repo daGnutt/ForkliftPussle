@@ -133,7 +133,7 @@ export function createInput(handlers) {
   // While the menu (or splash) is open the d-pad moves/adjusts, A selects and B goes back, via the menuNav/menuSelect/menuBack handlers.
   const DEAD = 0.3;
   let localMode = false; // local multiplayer: pads belong to local.js; only Start and the menu still use them
-  const pad = { forkUp: false, thr: 0, str: 0, up: false, down: false, left: false, right: false, lookL: false, lookR: false, horn: false };
+  const pad = { forkUp: false, thr: 0, str: 0, up: false, down: false, left: false, right: false, lookL: false, lookR: false, lookU: false, lookD: false, horn: false };
   let padPrev = [];
   const padActions = [
     [0, () => { handlers.up?.(); handlers.next?.(); }], [5, () => handlers.up?.()],
@@ -147,7 +147,7 @@ export function createInput(handlers) {
     padPrev = gp ? gp.buttons.map((b) => b.pressed) : [];
     const edge = (i) => !!gp && padPrev[i] && !was[i];
     pad.thr = pad.str = 0;
-    pad.up = pad.down = pad.left = pad.right = pad.lookL = pad.lookR = pad.horn = pad.forkUp = false;
+    pad.up = pad.down = pad.left = pad.right = pad.lookL = pad.lookR = pad.lookU = pad.lookD = pad.horn = pad.forkUp = false;
     if (!gp) return;
     if (edge(0) || edge(9)) handlers.anyKey?.();
     if (edge(9)) { handlers.menuToggle?.(); return; }
@@ -160,6 +160,7 @@ export function createInput(handlers) {
     if (localMode) return;
     const b = (i) => !!gp.buttons[i]?.pressed;
     const rx = gp.axes[2] ?? 0;
+    const ly = gp.axes[1] ?? 0;
     // analog: trigger travel is the throttle/brake, left stick X the steering
     ({ thr: pad.thr, str: pad.str } = padAxes(gp));
     pad.up = pad.thr > 0;
@@ -168,6 +169,8 @@ export function createInput(handlers) {
     pad.right = pad.str > 0;
     pad.lookL = rx < -DEAD;
     pad.lookR = rx > DEAD;
+    pad.lookU = ly < -DEAD;
+    pad.lookD = ly > DEAD;
     pad.horn = b(2);
     for (const [i, act] of padActions) if (edge(i)) act();
     if (edge(12)) handlers.cameraOverview?.();
@@ -196,6 +199,8 @@ export function createInput(handlers) {
         right: down.has('ArrowRight') || stick.right || pad.right,
         lookL: down.has('KeyW') || pad.lookL,
         lookR: down.has('KeyQ') || pad.lookR,
+        lookU: pad.lookU,
+        lookD: pad.lookD,
         brake: !!stickRect() && stickId === null && !kThr && !pad.thr, // joystick scheme shown but untouched: brake
         horn: down.has('KeyH') || twoFingerHorn || pad.horn,
         forkUp: down.has('KeyA') || pad.forkUp, // held fork keys: hard mode reads them (tap = next level, hold = fluid); easy mode uses the press handlers
