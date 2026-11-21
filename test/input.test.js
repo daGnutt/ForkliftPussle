@@ -301,3 +301,14 @@ console.log('input tests passed');
   t.scrape = 1; t.slip = 0.5; r.feedTruck(t);
   assert.ok(r.mix().weak > 0.3, 'scrape and slip rumble');
 }
+
+// Y on the keyboard player's pad does not swap the camera view
+{
+  const calls = [];
+  const inp = createInput({ swapView: () => calls.push('swap') });
+  pad = mkPad({ pressed: [3] });
+  inp.state();
+  pad = null;
+  inp.state();
+  assert.deepEqual(calls, []);
+}

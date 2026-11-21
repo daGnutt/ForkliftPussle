@@ -145,7 +145,6 @@ export function createInput(handlers) {
   const padActions = [
     [0, () => { handlers.up?.(); handlers.next?.(); }], [5, () => handlers.up?.()],
     [1, () => press('KeyZ')], [4, () => press('KeyZ')],
-    [3, () => handlers.swapView?.()],
   ];
   const menuDirs = { 12: 'up', 13: 'down', 14: 'left', 15: 'right' };
   function pollPad() {
