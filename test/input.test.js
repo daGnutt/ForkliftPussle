@@ -6,13 +6,50 @@ globalThis.document = stub();
 globalThis.window = stub();
 let pad = null;
 Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [pad] }, configurable: true });
-const { createInput } = await import('../js/input.js');
+const { createInput, createCameraPointerInput } = await import('../js/input.js');
 
 import { drive } from '../js/forklift.js';
 const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   connected: true, mapping: 'standard', axes,
   buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: pressed.includes(i) })),
 });
+
+// Camera gestures distinguish a tap from a drag, cancellation, and the two-finger horn.
+{
+  const listeners = {};
+  const canvas = { addEventListener: (type, f) => { listeners[type] = f; } };
+  const calls = [];
+  const dragging = createCameraPointerInput(canvas, {
+    allowed: (e) => !e.blocked,
+    move: (dx, dy, e) => calls.push(['move', dx, dy, e.pointerType]),
+    tap: (e) => calls.push(['tap', e.pointerType]),
+  });
+  const event = (type, id, x, y, extra = {}) => listeners[type]({ type, pointerId: id, pointerType: 'touch', clientX: x, clientY: y, ...extra });
+  event('pointerdown', 1, 50, 50);
+  event('pointermove', 1, 53, 50);
+  event('pointerup', 1, 53, 50);
+  assert.deepEqual(calls, [['tap', 'touch']], 'small movements still tap');
+  calls.length = 0;
+  event('pointerdown', 1, 50, 50);
+  event('pointermove', 1, 60, 55);
+  assert.equal(dragging(), true);
+  event('pointerup', 1, 60, 55);
+  assert.deepEqual(calls, [['move', 10, 5, 'touch']], 'a drag never taps');
+  assert.equal(dragging(), false);
+  calls.length = 0;
+  event('pointerdown', 1, 50, 50);
+  event('pointerdown', 2, 70, 50);
+  event('pointerup', 1, 50, 50);
+  event('pointerup', 2, 70, 50);
+  event('pointerdown', 3, 50, 50);
+  event('pointercancel', 3, 50, 50);
+  event('pointerdown', 4, 50, 50, { blocked: true });
+  event('pointerup', 4, 50, 50);
+  assert.deepEqual(calls, [], 'multitouch, cancellation and excluded areas do not tap');
+  event('pointerdown', 5, 50, 50, { pointerType: 'mouse' });
+  event('pointerup', 5, 50, 50, { pointerType: 'mouse' });
+  assert.deepEqual(calls, [['tap', 'mouse']], 'mouse clicks remain available for double-clicking');
+}
 
 // Gamepad drives, steers and fires one-shot actions on the press edge
 {

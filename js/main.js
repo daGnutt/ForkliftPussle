@@ -1,7 +1,7 @@
 import './firstplay.js';
 import { newGame, update, endPhotos, forkUp, forkDown, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges, crashAlert } from './game.js';
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
-import { createInput, inTouchControlZone } from './input.js';
+import { createInput, createCameraPointerInput, inTouchControlZone } from './input.js';
 import { createLocal } from './local.js';
 import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
 import { createRelay } from './net/relay.js';
@@ -18,7 +18,7 @@ import { debugEnabled, createDebug } from './debug.js';
 import { setBareForks, bareForksEnabled } from './gl/models.js';
 import { setParticlesEnabled } from './gl/particles.js';
 import { setDecalsEnabled } from './decals.js';
-import { glEnabled, setGlEnabled, attachGlCanvas } from './gl/renderer.js';
+import { glAvailable, glEnabled, setGlEnabled, attachGlCanvas } from './gl/renderer.js';
 import { themeMode, setThemeMode, theme } from './theme.js';
 import { setDiscoEnabled } from './disco.js';
 import { chaseDrift, chaseOrbit, lookYawDelta, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
@@ -279,6 +279,7 @@ function setCameraOverview() {
   view.orbit = null;
   view.look = null;
   view.manualCab = false;
+  view.touchManualCab = false;
   view.chaseGoal = null;
   view.camP = null;
   localStorage.setItem('forklift-cab-view', '0');
@@ -291,6 +292,7 @@ function setCameraCabin() {
   view.chase = false;
   view.look = null;
   view.manualCab = false;
+  view.touchManualCab = false;
   view.orbit = null;
   view.chaseGoal = null;
   view.camP = null;
@@ -305,6 +307,7 @@ function setCameraChase() {
   view.chase = true;
   view.look = null;
   view.manualCab = false;
+  view.touchManualCab = false;
   view.orbit = null;
   view.chaseGoal = null;
   view.camP = null;
@@ -317,6 +320,7 @@ function resetCamera() {
   view.look = null;
   view.orbit = null;
   view.manualCab = false;
+  view.touchManualCab = false;
   view.chaseGoal = null;
   view.camP = null;
   view.camA = null;
@@ -382,11 +386,19 @@ const input = createInput({
 
 // On touch, tapping the "Level complete" board goes to the next level.
 // Easter egg: in landscape, tapping the minimap swaps between the overview and the cab view.
+const specialTouch = new WeakSet();
+let lastTap = null;
 if (isTouch) canvas.addEventListener('pointerdown', (e) => {
   if (splashOn || recordOpen || view.menuOpen) return;
   const r = canvas.getBoundingClientRect(), h = view.miniHit, x = e.clientX - r.left, y = e.clientY - r.top;
-  if (h && x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) view.povBig = !view.povBig;
-  else nextLevel();
+  if (h && x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
+    specialTouch.add(e);
+    lastTap = null;
+    view.povBig = !view.povBig;
+  } else {
+    if (game.status === 'won' || (game.endless && game.status === 'over')) { specialTouch.add(e); lastTap = null; }
+    nextLevel();
+  }
 });
 
 // Look around in the 3D views: drag the canvas or hold ,/. (or Q/W). The big view's camera swings around the forklift (overview,
@@ -449,42 +461,36 @@ function springBack(dt) {
   if (l && !view.manualCab) { l.yaw -= l.yaw * k; l.pitch -= l.pitch * k; if (Math.abs(l.yaw) + Math.abs(l.pitch) < 0.003) view.look = null; }
   if ((!view.orbit || view.chase || view.orbit.yaw === Math.round(view.orbit.yaw / (Math.PI / 2)) * (Math.PI / 2)) && !view.look) view.snap = false;
 }
-let drag = null;
 canvas.addEventListener('pointerdown', () => { if (!splashOn) view.startHidden = true; }, true);
-canvas.addEventListener('pointerdown', (e) => {
-  if (e.target !== canvas || !glEnabled() || splashOn || recordOpen || view.menuOpen) return;
-  if (e.pointerType === 'touch') {
-    const r = canvas.getBoundingClientRect();
-    if (inTouchControlZone(e.clientX - r.left, e.clientY - r.top, r.width, r.height, matchMedia('(orientation: landscape)').matches, view.shared ? game.trucks.length : 1)) return;
-  }
-  drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
-});
-canvas.addEventListener('pointermove', (e) => {
-  if (!drag || e.pointerId !== drag.id) return;
-  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-  if (!drag.moved && Math.hypot(dx, dy) < 6) return;
-  drag.moved = true;
-  drag.x = e.clientX; drag.y = e.clientY;
-  lookBy(dx * 0.008, dy * 0.006);
-});
 // Double tap (or double click) on the GL overview toggles the third-person camera.
-let lastTap = null;
 const DOUBLE_TAP_MS = 350, DOUBLE_TAP_PX = 30;
 function tapped(e) {
   const now = performance.now();
   if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX) {
     lastTap = null;
     toggleChase();
-  } else lastTap = { t: now, x: e.clientX, y: e.clientY };
-}
-const endDrag = (e) => {
-  if (drag && e.pointerId === drag.id) {
-    if (!drag.moved && e.type === 'pointerup') tapped(e);
-    drag = null;
+  } else {
+    if (e.pointerType === 'touch') resetCamera();
+    lastTap = { t: now, x: e.clientX, y: e.clientY };
   }
-};
-canvas.addEventListener('pointerup', endDrag);
-canvas.addEventListener('pointercancel', endDrag);
+}
+const cameraDragging = createCameraPointerInput(canvas, {
+  allowed: (e) => {
+    if (e.target !== canvas || !glEnabled() || splashOn || recordOpen || view.menuOpen || specialTouch.has(e)) return false;
+    if (e.pointerType !== 'touch') return true;
+    if (!glAvailable()) return false;
+    const r = canvas.getBoundingClientRect();
+    return !inTouchControlZone(e.clientX - r.left, e.clientY - r.top, r.width, r.height, matchMedia('(orientation: landscape)').matches, view.shared ? game.trucks.length : 1);
+  },
+  move: (dx, dy, e) => {
+    lastTap = null;
+    const touchCab = e.pointerType === 'touch' && view.povBig;
+    lookBy(dx * 0.008, dy * 0.006, touchCab);
+    if (touchCab) view.touchManualCab = true;
+  },
+  tap: tapped,
+  cancel: () => { lastTap = null; },
+});
 
 const pending = {};
 recordName.addEventListener('keydown', (e) => e.stopPropagation());
@@ -1369,7 +1375,7 @@ function frame(now) {
     }
     if (view.snap) springBack(dt);
     // the chase camera slowly eases back to its default height while it moves (driving, swinging or pitching)
-    if (view.chase && view.orbit && (inp.up || inp.down || inp.left || inp.right || inp.lookL || inp.lookR || view.chaseGoal || drag?.moved)) {
+    if (view.chase && view.orbit && (inp.up || inp.down || inp.left || inp.right || inp.lookL || inp.lookR || view.chaseGoal || cameraDragging())) {
       const o = view.orbit;
       o.tilt -= (o.tilt - CHASE_TILT) * (1 - Math.exp(-CHASE_TILT_EASE * dt));
       if (Math.abs(o.tilt - CHASE_TILT) < 0.003) o.tilt = CHASE_TILT;
