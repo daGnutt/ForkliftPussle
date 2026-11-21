@@ -1,5 +1,5 @@
 import './firstplay.js';
-import { newGame, update, endPhotos, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges, crashAlert } from './game.js';
+import { newGame, update, endPhotos, forkUp, forkDown, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges, crashAlert } from './game.js';
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput, inTouchControlZone } from './input.js';
 import { createLocal } from './local.js';
@@ -287,6 +287,7 @@ const input = createInput({
     if (view.povBig) tutDone.cab = true;
   },
   up: () => {
+    if (game.hard) return; // hard mode reads the held fork keys in update()
     if (mp?.role === 'guest') { mp.guest.sendFork('up'); noteForkResult('up', mp.guest.predictor.fork('up', performance.now() / 1000)); return; }
     const h = game.H;
     const res = forkUp(game);
@@ -294,17 +295,12 @@ const input = createInput({
     if (res !== 'blocked' && game.H !== h) playFork(true);
   },
   down: () => {
+    if (game.hard) return;
     if (mp?.role === 'guest') { mp.guest.sendFork('down'); noteForkResult('down', mp.guest.predictor.fork('down', performance.now() / 1000)); return; }
     const h = game.H;
     const res = forkDown(game);
     noteForkResult('down', res);
     if (res !== 'blocked' && game.H !== h) playFork(false);
-  },
-  downAll: () => {
-    if (mp?.role === 'guest') { mp.guest.sendFork('downAll'); mp.guest.predictor.fork('downAll', performance.now() / 1000); return; }
-    const h = game.H;
-    forkDownAll(game);
-    if (game.H !== h) playFork(false);
   },
   next: () => nextLevel(),
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
@@ -541,6 +537,14 @@ function noteForkResult(dir, res) {
   playBlocked();
   if (dir === 'down') pendingTips.forkbox = true;
   else if (game.carried || game.lifting >= 0) pendingTips.ceiling = true;
+}
+// Hard mode fork keys act inside update(); sounds and hints follow the events it reports.
+let lastForkEv = null;
+function watchForkEvents(ev) {
+  if (!ev || ev === lastForkEv) return;
+  lastForkEv = ev;
+  noteForkResult(ev.dir > 0 ? 'up' : 'down', ev.res);
+  if (ev.res !== 'blocked' && ev.moved) playFork(ev.dir > 0);
 }
 function checkOpenTip() {
   if (tipUntil) {
@@ -1259,10 +1263,12 @@ function frame(now) {
       mp.guest.predictor.apply(game, sec);
       cameraStep(inp, dtReal);
       followStep(dtReal);
-      if (game.H !== mp.lastH) { if (mp.lastH != null) playFork(game.H > mp.lastH); mp.lastH = game.H; }
+      if (game.hard) watchForkEvents(mp.guest.predictor.fkEv());
+      else if (game.H !== mp.lastH) { if (mp.lastH != null) playFork(game.H > mp.lastH); mp.lastH = game.H; }
     }
   }
   watchPops();
+  if (mp?.role !== 'guest') watchForkEvents(game.fk.ev);
   if (!mp && !splashOn && !view.paused && !view.menuOpen && localOpt.checked) local.step(game, performance.now() / 1000);
   view.shared = !mp && localOpt.checked && local.players > 0;
   while (mp?.role !== 'guest' && !splashOn && !view.paused && acc >= STEP) {

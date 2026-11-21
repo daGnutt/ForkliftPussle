@@ -17,7 +17,7 @@ const okPen = (p) => !!p && num(p.crash) && num(p.sq) &&
   (p.inspected === undefined || typeof p.inspected === 'boolean') &&
   (p.oilDropped === undefined || Number.isInteger(p.oilDropped) && p.oilDropped >= 0 && p.oilDropped <= 50) &&
   (p.oilFraction === undefined || num(p.oilFraction) && p.oilFraction >= 0 && p.oilFraction < 1);
-const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'oil', 'repair', 'bot', 'inspector', 'photo', 'bonks', 'H', 'hf', 'status', 'time', 'started', 'clock'];
+const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'oil', 'repair', 'bot', 'inspector', 'photo', 'bonks', 'H', 'hy', 'hf', 'status', 'time', 'started', 'clock'];
 
 // Plain-JSON snapshot of a level in progress; the static layout is regenerated from (level, seed, hard).
 export function serializeGame(g, seedText = '') {
@@ -80,7 +80,8 @@ export function deserializeGame(data) {
   restoreInspections(g, data);
   const ph = g.photo; // the observer's last picture; a malformed one is dropped rather than failing the load
   if (ph != null && !(Array.isArray(ph.layers) && Array.isArray(ph.pens) && Array.isArray(ph.rots) && Array.isArray(ph.offs) && num(ph.at?.x) && num(ph.at?.y))) g.photo = null;
-  if (!num(g.hf)) g.hf = g.H;
+  if (!num(g.hy) || g.hy < g.H || g.hy >= g.H + 1) g.hy = g.H;
+  if (!num(g.hf)) g.hf = g.hy;
   if (!num(g.time)) g.time = 0;
   // Saves from before `clock` was stored: start it past every stack's last-hit time so cooldowns have expired.
   if (!num(g.clock)) g.clock = Math.max(0, ...g.stacks.map((st) => st.hitAt ?? 0)) + 1;
@@ -128,7 +129,8 @@ export function deserializeEndless(data) {
   if (s.status !== 'play') throw new Error('Corrupt state');
   const g = newEndless(data.seed, !!data.hard);
   Object.assign(g, clone(s));
-  if (!num(g.hf)) g.hf = g.H;
+  if (!num(g.hy) || g.hy < g.H || g.hy >= g.H + 1) g.hy = g.H;
+  if (!num(g.hf)) g.hf = g.hy;
   if (!num(g.time)) g.time = 0;
   if (!num(g.bonks)) g.bonks = 0;
   g.started = false; // the start board (with the high scores) shows until the truck moves again

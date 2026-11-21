@@ -1,13 +1,13 @@
 // Wire format and state sync of a party. The host runs the simulation and sends snapshots; guests send their inputs.
 //
-//   guest -> host (reliable): { t: 'hello', name } | { t: 'in', up, down, left, right, horn } | { t: 'fork', dir: 'up' | 'down' } | { t: 'gping', n } (answered with { t: 'gpong', n }; the guest's round-trip measurement)
+//   guest -> host (reliable): { t: 'hello', name } | { t: 'in', up, down, left, right, horn, fu, fd (held fork keys, hard mode) } | { t: 'fork', dir: 'up' | 'down' } (easy mode) | { t: 'gping', n } (answered with { t: 'gpong', n }; the guest's round-trip measurement)
 //   host -> guest (reliable): { t: 'welcome', slot, started, ...level } | { t: 'level', ...level } | { t: 'bye' }
 //     where level = { level, seed, hard, seedText, endless, snap } (snap is a full snapshot)
 //   host -> guest (fast):     { t: 'snap', ...snapshot }
 import { makeTruck } from '../game.js';
 import { endlessSnapshot, restoreEndless } from '../endless.js';
 
-const TRUCK_FIELDS = ['id', 'color', 'name', 'gone', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'contact', 'slip', 'H', 'hf', 'ef', 'hitAt', 'horn', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
+const TRUCK_FIELDS = ['id', 'color', 'name', 'gone', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'contact', 'slip', 'H', 'hy', 'hf', 'ef', 'hitAt', 'horn', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
 export const SNAPSHOT_HZ = 30;
 const STACK_RESEND = 5; // snapshots are unreliable, so changed stacks are repeated this many times
 const STACK_REFRESH = 2; // seconds between full stack refreshes while nothing changes

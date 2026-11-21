@@ -2,7 +2,7 @@
 // feels instant whatever the ping. Everything else (other trucks, stacks, forks) still comes from the host. Each snapshot
 // carries the host's version of the truck; it is compared with what the prediction was one round trip ago and the difference
 // is blended away (or snapped when it is large, e.g. after a collision with another truck).
-import { newGame, update, forkUp, forkDown, forkDownAll } from '../game.js';
+import { newGame, update, forkUp, forkDown } from '../game.js';
 import { newEndless } from '../endless.js';
 
 const STEP = 1 / 120;
@@ -12,8 +12,8 @@ const SNAP_DIST = 2; // tiles; a bigger error replaces the prediction outright
 const PUSH_MEMORY = 0.5; // seconds a stack keeps the guest's own (predicted) push before the host's position is trusted again
 const MAX_STACK_DIFF = 0.6; // tiles; a predicted stack further off than this from the host's is not shown
 
-const AUX = ['carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hf', 'ef', 'hitAt', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
-const SHOWN = ['lifting', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'H', 'hf', 'ef']; // what is displayed while a fork action is unconfirmed
+const AUX = ['carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hy', 'hf', 'ef', 'hitAt', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
+const SHOWN = ['lifting', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'H', 'hy', 'hf', 'ef']; // what is displayed while a fork action is unconfirmed
 const CONFIRM_SLACK = 0.3; // seconds after one round trip before the host's fork state is trusted over the predicted one
 
 const wrap = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
@@ -48,6 +48,8 @@ export function createPredictor() {
 
   return {
     get ready() { return !!pred; },
+    // The last fork event of the predicted truck (hard mode), for sounds and hints.
+    fkEv() { return sim?.trucks[sim.self]?.fk?.ev ?? null; },
     reset(g) {
       sim = g.endless ? newEndless(g.seed, g.hard) : newGame(g.level, g.seed, g.hard);
       sim.self = g.self;
@@ -89,7 +91,7 @@ export function createPredictor() {
     fork(dir, now) {
       if (!sim || !pred) return;
       forkAt = now;
-      return (dir === 'up' ? forkUp : dir === 'downAll' ? forkDownAll : forkDown)(sim);
+      return (dir === 'up' ? forkUp : forkDown)(sim);
     },
     // Advances the prediction by `dt` seconds of real time with the held keys; `g` is the interpolated host game.
     step(g, input, dt, now) {
