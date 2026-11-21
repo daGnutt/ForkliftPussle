@@ -1471,6 +1471,8 @@ function frame(now) {
     lastDraw = now;
     const t2 = performance.now();
     view.fullscreen = !!document.fullscreenElement;
+    view.tutorialBottom = isTouch && view.height > view.width && !tutorialEl.classList.contains('hide')
+      ? tutorialEl.getBoundingClientRect().bottom - canvas.getBoundingClientRect().top : 0;
     game.debugBots = !!debug;
     draw(ctx, game, view);
     drawResults(resultsCtx, game, view);
