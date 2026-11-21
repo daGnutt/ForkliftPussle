@@ -17,7 +17,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark } from './decals.js';
-import { liftedHf, carriedWorldOffs, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
+import { liftedHf, carriedDrawH, carriedWorldOffs, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
 import { BOX_SCALE, BOX_HALF_X, halfY } from './geom.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
@@ -84,7 +84,7 @@ const PX = 0.06, PY = -0.1; // screen shift per unit of height
 
 // Draws a stack whose bottom box is at height z0 above the floor: top box
 // colour, plus a coloured number for each box below it.
-function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
+function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = [], from = 0, extra = 0) {
   const n = layers.length;
   const size = 1, h = size / 2;
   const at = (cx, cy, i, fn) => {
@@ -99,10 +99,11 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
     const hx = BOX_HALF_X, hy = halfY(pens[0]);
     at(x + (offs[0]?.x || 0) + 0.1, y + (offs[0]?.y || 0) + 0.1, 0, () => ctx.fillRect(-hx, -hy, 2 * hx, 2 * hy));
   }
-  const cx = x + (offs[n - 1]?.x || 0) + (z0 + n - 1) * PX, cy = y + (offs[n - 1]?.y || 0) + (z0 + n - 1) * PY;
+  const height = (i) => z0 + i + (i >= from ? extra : 0);
+  const cx = x + (offs[n - 1]?.x || 0) + height(n - 1) * PX, cy = y + (offs[n - 1]?.y || 0) + height(n - 1) * PY;
   for (let i = 0; i < n; i++) {
     if (pens[i]?.barrelPart === 'top') continue;
-    at(x + (offs[i]?.x || 0) + (z0 + i) * PX, y + (offs[i]?.y || 0) + (z0 + i) * PY, i, () => {
+    at(x + (offs[i]?.x || 0) + height(i) * PX, y + (offs[i]?.y || 0) + height(i) * PY, i, () => {
       if (pens[i]?.barrelPart === 'base') {
         const col = COLORS[layers[i]];
       const rx = 0.38, ry = 0.34, segments = 32;
@@ -357,7 +358,7 @@ function drawAlertGlow(ctx, g) {
 function drawCarried(ctx, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  drawStack(ctx, g.carried, p.x, p.y, g.hf + (liftedHf(g) ?? 0) + carriedJoltZ(g), g.carriedRots.map((r) => r + g.fl.a), carriedWorldOffs(g), g.carriedPen);
+  drawStack(ctx, g.carried, p.x, p.y, (carriedDrawH(g) ?? 0) + carriedJoltZ(g), g.carriedRots.map((r) => r + g.fl.a), carriedWorldOffs(g), g.carriedPen);
 }
 
 // Draws the top-down overview scaled into the screen rect (rx, ry, rw, rh).
@@ -836,9 +837,9 @@ function drawWorldObjects(ctx, g, vis) {
   // Stacks whose top is below the tines are drawn first; stacks the tines
   // slide under are drawn over them.
   const shown = g.stacks.map((st) => fallView(g, st)).filter((st) => seen(st.x - 1.2, st.y - 1.2, 2.4, 2.4));
-  const low = shown.filter((st) => stackZ(st) + st.layers.length <= g.hf);
-  const high = shown.filter((st) => stackZ(st) + st.layers.length > g.hf);
-  const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, stackZ(st), st.rots, st.offs, st.pen);
+  const low = shown.filter((st) => stackZ(st) + st.layers.length + dropLift(g, st) <= g.hf);
+  const high = shown.filter((st) => stackZ(st) + st.layers.length + dropLift(g, st) > g.hf);
+  const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, stackZ(st), st.rots, st.offs, st.pen, st.dropFrom ?? 0, dropLift(g, st));
   for (const st of low) dstack(st);
   // other trucks first, so the local one is always on top; ghosts are translucent
   const trucks = [...otherTrucksShown(g), g];
@@ -1273,7 +1274,7 @@ export function drawForkGauge(ctx, g, gx, gy) {
 
 function drawCompass(ctx, g, view, width) {
   let a; // world heading of the screen's "up"
-  if (view.povBig) a = g.fl.a + (view.look ? view.look.yaw : 0) + (view.gamepadCab ? 0 : headTurn(g.fl));
+  if (view.povBig) a = g.fl.a + (view.look ? view.look.yaw : 0) + (view.gamepadCab || view.touchManualCab ? 0 : headTurn(g.fl));
   else if (view.chase) a = (view.camA ?? g.fl.a) + (view.orbit ? view.orbit.yaw : 0);
   else a = view.orbit ? view.orbit.yaw - Math.PI / 2 : -Math.PI / 2;
   const theta = Math.atan2(-Math.cos(a), -Math.sin(a)), cx = width - 29, cy = 262, r = 18;
@@ -1334,7 +1335,7 @@ export function draw(ctx, g, view) {
   const cabs = view.shared && view.cabs ? [...view.cabs].filter((i) => g.trucks[i] && !g.trucks[i].gone).sort((a, b) => a - b) : [];
   const tiles = cabs.length ? cabTiles(width, height, cabs.length) : null;
   if (view.povBig && !view.shared) {
-    if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr, view.look, !view.gamepadCab)) drawPov(ctx, g, 0, 0, width, height);
+    if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr, view.look, !view.gamepadCab && !view.touchManualCab)) drawPov(ctx, g, 0, 0, width, height);
     if (view.touch && width > height) { // easter egg: the minimap stays tappable to swap back to the overview
       const mm = miniSize(g, 120, 70), mx = (width - mm.w) / 2, my = height - 8 - mm.h;
       drawMiniMap(ctx, g, { x: 0, y: 0, w: g.w, h: g.h }, mx, my, mm.s);
@@ -1384,7 +1385,7 @@ export function draw(ctx, g, view) {
     if (tiles) {
       cabs.forEach((i, k) => {
         const t = tiles.cabs[k], tv = i === g.self ? g : truckView(g, i);
-        if (!drawPov3d(ctx, tv, t.x, t.y, t.w, t.h, view.dpr, null, i === g.self && !view.gamepadCab)) drawPov(ctx, tv, t.x, t.y, t.w, t.h);
+        if (!drawPov3d(ctx, tv, t.x, t.y, t.w, t.h, view.dpr, null, i === g.self && !view.gamepadCab && !view.touchManualCab)) drawPov(ctx, tv, t.x, t.y, t.w, t.h);
         ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
         ctx.strokeStyle = truckColor(g.trucks[i].color).body;
         ctx.lineWidth = 4;

@@ -1,5 +1,5 @@
 import { boxDecalKind } from './decals.js';
-import { rectPoly, sat, overlapArea, BOX_HALF_X, halfY, palletRunnerDims, zoneExt } from './geom.js';
+import { rectPoly, sat, overlapArea, BOX_HALF_X, halfY, palletRunnerDims, zoneExt, FORK_CLEARANCE, TINE_H, LEVEL_H } from './geom.js';
 export { zoneExt } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
@@ -27,7 +27,6 @@ const SCRAPE_MIN_SPEED = 0.3; // speed while touching a wall that scrapes
 const FORK_BLOCK_POINTS = 10;
 export const TAP_S = 0.2; // hard mode: a fork key released within this many seconds is a tap (next level); held longer it moves the forks fluidly
 export const FORK_RATE = 1; // levels per second while a fork key is held (hard mode)
-export const PICKUP_LIFT = 0.2; // levels the forks must be raised under a box to carry it; carried boxes lower than this above their resting height are set down
 const CEILING_LEVELS = 6; // the carried stack's top (H + boxes) may not go above this many box heights
 const CEILING_POINTS = 10; // crash points per box on the forks each time they hit the ceiling
 const PALLET_INERTIA = 0.17; // radius of gyration squared of a unit box
@@ -53,14 +52,14 @@ const boxPoints = (pen) => (pen?.wide ? 2 * BOX_POINTS : BOX_POINTS);
 // the local truck (`g.self`): g.fl, g.H, g.carried... forward to `g.trucks[g.self]`, so single-player code and
 // tests just use `g`. `truckView(g, i)` gives the same view for another truck (a Proxy), which every per-truck
 // function (update steps, forkUp/forkDown, resolve) accepts in place of `g`.
-const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hy', 'hf', 'ef', 'fk', 'hitAt', 'horn', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
+const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hy', 'hf', 'ef', 'fk', 'hitAt', 'horn', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
 const TRUCK_SET = new Set(TRUCK_KEYS);
 
 export function makeTruck(start, id = 0, name = '') {
   return {
     id, color: id, name, gone: false, input: {},
     fl: makeForklift(start.x, start.y, start.a),
-    carried: null, carriedRel: 0, carriedRots: [], carriedPen: [], carriedOffs: [],
+    carried: null, carriedRel: 0, carriedRots: [], carriedPen: [], carriedOffs: [], carriedRest: 0,
     bonks: 0, bonkPower: 0, bonkAt: -1, scrape: 0, wallPush: null,
     contact: null, // last wall hit: { x, y, nx, ny } = point on the truck and the direction the wall pushed it (for sparks)
     slip: 0, // 0..1, how much the tyres are spinning (driving into something that does not give, or being shoved); drives tyre smoke
@@ -162,8 +161,16 @@ function riderPose(carrier, v) {
   return { x: p.x, y: p.y, a: carrier.fl.a + v.rideOff.a };
 }
 // Height (box levels, incl. the tine thickness) a lifted or perched truck's wheels are at, or null when the truck is on the floor.
-const LIFT_OFF = 0.1 / 0.6; // pallet/tine thickness in box levels (PAL / (BOX_H + PAL))
-export const liftedHf = (g) => (g.truck.liftedBy >= 0 ? (g.root.trucks[g.truck.liftedBy]?.hf ?? 0) + g.truck.rideLv + LIFT_OFF : g.truck.perchZ > 0 ? g.truck.perchZ + LIFT_OFF : null);
+const LIFT_OFF = TINE_H / LEVEL_H;
+export const liftedHf = (g) => {
+  if (g.truck.liftedBy >= 0) {
+    const carrier = g.root.trucks[g.truck.liftedBy];
+    const height = carrier?.hf ?? 0;
+    const base = g.truck.rideLv > 0 && carrier?.carried ? Math.max(height - FORK_CLEARANCE, carrier.carriedRest || 0) : height;
+    return base + g.truck.rideLv + LIFT_OFF;
+  }
+  return g.truck.perchZ > 0 ? g.truck.perchZ + LIFT_OFF : null;
+};
 // A truck that cannot drive or work its forks: on another's tines or perched on stacks.
 const stuck = (g) => g.liftedBy >= 0 || g.perchZ > 0;
 // Box levels of the highest stack top under a truck body at pose p.
@@ -262,7 +269,7 @@ export function removeTruck(g, i) {
       x: p.x, y: p.y, layers: t.carried, rots: t.carriedRots.map((r) => r + t.fl.a), pen: t.carriedPen,
       offs: world.map((o) => ({ x: o.x - base.x, y: o.y - base.y })), a: t.fl.a + t.carriedRel,
     });
-    Object.assign(v, { carried: null, carriedRots: [], carriedPen: [], carriedOffs: [] });
+    Object.assign(v, { carried: null, carriedRots: [], carriedPen: [], carriedOffs: [], carriedRest: 0 });
   }
   if (t.lifting >= 0) releaseLifted(g, t);
   if (t.liftedBy >= 0) { const c = g.trucks[t.liftedBy]; if (c) c.lifting = -1; t.liftedBy = -1; }
@@ -272,7 +279,7 @@ export function removeTruck(g, i) {
 }
 
 // Visual lowering (in box heights) of a just-released stack: it follows the forks of the truck that put it down.
-export const dropLift = (g, st) => (st.dropFrom != null ? Math.max(0, (g.root.trucks[st.dropTruck ?? 0]?.hf ?? 0) - st.dropFrom - stackZ(st)) : 0);
+export const dropLift = (g, st) => (st.dropFrom != null ? Math.max(0, (g.root.trucks[st.dropTruck ?? 0]?.hf ?? 0) - FORK_CLEARANCE - st.dropFrom - stackZ(st)) : 0);
 
 // Proximity alert (any gear but R, occupied forks only, even when coasting or standing still): the area the carried stack sweeps in the next ALERT_AHEAD seconds along the current steering arc,
 // plus a close probe reaching at least ALERT_MIN_REACH tiles beyond the fork tips. Returns the probe polygons (also drawn in debug mode).
@@ -300,7 +307,7 @@ export function crashProbes(g) {
 export function alertTriggers(g) {
   const probes = crashProbes(g);
   if (!probes.length) return hoverStack(g) ? [hoverStack(g)] : [];
-  const hit = g.stacks.filter((s) => s.layers.length > g.H && probes.some((p) => sat(p, stackPoly(s))));
+  const hit = g.stacks.filter((s) => s.layers.length > carriedLevel(g) && probes.some((p) => sat(p, stackPoly(s))));
   const low = hoverStack(g);
   return low && !hit.includes(low) ? [...hit, low] : hit;
 }
@@ -335,6 +342,13 @@ export function carriedWorldOffs(g) {
   const c = Math.cos(g.fl.a), sn = Math.sin(g.fl.a);
   return (g.carriedOffs || []).map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c }));
 }
+
+const carriedBase = (g) => {
+  const hy = Math.floor(g.hy + 1e-6) === g.H ? g.hy : g.H;
+  return g.hard ? hy : g.H;
+};
+const carriedLevel = (g) => Math.floor(carriedBase(g) + 1e-6);
+export const carriedDrawH = (g) => g.carried ? Math.max(g.hf - FORK_CLEARANCE, g.carriedRest || 0) + (liftedHf(g) ?? 0) : null;
 
 // World position of box i of a stack: the stack position plus that box's own offset (boxes may sit crooked on each other).
 function boxPos(S, i) {
@@ -656,11 +670,12 @@ function forkShapes(g) {
   }
   if (g.carried) {
     const c = carriedCenter(g);
-    shapes.push({ poly: boxPoly(c.x, c.y, f.a + g.carriedRel, g.carriedPen?.[0]), stackFilter: (s) => s.layers.length > g.H, carried: true, targets: boxes(g.H) });
+    const level = carriedLevel(g);
+    shapes.push({ poly: boxPoly(c.x, c.y, f.a + g.carriedRel, g.carriedPen?.[0]), stackFilter: (s) => s.layers.length > level, carried: true, targets: boxes(level) });
   }
   const blocks = (s) => s.layers.length > g.H && s.pen?.[g.H]?.barrelPart !== 'top' && g.hard;
-  // Tines raised into a pallet by PICKUP_LIFT or more can no longer enter its slots: they hit the box itself.
-  const raised = g.hy - g.H >= PICKUP_LIFT - 1e-6;
+  // Tines above the pallet's clearance hit its deck rather than entering the slots.
+  const raised = g.hy - g.H > FORK_CLEARANCE + 1e-6;
   const tineTargets = (s) => raised ? [{ poly: boxPoly(boxPos(s, g.H).x, boxPos(s, g.H).y, s.rots[g.H], s.pen?.[g.H]), from: g.H }] : palletRunners(g, s).map((poly) => ({ poly, from: g.H }));
   for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks, tineTargets), tine: true });
   return shapes;
@@ -689,6 +704,7 @@ function liftBoxes(g, S, from) {
   g.carriedRots = S.rots.splice(from).map((r) => r - g.fl.a);
   g.carriedPen = S.pen.splice(from);
   g.carriedRel = g.carriedRots[0];
+  g.carriedRest = from;
   if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
 }
 
@@ -795,7 +811,7 @@ function slideCarried(g, from, m) {
   const obstacles = world.map((_, i) => {
     const out = g.walls.map((w) => w.poly);
     for (const s of g.stacks) {
-      const k = g.H + i;
+      const k = carriedLevel(g) + i;
       if (s.ghost?.includes(g.truck.id) || k < 0 || k >= s.layers.length) continue;
       const p = boxPos(s, k);
       out.push(boxPoly(p.x, p.y, s.rots[k], s.pen[k]));
@@ -803,7 +819,7 @@ function slideCarried(g, from, m) {
     for (const o of otherTrucks(g)) {
       if (ghostBetween(g, g.truck.id, o.truck.id) || o.liftedBy === g.truck.id) continue;
       out.push(bodyPoly(o));
-      const k = g.H + i - o.H;
+      const k = carriedLevel(g) + i - carriedLevel(o);
       if (o.carried && k >= 0 && k < o.carried.length) out.push(carriedPoly(o, k));
     }
     return out.map((poly) => ({ poly, depth: sat(world[i], poly)?.depth || 0 }));
@@ -998,7 +1014,7 @@ function resolve(g) {
       if (Math.hypot(o.fl.x - f.x, o.fl.y - f.y) > 6 || ghostBetween(g, g.truck.id, o.truck.id) || o.truck.liftedBy === g.truck.id) continue;
       const theirCarried = carriedPoly(o.truck), theirs = [bodyPoly(o.truck), theirCarried].filter(Boolean);
       // carried stacks only touch when their height ranges overlap (a stack held above or below another passes it)
-      const apart = g.carried && o.carried && (g.H >= o.H + o.carried.length || o.H >= g.H + g.carried.length);
+      const apart = g.carried && o.carried && (carriedBase(g) >= carriedBase(o) + o.carried.length || carriedBase(o) >= carriedBase(g) + g.carried.length);
       for (const sh of shapes) {
         if (sh.tine) continue;
         for (const q of theirs) {
@@ -1365,6 +1381,13 @@ function stepOil(root, dt) {
 const joltHop = (clock, t0) => { const p = t0 == null ? 1 : (clock - t0) / JOLT_TIME; return p >= 0 && p < 1 ? 0.12 * Math.sin(Math.PI * p) : 0; };
 export const carriedJoltZ = (g) => (g.carried ? joltHop(g.root.clock, g.truck.jolt) : 0);
 
+export function stepDrawForks(g, dt) {
+  const target = g.hy + (g.carried ? FORK_CLEARANCE : 0);
+  g.hf += Math.max(-6 * dt, Math.min(6 * dt, target - g.hf));
+  if (g.carriedRest && g.hf >= g.carriedRest + FORK_CLEARANCE - 1e-6) g.carriedRest = 0;
+  else if (g.carriedRest && g.hy < g.carriedRest) g.carriedRest = Math.max(g.hy, g.carriedRest - 6 * dt);
+}
+
 function stepTruck(g, input, dt) {
   const f = g.fl;
   const hornOn = !!input.horn;
@@ -1377,7 +1400,7 @@ function stepTruck(g, input, dt) {
     if (c && !c.gone) syncLifted(g.root, c);
     f.speed = 0;
     g.slip = 0;
-    g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.hy - g.hf));
+    stepDrawForks(g, dt);
     return;
   }
   if (g.perchZ > 0) { // sitting on stacks: stays until lifted off; drops to the floor if the stacks are taken away
@@ -1385,7 +1408,7 @@ function stepTruck(g, input, dt) {
     if (g.perchZ > 0) {
       f.speed = 0;
       g.slip = 0;
-      g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.hy - g.hf));
+      stepDrawForks(g, dt);
       return;
     }
   }
@@ -1432,10 +1455,10 @@ function stepTruck(g, input, dt) {
   g.slip = Math.max(tireSlip(g, input, dt), 1 - frontGrip.grip, 1 - rearGrip.grip, (g.slip || 0) - SLIP_DECAY * dt);
   if (g.lifting >= 0) syncLifted(g.root, g.truck);
 
-  g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.hy - g.hf));
+  stepDrawForks(g, dt);
   g.ef += (g.hf - g.ef) * (1 - Math.exp(-dt / 0.22)); // cabin eye trails the forks
   // visual lowering of a just-released stack ends when the forks reach it
-  for (const s of g.stacks) if (s.dropFrom != null && (s.dropTruck ?? 0) === g.truck.id && (g.hf <= s.dropFrom + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;
+  for (const s of g.stacks) if (s.dropFrom != null && (s.dropTruck ?? 0) === g.truck.id && (g.hf <= s.dropFrom + FORK_CLEARANCE + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;
 }
 
 // Score popups are hits with `score` = { total } (points of the drop point's stack before wonkiness: shown when it is completed, negative when
@@ -1520,6 +1543,7 @@ function transferCarried(from, to, k = 0, onto = false) {
     to.carriedRots = rots;
     to.carriedOffs = offs;
     to.carriedRel = rots[0];
+    to.carriedRest = from.carriedRest || 0;
   }
   if (k > 0) {
     from.carried = from.carried.slice(0, k);
@@ -1531,6 +1555,7 @@ function transferCarried(from, to, k = 0, onto = false) {
     from.carriedRots = [];
     from.carriedPen = [];
     from.carriedOffs = [];
+    from.carriedRest = 0;
   }
 }
 
@@ -1761,9 +1786,11 @@ function fluidUp(g, k, dt) {
   }
   const hy = Math.min(MAX_H, g.hy + FORK_RATE * dt);
   const S = forkedStack(g);
-  if (S && hy - g.H >= PICKUP_LIFT - 1e-6) {
+  if (S && hy - g.H >= FORK_CLEARANCE - 1e-6) {
     if (pickUp(g, S) === 'blocked') return 'blocked';
     k.last = 1;
+    setHy(g, Math.max(g.H, hy - FORK_CLEARANCE));
+    return;
   }
   setHy(g, hy);
 }
@@ -1772,10 +1799,10 @@ function fluidDown(g, k, dt) {
   if (g.carried) {
     const { S, n, minH } = carriedRest(g);
     const hy = g.hy - FORK_RATE * dt;
-    if (hy < minH + PICKUP_LIFT - 1e-6) {
+    if (hy <= minH + 1e-6) {
       if (minH !== n) { setHy(g, Math.max(minH, hy)); return; } // cannot be merged: it rests on top
-      setHy(g, n);
       putDown(g, S, n);
+      setHy(g, n + FORK_CLEARANCE);
       return 'stop';
     }
     setHy(g, hy);
@@ -1871,6 +1898,7 @@ function putDown(g, S, n) {
   g.carriedRots = [];
   g.carriedPen = [];
   g.carriedOffs = [];
+  g.carriedRest = 0;
   if (g.lifting >= 0) releaseLifted(g.root, g.truck); // a truck that rode on the stack stays perched on it
 }
 

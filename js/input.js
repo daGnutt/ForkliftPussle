@@ -9,6 +9,38 @@ const SCHEMES = {
   wasd: { ArrowUp: null, ArrowDown: null, ArrowLeft: null, ArrowRight: null, KeyW: 'ArrowUp', KeyS: 'ArrowDown', KeyA: 'ArrowLeft', KeyD: 'ArrowRight', KeyE: 'KeyA', KeyQ: 'KeyZ', Comma: 'KeyW', Period: 'KeyQ' },
 };
 
+export function createCameraPointerInput(canvas, { allowed, move, tap, cancel }) {
+  let drag = null;
+  const touches = new Set();
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') {
+      touches.add(e.pointerId);
+      if (touches.size > 1) { drag = null; cancel?.(); return; }
+    }
+    if (!allowed(e)) return;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+    drag.moved = true;
+    drag.x = e.clientX; drag.y = e.clientY;
+    move(dx, dy, e);
+  });
+  const end = (e) => {
+    if (drag && e.pointerId === drag.id) {
+      if (!drag.moved && e.type === 'pointerup') tap(e);
+      if (e.type === 'pointercancel') cancel?.();
+      drag = null;
+    }
+    if (e.pointerType === 'touch') touches.delete(e.pointerId);
+  };
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', end);
+  return () => !!drag?.moved;
+}
+
 export function createInput(handlers) {
   const down = new Set();
   let scheme = SCHEMES.arrows;
