@@ -17,7 +17,7 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
+import { newGame, gameFromLayout, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
@@ -119,6 +119,44 @@ for (let n = 1; n <= 40; n++) {
   lvl.stacks.push({ x: 8, y: 8, wide: true, a: 0 });
   lvl.walls = [wall(5), wall(11)];
   assert.ok(!isReachable(lvl), 'wide starting stacks also need an aligned pickup corridor');
+}
+
+// Ordinary pallets also need a clear entry along their runners, including other starting stacks.
+{
+  const stack = { x: 8, y: 8, layers: [0], a: 0 };
+  const lvl = { w: 16, h: 16, start: { x: 2, y: 2 }, stacks: [stack], zones: [],
+    walls: [{ x: 5, y: 7, w: 0.5, h: 2 }, { x: 11, y: 7, w: 0.5, h: 2 }] };
+  assert.ok(!isReachable(lvl), 'both entry sides blocked despite reachable floor');
+  stack.a = Math.PI / 2;
+  assert.ok(isReachable(lvl), 'rotating the pallet opens a perpendicular approach');
+  stack.a = 0;
+  lvl.walls = [];
+  lvl.stacks.push({ x: 6, y: 8, layers: [0] }, { x: 10, y: 8, layers: [0] });
+  assert.ok(!isReachable(lvl), 'neighbouring starting stacks block both entry sides');
+  stack.a = Math.PI / 2;
+  assert.ok(isReachable(lvl), 'the perpendicular approach avoids the neighbours');
+}
+
+// Drive straight into generated pallets in hard mode without moving them away.
+for (const [n, seed] of [[1, 0], [4, 42], [10, 0], [20, 101]]) {
+  const layout = generateLevel(n, seed);
+  for (let i = 0; i < layout.stacks.length; i++) {
+    const canPick = (side) => {
+      const g = gameFromLayout(layout, n, seed, true), st = g.stacks[i], f = g.fl;
+      const x = st.x, y = st.y, a = st.a + (side < 0 ? Math.PI : 0);
+      f.a = a; f.x = x - 2.2 * Math.cos(a); f.y = y - 2.2 * Math.sin(a);
+      for (let t = 0; t < 480; t++) {
+        f.speed = 0.4;
+        update(g, { up: true }, 1 / 120);
+        if (Math.hypot(f.x + FL.carryX * Math.cos(a) - x, f.y + FL.carryX * Math.sin(a) - y) < 0.12) {
+          forkUp(g);
+          return !!g.carried && Math.hypot(st.x - x, st.y - y) < 0.1;
+        }
+      }
+      return false;
+    };
+    assert.ok(canPick(1) || canPick(-1), `level ${n}, seed ${seed}, stack ${i} has a usable hard-mode entry`);
+  }
 }
 
 // Level 28: on hard mode each wide drop can be released and reversed out of,

@@ -542,7 +542,7 @@ export function wonkyStack(s) {
   }
   if (s.wide) return { x: s.x, y: s.y, layers: [...s.layers], rots: s.layers.map(() => s.a || 0), pen, offs: s.layers.map(() => ({ x: 0, y: 0 })), a: s.a || 0 };
   const r = (i, k) => { const t = Math.sin((base + i * 7.13 + k * 3.7) * 12.9898) * 43758.5453; return (t - Math.floor(t)) * 2 - 1; };
-  const rots = s.layers.map((_, i) => r(i, 1) * WONK_ROT);
+  const rots = s.layers.map((_, i) => (s.a || 0) + r(i, 1) * WONK_ROT);
   const offs = s.layers.map((_, i) => (i === 0 ? { x: 0, y: 0 } : { x: r(i, 2) * WONK_OFF, y: r(i, 3) * WONK_OFF }));
   if (Number.isInteger(s.barrelAt)) {
     rots[s.barrelAt + 1] = rots[s.barrelAt];

@@ -4,7 +4,7 @@ import { MAX_H, MAX_LAYERS } from './forklift.js';
 import { stackSig } from './bot.js';
 
 const SAVE_VERSION = 1;
-const LEVEL_LAYOUT_VERSION = 4;
+const LEVEL_LAYOUT_VERSION = 5;
 const INSPECTION_VERSION = 2;
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -69,7 +69,7 @@ export function deserializeGame(data) {
   if (!data || data.version !== SAVE_VERSION || !data.state) throw new Error('Unknown save format');
   const { level, seed, hard, state: s } = data;
   if (!Number.isInteger(level) || level < 1 || !num(seed)) throw new Error('Bad level or seed');
-  if (data.layoutVersion !== LEVEL_LAYOUT_VERSION && !(data.layoutVersion === undefined && level < 3)) {
+  if (data.layoutVersion !== LEVEL_LAYOUT_VERSION) {
     throw new Error('Saved level layout is no longer compatible');
   }
   const g = newGame(level, seed, !!hard);

@@ -119,9 +119,9 @@ function buildRooms(rnd, w, h, count, start) {
 // True when every stack and zone has a reachable cell within REACH. Position reachability only: ignores turning radius.
 const GRID = 0.25, CLEAR = 0.8, REACH = 2.0;
 
-// A wide pallet must be approached along its short axis. Reserve a straight
-// corridor long enough to set it down and reverse until both tines are clear.
-function wideApproaches(lvl, p, obstacles) {
+// Reserve a straight corridor along the pallet's entry axis, including room for
+// the truck to withdraw until both tines are clear.
+function palletApproaches(lvl, p, obstacles) {
   const vertical = Math.abs(Math.sin(p.a || 0)) > 0.5;
   const withdraw = FL.tineX1 + 0.5 + 0.15;
   const far = withdraw - FL.back + 0.15, half = 1.1;
@@ -143,7 +143,13 @@ function zoneObstacle(z) {
   return { x: z.x - hx, y: z.y - hy, w: 2 * hx, h: 2 * hy };
 }
 
-export function isReachable(lvl) {
+function stackObstacle(s) {
+  if (s.wide) return zoneObstacle(s);
+  const half = Math.SQRT1_2;
+  return { x: s.x - half, y: s.y - half, w: 2 * half, h: 2 * half };
+}
+
+function validateReachability(lvl, orientStacks = false) {
   const { w, h, walls, start, stacks, zones } = lvl;
   const cols = Math.ceil(w / GRID), rows = Math.ceil(h / GRID);
   const blocked = new Uint8Array(cols * rows);
@@ -180,13 +186,25 @@ export function isReachable(lvl) {
     }
     return false;
   };
-  const reachableApproach = (p, obstacles) => wideApproaches(lvl, p, obstacles).some(({ x, y }) => {
+  const reachableApproach = (p, obstacles) => palletApproaches(lvl, p, obstacles).some(({ x, y }) => {
     const i = Math.floor(x / GRID), j = Math.floor(y / GRID);
     return i >= 0 && j >= 0 && i < cols && j < rows && seen[j * cols + i];
   });
-  return stacks.every((s) => near(s) && (!s.wide || reachableApproach(s, []))) &&
-    zones.every((z) => near(z) && (!z.wide || reachableApproach(z, zones.filter((o) => o !== z).map(zoneObstacle))));
+  const angles = [];
+  for (const s of stacks) {
+    if (!near(s)) return false;
+    const obstacles = stacks.filter((o) => o !== s).map(stackObstacle);
+    const choices = orientStacks && !s.wide ? [0, Math.PI / 2] : [s.a || 0];
+    const angle = choices.find((a) => reachableApproach({ ...s, a }, obstacles));
+    if (angle === undefined) return false;
+    angles.push(angle);
+  }
+  if (!zones.every((z) => near(z) && (!z.wide || reachableApproach(z, zones.filter((o) => o !== z).map(zoneObstacle))))) return false;
+  if (orientStacks) stacks.forEach((s, i) => { if (!s.wide) s.a = angles[i]; });
+  return true;
 }
+
+export function isReachable(lvl) { return validateReachability(lvl); }
 
 // From level 2 some stacks get an open-top box (`stack.open`: its top box). One per stack at most, and never more of a colour than that
 // colour has zones, since each needs a stack of its own to end on. Uses its own generator so the layouts stay as they were.
@@ -243,7 +261,7 @@ function tryWide(lvl, rnd, want) {
     const r = { x: 0.5 + rnd() * (w - 1 - aw), y: 0.5 + rnd() * (h - 1 - ah), w: aw, h: ah };
     if (!free(r, oldAreas, lvl.bays)) continue;
     const candidates = wideZones(r), allZones = [...otherZones, ...candidates];
-    if (candidates.every((z) => wideApproaches(lvl, z, allZones.filter((o) => o !== z).map(zoneObstacle)).length)) area = r;
+    if (candidates.every((z) => palletApproaches(lvl, z, allZones.filter((o) => o !== z).map(zoneObstacle)).length)) area = r;
   }
   if (!area) return null;
   zones = [...otherZones, ...wideZones(area)];
@@ -256,7 +274,7 @@ function tryWide(lvl, rnd, want) {
     let br = null;
     for (let t = 0; t < 300 && !br; t++) {
       const r = { x: 1.3 + rnd() * (w - 2.6 - 2), y: 1.3 + rnd() * (h - 2.6 - 2), w: 2, h: 2 };
-      if (free(r, areas, bays) && wideApproaches(lvl, { x: r.x + 1, y: r.y + 1, a: sa }, []).length) br = r;
+      if (free(r, areas, bays) && palletApproaches(lvl, { x: r.x + 1, y: r.y + 1, a: sa }, []).length) br = r;
     }
     if (!br) return null;
     bays.push(br);
@@ -266,7 +284,7 @@ function tryWide(lvl, rnd, want) {
   const all = [...stacks.filter((q) => q.layers.length), ...wide];
   const inBay = (b) => all.some((q) => q.x > b.x && q.x < b.x + b.w && q.y > b.y && q.y < b.y + b.h);
   const cand = { ...lvl, zones, areas, bays: bays.filter(inBay), stacks: all };
-  return isReachable(cand) ? cand : null;
+  return validateReachability(cand, true) ? cand : null;
 }
 
 function markWide(n, attempt, seed, lvl) {
@@ -502,7 +520,7 @@ function tryGenerate(n, attempt, seed = 0) {
   markOpenTops(n, attempt, seed, stacks, zones);
 
   const base = { n, w, h, walls, doors, zones, areas, bays, stacks, start, charger };
-  if (!isReachable(base)) return null;
+  if (!validateReachability(base, true)) return null;
   return tidyAreas(markOilBarrel(n, seed, markWide(n, attempt, seed, base)));
 }
 

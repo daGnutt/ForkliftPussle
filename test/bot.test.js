@@ -62,6 +62,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
 {
   const g = botGame();
   g.stacks = [];
+  flatWorld(g);
   const spot = mid(g);
   g.oil = [{ id: 't', x: spot.x, y: spot.y, r: 0.4, drops: 8 }];
   clearOf(g, g.hatch);
