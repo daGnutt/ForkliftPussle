@@ -1268,7 +1268,7 @@ export function drawForkGauge(ctx, g, gx, gy) {
   ctx.lineWidth = 3;
   ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);
   ctx.fillStyle = tc.body;
-  ctx.fillRect(gx + 34, yOf(g.H) + cell / 2 - 3, 8, 4);
+  ctx.fillRect(gx + 34, yOf(g.hy ?? g.H) + cell / 2 - 3, 8, 4); // exact fork height, between levels in hard mode
 }
 
 function drawCompass(ctx, g, view, width) {
