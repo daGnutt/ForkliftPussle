@@ -11,4 +11,4 @@ Both cabin renderers (`pov.js` and `gl/views.js`) import `drawRepairEdgeArrow` f
 
 ## Controller camera
 
-Gamepad d-pad buttons select GL camera modes: up = overview, left = cabin, right = chase, down = reset the active camera. D-down resets orbit/zoom/look/position state in overview, cabin, and chase; right-stick cabin looking is held until the truck reaches its height-adjusted forward/reverse top speed or d-down resets it. This behavior is absent when WebGL is disabled.
+Gamepad d-pad buttons select GL camera modes: up = overview, left = cabin, right = chase, down = reset the active camera. D-down resets orbit/zoom/look/position state in overview, cabin, and chase; right-stick cabin looking is held until the truck reaches its height-adjusted forward/reverse top speed or d-down resets it. This behavior is absent when WebGL is disabled. Switching among overview, chase, and cabin glides the camera pose between modes over 0.8 s.

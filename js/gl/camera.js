@@ -30,8 +30,10 @@ export function povCamera(g, w, h, look = null) {
   const f2w = 1 / Math.tan(GL_HFOV / 2);
   const proj = perspective(f2w, (f2w * w) / h, 0, POV_NEAR, POV_FAR);
   const eye = [e.x, e.y, EYE_Z + (liftedHf(g) ?? 0) * (BOX_H + PAL)];
-  const view = viewBasis(eye, [-s, c, 0], [-c * sp, -s * sp, cp], [c * cp, s * cp, sp]);
-  return { vp: mul(proj, view), eye, w, h };
+  const r = [-s, c, 0], u = [-c * sp, -s * sp, cp], f = [c * cp, s * cp, sp];
+  const view = viewBasis(eye, r, u, f);
+  const f2h = (f2w * w) / h;
+  return { vp: mul(proj, view), eye, w, h, pose: { r, u, f, near: POV_NEAR, far: POV_FAR, f2h } };
 }
 
 const OV_TILT = 0.35; // radians off vertical
