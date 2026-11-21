@@ -1363,6 +1363,10 @@ export function draw(ctx, g, view) {
     // so it never covers the playing field.
     // Touch landscape: keep the field clear of the fork gauge at the right edge even when the whole map fits.
     const touchLand = view.touch && !portrait;
+    if (!tiles && view.touch && portrait && view.tutorialBottom) {
+      ry = Math.max(ry, Math.min(view.tutorialBottom + 12, height - bottom - 30));
+      rh = height - ry - bottom;
+    }
     const ext = rotatedExtent(g, view), zoomedIn = Math.min(48, rw / ext.w, rh / ext.h) < MIN_FOLLOW_SCALE;
     if (!tiles && touchLand && !zoomedIn) { rw = width - rx - GAUGE_W; rh = Math.min(rh, height - ry - PAD_H); }
     let mmX = 13, mmY = 100 + 6;

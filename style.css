@@ -160,6 +160,9 @@ footer b { color: var(--accent); }
   #stick .knob { position: absolute; left: 50%; top: 50%; width: 70px; height: 70px; margin: -35px 0 0 -35px; border-radius: 50%; background: rgba(255,255,255,.55); border: 2px solid rgba(255,255,255,.8); pointer-events: none; }
   #stick.on .knob { background: rgba(249,168,37,.85); }
 }
+@media (pointer: coarse) and (orientation: portrait) {
+  #tutorial { top: 106px; bottom: auto; left: 13px; transform: none; width: min(360px, calc(100vw - 106px)); box-sizing: border-box; padding: 8px 10px; font-size: 14px; }
+}
 /* Landscape touch: steering bottom left, drive/forks bottom right, minimap (drawn in render.js) between; the field extends down between them. */
 @media (pointer: coarse) and (orientation: landscape) {
   #touch .left { left: 28px; bottom: 8px; gap: 8px; }
