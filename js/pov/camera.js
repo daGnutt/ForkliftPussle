@@ -6,8 +6,7 @@ export const EYE_FOLLOW = 0.55; // share of the (smoothed) fork height the eye f
 export const EYE_TILT = 0.045; // horizon shift (share of view height) per level the forks lead the eye
 export const CHARGER_H = 0.9; // 1.5 boxes
 export const WALL_H = 4; // also the ceiling height; clears a 5-box stack (3.0)
-export const BOX_H = 0.5; // drawn box height (footprint stays 1×1)
-export const PAL = 0.1; // pallet / tine thickness
+export { BOX_H, PAL } from '../geom.js';
 export const HFOV = Math.PI / 2;
 export const MAX_DIST = 60;
 export const FAR_DARK = 28;

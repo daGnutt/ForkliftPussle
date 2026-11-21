@@ -1,7 +1,9 @@
 export const BOX_SCALE = 1;
 export const BOX_HALF_X = BOX_SCALE / 2;
 export const halfY = (pen) => BOX_SCALE * (pen?.wide ? 1 : 0.5);
-export const BARREL_PALLET_RISE = 0.04; // leaves 0.01 tiles over a full-height tine under the deck
+export const LEVEL_H = 0.6, TINE_H = 0.05, PALLET_DECK_H = 0.03, FORK_CLEARANCE = 0.075;
+export const PAL = TINE_H + PALLET_DECK_H + FORK_CLEARANCE * LEVEL_H;
+export const BOX_H = LEVEL_H - PAL;
 
 export const zoneExt = (z) => ({ x: (z.hx ?? 0.6) * 1.15, y: (z.hy ?? 0.6) * 1.15 });
 

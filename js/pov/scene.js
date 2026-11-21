@@ -6,7 +6,7 @@ import { decalsEnabled, overheadDecals, boxDeco, OPEN_BOX_DECAL_EDGES } from '..
 import { FL, toWorld, truckColor } from '../forklift.js';
 import { carriedDrawH, carriedWorldOffs, carriedJoltZ, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf } from '../game.js';
 import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam } from './camera.js';
-import { BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims, BARREL_PALLET_RISE } from '../geom.js';
+import { BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims, TINE_H, PALLET_DECK_H } from '../geom.js';
 
 // Scene geometry: everything is a prism (walls, pallets, boxes, tines, fixtures) split into
 // faces, back-face culled and sorted far to near (painter's algorithm).
@@ -76,7 +76,7 @@ function addBarrelDecals(faces, cam, x, y, z0, r, rot) {
   for (let i = 0; i < 4; i++) {
     const a = rot + Math.PI / n + i * Math.PI / 2, nx = Math.cos(a), ny = Math.sin(a);
     if ((cam.x - x) * nx + (cam.y - y) * ny <= 0) continue;
-    const tx = -ny, ty = nx, z = z0 + 0.52;
+    const tx = -ny, ty = nx, z = z0 + (2 * (BOX_H + PAL) - PAL) / 2;
     const pts = mark.map(([u, v]) => [x + nx * radius + tx * u, y + ny * radius + ty * u, z + v]);
     const mid = [x + nx * radius, y + ny * radius, z];
     for (let j = 0; j < pts.length; j++) {
@@ -97,18 +97,18 @@ function addStack(faces, cam, x0, y0, rots, layers, level, offs = [], from = 0, 
     const x = x0 + (offs[i]?.x || 0), y = y0 + (offs[i]?.y || 0);
     const z = (level + i + (i >= from ? extra : 0)) * (BOX_H + PAL), r = rots[i] ?? 0;
     const cr = Math.cos(r), sr = Math.sin(r), pen = pens[i], scale = BOX_SCALE, hx = BOX_HALF_X, hy = halfY(pen);
-    const rise = pen?.barrelPart === 'base' ? BARREL_PALLET_RISE : 0, deck = z + PAL + rise;
+    const deck = z + PAL;
     // as in the GL view: three runners along local x, five deck slats across them (perpendicular to the box tape)
     if (Math.hypot(x - cam.x, y - cam.y) < 14) {
       for (const [off, hw] of palletRunnerDims(pen)) addPrism(faces, cam, x - sr * off, y + cr * off, r, hx, hw, z, deck - 0.025, PALLET_COLOR, false, 0, 0, true, i > 0);
-      for (const u of PAL_SLATS) addPrism(faces, cam, x + cr * u * scale, y + sr * u * scale, r, 0.075 * scale, hy, deck - 0.03, deck, PALLET_COLOR, false, 0, 0, false, true);
+      for (const u of PAL_SLATS) addPrism(faces, cam, x + cr * u * scale, y + sr * u * scale, r, 0.075 * scale, hy, deck - PALLET_DECK_H, deck, PALLET_COLOR, false, 0, 0, false, true);
     } else addPrism(faces, cam, x, y, r, hx, hy, z, deck, PALLET_COLOR, false, 0, 0, true, i > 0);
     const first = faces.length;
     if (pens[i]?.barrelPart === 'base') {
-      const top = z + 2 * (BOX_H + PAL) + rise;
+      const top = z + 2 * (BOX_H + PAL);
       addCylinder(faces, cam, x, y, 0.38, deck, top, COLORS[col]);
       if (decalsEnabled()) addBarrelDecals(faces, cam, x, y, deck, 0.38, r);
-      for (const h of [0.52, 1.48]) addCylinder(faces, cam, x, y, 0.395, deck + h * BOX_H, deck + h * BOX_H + 0.035, '#a8afb0');
+      for (const h of [0.26, 0.74]) addCylinder(faces, cam, x, y, 0.395, deck + h * (top - deck), deck + h * (top - deck) + 0.035, '#a8afb0');
       addCylinder(faces, cam, x, y, 0.35, top, top + 0.008, '#20292b');
       return;
     }
@@ -242,9 +242,9 @@ function addForks(faces, cam, g) {
   const tipX = x1 - 0.3, bodyLen = (tipX - x0) / 2;
   for (const side of [-1, 1]) {
     const b = at(x0 + bodyLen, side * off);
-    addPrism(faces, cam, b.x, b.y, a, bodyLen, hw, tz, tz + PAL, col, false, 0.2);
+    addPrism(faces, cam, b.x, b.y, a, bodyLen, hw, tz, tz + TINE_H, col, false, 0.2);
     const tip = at((tipX + x1) / 2, side * off);
-    addPrism(faces, cam, tip.x, tip.y, a, 0.15, hw * 0.55, tz, tz + PAL * 0.5, col, false, 0);
+    addPrism(faces, cam, tip.x, tip.y, a, 0.15, hw * 0.55, tz, tz + TINE_H * 0.5, col, false, 0);
     const sh = at(x0 + 0.05, side * off);
     addPrism(faces, cam, sh.x, sh.y, a, 0.05, hw, tz, tz + 0.5, col, false, 0.2);
   }

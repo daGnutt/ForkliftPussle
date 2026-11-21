@@ -6,11 +6,10 @@ import { tapeShapes, TAPE_FILL } from '../repair.js';
 import { decalsEnabled, boxDeco, boxDecalShapes, OPEN_BOX_DECAL_EDGES } from '../decals.js';
 import { carriedDrawH, carriedWorldOffs, carriedJoltZ, liftedHf, crashBlink } from '../game.js';
 import { parseColor, shade, mix } from './mesh.js';
-import { BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims, BARREL_PALLET_RISE } from '../geom.js';
+import { BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims, BOX_H, PAL, TINE_H, PALLET_DECK_H } from '../geom.js';
 
 // Geometry of the movable things (forklift, pallets, boxes). Heights in tiles; a box is BOX_H tall, a pallet PAL.
-export const BOX_H = 0.5;
-export const PAL = 0.1;
+export { BOX_H, PAL } from '../geom.js';
 export const WALL_H = 4;
 export const PALLET_COLOR = '#9a7040';
 const WHITE = [1, 1, 1, 1];
@@ -27,13 +26,13 @@ function addBarrelDecals(m, x, y, z0, r, rot) {
   const radius = r * Math.cos(Math.PI / n) + 0.003;
   for (let i = 0; i < 4; i++) {
     const a = rot + Math.PI / n + i * Math.PI / 2, nx = Math.cos(a), ny = Math.sin(a);
-    const tx = -ny, ty = nx, z = z0 + 0.52;
+    const tx = -ny, ty = nx, z = z0 + (2 * (BOX_H + PAL) - PAL) / 2;
     const pts = mark.map(([u, v]) => [x + nx * radius + tx * u, y + ny * radius + ty * u, z + v]);
     const mid = [x + nx * radius, y + ny * radius, z];
     for (let j = 0; j < pts.length; j++) m.tri(mid, pts[j], pts[(j + 1) % pts.length], [nx, ny, 0], ink);
   }
   const top = mark.map(([u, v]) => [x + u * Math.cos(rot) - v * Math.sin(rot), y + u * Math.sin(rot) + v * Math.cos(rot)]);
-  m.poly(top, z0 + 1.11, ink);
+  m.poly(top, z0 + 2 * (BOX_H + PAL) - PAL + 0.01, ink);
 }
 
 // Pallet with box on top: three runners, five deck slats, a taped cardboard box with a lid.
@@ -41,17 +40,16 @@ function addBarrelDecals(m, x, y, z0, r, rot) {
 function addBox(m, tm, x, y, r, z, col, pen, level) {
   const co = Math.cos(r), si = Math.sin(r), wood = parseColor(PALLET_COLOR);
   const scale = BOX_SCALE, hx = BOX_HALF_X, hy = halfY(pen);
-  const rise = pen?.barrelPart === 'base' ? BARREL_PALLET_RISE : 0;
-  const z0 = z + PAL + rise, z1 = z0 + BOX_H;
+  const z0 = z + PAL, z1 = z0 + BOX_H;
   for (const [off, hw] of palletRunnerDims(pen)) m.cuboid(x - si * off, y + co * off, r, hx, hw, z, z0 - 0.025, shade(wood, 0.82), { top: false, bottom: level === 0 });
-  SLATS.forEach((u, i) => m.cuboid(x + co * u * scale, y + si * u * scale, r, 0.075 * scale, hy, z0 - 0.03, z0, shade(wood, i & 1 ? 1 : 0.92), { bottom: false }));
+  SLATS.forEach((u, i) => m.cuboid(x + co * u * scale, y + si * u * scale, r, 0.075 * scale, hy, z0 - PALLET_DECK_H, z0, shade(wood, i & 1 ? 1 : 0.92), { bottom: false }));
   const dented = !!pen?.dent;
   const base = parseColor(COLORS[col]);
   const body = dented ? shade(base, 0.82) : base;
   if (pen?.barrelPart === 'base') {
-    const top = z + 2 * (BOX_H + PAL) + rise;
+    const top = z + 2 * (BOX_H + PAL);
     m.cylinder(x, y, z0, top, 0.38, body, 16, r);
-    for (const h of [0.52, 1.48]) m.cylinder(x, y, z0 + h * BOX_H, z0 + h * BOX_H + 0.035, 0.395, '#a8afb0', 16, r);
+    for (const h of [0.26, 0.74]) m.cylinder(x, y, z0 + h * (top - z0), z0 + h * (top - z0) + 0.035, 0.395, '#a8afb0', 16, r);
     m.disc(x, y, top + 0.008, 0.13, '#a8afb0', 12);
     if (decalsEnabled()) addBarrelDecals(m, x, y, z0, 0.38, r);
     return;
@@ -76,7 +74,7 @@ function addBox(m, tm, x, y, r, z, col, pen, level) {
       const [a, b] = [place(...corners[k]), place(...corners[(k + 1) % 4])];
       const du = corners[(k + 1) % 4][0] - corners[k][0], dv = corners[(k + 1) % 4][1] - corners[k][1];
       const nx = dv * co + du * si, ny = dv * si - du * co;
-      for (const d of boxDecalShapes(4)) tm.vpoly(a[0], a[1], b[0], b[1], nx, ny, 0.004, d.pts.map(([u, v]) => [0.5 - u * 0.46, (z0 + z1) / 2 + v * 0.46]), d.fill);
+      for (const d of boxDecalShapes(4)) tm.vpoly(a[0], a[1], b[0], b[1], nx, ny, 0.004, d.pts.map(([u, v]) => [0.5 - u * 0.46, (z0 + z1) / 2 + v * BOX_H * 0.92]), d.fill);
     }
   }
   if (decalsEnabled()) {
@@ -166,8 +164,8 @@ export function addForks(m, g, hideMast = false) {
   const tipX = x1 - 0.3;
   for (const side of [-1, 1]) {
     const y = side * off;
-    cub(x0, y - hw, tipX, y + hw, tz, tz + PAL, col);
-    cub(tipX, y - hw * 0.55, x1, y + hw * 0.55, tz, tz + PAL * 0.5, col);
+    cub(x0, y - hw, tipX, y + hw, tz, tz + TINE_H, col);
+    cub(tipX, y - hw * 0.55, x1, y + hw * 0.55, tz, tz + TINE_H * 0.5, col);
     cub(x0, y - hw, x0 + 0.1, y + hw, tz, tz + 0.5, col);
   }
   cub(x0 - 0.06, -off - hw, x0, off + hw, tz + 0.3, tz + 0.4, col);

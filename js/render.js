@@ -17,7 +17,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark } from './decals.js';
-import { liftedHf, carriedDrawH, carriedWorldOffs, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
+import { liftedHf, carriedDrawH, carriedWorldOffs, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
 import { BOX_SCALE, BOX_HALF_X, halfY } from './geom.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
@@ -84,7 +84,7 @@ const PX = 0.06, PY = -0.1; // screen shift per unit of height
 
 // Draws a stack whose bottom box is at height z0 above the floor: top box
 // colour, plus a coloured number for each box below it.
-function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
+function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = [], from = 0, extra = 0) {
   const n = layers.length;
   const size = 1, h = size / 2;
   const at = (cx, cy, i, fn) => {
@@ -99,10 +99,11 @@ function drawStack(ctx, layers, x, y, z0 = 0, rots = [], offs = [], pens = []) {
     const hx = BOX_HALF_X, hy = halfY(pens[0]);
     at(x + (offs[0]?.x || 0) + 0.1, y + (offs[0]?.y || 0) + 0.1, 0, () => ctx.fillRect(-hx, -hy, 2 * hx, 2 * hy));
   }
-  const cx = x + (offs[n - 1]?.x || 0) + (z0 + n - 1) * PX, cy = y + (offs[n - 1]?.y || 0) + (z0 + n - 1) * PY;
+  const height = (i) => z0 + i + (i >= from ? extra : 0);
+  const cx = x + (offs[n - 1]?.x || 0) + height(n - 1) * PX, cy = y + (offs[n - 1]?.y || 0) + height(n - 1) * PY;
   for (let i = 0; i < n; i++) {
     if (pens[i]?.barrelPart === 'top') continue;
-    at(x + (offs[i]?.x || 0) + (z0 + i) * PX, y + (offs[i]?.y || 0) + (z0 + i) * PY, i, () => {
+    at(x + (offs[i]?.x || 0) + height(i) * PX, y + (offs[i]?.y || 0) + height(i) * PY, i, () => {
       if (pens[i]?.barrelPart === 'base') {
         const col = COLORS[layers[i]];
       const rx = 0.38, ry = 0.34, segments = 32;
@@ -836,9 +837,9 @@ function drawWorldObjects(ctx, g, vis) {
   // Stacks whose top is below the tines are drawn first; stacks the tines
   // slide under are drawn over them.
   const shown = g.stacks.map((st) => fallView(g, st)).filter((st) => seen(st.x - 1.2, st.y - 1.2, 2.4, 2.4));
-  const low = shown.filter((st) => stackZ(st) + st.layers.length <= g.hf);
-  const high = shown.filter((st) => stackZ(st) + st.layers.length > g.hf);
-  const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, stackZ(st), st.rots, st.offs, st.pen);
+  const low = shown.filter((st) => stackZ(st) + st.layers.length + dropLift(g, st) <= g.hf);
+  const high = shown.filter((st) => stackZ(st) + st.layers.length + dropLift(g, st) > g.hf);
+  const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, stackZ(st), st.rots, st.offs, st.pen, st.dropFrom ?? 0, dropLift(g, st));
   for (const st of low) dstack(st);
   // other trucks first, so the local one is always on top; ghosts are translucent
   const trucks = [...otherTrucksShown(g), g];

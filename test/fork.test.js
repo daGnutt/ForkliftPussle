@@ -17,9 +17,10 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { carriedDrawH, liftedHf, newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
+import { carriedDrawH, dropLift, liftedHf, newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 
-import { TAP_S, PICKUP_LIFT, crashAlert } from '../js/game.js';
+import { TAP_S, crashAlert } from '../js/game.js';
+import { FORK_CLEARANCE } from '../js/geom.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
 // Pick up from the floor (level 0), carry over a stack, merge, then split again.
@@ -421,30 +422,21 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('fork fluid height ok');
 }
 
-// Hard mode: a fluid raise of PICKUP_LIFT lifts the box; lowering it to less than that above its resting height sets it down.
+// Hard mode: forks move through the pallet clearance before lifting its load.
 {
   const g = newGame(1, 1, true);
   flatWorld(g);
   g.stacks = [{ x: 10, y: 5, layers: [0, 1] }];
   g.fl.x = 6; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
   driveUntil(g, 10, 8);
-  run(g, { forkUp: true }, TAP_S + 0.1);
-  assert.equal(g.carried, null, 'less than PICKUP_LIFT of raise: not lifted');
-  run(g, { forkUp: true }, PICKUP_LIFT - 0.1 + 0.05);
-  assert.deepEqual(g.carried, [0, 1], 'raised by PICKUP_LIFT: lifted');
+  run(g, { forkUp: true }, TAP_S + 0.025);
+  assert.equal(g.carried, null, 'the box stays on the floor while the forks are in the clearance');
+  run(g, { forkUp: true }, 0.15);
+  assert.deepEqual(g.carried, [0, 1], 'the box is picked up when the forks reach the deck');
   run(g, {}, 0.05);
   const lifted = g.hy;
-  assert.ok(lifted > PICKUP_LIFT - 0.01 && lifted < 0.6, `carried between levels (hy ${lifted})`);
-  g.hf = 0.2;
-  assert.equal(g.carriedRest, 0, 'pickup remembers the resting floor level');
-  assert.ok(carriedDrawH(g) >= 0 && carriedDrawH(g) <= 0.01, 'carried stack starts at the floor with no pickup jump');
-  g.hf = 0.5;
-  assert.ok(Math.abs(carriedDrawH(g) - 0.3) < 1e-9, 'carried stack stays 0.2 box-heights below the forks');
-  g.carriedRest = 1;
-  g.hf = 1.2;
-  assert.ok(Math.abs(carriedDrawH(g) - 1) < 1e-9, 'a stack-level pickup starts at the resting height');
-  g.hf = 1.5;
-  assert.ok(Math.abs(carriedDrawH(g) - 1.3) < 1e-9, 'a stack-level pickup rises smoothly');
+  assert.ok(lifted > 0 && lifted < 0.4, `carried between levels (hy ${lifted})`);
+  assert.ok(Math.abs(carriedDrawH(g) - (g.hf - FORK_CLEARANCE)) < 1e-6, 'the pallet deck rests on the tines');
   run(g, { forkUp: true }, TAP_S + 1); run(g, {}, 0.05);
   assert.equal(g.carried.length, 2);
   assert.ok(g.hy > 1, 'keeps rising');
@@ -452,9 +444,197 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(g.carried, null, 'lowered to the floor: set down');
   assert.equal(g.stacks.length, 1);
   assert.equal(g.stacks[0].layers.length, 2);
-  assert.equal(g.hy, 0);
+  assert.ok(Math.abs(g.hy - FORK_CLEARANCE) < 1e-6, 'empty forks remain at deck contact after fluid set-down');
   assert.equal(g.hits.length, 0, 'holding down after the set-down does not damage it');
-  console.log('fork pickup threshold ok');
+  console.log('fork fluid pickup ok');
+}
+
+// Hard mode: visual pickup and release remain continuous at the floor and on a stack.
+{
+  for (const n of [0, 1]) {
+    const g = newGame(1, 1, true);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: n ? [1, 0] : [0], a: 0 }];
+    faceStack(g, 0);
+    g.H = g.hy = g.hf = n;
+    const height = () => {
+      if (g.carried) return carriedDrawH(g);
+      return n + dropLift(g, g.stacks[0]);
+    };
+    const dt = 1 / 120;
+    let before = height(), picked = false, released = false;
+    for (let i = 0; i < 100 && !picked; i++) {
+      const tineBefore = g.hf, hyBefore = g.hy;
+      update(g, { forkUp: true }, dt);
+      const next = height();
+      assert.ok(Math.abs(next - before) <= dt + 1e-6, 'pickup advances without a visual jump');
+      assert.ok(Math.abs(g.hf - tineBefore) <= 6 * dt + 1e-6, 'pickup does not move the tines abruptly');
+      picked = !!g.carried;
+      if (picked) assert.ok(Math.abs(g.hy + FORK_CLEARANCE - hyBefore - dt) < 1e-6, 'pickup converts tine height to load height');
+      before = next;
+    }
+    assert.ok(picked, 'the box is picked up after the forks reach the deck');
+    run(g, { forkUp: true }, 0.5);
+    run(g, {}, 0.05);
+    assert.ok(Math.abs(carriedDrawH(g) - (g.hf - FORK_CLEARANCE)) < 1e-6, 'pallet deck stays aligned with the tines');
+    before = height();
+    for (let i = 0; i < 200 && !released; i++) {
+      const tineBefore = g.hf;
+      update(g, { forkDown: true }, dt);
+      const next = height();
+      assert.ok(Math.abs(next - before) <= 6 * dt + 1e-6, 'set-down advances without a visual jump');
+      assert.ok(next >= n - 1e-6, 'load never clips through its support');
+      assert.ok(Math.abs(g.hf - tineBefore) <= 6 * dt + 1e-6, 'release does not move the tines abruptly');
+      released = !g.carried;
+      if (released) assert.ok(Math.abs(g.hy - n - FORK_CLEARANCE) < 1e-6, 'set-down converts load height to tine height');
+      before = next;
+    }
+    assert.ok(released, 'logical set-down still occurs');
+    run(g, {}, 0.5);
+    assert.ok(Math.abs(height() - n) < 1e-6, 'load settles on its support');
+  }
+}
+
+// Holding down leaves the released pallet on the floor or its support, without the tines pushing it away.
+{
+  for (const n of [0, 1]) {
+    const g = newGame(1, 1, true);
+    flatWorld(g);
+    g.stacks = n ? [{ x: 10, y: 5, layers: [1], a: 0 }] : [];
+    Object.assign(g.fl, { x: 10 - FL.carryX, y: 5, a: 0, speed: 0 });
+    g.carried = [0]; g.carriedRots = [0]; g.carriedPen = [{}]; g.carriedOffs = [{ x: 0, y: 0 }];
+    g.H = g.hy = n + 1; g.hf = g.hy + FORK_CLEARANCE;
+    run(g, { forkDown: true }, 2);
+    assert.equal(g.carried, null);
+    assert.equal(g.stacks.length, 1);
+    assert.deepEqual(g.stacks[0].layers, n ? [1, 0] : [0]);
+    assert.ok(Math.hypot(g.fl.x - (10 - FL.carryX), g.fl.y - 5) < 1e-6, 'stationary truck is not shoved away');
+    const s = g.stacks[0], off = s.offs[n];
+    assert.ok(Math.hypot(s.x + off.x - 10, s.y + off.y - 5) < 1e-6, 'released box stays in place');
+    assert.equal(g.hits.length, 0, 'the tines do not damage the released box');
+    run(g, {}, 0.1);
+    run(g, { down: true }, 0.8);
+    assert.ok(g.fl.x < 10 - FL.carryX - 0.1, 'forks can back out');
+    assert.ok(Math.hypot(s.x + off.x - 10, s.y + off.y - 5) < 1e-6, 'the box remains after backing out');
+  }
+}
+
+// Quickly lifting from a stack must wait for the smoothed forks to reach the pickup level.
+{
+  const g = newGame(1, 1, true);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [1, 0], a: 0 }];
+  faceStack(g, 0);
+  g.H = g.hy = 1;
+  g.hf = 0;
+  forkUp(g);
+  assert.ok(g.carried);
+  assert.equal(carriedDrawH(g), 1, 'the box stays on its support while the forks catch up');
+  run(g, {}, 0.4);
+  assert.equal(g.carriedRest, 0, 'the pickup clamp is temporary');
+  assert.ok(Math.abs(carriedDrawH(g) - (g.hf - FORK_CLEARANCE)) < 1e-6, 'the pallet deck then stays aligned with the tines');
+}
+
+// Easy-mode taps keep their original box heights while the tines take up the clearance.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], a: 0 }];
+  faceStack(g, 0);
+  forkUp(g);
+  let prev = carriedDrawH(g);
+  for (let i = 0; i < 60; i++) {
+    update(g, {}, 1 / 120);
+    const height = carriedDrawH(g);
+    assert.ok(Math.abs(height - prev) <= 0.05 + 1e-6, 'easy-mode pickup is continuous');
+    prev = height;
+  }
+  assert.ok(Math.abs(carriedDrawH(g) - 1) < 1e-6, 'tap still raises the box one level');
+  forkDown(g);
+  assert.equal(g.carried, null);
+  assert.ok(Math.abs(dropLift(g, g.stacks[0]) - prev) < 1e-6, 'release preserves the box height');
+  run(g, {}, 0.5);
+  assert.equal(dropLift(g, g.stacks[0]), 0, 'box reaches the floor');
+}
+
+// Forks can slide in and out within the slot, but a lifted load stays attached.
+{
+  const g = newGame(1, 1, true);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], a: 0 }];
+  Object.assign(g.fl, { x: 6, y: 5, a: 0, speed: 0 });
+  g.hy = g.hf = FORK_CLEARANCE / 2;
+  driveUntil(g, 10, 8);
+  assert.equal(g.carried, null);
+  assert.ok(stackInZone(g), 'forks within the clearance enter the pallet without lifting it');
+  assert.equal(dropLift(g, g.stacks[0]), 0, 'entering does not raise the box visually');
+  const before = g.fl.x;
+  run(g, { down: true }, 1);
+  assert.ok(g.fl.x < before - 0.1, 'truck backed away');
+  assert.equal(g.carried, null);
+  assert.equal(g.stacks.length, 1, 'the resting box stays behind');
+
+  faceStack(g, 0);
+  g.fl.speed = 0;
+  run(g, { forkUp: true }, TAP_S + 0.15);
+  assert.ok(g.carried, 'raising past the clearance carries the box');
+  run(g, {}, 0.05);
+  const liftedAt = g.fl.x;
+  run(g, { down: true }, 1);
+  assert.ok(g.fl.x < liftedAt - 0.1, 'truck backed away with the lifted box');
+  assert.ok(g.carried, 'the lifted box cannot be left behind');
+  assert.equal(g.stacks.length, 0);
+  run(g, { forkDown: true }, TAP_S + 0.4);
+  assert.equal(g.carried, null, 'box is released when lowered to the floor');
+  assert.ok(Math.abs(g.hy - FORK_CLEARANCE) < 1e-6, 'the tines remain inside the pallet after set-down');
+
+  const raised = newGame(1, 1, true);
+  flatWorld(raised);
+  raised.stacks = [{ x: 10, y: 5, layers: [0], a: 0 }];
+  Object.assign(raised.fl, { x: 6, y: 5, a: 0, speed: 0 });
+  raised.hy = raised.hf = FORK_CLEARANCE + 0.01;
+  run(raised, { up: true }, 2);
+  assert.ok(!stackInZone(raised), 'forks above the slot clearance hit the box');
+}
+
+// Hard-mode load height 1 clears a one-box stack; a load below it still hits.
+{
+  for (const height of [0.9, 1]) {
+    const g = newGame(1, 1, true);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [1], a: 0 }];
+    Object.assign(g.fl, { x: 6, y: 5, a: 0, speed: 0 });
+    g.carried = [0]; g.carriedRots = [0]; g.carriedPen = [{}]; g.carriedOffs = [{ x: 0, y: 0 }];
+    g.H = Math.floor(height); g.hy = height; g.hf = height + FORK_CLEARANCE;
+    for (let i = 0; i < 600 && g.fl.x + FL.carryX < 9.7 && g.stacks[0].x < 10.1; i++) update(g, { up: true }, 1 / 120);
+    if (height === 1) {
+      assert.ok(g.fl.x + FL.carryX >= 9.7, 'level 1 reaches over the stack');
+      assert.ok(Math.abs(g.stacks[0].x - 10) < 1e-6, 'the stack is not pushed');
+      assert.ok(Math.abs(carriedDrawH(g) - 1) < 1e-6, 'the load is visually above the stack');
+    } else {
+      assert.ok(g.stacks[0].x > 10.1, 'a load below level 1 pushes the stack');
+    }
+  }
+}
+
+// A hard-mode tap lifts to level 1, drives over a one-box stack, and sets down on it.
+{
+  const g = newGame(1, 1, true);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0], a: 0 }, { x: 14, y: 5, layers: [1], a: 0 }];
+  faceStack(g, 0);
+  run(g, { forkUp: true }, 0.1); run(g, {}, 0.5);
+  assert.equal(g.hy, 1);
+  assert.deepEqual(g.carried, [0]);
+  assert.ok(Math.abs(carriedDrawH(g) - 1) < 1e-6, 'load and height indicator agree');
+  for (let i = 0; i < 1200 && g.fl.x + FL.carryX < 14; i++)
+    update(g, { up: g.fl.speed <= 1 || g.fl.x <= 12.4, down: g.fl.speed > 1 && g.fl.x > 12.4 }, 1 / 120);
+  assert.ok(g.fl.x + FL.carryX >= 14, 'the load reaches the stack');
+  g.fl.speed = 0;
+  assert.ok(Math.abs(g.stacks[0].x - 14) < 0.05, 'the stack stays in place');
+  run(g, { forkDown: true }, 0.1); run(g, {}, 0.5);
+  assert.equal(g.carried, null);
+  assert.deepEqual(g.stacks[0].layers, [1, 0]);
 }
 
 // Hard mode: standing still less than a level above a stack after lowering flashes the proximity alert, and a tap sets the load down on it.

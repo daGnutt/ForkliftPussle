@@ -392,7 +392,7 @@ function drawBoxDecal(ctx, cam, f, dark) {
   for (const d of boxDecalShapes(f.deco)) {
     decalPoly(ctx, cam, d.pts.map(([u, v]) => {
       const U = 0.5 - u * 0.45;
-      return [q0[0] + (q1[0] - q0[0]) * U, q0[1] + (q1[1] - q0[1]) * U, z0 + BOX_H / 2 + v * 0.45];
+      return [q0[0] + (q1[0] - q0[0]) * U, q0[1] + (q1[1] - q0[1]) * U, z0 + BOX_H / 2 + v * BOX_H * 0.9];
     }), d.fill, dark);
   }
 }
