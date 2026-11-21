@@ -18,7 +18,7 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat, overlapArea, halfY } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ, crashAlert, crashBlink, crashProbes, alertTriggers } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ, crashAlert, crashBlink, crashProbes, alertTriggers } from '../js/game.js';
 
 import { stackSig } from '../js/bot.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
@@ -971,4 +971,26 @@ console.log('stacks tests passed');
   carry([{ crash: 3, sq: 0 }]);
   g.repair = null;
   assert.equal(repairHintWanted(g, false), false, 'no station on this level');
+}
+
+{ // a box shoved deep into the outer wall must not tunnel out of the level
+  const g = newGame(1, 0, true);
+  const s = g.stacks[0];
+  for (const [x, y] of [[-2.6, 5], [g.w + 2.6, 5], [10, -2.6], [10, g.h + 2.6]]) {
+    s.x = x; s.y = y;
+    run(g, NONE, 0.1);
+    assert.ok(s.x > -0.01 && s.x < g.w + 0.01 && s.y > -0.01 && s.y < g.h + 0.01, `box at (${x}, ${y}) is back inside`);
+  }
+}
+
+{ // a box shoved past the middle of a thick inner wall must not come out the other side
+  const g = newGame(2, 0, true);
+  const w = g.walls.slice(4).find((r) => r.w === 1 && r.h >= 1.4), s = g.stacks[0];
+  g.fl.x = 1; g.fl.y = 1; g.fl.a = 0;
+  g.stacks = [s];
+  s.x = w.x - 0.55; s.y = w.y + w.h / 2;
+  run(g, NONE, 0.05);
+  s.x = w.x + w.w / 2 + 0.02;
+  run(g, NONE, 0.05);
+  assert.ok(s.x < w.x, 'box did not tunnel through the inner wall');
 }

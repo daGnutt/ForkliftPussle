@@ -21,7 +21,7 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   const inp = createInput({ up: () => calls.push('up'), menuNav: (d) => calls.push(d), menuSelect: () => calls.push('select'), menuBack: () => calls.push('back'), menuToggle: () => calls.push('menu'), blocked: () => blocked });
   pad = mkPad({ axes: [0.8, 0, 0, 0], pressed: [7] });
   let s = inp.state();
-  assert.ok(s.up && s.right && !s.left && !s.down);
+  assert.ok(s.up && s.right && !s.left && !s.down && s.motionSource === 'gamepad');
   pad = mkPad({ pressed: [0] });
   inp.state(); inp.state();
   assert.deepEqual(calls, ['up'], 'A fires fork up once per press');
@@ -38,7 +38,66 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   pad = mkPad({ pressed: [1] }); inp.state();
   assert.deepEqual(calls.slice(2), ['down', 'select', 'back'], 'd-pad navigates, A selects, B goes back in the menu');
   pad = null;
-  assert.ok(!inp.state().up, 'unplugging releases the controls');
+  s = inp.state();
+  assert.ok(!s.up && s.motionSource === 'gamepad', 'unplugging releases controls without changing the last motion source');
+}
+
+// D-pad selects GL camera modes and resets the active camera
+{
+  const calls = [];
+  const inp = createInput({
+    cameraOverview: () => calls.push('overview'),
+    cameraCabin: () => calls.push('cabin'),
+    cameraChase: () => calls.push('chase'),
+    cameraReset: () => calls.push('reset'),
+  });
+  pad = mkPad({ pressed: [12] }); inp.state();
+  pad = mkPad({ pressed: [14] }); inp.state();
+  pad = mkPad({ pressed: [15] }); inp.state();
+  pad = mkPad({ pressed: [13] }); inp.state();
+  pad = mkPad({ pressed: [13] }); inp.state();
+  pad = mkPad({ pressed: [11] }); inp.state();
+  assert.deepEqual(calls, ['overview', 'cabin', 'chase', 'reset', 'reset'], 'd-pad down and right-stick click reset once per press');
+  pad = null;
+}
+
+// Cabin steering follows the last driving or steering device, not controller connection.
+{
+  const listeners = {};
+  globalThis.window = { addEventListener: (type, f) => { (listeners[type] ??= []).push(f); } };
+  let blocked = false;
+  const inp = createInput({ blocked: () => blocked });
+  const key = (type, code) => listeners[type].forEach((f) => f({ code, repeat: false, preventDefault() {}, target: null }));
+  pad = mkPad();
+  assert.equal(inp.state().motionSource, 'keyboard', 'an idle connected controller does not change the default');
+  pad = mkPad({ axes: [0, 0, 0.8, 0] });
+  assert.equal(inp.state().motionSource, 'keyboard', 'camera look is not motion input');
+  pad = mkPad({ axes: [0.8, 0, 0, 0] });
+  assert.equal(inp.state().motionSource, 'gamepad', 'steering selects the controller');
+  pad = mkPad();
+  assert.equal(inp.state().motionSource, 'gamepad', 'releasing the stick retains the last source');
+  key('keydown', 'ArrowUp');
+  assert.equal(inp.state().motionSource, 'keyboard', 'keyboard motion wins with a controller connected');
+  pad = mkPad({ pressed: [7] });
+  assert.equal(inp.state().motionSource, 'gamepad', 'controller throttle switches back while a key remains held');
+  key('keydown', 'ArrowLeft');
+  assert.equal(inp.state().motionSource, 'keyboard', 'a new key press switches back even while the trigger is held');
+  assert.equal(inp.state().motionSource, 'keyboard', 'unchanged controller input does not immediately switch back');
+  pad = mkPad({ axes: [0.8, 0, 0, 0], pressed: [7] });
+  assert.equal(inp.state().motionSource, 'gamepad', 'new steering movement switches back');
+  key('keyup', 'ArrowUp'); key('keyup', 'ArrowLeft');
+  key('keydown', 'KeyH');
+  assert.equal(inp.state().motionSource, 'gamepad', 'non-motion keys do not switch the camera');
+  blocked = true;
+  key('keydown', 'ArrowRight');
+  assert.equal(inp.state().motionSource, 'gamepad', 'menu navigation does not change the motion source');
+  key('keyup', 'ArrowRight');
+  blocked = false;
+  inp.setLocalMode(true);
+  key('keydown', 'ArrowRight');
+  assert.equal(inp.state().motionSource, 'keyboard', 'local multiplayer pads do not override the keyboard truck');
+  pad = null;
+  globalThis.window = stub();
 }
 
 // Analog trigger and stick scale acceleration and steering
@@ -49,6 +108,10 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   const s = inp.state();
   assert.equal(s.thr, 0.5);
   assert.ok(s.str > 0.4 && s.str < 0.6 && s.right);
+  pad = mkPad({ axes: [0, 0, 0, -0.8] });
+  assert.ok(inp.state().lookU && !inp.state().lookD, 'right stick up looks up');
+  pad = mkPad({ axes: [0, 0, 0, 0.8] });
+  assert.ok(inp.state().lookD && !inp.state().lookU, 'right stick down looks down');
   const mk = () => ({ x: 0, y: 0, a: 0, speed: 0, steer: 0, gear: 'D' });
   const half = mk(), full = mk();
   drive(half, { thr: 0.5, str: 0 }, 0.5);
@@ -184,4 +247,68 @@ console.log('input tests passed');
   assert.ok(!z(400, 640, 900, 800, true), 'landscape: free above 144px');
   assert.ok(z(850, 100, 900, 800, true), 'fork gauge column');
   assert.ok(!z(500, 100, 900, 800, true), 'free area beside the gauge');
+}
+
+// Rumble: dual-rumble where available, Firefox hapticActuators otherwise; pulses fade, throttled sends, stop when disabled
+{
+  const { createRumble, sendRumble, rumbleSupport } = await import('../js/rumble.js');
+  const dual = [], pulses = [[], []];
+  const chromePad = { vibrationActuator: { effects: ['dual-rumble'], playEffect: (t, o) => { dual.push([t, o.strongMagnitude, o.weakMagnitude]); return Promise.resolve(); } } };
+  const act = (i) => ({ pulse: (v, ms) => { pulses[i].push([v, ms]); return Promise.resolve(true); } });
+  assert.equal(sendRumble(chromePad, 0.5, 0.2), 'dual');
+  assert.deepEqual(dual[0], ['dual-rumble', 0.5, 0.2]);
+  assert.equal(sendRumble({ hapticActuators: [act(0)] }, 0.2, 1), 'pulse');
+  assert.equal(pulses[0][0][0], 0.6, 'one actuator: max(strong, weak × 0.6)');
+  sendRumble({ hapticActuators: [act(0), act(1)] }, 0.3, 0.7);
+  assert.deepEqual([pulses[0][1][0], pulses[1][0][0]], [0.3, 0.7], 'two actuators: strong and weak motors');
+  assert.equal(sendRumble({ vibrationActuator: null, hapticActuators: [] }, 1, 1), null);
+  const trig = [];
+  const xboxPad = { vibrationActuator: { effects: ['dual-rumble', 'trigger-rumble'], playEffect: (t, o) => { trig.push([t, o.strongMagnitude, o.leftTrigger]); return Promise.resolve(); } } };
+  assert.deepEqual(rumbleSupport(xboxPad), ['dual', 'trigger', 'triggers']);
+  assert.equal(sendRumble(xboxPad, 0.4, 0.2, 100, 'triggers'), 'triggers');
+  assert.deepEqual(trig[0], ['trigger-rumble', 0, 0.4], 'triggers only: motors off, triggers at the stronger value');
+  assert.equal(sendRumble(chromePad, 0.4, 0.2, 100, 'pulse'), null, 'a chosen effect the pad lacks plays nothing');
+
+  const r = createRumble();
+  r.strength = 1;
+  r.pulse('bonk', 1, 0.5, 0.2);
+  dual.length = 0;
+  assert.equal(r.frame(0.01, chromePad).strong, 0.95);
+  r.frame(0.01, chromePad);
+  assert.equal(dual.length, 1, 'no resend before the refresh interval');
+  for (let i = 0; i < 30; i++) r.frame(0.01, chromePad);
+  assert.deepEqual(r.mix(), { strong: 0, weak: 0 }, 'pulse faded out');
+  assert.deepEqual(dual.at(-1).slice(1), [0, 0], 'stopped once it faded');
+  r.pulse('bonk', 1, 1, 1);
+  r.frame(0.01, chromePad, false);
+  assert.deepEqual(r.mix(), { strong: 0, weak: 0 }, 'disabled drops pending pulses');
+  r.setFeature('damage', false);
+  r.pulse('damage', 1, 1, 1);
+  assert.deepEqual(r.mix(), { strong: 0, weak: 0 }, 'a switched-off feature does not rumble');
+  r.strength = 0.5;
+  r.pulse('bonk', 1, 1, 1);
+  assert.deepEqual(r.mix(), { strong: 0.5, weak: 0.5 }, 'strength scales the mix');
+  r.clear(); r.strength = 1;
+
+  // Truck feed: the held horn buzzes, scraping and tyre slip rumble, a quiet truck does not
+  const t = { fl: { speed: 2 }, scrape: 0, slip: 0, horn: false };
+  r.feedTruck(t);
+  assert.deepEqual(r.mix(), { strong: 0, weak: 0 }, 'driving alone is quiet');
+  t.horn = true; r.feedTruck(t);
+  assert.ok(r.mix().weak > 0.3, 'honking buzzes');
+  r.setFeature('horn', false); r.feedTruck(t);
+  assert.deepEqual(r.mix(), { strong: 0, weak: 0 }, 'horn rumble can be switched off');
+  t.scrape = 1; t.slip = 0.5; r.feedTruck(t);
+  assert.ok(r.mix().weak > 0.3, 'scrape and slip rumble');
+}
+
+// Y on the keyboard player's pad does not swap the camera view
+{
+  const calls = [];
+  const inp = createInput({ swapView: () => calls.push('swap') });
+  pad = mkPad({ pressed: [3] });
+  inp.state();
+  pad = null;
+  inp.state();
+  assert.deepEqual(calls, []);
 }

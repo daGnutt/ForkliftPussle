@@ -1,5 +1,5 @@
 import './firstplay.js';
-import { newGame, update, endPhotos, forkUp, forkDown, forkDownAll, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges, crashAlert } from './game.js';
+import { newGame, update, endPhotos, forkUp, forkDown, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges, crashAlert } from './game.js';
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput, inTouchControlZone } from './input.js';
 import { createLocal } from './local.js';
@@ -27,6 +27,7 @@ import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
 import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
+import { createRumble, sendRumble, rumbleSupport, RUMBLE_FEATURES, RUMBLE_EFFECTS, RUMBLE_STRENGTH } from './rumble.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
 import { batterySaverOption, canvasDpr, shouldDraw } from './power.js';
 import { startAudio, playDroid as droid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, setPageHidden, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
@@ -112,6 +113,9 @@ let hitCount = game.hitCount;
 let bonkCount = game.bonks;
 let otherBonks = new Map(); // truck id -> last seen bonk count (other trucks' bumps are heard, quieter with distance)
 const otherH = new Map(); // truck id -> last seen fork level
+// Controller rumble (js/rumble.js): only while the gamepad was the last driving input; menu option #rumbleOpt.
+const rumble = createRumble();
+const RUMBLE_HIT_DIST = 2.5; // tiles: box damage this close to the own truck is felt
 refreshBest();
 // Loudness 0..1 of a sound at (x, y), falling off with the distance from the local truck (same curve as the horns).
 // Other players' trucks pop in and out of existence: queue a pop (sound here, smoke in gl/particles.js) on every change.
@@ -268,6 +272,66 @@ function toggleChase() {
   localStorage.setItem('forklift-chase-cam', view.chase ? '1' : '0');
 }
 
+function setCameraOverview() {
+  if (!glEnabled()) return;
+  view.povBig = false;
+  view.chase = false;
+  view.orbit = null;
+  view.look = null;
+  view.manualCab = false;
+  view.chaseGoal = null;
+  view.camP = null;
+  localStorage.setItem('forklift-cab-view', '0');
+  localStorage.setItem('forklift-chase-cam', '0');
+}
+
+function setCameraCabin() {
+  if (!glEnabled() || isTouch) return;
+  view.povBig = true;
+  view.chase = false;
+  view.look = null;
+  view.manualCab = false;
+  view.orbit = null;
+  view.chaseGoal = null;
+  view.camP = null;
+  localStorage.setItem('forklift-cab-view', '1');
+  localStorage.setItem('forklift-chase-cam', '0');
+  tutDone.cab = true;
+}
+
+function setCameraChase() {
+  if (!glEnabled()) return;
+  view.povBig = false;
+  view.chase = true;
+  view.look = null;
+  view.manualCab = false;
+  view.orbit = null;
+  view.chaseGoal = null;
+  view.camP = null;
+  localStorage.setItem('forklift-cab-view', '0');
+  localStorage.setItem('forklift-chase-cam', '1');
+}
+
+function resetCamera() {
+  if (!glEnabled()) return;
+  view.look = null;
+  view.orbit = null;
+  view.manualCab = false;
+  view.chaseGoal = null;
+  view.camP = null;
+  view.camA = null;
+  view.snap = false;
+  view.chaseLiftTarget = 0;
+  view.chaseLift = 0;
+  if (view.chase) {
+    view.chaseZoom = null;
+    localStorage.removeItem('forklift-chase-zoom');
+  } else if (!view.povBig) {
+    view.zoom = null;
+    localStorage.removeItem('forklift-ov-zoom');
+  }
+}
+
 // Local multiplayer: gamepads join the running game as extra trucks (see local.js).
 const toggleCab = (slot) => {
   view.cabs ||= new Set();
@@ -279,6 +343,10 @@ const input = createInput({
   anyKey: startAudio,
   fullscreen: toggleFullscreen,
   toggleChase,
+  cameraOverview: setCameraOverview,
+  cameraCabin: setCameraCabin,
+  cameraChase: setCameraChase,
+  cameraReset: resetCamera,
   swapView: () => {
     if (isTouch) return;
     if (view.shared) { toggleCab(game.self); return; }
@@ -287,6 +355,7 @@ const input = createInput({
     if (view.povBig) tutDone.cab = true;
   },
   up: () => {
+    if (game.hard) return; // hard mode reads the held fork keys in update()
     if (mp?.role === 'guest') { mp.guest.sendFork('up'); noteForkResult('up', mp.guest.predictor.fork('up', performance.now() / 1000)); return; }
     const h = game.H;
     const res = forkUp(game);
@@ -294,17 +363,12 @@ const input = createInput({
     if (res !== 'blocked' && game.H !== h) playFork(true);
   },
   down: () => {
+    if (game.hard) return;
     if (mp?.role === 'guest') { mp.guest.sendFork('down'); noteForkResult('down', mp.guest.predictor.fork('down', performance.now() / 1000)); return; }
     const h = game.H;
     const res = forkDown(game);
     noteForkResult('down', res);
     if (res !== 'blocked' && game.H !== h) playFork(false);
-  },
-  downAll: () => {
-    if (mp?.role === 'guest') { mp.guest.sendFork('downAll'); mp.guest.predictor.fork('downAll', performance.now() / 1000); return; }
-    const h = game.H;
-    forkDownAll(game);
-    if (game.H !== h) playFork(false);
   },
   next: () => nextLevel(),
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
@@ -312,7 +376,7 @@ const input = createInput({
   menuToggle: () => { if (view.menuOpen) toggleMenu(false); else if (!splashOn && !recordOpen) toggleMenu(true); else if (splashOn) startBtn.click(); },
   menuNav: (dir) => padMenuNav(dir),
   menuSelect: () => { if (splashOn) startBtn.click(); else if (view.menuOpen) document.activeElement?.click?.(); },
-  menuBack: () => { if (!view.menuOpen) return; if (menuEl.dataset.page !== 'main') showPage('main'); else toggleMenu(false); },
+  menuBack: () => { if (!view.menuOpen) return; if (menuEl.dataset.page !== 'main') showPage(parentPage()); else toggleMenu(false); },
   blocked: () => splashOn || recordOpen || !!view.menuOpen,
 });
 
@@ -360,12 +424,13 @@ function lookState() {
   view.snap = false;
   return view.povBig ? (view.look ||= { yaw: 0, pitch: 0 }) : (view.orbit ||= { yaw: 0, tilt: orbitHome() });
 }
-function lookBy(dyaw, dpitch) {
+function lookBy(dyaw, dpitch, manualCab = false) {
   const o = lookState();
   o.goal = null;
   if (view.chase) { view.chaseGoal = null; swingChase(-dyaw); } else o.yaw = wrap(o.yaw + lookYawDelta(dyaw, view.povBig));
   if (view.povBig) o.pitch = Math.min(LOOK_PITCH_MAX, Math.max(-LOOK_PITCH_MAX, o.pitch + dpitch));
   else o.tilt = Math.min(ORBIT_TILT_MAX, Math.max(0.05, o.tilt + dpitch));
+  if (view.povBig && manualCab) view.manualCab = true;
 }
 function springBack(dt) {
   const k = 1 - Math.exp(-7 * dt);
@@ -381,7 +446,7 @@ function springBack(dt) {
       else { o.yaw = wrap(target); o.tilt = orbitHome(); }
     }
   }
-  if (l) { l.yaw -= l.yaw * k; l.pitch -= l.pitch * k; if (Math.abs(l.yaw) + Math.abs(l.pitch) < 0.003) view.look = null; }
+  if (l && !view.manualCab) { l.yaw -= l.yaw * k; l.pitch -= l.pitch * k; if (Math.abs(l.yaw) + Math.abs(l.pitch) < 0.003) view.look = null; }
   if ((!view.orbit || view.chase || view.orbit.yaw === Math.round(view.orbit.yaw / (Math.PI / 2)) * (Math.PI / 2)) && !view.look) view.snap = false;
 }
 let drag = null;
@@ -539,8 +604,17 @@ function checkEventTips() {
 function noteForkResult(dir, res) {
   if (res !== 'blocked') return;
   playBlocked();
+  rumble.pulse('blocked', 0.5, 0.2, 0.12);
   if (dir === 'down') pendingTips.forkbox = true;
   else if (game.carried || game.lifting >= 0) pendingTips.ceiling = true;
+}
+// Hard mode fork keys act inside update(); sounds and hints follow the events it reports.
+let lastForkEv = null;
+function watchForkEvents(ev) {
+  if (!ev || ev === lastForkEv) return;
+  lastForkEv = ev;
+  noteForkResult(ev.dir > 0 ? 'up' : 'down', ev.res);
+  if (ev.res !== 'blocked' && ev.moved) playFork(ev.dir > 0);
 }
 function checkOpenTip() {
   if (tipUntil) {
@@ -839,6 +913,58 @@ const themeSel = document.getElementById('themeSel');
 setThemeMode(localStorage.getItem('forklift-theme'));
 const bareOpt = document.getElementById('bareOpt');
 const chaseOpt = document.getElementById('chaseOpt');
+const rumbleOpt = document.getElementById('rumbleOpt');
+rumbleOpt.checked = localStorage.getItem('forklift-rumble') !== '0';
+rumbleOpt.addEventListener('change', () => localStorage.setItem('forklift-rumble', rumbleOpt.checked ? '1' : '0'));
+// Rumble subpage: effect, strength, one checkbox per feature (disabled ones saved as a comma list in forklift-rumble-off).
+const rumbleEffect = document.getElementById('rumbleEffect');
+const rumbleStrength = document.getElementById('rumbleStrength');
+const rumbleSupportEl = document.getElementById('rumbleSupport');
+for (const [id, name] of RUMBLE_EFFECTS) rumbleEffect.add(new Option(name, id));
+rumble.effect = RUMBLE_EFFECTS.some(([id]) => id === localStorage.getItem('forklift-rumble-effect')) ? localStorage.getItem('forklift-rumble-effect') : 'auto';
+rumbleEffect.value = rumble.effect;
+rumbleEffect.addEventListener('change', () => { rumble.effect = rumbleEffect.value; localStorage.setItem('forklift-rumble-effect', rumble.effect); });
+const savedStrength = Number(localStorage.getItem('forklift-rumble-strength') ?? NaN);
+rumble.strength = Number.isFinite(savedStrength) ? Math.max(0, Math.min(1, savedStrength)) : RUMBLE_STRENGTH;
+rumbleStrength.value = Math.round(rumble.strength * 100);
+rumbleStrength.addEventListener('input', () => { rumble.strength = rumbleStrength.value / 100; localStorage.setItem('forklift-rumble-strength', String(rumble.strength)); });
+const rumbleOff = new Set((localStorage.getItem('forklift-rumble-off') || '').split(',').filter(Boolean));
+for (const [id, name] of RUMBLE_FEATURES) {
+  const label = document.createElement('label');
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = !rumbleOff.has(id);
+  rumble.setFeature(id, box.checked);
+  box.addEventListener('change', () => {
+    rumble.setFeature(id, box.checked);
+    if (box.checked) rumbleOff.delete(id); else rumbleOff.add(id);
+    localStorage.setItem('forklift-rumble-off', [...rumbleOff].join(','));
+  });
+  label.append(box, ` ${name}`);
+  document.getElementById('rumbleFeatures').append(label);
+}
+document.getElementById('rumbleTest').addEventListener('click', () => {
+  const gp = standardPads()[0]?.gp;
+  const s = rumble.strength;
+  if (gp) sendRumble(gp, 0.8 * s, 0.6 * s, 250, rumble.effect);
+});
+// Temporary, only with ?controller: V opens the menu on the Rumble page, for tuning the rumble while testing a pad.
+if (new URLSearchParams(location.search).has('controller')) {
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'KeyV' || e.repeat || e.altKey || e.ctrlKey || e.metaKey || splashOn || recordOpen || view.menuOpen) return;
+    e.preventDefault();
+    toggleMenu(true);
+    showPage('rumble');
+  });
+}
+// What the first pad can play, shown under the effect drop-down while the menu is open.
+function showRumbleSupport() {
+  const gp = standardPads()[0]?.gp;
+  const can = gp ? rumbleSupport(gp) : null;
+  const text = !gp ? 'No gamepad found (press a button on it).' : can.length ? `This gamepad supports: ${RUMBLE_EFFECTS.filter(([id]) => can.includes(id)).map(([, n]) => n).join(', ')}.` : 'This gamepad/browser has no rumble.';
+  if (rumbleSupportEl.textContent !== text) rumbleSupportEl.textContent = text;
+}
+setInterval(() => { if (view.menuOpen && menuEl.dataset.page === 'rumble') showRumbleSupport(); }, 1000); // the game loop is paused in the menu
 const chaseZoomSel = document.getElementById('chaseZoom');
 setBareForks(localStorage.getItem('forklift-bare-forks') === '1');
 const discoOpt = document.getElementById('discoOpt');
@@ -871,7 +997,10 @@ function showPage(name) {
   for (const p of menuEl.querySelectorAll('.page')) p.hidden = p.dataset.page !== name;
   (menuEl.querySelector(`.page[data-page="${name}"] .primary, .page[data-page="${name}"] .back`)).focus();
   menuEl.dataset.page = name;
+  if (name === 'rumble') showRumbleSupport();
 }
+// The page the current page's Back button goes to (subpages like Rumble return to Controls).
+const parentPage = () => menuEl.querySelector('.page:not([hidden]) .back')?.dataset.go || 'main';
 menuEl.addEventListener('click', (e) => {
   const b = e.target.closest('[data-go]');
   if (b) showPage(b.dataset.go);
@@ -1123,7 +1252,7 @@ window.addEventListener('keydown', (e) => {
   if (e.target.closest?.('#keyMap')) { if (e.code === 'Enter' || e.code === 'Space') pickKeys(e); if (e.code !== 'Escape') return; }
   const typing = e.target === menuLevel || e.target === pullName;
   if (e.target === stateText) { if (e.code === 'Escape') { e.preventDefault(); showPage('main'); } return; }
-  if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage('main'); return; }
+  if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage(parentPage()); return; }
   if (e.code === 'Escape' || (e.code === 'KeyP' && !typing)) { e.preventDefault(); toggleMenu(false); return; }
   if (e.code === 'Enter' && e.target !== menuLevel && e.target !== pullName) { e.preventDefault(); toggleMenu(false); return; }
   if (e.target === trackSel || e.target === themeSel) return;
@@ -1223,12 +1352,17 @@ function frame(now) {
   let steps = 0;
   // Camera follow-up for one step of `dt` seconds (the heading of the chase camera, look-around spring-back).
   const cameraStep = (inp, dt) => {
+    view.gamepadCab = inp.motionSource === 'gamepad';
     if (inp.up || inp.down || inp.left || inp.right) view.snap = true;
     if (!splashOn && glEnabled()) {
-      if (view.povBig) { if (inp.lookL || inp.lookR) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * dt, 0); }
+      const pitch = (inp.lookU ? 1 : 0) - (inp.lookD ? 1 : 0);
+      if (view.povBig) {
+        if (inp.lookL || inp.lookR || inp.lookU || inp.lookD) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * dt, pitch * LOOK_SPEED * dt, true);
+      }
       else {
         if (inp.lookR && !view.lookHeld?.R) quarterTurn(1);
         if (inp.lookL && !view.lookHeld?.L) quarterTurn(-1);
+        if (inp.lookU || inp.lookD) lookBy(0, pitch * LOOK_SPEED * dt);
         turnStep(dt);
       }
       view.lookHeld = { L: inp.lookL, R: inp.lookR };
@@ -1259,10 +1393,12 @@ function frame(now) {
       mp.guest.predictor.apply(game, sec);
       cameraStep(inp, dtReal);
       followStep(dtReal);
-      if (game.H !== mp.lastH) { if (mp.lastH != null) playFork(game.H > mp.lastH); mp.lastH = game.H; }
+      if (game.hard) watchForkEvents(mp.guest.predictor.fkEv());
+      else if (game.H !== mp.lastH) { if (mp.lastH != null) playFork(game.H > mp.lastH); mp.lastH = game.H; }
     }
   }
   watchPops();
+  if (mp?.role !== 'guest') watchForkEvents(game.fk.ev);
   if (!mp && !splashOn && !view.paused && !view.menuOpen && localOpt.checked) local.step(game, performance.now() / 1000);
   view.shared = !mp && localOpt.checked && local.players > 0;
   while (mp?.role !== 'guest' && !splashOn && !view.paused && acc >= STEP) {
@@ -1295,7 +1431,11 @@ function frame(now) {
   if (fresh.length) (!game.hard && fresh.some((z) => zoneWonky(game, z)) ? playWonky : playSuccess)();
   doneZones = done;
   if (game.hitCount !== hitCount) {
-    if (game.hitCount > hitCount) { const h = game.hits?.[game.hits.length - 1]; playBreak(h ? hearVol(h.x, h.y) : 1); }
+    if (game.hitCount > hitCount) {
+      const h = game.hits?.[game.hits.length - 1];
+      playBreak(h ? hearVol(h.x, h.y) : 1);
+      if (!h || Math.hypot(h.x - game.fl.x, h.y - game.fl.y) < RUMBLE_HIT_DIST) rumble.pulse('damage', 0.9, 0.6, 0.3);
+    }
     hitCount = game.hitCount;
   }
   let scrapeV = game.scrape, scrapeVol = 1, slipV = game.slip || 0, slipVol = 1;
@@ -1315,7 +1455,14 @@ function frame(now) {
   }
   setScrape(won ? 0 : scrapeV, scrapeVol);
   setSqueal(won ? 0 : slipV, slipVol);
-  if (game.bonks !== bonkCount) { if (game.bonks > bonkCount) playBonk(game.bonkPower); bonkCount = game.bonks; }
+  if (game.bonks !== bonkCount) {
+    if (game.bonks > bonkCount) { const pw = game.bonkPower || 0.5; playBonk(game.bonkPower); rumble.pulse('bonk', 0.35 + 0.65 * pw, 0.3 + 0.5 * pw, 0.12 + 0.18 * pw); }
+    bonkCount = game.bonks;
+  }
+  const rumbleOn = rumbleOpt.checked && !splashOn && !view.paused && !view.menuOpen && !won && !document.hidden
+    && !localOpt.checked && !game.trucks[game.self]?.gone && st.motionSource === 'gamepad';
+  if (rumbleOn) rumble.feedTruck(game);
+  rumble.frame(dtReal, standardPads()[0]?.gp ?? null, rumbleOn);
   if (game.status === 'won' && !game.endless) {
     if (!reduceEffectsOn && galleryGame !== game) { galleryGame = game; startGallery(() => endPhotos(game)); }
     else if (reduceEffectsOn && galleryGame) { galleryGame = null; stopGallery(); }

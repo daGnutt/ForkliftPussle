@@ -25,6 +25,9 @@ const BONK_LOSS = 0.4; // fraction of forward motion lost in one step that count
 const BONK_COOLDOWN = 0.2;
 const SCRAPE_MIN_SPEED = 0.3; // speed while touching a wall that scrapes
 const FORK_BLOCK_POINTS = 10;
+export const TAP_S = 0.2; // hard mode: a fork key released within this many seconds is a tap (next level); held longer it moves the forks fluidly
+export const FORK_RATE = 1; // levels per second while a fork key is held (hard mode)
+export const PICKUP_LIFT = 0.2; // levels the forks must be raised under a box to carry it; carried boxes lower than this above their resting height are set down
 const CEILING_LEVELS = 6; // the carried stack's top (H + boxes) may not go above this many box heights
 const CEILING_POINTS = 10; // crash points per box on the forks each time they hit the ceiling
 const PALLET_INERTIA = 0.17; // radius of gyration squared of a unit box
@@ -50,7 +53,7 @@ const boxPoints = (pen) => (pen?.wide ? 2 * BOX_POINTS : BOX_POINTS);
 // the local truck (`g.self`): g.fl, g.H, g.carried... forward to `g.trucks[g.self]`, so single-player code and
 // tests just use `g`. `truckView(g, i)` gives the same view for another truck (a Proxy), which every per-truck
 // function (update steps, forkUp/forkDown, resolve) accepts in place of `g`.
-const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hf', 'ef', 'hitAt', 'horn', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
+const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hy', 'hf', 'ef', 'fk', 'hitAt', 'horn', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
 const TRUCK_SET = new Set(TRUCK_KEYS);
 
 export function makeTruck(start, id = 0, name = '') {
@@ -61,7 +64,8 @@ export function makeTruck(start, id = 0, name = '') {
     bonks: 0, bonkPower: 0, bonkAt: -1, scrape: 0, wallPush: null,
     contact: null, // last wall hit: { x, y, nx, ny } = point on the truck and the direction the wall pushed it (for sparks)
     slip: 0, // 0..1, how much the tyres are spinning (driving into something that does not give, or being shoved); drives tyre smoke
-    H: 0, hf: 0, ef: 0,
+    H: 0, hy: 0, hf: 0, ef: 0, // H = floor(hy): the logical level; hy = the real fork height (box heights, whole numbers except between levels in hard mode)
+    fk: { dir: 0, t: 0, fluid: false, hit: false, last: 0, n: 0, ev: null }, // hard mode fork key state: held direction, time held, last direction moved, last event
     horn: false, // the horn key is held
     lifting: -1, // id of the truck riding on this truck's tines (-1 none)
     liftedBy: -1, // id of the truck whose tines carry this one (it cannot move by itself meanwhile)
@@ -295,8 +299,17 @@ export function crashProbes(g) {
 // The stacks the alert's probes currently hit (at an overlapping height).
 export function alertTriggers(g) {
   const probes = crashProbes(g);
-  if (!probes.length) return [];
-  return g.stacks.filter((s) => s.layers.length > g.H && probes.some((p) => sat(p, stackPoly(s))));
+  if (!probes.length) return hoverStack(g) ? [hoverStack(g)] : [];
+  const hit = g.stacks.filter((s) => s.layers.length > g.H && probes.some((p) => sat(p, stackPoly(s))));
+  const low = hoverStack(g);
+  return low && !hit.includes(low) ? [...hit, low] : hit;
+}
+
+// Hard mode: standing still after lowering, less than one level above a stack, the alert says a tap on fork down sets the load on it.
+function hoverStack(g) {
+  if (!g.hard || !g.carried || g.fk.last >= 0 || Math.abs(g.fl.speed) > 0.05) return null;
+  const S = stackInZone(g);
+  return S && S.layers.length > 0 && g.hy > S.layers.length && g.hy - S.layers.length < 1 - 1e-6 ? S : null;
 }
 
 export const crashAlert = (g) => alertTriggers(g).length > 0;
@@ -646,7 +659,9 @@ function forkShapes(g) {
     shapes.push({ poly: boxPoly(c.x, c.y, f.a + g.carriedRel, g.carriedPen?.[0]), stackFilter: (s) => s.layers.length > g.H, carried: true, targets: boxes(g.H) });
   }
   const blocks = (s) => s.layers.length > g.H && s.pen?.[g.H]?.barrelPart !== 'top' && g.hard;
-  const tineTargets = (s) => palletRunners(g, s).map((poly) => ({ poly, from: g.H }));
+  // Tines raised into a pallet by PICKUP_LIFT or more can no longer enter its slots: they hit the box itself.
+  const raised = g.hy - g.H >= PICKUP_LIFT - 1e-6;
+  const tineTargets = (s) => raised ? [{ poly: boxPoly(boxPos(s, g.H).x, boxPos(s, g.H).y, s.rots[g.H], s.pen?.[g.H]), from: g.H }] : palletRunners(g, s).map((poly) => ({ poly, from: g.H }));
   for (const side of [-1, 1]) shapes.push({ ...mk(tx, side * FL.tineOff, thx, FL.tineHalf, blocks, tineTargets), tine: true });
   return shapes;
 }
@@ -912,6 +927,55 @@ function clearWallOverlaps(g) {
     }, false);
     const shifted = resolveStackWalls(g, false);
     if (!moved && !shifted) break;
+  }
+}
+
+// Last line of defence against tunnelling: a box pushed (or knocked) deep enough into the 3-tile outer wall can be resolved out the far side,
+// so after every step any box poking outside the level rectangle is shifted back in, whatever the wall solver decided.
+// The same goes for inner walls: a box whose centre travelled through a wall rectangle since the last step is put back where it was.
+const crossesWall = (a, b, w) => {
+  const inside = (p) => p.x > w.x && p.x < w.x + w.w && p.y > w.y && p.y < w.y + w.h;
+  if (inside(a)) return false;
+  let t0 = 0, t1 = 1;
+  for (const [o, d, lo, hi] of [[a.x, b.x - a.x, w.x, w.x + w.w], [a.y, b.y - a.y, w.y, w.y + w.h]]) {
+    if (Math.abs(d) < 1e-12) { if (o <= lo || o >= hi) return false; continue; }
+    let u = (lo - o) / d, v = (hi - o) / d;
+    if (u > v) [u, v] = [v, u];
+    t0 = Math.max(t0, u); t1 = Math.min(t1, v);
+    if (t0 >= t1) return false;
+  }
+  return true;
+};
+
+function containStacks(g) {
+  for (const s of g.stacks) {
+    if (s.leaving) continue;
+    ensure(s);
+    const safe = s.safe;
+    if (safe && safe.offs.length === s.layers.length && safe.rots.length === s.rots.length) {
+      const tunnelled = s.layers.some((_, i) => {
+        const a = { x: safe.x + safe.offs[i].x, y: safe.y + safe.offs[i].y }, b = boxPos(s, i);
+        return g.walls.some((w) => crossesWall(a, b, w));
+      });
+      if (tunnelled) {
+        touchStack(s);
+        s.x = safe.x; s.y = safe.y;
+        s.offs = safe.offs.map((o) => ({ ...o })); s.rots = [...safe.rots];
+      }
+    }
+    for (let i = 0; i < s.layers.length; i++) {
+      const c = boxPos(s, i), r = Math.hypot(BOX_HALF_X, halfY(s.pen[i]));
+      if (c.x - r >= 0 && c.x + r <= g.w && c.y - r >= 0 && c.y + r <= g.h) continue;
+      const p = boxPoly(c.x, c.y, s.rots[i], s.pen[i]);
+      let dx = 0, dy = 0;
+      const lo = (k) => Math.min(...p.map((v) => v[k])), hi = (k) => Math.max(...p.map((v) => v[k]));
+      if (lo('x') < 0) dx = -lo('x'); else if (hi('x') > g.w) dx = g.w - hi('x');
+      if (lo('y') < 0) dy = -lo('y'); else if (hi('y') > g.h) dy = g.h - hi('y');
+      if (!dx && !dy) continue;
+      touchStack(s);
+      shiftBoxes(s, s.pen[i]?.barrelPart === 'top' ? i - 1 : i, dx, dy);
+    }
+    s.safe = { x: s.x, y: s.y, offs: s.offs.map((o) => ({ ...o })), rots: [...s.rots] };
   }
 }
 
@@ -1306,12 +1370,14 @@ function stepTruck(g, input, dt) {
   const hornOn = !!input.horn;
   if (hornOn && !g.horn && g.root.clock - (g.truck.waveAt ?? -1e9) >= WAVE_COOLDOWN) { g.truck.waveAt = g.root.clock; hornWave(g.root, g.truck); }
   g.horn = hornOn;
+  syncHy(g);
+  stepForks(g, input, dt);
   if (g.liftedBy >= 0) { // riding on another truck's tines: no driving until it is put down
     const c = g.root.trucks[g.liftedBy];
     if (c && !c.gone) syncLifted(g.root, c);
     f.speed = 0;
     g.slip = 0;
-    g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
+    g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.hy - g.hf));
     return;
   }
   if (g.perchZ > 0) { // sitting on stacks: stays until lifted off; drops to the floor if the stacks are taken away
@@ -1319,7 +1385,7 @@ function stepTruck(g, input, dt) {
     if (g.perchZ > 0) {
       f.speed = 0;
       g.slip = 0;
-      g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
+      g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.hy - g.hf));
       return;
     }
   }
@@ -1332,7 +1398,7 @@ function stepTruck(g, input, dt) {
   const affected = frontGrip.grip < 1 || rearGrip.grip < 1;
   drive(f, affected
     ? { ...input, thr: th * (0.35 + frontGrip.grip * 0.65), str: str * rearGrip.grip }
-    : input, dt, g.H);
+    : input, dt, g.hy);
   oilDrift(f, rearGrip, dt);
   skidStep(f, dt);
   if (f.speed !== 0) g.started = true; // the level timer starts when a truck first moves
@@ -1352,6 +1418,7 @@ function stepTruck(g, input, dt) {
     twistCarried(g, Math.max(-ALIGN_RATE * dt, Math.min(ALIGN_RATE * dt, diff)));
   }
   clearWallOverlaps(g);
+  containStacks(g);
 
   if (Math.abs(intended) > 1e-6) {
     const actual = (f.x - driven.x) * Math.cos(f.a) + (f.y - driven.y) * Math.sin(f.a) + intended;
@@ -1365,7 +1432,7 @@ function stepTruck(g, input, dt) {
   g.slip = Math.max(tireSlip(g, input, dt), 1 - frontGrip.grip, 1 - rearGrip.grip, (g.slip || 0) - SLIP_DECAY * dt);
   if (g.lifting >= 0) syncLifted(g.root, g.truck);
 
-  g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
+  g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.hy - g.hf));
   g.ef += (g.hf - g.ef) * (1 - Math.exp(-dt / 0.22)); // cabin eye trails the forks
   // visual lowering of a just-released stack ends when the forks reach it
   for (const s of g.stacks) if (s.dropFrom != null && (s.dropTruck ?? 0) === g.truck.id && (g.hf <= s.dropFrom + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;
@@ -1533,7 +1600,7 @@ function perchedOn(g, S) {
 }
 
 // Raising carried boxes into the ceiling is refused ('blocked') and damages every carried box.
-export function forkUp(g) {
+function forkUpStep(g) {
   if (stuck(g)) return;
   if (!g.carried && g.lifting < 0 && !forkedStack(g)) {
     const o = truckOnMyTines(g);
@@ -1564,32 +1631,31 @@ export function forkUp(g) {
   if (g.carried) {
     const rider = g.lifting >= 0 ? truckView(g.root, g.lifting) : null; // a truck sitting on the carried stack
     if (g.H + g.carried.length + (rider ? (rider.carried ? Math.max(1, rider.H + rider.carried.length) : 1) : 0) >= CEILING_LEVELS) {
-      if (rider?.carried) liftBlocked(g, rider, true);
-      while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen(g.carried[g.carriedPen.length], g.carriedPen.length));
-      const c = carriedCenter(g);
-      hurt(g, g.carriedPen, CEILING_POINTS, c.x, c.y, g.H + g.carried.length, g);
-      addDent(g.carriedPen[g.carriedPen.length - 1], 't');
+      hitCeiling(g, rider);
       return 'blocked';
     }
     g.H = Math.min(MAX_H, g.H + 1);
     return;
   }
   const S = forkedStack(g);
-  if (S) {
-    const k = g.H;
-    if (S.pen?.[k]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[k])) > WIDE_ALIGN) return 'blocked'; // the tines don't both fit under it
-    const rider = perchedOn(g, S);
-    liftBoxes(g, S, k);
-    if (rider) { // a truck perched on top of the stack rides along on it
-      const l = toLocal(g.fl, rider.fl.x, rider.fl.y);
-      rider.truck.liftedBy = g.truck.id;
-      rider.truck.perchZ = 0;
-      rider.truck.rideLv = g.carried.length;
-      rider.truck.rideOff = { x: l.x, y: l.y, a: rider.fl.a - g.fl.a };
-      g.truck.lifting = rider.truck.id;
-    }
-  }
+  if (S && pickUp(g, S) === 'blocked') return 'blocked';
   g.H = Math.min(MAX_H, g.H + 1);
+}
+
+// The tines under the box at the fork level lift it and everything above it. Refused ('blocked') when the tines don't both fit under a wide box.
+function pickUp(g, S) {
+  const k = g.H;
+  if (S.pen?.[k]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[k])) > WIDE_ALIGN) return 'blocked';
+  const rider = perchedOn(g, S);
+  liftBoxes(g, S, k);
+  if (rider) { // a truck perched on top of the stack rides along on it
+    const l = toLocal(g.fl, rider.fl.x, rider.fl.y);
+    rider.truck.liftedBy = g.truck.id;
+    rider.truck.perchZ = 0;
+    rider.truck.rideLv = g.carried.length;
+    rider.truck.rideOff = { x: l.x, y: l.y, a: rider.fl.a - g.fl.a };
+    g.truck.lifting = rider.truck.id;
+  }
 }
 
 // The box that empty forks at level g.H cannot be lowered through, or null (also null while carrying).
@@ -1599,18 +1665,140 @@ function boxUnderForks(g) {
   return S && S.layers.length >= g.H ? S : null;
 }
 
-// Holding "lower": drops the forks to the lowest safe level in one go. Stops at the floor, when a carried stack is put down
-// (or handed over) and above a box the empty forks cannot pass; never damages anything.
-export function forkDownAll(g) {
-  while (g.H > 0 && !boxUnderForks(g)) {
-    const h = g.H, carried = g.carried, lifting = g.lifting >= 0;
-    forkDown(g);
-    if (g.H === h || (carried && !g.carried) || (lifting && g.lifting < 0)) break;
+// Raising carried boxes into the ceiling is refused and damages every carried box.
+function hitCeiling(g, rider = null) {
+  if (rider?.carried) liftBlocked(g, rider, true);
+  while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen(g.carried[g.carriedPen.length], g.carriedPen.length));
+  const c = carriedCenter(g);
+  hurt(g, g.carriedPen, CEILING_POINTS, c.x, c.y, g.H + g.carried.length, g);
+  addDent(g.carriedPen[g.carriedPen.length - 1], 't');
+}
+
+// Discrete fork actions (easy mode keys; in hard mode a tap) move to the next whole level in that direction, also from between levels.
+export function forkUp(g) {
+  syncHy(g);
+  const h = g.H;
+  const res = forkUpStep(g);
+  if (res !== 'blocked' && g.H !== h) g.hy = g.H;
+  return res;
+}
+
+export function forkDown(g) {
+  syncHy(g);
+  const frac = g.hy > g.H;
+  if (frac && !g.carried && g.lifting < 0) { // empty forks between levels: the level below is the one they are in
+    g.hy = g.H;
+    return;
   }
+  const h = frac ? g.H + 1 : g.H;
+  if (frac) g.H = h; // act as if the forks were on the next level up, so one level down lands on the level below
+  const res = forkDownStep(g);
+  if (res === 'blocked' || (frac && g.H === h)) {
+    if (frac) g.H = h - 1;
+    return res;
+  }
+  if (g.H !== h) g.hy = g.H;
+  return res;
+}
+
+// The logical level may be assigned directly (tests, snapshots): the real height follows it.
+const syncHy = (g) => { if (g.H !== Math.floor(g.hy + 1e-6)) g.hy = g.H; };
+
+// Sets the real fork height (box heights); the logical level is its whole part.
+function setHy(g, hy) {
+  const r = Math.round(hy);
+  g.hy = Math.abs(hy - r) < 1e-6 ? r : hy;
+  g.H = Math.floor(g.hy);
+}
+
+// Hard mode: the fork keys are read from the held state in `input.forkUp` / `input.forkDown`. A key released within TAP_S is a tap
+// (next level); held longer, the forks move at FORK_RATE and stay wherever the key is released. `fk.ev` reports what happened
+// ({ n, dir, res, moved }, n counts events) for sounds and hints.
+function stepForks(g, input, dt) {
+  const k = g.fk;
+  const dir = g.hard && !stuck(g) ? (input.forkUp ? 1 : 0) - (input.forkDown ? 1 : 0) : 0;
+  const event = (d, res, moved) => { k.ev = { n: ++k.n, dir: d, res, moved }; };
+  if (dir !== k.dir) {
+    if (k.dir && !k.fluid && k.t < TAP_S) {
+      const before = g.hy, res = (k.dir > 0 ? forkUp : forkDown)(g);
+      if (res !== 'blocked') k.last = k.dir;
+      event(k.dir, res, g.hy !== before);
+    }
+    Object.assign(k, { dir, t: 0, fluid: false, hit: false, stop: false, rep: 0 });
+  }
+  if (!dir) return;
+  k.t += dt;
+  if (k.t < TAP_S || k.stop) return;
+  const special = g.lifting >= 0 || (g.carried ? !!tinesUnderMyStack(g) : !!(truckOnMyTines(g) || stackOnMyTines(g)));
+  if (special) { // handing over or lifting a truck stays in whole levels: the held key repeats the tap
+    if (!k.fluid || (k.rep += dt) >= 0.5) {
+      k.rep = 0;
+      const before = g.hy, res = (dir > 0 ? forkUp : forkDown)(g);
+      if (res !== 'blocked') k.last = dir;
+      event(dir, res, g.hy !== before);
+    }
+    k.fluid = true;
+    return;
+  }
+  const first = !k.fluid;
+  k.fluid = true;
+  const before = g.hy, res = dir > 0 ? fluidUp(g, k, dt) : fluidDown(g, k, dt);
+  if (res === 'blocked') { if (!k.hit) { k.hit = true; event(dir, 'blocked', false); } return; }
+  if (res === 'stop') { k.stop = true; k.last = dir; event(dir, null, true); return; }
+  k.last = dir;
+  if (first && g.hy !== before) event(dir, null, true);
+}
+
+function fluidUp(g, k, dt) {
+  if (g.carried) {
+    if (g.hy + g.carried.length >= CEILING_LEVELS - 1e-6) { // the ceiling is hit once per press
+      if (k.hit) return 'blocked';
+      hitCeiling(g);
+      return 'blocked';
+    }
+    setHy(g, Math.min(CEILING_LEVELS - g.carried.length, g.hy + FORK_RATE * dt));
+    return;
+  }
+  const hy = Math.min(MAX_H, g.hy + FORK_RATE * dt);
+  const S = forkedStack(g);
+  if (S && hy - g.H >= PICKUP_LIFT - 1e-6) {
+    if (pickUp(g, S) === 'blocked') return 'blocked';
+    k.last = 1;
+  }
+  setHy(g, hy);
+}
+
+function fluidDown(g, k, dt) {
+  if (g.carried) {
+    const { S, n, minH } = carriedRest(g);
+    const hy = g.hy - FORK_RATE * dt;
+    if (hy < minH + PICKUP_LIFT - 1e-6) {
+      if (minH !== n) { setHy(g, Math.max(minH, hy)); return; } // cannot be merged: it rests on top
+      setHy(g, n);
+      putDown(g, S, n);
+      return 'stop';
+    }
+    setHy(g, hy);
+    return;
+  }
+  const hy = Math.max(0, g.hy - FORK_RATE * dt);
+  if (hy < g.H - 1e-6) { // lowering through the box under the tines is refused and damages it
+    const S = boxUnderForks(g);
+    if (S) {
+      if (!k.hit) {
+        ensure(S);
+        hurt(g, [S.pen[g.H - 1]], FORK_BLOCK_POINTS, S.x, S.y, g.H, S);
+        addDent(S.pen[g.H - 1], 't');
+      }
+      setHy(g, g.H);
+      return 'blocked';
+    }
+  }
+  setHy(g, hy);
 }
 
 // Lowering empty forks through a box is refused ('blocked') and damages that box.
-export function forkDown(g) {
+function forkDownStep(g) {
   if (stuck(g)) return;
   if (g.lifting >= 0 && !g.carried) { // the lifted truck is set down on the floor, or on the stacks under it, when the tines reach it
     const v = g.root.trucks[g.lifting], n = supportLevels(g.root, liftedPose(g.truck, v.liftRel));
@@ -1641,40 +1829,49 @@ export function forkDown(g) {
     g.H = Math.max(0, g.H - 1);
     return;
   }
+  const { S, n, minH } = carriedRest(g);
+  if (g.H > minH) g.H = Math.max(minH, g.H - 1);
+  // Reaching the resting height puts the boxes down.
+  if (g.H === n && minH === n) putDown(g, S, n);
+}
+
+// The stack under the carried boxes (or null), its height n and the lowest the carried boxes can go: n, or n + 1 when they cannot be merged onto it.
+function carriedRest(g) {
   const S = stackInZone(g);
   if (S) ensure(S);
   const n = S ? S.layers.length : 0;
-  const cp = carriedCenter(g);
   const minH = n + g.carried.length <= MAX_LAYERS && !(S && (blocksStacking(S.pen) || wideBox(S.pen) !== wideBox(g.carriedPen))) ? n : n + 1;
-  if (g.H > minH) g.H = Math.max(minH, g.H - 1);
-  // Reaching the resting height puts the boxes down.
-  if (g.H === n && minH === n) {
-    while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen(g.carried[g.carriedPen.length], g.carriedPen.length));
-    while (g.carriedRots.length < g.carried.length) g.carriedRots.push(g.carriedRel);
-    const worldRots = g.carriedRots.map((r) => r + g.fl.a);
-    g.carriedPen.forEach((p, i) => { p.sq = squareLoss(worldRots[i]); });
-    const p = toWorld(g.fl, FL.carryX, 0);
-    while (g.carriedOffs.length < g.carried.length) g.carriedOffs.push({ x: 0, y: 0 });
-    const world = carriedWorldOffs(g);
-    if (S) {
-      S.layers.push(...g.carried);
-      S.rots.push(...worldRots);
-      S.pen.push(...g.carriedPen);
-      S.offs.push(...world.map((o) => ({ x: p.x + o.x - S.x, y: p.y + o.y - S.y })));
-      S.dropFrom = n;
-      S.dropTruck = g.truck.id;
-      settle(g, S);
-    } else {
-      const base = world[0], offs = world.map((o) => ({ x: o.x - base.x, y: o.y - base.y }));
-      g.stacks.push({ x: cp.x, y: cp.y, layers: g.carried, rots: worldRots, pen: g.carriedPen, offs, a: g.fl.a + g.carriedRel, dropFrom: 0, dropTruck: g.truck.id });
-      if (g.carried.length === 1 && repairable(g.carriedPen[0])) recordDropAngle(g, cp.x, cp.y, worldRots[0]);
-    }
-    g.carried = null;
-    g.carriedRots = [];
-    g.carriedPen = [];
-    g.carriedOffs = [];
-    if (g.lifting >= 0) releaseLifted(g.root, g.truck); // a truck that rode on the stack stays perched on it
+  return { S, n, minH };
+}
+
+// Puts the carried boxes down on the stack S (n boxes high) under them, or on the floor.
+function putDown(g, S, n) {
+  const cp = carriedCenter(g);
+  while (g.carriedPen.length < g.carried.length) g.carriedPen.push(newPen(g.carried[g.carriedPen.length], g.carriedPen.length));
+  while (g.carriedRots.length < g.carried.length) g.carriedRots.push(g.carriedRel);
+  const worldRots = g.carriedRots.map((r) => r + g.fl.a);
+  g.carriedPen.forEach((p, i) => { p.sq = squareLoss(worldRots[i]); });
+  const p = toWorld(g.fl, FL.carryX, 0);
+  while (g.carriedOffs.length < g.carried.length) g.carriedOffs.push({ x: 0, y: 0 });
+  const world = carriedWorldOffs(g);
+  if (S) {
+    S.layers.push(...g.carried);
+    S.rots.push(...worldRots);
+    S.pen.push(...g.carriedPen);
+    S.offs.push(...world.map((o) => ({ x: p.x + o.x - S.x, y: p.y + o.y - S.y })));
+    S.dropFrom = n;
+    S.dropTruck = g.truck.id;
+    settle(g, S);
+  } else {
+    const base = world[0], offs = world.map((o) => ({ x: o.x - base.x, y: o.y - base.y }));
+    g.stacks.push({ x: cp.x, y: cp.y, layers: g.carried, rots: worldRots, pen: g.carriedPen, offs, a: g.fl.a + g.carriedRel, dropFrom: 0, dropTruck: g.truck.id });
+    if (g.carried.length === 1 && repairable(g.carriedPen[0])) recordDropAngle(g, cp.x, cp.y, worldRots[0]);
   }
+  g.carried = null;
+  g.carriedRots = [];
+  g.carriedPen = [];
+  g.carriedOffs = [];
+  if (g.lifting >= 0) releaseLifted(g.root, g.truck); // a truck that rode on the stack stays perched on it
 }
 
 const PARK_POS = 0.6, PARK_ANGLE = 0.35, PARK_SPEED = 0.5;

@@ -78,6 +78,17 @@
         <button type="button" id="menuFullscreen" class="sec">Toggle full screen</button>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
       </div>
+      <div class="page" data-page="rumble" hidden>
+        <h3>Controller rumble</h3>
+        <label title="Gamepad vibration, only while you drive with the gamepad"><input type="checkbox" id="rumbleOpt" checked> Rumble on</label>
+        <label class="row" title="How the vibration is played. Auto: dual rumble where the browser has it (Chromium, Safari), else haptic pulse (Firefox). Trigger effects need a controller with trigger motors (Xbox) in a Chromium browser"><span>Effect</span> <select id="rumbleEffect"></select></label>
+        <small id="rumbleSupport" class="ctl"></small>
+        <label class="row" title="Overall rumble strength"><span>Strength</span> <input type="range" id="rumbleStrength" min="0" max="100" step="5"></label>
+        <h4>Rumble on</h4>
+        <div id="rumbleFeatures" class="ctl"></div>
+        <button type="button" id="rumbleTest" class="sec" title="A short bump on the gamepad, with the settings above">Test</button>
+        <button type="button" class="back" data-go="controls">&#9666; Back</button>
+      </div>
       <div class="page" data-page="controls" hidden>
         <h3>Controls</h3>
         <label id="touchLabel" class="row" hidden title="Layout of the on-screen controls"><span>Touch controls</span> <select id="touchSel"><option value="classic">Buttons (classic)</option><option value="rotated">Buttons (forks left, drive right)</option><option value="joystick">Joystick + fork buttons</option></select></label>
@@ -91,8 +102,8 @@
             <li>Double-click the overview or <b>C</b>: third-person camera</li>
             <li>Zoom slider (bottom right): zoom the overview</li>
             <li><b>Tab</b>/<b>M</b>: swap overview and cab view</li>
-            <li class="k-arrows"><b>A</b>/<b>Z</b>: forks up / down (hold <b>Z</b>: lowest safe level)</li>
-            <li class="k-wasd"><b>E</b>/<b>Q</b>: forks up / down (hold <b>Q</b>: lowest safe level)</li>
+            <li class="k-arrows"><b>A</b>/<b>Z</b>: forks up / down (hard mode: hold for fluid movement)</li>
+            <li class="k-wasd"><b>E</b>/<b>Q</b>: forks up / down (hard mode: hold for fluid movement)</li>
             <li><b>H</b>: hold to honk &middot; <b>F</b>: full screen &middot; <b>Enter</b>: next level after winning</li>
           </ul>
         </div>
@@ -106,6 +117,7 @@
             <li>Tap the level-complete board: next level</li>
           </ul>
         </div>
+        <button type="button" class="nav" data-go="rumble"><span>Controller rumble</span><i>&#9656;</i></button>
         <figure class="padmap" id="padMap" title="Gamepad controls (standard mapping)">
           <svg viewBox="0 0 300 150" role="img" aria-label="Gamepad controls"><g class="g">
             <rect x="48" y="14" width="36" height="12" rx="5"/><rect x="216" y="14" width="36" height="12" rx="5"/>
@@ -114,10 +126,11 @@
             <circle cx="105" cy="62" r="18" class="stk"/><circle cx="105" cy="62" r="9" class="knob"/>
             <circle cx="195" cy="98" r="18" class="stk"/><circle cx="195" cy="98" r="9" class="knob"/>
             <rect x="124" y="84" width="10" height="28" rx="3"/><rect x="115" y="93" width="28" height="10" rx="3"/>
+            <text x="129" y="82">U</text><text x="129" y="118">D</text><text x="108" y="101">L</text><text x="148" y="101">R</text>
             <circle cx="207" cy="58" r="9"/><circle cx="225" cy="44" r="9"/><circle cx="243" cy="58" r="9" class="hi"/><circle cx="225" cy="72" r="9" class="hi"/>
             <text x="207" y="61">X</text><text x="225" y="47">Y</text><text x="243" y="61">B</text><text x="225" y="75">A</text>
           </g></svg>
-          <figcaption>Left stick steers (analogue) &middot; RT accelerate &middot; LT brake/reverse &middot; A fork up &middot; B fork down (hold to lower fully) &middot; X horn &middot; Y swap view &middot; right stick look around &middot; Start menu</figcaption>
+          <figcaption>Left stick X steers (analogue) &middot; RT accelerate &middot; LT brake/reverse &middot; A fork up &middot; B fork down (hard mode: hold for fluid movement) &middot; X horn &middot; d-pad camera: up overview / left cabin / right chase / down reset &middot; right stick X turns / Y looks up-down / click reset &middot; Start menu</figcaption>
         </figure>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
       </div>
@@ -155,7 +168,7 @@
           <tr><td><span class="k-arrows"><b>↑</b>/<b>↓</b></span><span class="k-wasd"><b>W</b>/<b>S</b></span></td><td>Drive forward / back</td></tr>
           <tr><td><span class="k-arrows"><b>←</b>/<b>→</b></span><span class="k-wasd"><b>A</b>/<b>D</b></span></td><td>Steer (rear wheels steer, so the tail swings out)</td></tr>
           <tr class="k-arrows"><td><b>A</b>/<b>Z</b></td><td>Forks up / down</td></tr>
-          <tr class="k-wasd"><td><b>E</b>/<b>Q</b></td><td>Forks up / down (hold Q: lowest safe level)</td></tr>
+          <tr class="k-wasd"><td><b>E</b>/<b>Q</b></td><td>Forks up / down (hard mode: hold for fluid movement)</td></tr>
           <tr><td><b>Enter</b></td><td>Next level after winning</td></tr>
           <tr><td><b>Tab</b>/<b>M</b></td><td>Swap overview and cab view</td></tr>
           <tr><td><b>C</b></td><td>Third-person chase camera (or double-click the overview)</td></tr>

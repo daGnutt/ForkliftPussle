@@ -36,9 +36,10 @@ function lineClear(g, x0, y0, x1, y1) {
 const floorProj = (proj) => (x, y) => { const p = proj(x, y, 0.06); return p && p[2] > 0.1 ? [p[0], p[1]] : null; };
 
 // Cabin view into the css-px box (x, y, w, h). Returns false if WebGL is unavailable.
-export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
+export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null, autoHead = true) {
   if (!glAvailable()) return false;
-  const cam = povCamera(g, w, h, look);
+  let cam = povCamera(g, w, h, look, autoHead);
+  cam = swoopCamera(cam, 'pov');
   const proj = drawGl(ctx, g, 'pov', cam, x, y, dpr);
   if (!proj) return false;
   ctx.save();
@@ -82,12 +83,12 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
   return true;
 }
 
-// Swoop between the flat overview and the chase camera: when the mode changes, the camera glides from the last drawn pose to the new one.
+// Swoop between the flat overview, chase camera and cabin: when the mode changes, the camera glides from the last drawn pose to the new one.
 const SWOOP_S = 0.8;
 let swoop = null, lastDrawn = null;
 function swoopCamera(cam, mode) {
   const now = performance.now() / 1000;
-  if (lastDrawn && lastDrawn.mode !== mode && now - lastDrawn.t < 0.25) swoop = { from: lastDrawn.cam, t0: now };
+  if (lastDrawn && lastDrawn.mode !== mode) swoop = { from: lastDrawn.cam, t0: now };
   let out = cam;
   if (swoop) {
     const k = Math.min(1, (now - swoop.t0) / SWOOP_S);
