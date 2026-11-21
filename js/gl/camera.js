@@ -60,7 +60,7 @@ export function blendCameras(a, b, k) {
   const d = u[0] * f[0] + u[1] * f[1] + u[2] * f[2];
   u = norm(u.map((x, i) => x - d * f[i]));
   const r = [u[1] * f[2] - u[2] * f[1], u[2] * f[0] - u[0] * f[2], u[0] * f[1] - u[1] * f[0]];
-  const near = A.near + (B.near - A.near) * k, far = A.far + (B.far - A.far) * k, f2h = A.f2h;
+  const near = A.near + (B.near - A.near) * k, far = A.far + (B.far - A.far) * k, f2h = A.f2h + (B.f2h - A.f2h) * k;
   const proj = perspective((f2h * b.h) / b.w, f2h, 0, near, far);
   return { ...b, vp: mul(proj, viewBasis(eye, r, u, f)), eye, pose: { r, u, f, near, far, f2h } };
 }

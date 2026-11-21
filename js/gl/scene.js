@@ -25,6 +25,13 @@ const OV_WALL_H = 1.1; // lowest height the camera-side walls are clipped to in 
 export function wallClip(cam) {
   return cam.chase ? null : [0, 0, -1, OV_WALL_H];
 }
+export const CEILING_HIDE_Z = WALL_H - 0.5;
+export function ceilingClip(cam) {
+  return cam.eye[2] >= CEILING_HIDE_Z ? [0, 0, -1e9, CEILING_HIDE_Z] : null;
+}
+export function renderMode(mode, cam) {
+  return mode === 'pov' && ceilingClip(cam) ? 'ov' : mode;
+}
 export const CHARGER_H = 0.9;
 const GREY = [0.43, 0.45, 0.48, 1], WHITE = [1, 1, 1, 1];
 const YEL = '#f4c414', RED = '#c62828', BLACK = '#1a1a1a';
