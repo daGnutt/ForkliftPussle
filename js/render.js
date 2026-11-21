@@ -17,7 +17,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark } from './decals.js';
-import { liftedHf, carriedWorldOffs, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
+import { liftedHf, carriedDrawH, carriedWorldOffs, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
 import { BOX_SCALE, BOX_HALF_X, halfY } from './geom.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
@@ -357,7 +357,7 @@ function drawAlertGlow(ctx, g) {
 function drawCarried(ctx, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  drawStack(ctx, g.carried, p.x, p.y, g.hf + (liftedHf(g) ?? 0) + carriedJoltZ(g), g.carriedRots.map((r) => r + g.fl.a), carriedWorldOffs(g), g.carriedPen);
+  drawStack(ctx, g.carried, p.x, p.y, (carriedDrawH(g) ?? 0) + carriedJoltZ(g), g.carriedRots.map((r) => r + g.fl.a), carriedWorldOffs(g), g.carriedPen);
 }
 
 // Draws the top-down overview scaled into the screen rect (rx, ry, rw, rh).

@@ -4,7 +4,7 @@ import { truckPaint, TRUCK_H, truckRoofs, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, overheadDecals, boxDeco, OPEN_BOX_DECAL_EDGES } from '../decals.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
-import { carriedWorldOffs, carriedJoltZ, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf } from '../game.js';
+import { carriedDrawH, carriedWorldOffs, carriedJoltZ, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf } from '../game.js';
 import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam } from './camera.js';
 import { BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims, BARREL_PALLET_RISE } from '../geom.js';
 
@@ -229,7 +229,7 @@ function addTruck(faces, cam, t) {
   part(-1.2, 0.05, 1.15, 1.25, pal.roof);
   if (t.carried) {
     const p = at(FL.carryX, 0);
-    addStack(faces, cam, p.x, p.y, t.carriedRots.map((r) => r + a), t.carried, t.hf + carriedJoltZ(t), carriedWorldOffs(t), 0, 0, t.carriedPen);
+    addStack(faces, cam, p.x, p.y, t.carriedRots.map((r) => r + a), t.carried, (carriedDrawH(t) ?? 0) + carriedJoltZ(t), carriedWorldOffs(t), 0, 0, t.carriedPen);
   }
   addForks(faces, cam, t);
 }
@@ -314,7 +314,7 @@ export function buildFaces(g, cam) {
       dropLift(g, st), st.pen); }
   if (g.carried) {
     const p = toWorld(g.fl, FL.carryX, 0);
-    addStack(faces, cam, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf + carriedJoltZ(g), carriedWorldOffs(g), 0, 0, g.carriedPen);
+    addStack(faces, cam, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, (carriedDrawH(g) ?? 0) + carriedJoltZ(g), carriedWorldOffs(g), 0, 0, g.carriedPen);
   }
   addForks(faces, cam, g);
   for (const t of otherTrucksShown(g)) {

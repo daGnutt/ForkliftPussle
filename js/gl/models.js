@@ -4,7 +4,7 @@ import { FL, toWorld, truckColor } from '../forklift.js';
 import { topShapes, DENT_FILL } from '../dents.js';
 import { tapeShapes, TAPE_FILL } from '../repair.js';
 import { decalsEnabled, boxDeco, boxDecalShapes, OPEN_BOX_DECAL_EDGES } from '../decals.js';
-import { carriedWorldOffs, carriedJoltZ, liftedHf, crashBlink } from '../game.js';
+import { carriedDrawH, carriedWorldOffs, carriedJoltZ, liftedHf, crashBlink } from '../game.js';
 import { parseColor, shade, mix } from './mesh.js';
 import { BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims, BARREL_PALLET_RISE } from '../geom.js';
 
@@ -187,5 +187,5 @@ export function addForks(m, g, hideMast = false) {
 export function addCarried(m, tm, g) {
   if (!g.carried) return;
   const p = toWorld(g.fl, FL.carryX, 0);
-  addStack(m, tm, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, g.hf + (liftedHf(g) ?? 0) + carriedJoltZ(g), carriedWorldOffs(g), 0, 0, g.carriedPen);
+  addStack(m, tm, p.x, p.y, g.carriedRots.map((r) => r + g.fl.a), g.carried, (carriedDrawH(g) ?? 0) + carriedJoltZ(g), carriedWorldOffs(g), 0, 0, g.carriedPen);
 }
