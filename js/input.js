@@ -2,8 +2,6 @@ import { padAxes, standardPads } from './gamepad.js';
 
 const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyZ', 'KeyQ', 'KeyW', 'KeyS', 'KeyD', 'KeyE', 'Comma', 'Period', 'KeyM', 'KeyF', 'KeyC', 'Tab', 'KeyP', 'KeyH', 'Escape']);
 
-const HOLD_MS = 400; // holding the lower key this long drops the forks to the lowest safe level
-
 // Keyboard schemes: physical keys are translated to the canonical (arrows + A/Z) codes the rest of this file uses.
 // Comma/Period rotate the camera in both schemes; the arrow keys only drive in the arrows scheme (unmapped in wasd).
 const SCHEMES = {
@@ -15,16 +13,11 @@ export function createInput(handlers) {
   const down = new Set();
   let scheme = SCHEMES.arrows;
   const keyOf = (code) => (code in scheme ? scheme[code] : code);
-  let zPress = 0;
   function press(code) {
     down.add(code);
     handlers.anyKey?.();
     if (code === 'KeyA') handlers.up?.();
-    else if (code === 'KeyZ') {
-      handlers.down?.();
-      const id = ++zPress;
-      setTimeout(() => { if (id === zPress && down.has('KeyZ')) handlers.downAll?.(); }, HOLD_MS);
-    }
+    else if (code === 'KeyZ') handlers.down?.();
     else if (code === 'Enter') handlers.next?.();
     else if (code === 'KeyM' || code === 'Tab') handlers.swapView?.();
     else if (code === 'KeyC') handlers.toggleChase?.();
@@ -135,12 +128,12 @@ export function createInput(handlers) {
   window.addEventListener('keyup', (e) => down.delete(keyOf(e.code)));
   window.addEventListener('blur', () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); });
   // Gamepad (standard mapping), polled on every state() call. Held controls are merged into state(); buttons act on their press edge.
-  // Drive: right trigger forward, left trigger back; steer: left stick X; fork up: A/RB; fork down: B/LB (hold: lowest safe level);
+  // Drive: right trigger forward, left trigger back; steer: left stick X; fork up: A/RB; fork down: B/LB (hard mode: tap = next level, hold = fluid);
   // horn: X; cabin view: Y; chase camera: right stick click; look: right stick X; menu: Start (also closes it).
   // While the menu (or splash) is open the d-pad moves/adjusts, A selects and B goes back, via the menuNav/menuSelect/menuBack handlers.
   const DEAD = 0.3;
   let localMode = false; // local multiplayer: pads belong to local.js; only Start and the menu still use them
-  const pad = { thr: 0, str: 0, up: false, down: false, left: false, right: false, lookL: false, lookR: false, horn: false };
+  const pad = { forkUp: false, thr: 0, str: 0, up: false, down: false, left: false, right: false, lookL: false, lookR: false, horn: false };
   let padPrev = [];
   const padActions = [
     [0, () => { handlers.up?.(); handlers.next?.(); }], [5, () => handlers.up?.()],
@@ -154,7 +147,7 @@ export function createInput(handlers) {
     padPrev = gp ? gp.buttons.map((b) => b.pressed) : [];
     const edge = (i) => !!gp && padPrev[i] && !was[i];
     pad.thr = pad.str = 0;
-    pad.up = pad.down = pad.left = pad.right = pad.lookL = pad.lookR = pad.horn = false;
+    pad.up = pad.down = pad.left = pad.right = pad.lookL = pad.lookR = pad.horn = pad.forkUp = false;
     if (!gp) return;
     if (edge(0) || edge(9)) handlers.anyKey?.();
     if (edge(9)) { handlers.menuToggle?.(); return; }
@@ -179,6 +172,7 @@ export function createInput(handlers) {
     for (const [i, act] of padActions) if (edge(i)) act();
     // lowering is a held action: the key stays 'down' while either button is held
     if (b(1) || b(4)) down.add('KeyZ'); else if (was[1] || was[4]) down.delete('KeyZ');
+    pad.forkUp = b(0) || b(5);
   }
   return {
     setScheme: (name) => { scheme = SCHEMES[name] ?? SCHEMES.arrows; down.clear(); },
@@ -200,6 +194,8 @@ export function createInput(handlers) {
         lookR: down.has('KeyQ') || pad.lookR,
         brake: !!stickRect() && stickId === null && !kThr && !pad.thr, // joystick scheme shown but untouched: brake
         horn: down.has('KeyH') || twoFingerHorn || pad.horn,
+        forkUp: down.has('KeyA') || pad.forkUp, // held fork keys: hard mode reads them (tap = next level, hold = fluid); easy mode uses the press handlers
+        forkDown: down.has('KeyZ'),
       };
     },
   };

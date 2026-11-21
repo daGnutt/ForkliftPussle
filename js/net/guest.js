@@ -53,7 +53,7 @@ export function createGuest({ relay, code, name, onGame, onClosed, linkFactory =
     // Sends the held keys (call every frame) and discrete fork actions.
     sendInput(st, now = clock()) {
       if (now - lastGping >= 1) { lastGping = now; link?.sendReliable({ t: 'gping', n: now }); }
-      const text = encode({ t: 'in', up: !!st.up, down: !!st.down, left: !!st.left, right: !!st.right, ...(st.thr !== undefined && { thr: analog(st.thr) }), ...(st.str !== undefined && { str: analog(st.str) }), ...(st.brake && { brake: true }), horn: !!st.horn });
+      const text = encode({ t: 'in', up: !!st.up, down: !!st.down, left: !!st.left, right: !!st.right, ...(st.thr !== undefined && { thr: analog(st.thr) }), ...(st.str !== undefined && { str: analog(st.str) }), ...(st.brake && { brake: true }), horn: !!st.horn, ...(st.forkUp && { fu: true }), ...(st.forkDown && { fd: true }) });
       if (text === lastIn && now - lastInAt < INPUT_REFRESH) return;
       lastIn = text; lastInAt = now;
       link?.sendReliable(text);

@@ -17,8 +17,9 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { liftedHf, newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, forkDownAll, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
+import { liftedHf, newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 
+import { TAP_S, PICKUP_LIFT, crashAlert } from '../js/game.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
 // Pick up from the floor (level 0), carry over a stack, merge, then split again.
@@ -237,32 +238,6 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('fork-blocked ok');
 }
 
-// Holding "lower" (forkDownAll) drops to the lowest safe level without damage.
-{
-  const g = newGame(1);
-  flatWorld(g);
-  g.stacks = [{ x: 10, y: 5, layers: [0, 1] }];
-  const f = g.fl;
-  f.x = 6; f.y = 5; f.a = 0; f.speed = 0;
-  g.H = 4;
-  forkDownAll(g);
-  assert.equal(g.H, 0, 'empty forks away from boxes go to the floor');
-  driveUntil(g, 10, 8);
-  g.H = 4;
-  forkDownAll(g);
-  assert.equal(g.H, 2, 'stops above the box the forks cannot pass');
-  assert.equal(g.hits.length, 0, 'no damage');
-  assert.equal(g.stacks[0].pen?.[1]?.crash ?? 0, 0);
-  g.stacks = [];
-  g.H = 3;
-  g.carried = [2];
-  forkDownAll(g);
-  assert.equal(g.H, 0, 'carried stack lowered to the floor');
-  assert.equal(g.carried, null, 'and released');
-  assert.equal(g.stacks.length, 1);
-  console.log('fork-down-all ok');
-}
-
 // Raising a carried stack into the ceiling is blocked and damages every carried box.
 {
   const g = newGame(1);
@@ -407,5 +382,95 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('lift stack with truck ok');
 }
 
+
+// Hard mode: a tapped fork key moves one level, a held one moves the forks fluidly and leaves them between levels.
+{
+  const hardGame = () => {
+    const g = newGame(1, 1, true);
+    flatWorld(g);
+    g.fl.x = 6; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
+    return g;
+  };
+  const g = hardGame();
+  assert.ok(g.hard);
+  run(g, { forkUp: true }, 0.1); run(g, {}, 0.05);
+  assert.equal(g.hy, 1, 'tap: next level');
+  run(g, { forkUp: true }, TAP_S + 0.5); run(g, {}, 0.05);
+  assert.ok(Math.abs(g.hy - 1.5) < 0.02, `hold: fluid (hy ${g.hy})`);
+  assert.equal(g.H, 1);
+  run(g, { forkDown: true }, 0.1); run(g, {}, 0.05);
+  assert.equal(g.hy, 1, 'tap down from between levels: the level below');
+  run(g, { forkUp: true }, TAP_S + 0.5); run(g, {}, 0.05);
+  run(g, { forkUp: true }, 0.1); run(g, {}, 0.05);
+  assert.equal(g.hy, 2, 'tap up from between levels: the level above');
+  run(g, { forkDown: true }, TAP_S + 0.9); run(g, {}, 0.05);
+  assert.ok(g.hy > 1 && g.hy < 1.2, `hold down lowers fluidly (hy ${g.hy})`);
+
+  const fast = hardGame();
+  const slow = hardGame();
+  run(slow, { forkUp: true }, 0.1); run(slow, {}, 0.05);
+  run(fast, { up: true }, 1); run(slow, { up: true }, 1);
+  assert.ok(fast.fl.speed > slow.fl.speed, 'raised forks slow the truck down');
+  const hover = hardGame();
+  hover.hy = 0.1; hover.H = 0;
+  run(hover, { up: true }, 1);
+  const lowSpeed = hover.fl.speed;
+  const floor = hardGame();
+  run(floor, { up: true }, 1);
+  assert.ok(lowSpeed > floor.fl.speed * 0.95, 'barely raised forks cost almost no speed');
+  console.log('fork fluid height ok');
+}
+
+// Hard mode: a fluid raise of PICKUP_LIFT lifts the box; lowering it to less than that above its resting height sets it down.
+{
+  const g = newGame(1, 1, true);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0, 1] }];
+  g.fl.x = 6; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
+  driveUntil(g, 10, 8);
+  run(g, { forkUp: true }, TAP_S + 0.1);
+  assert.equal(g.carried, null, 'less than PICKUP_LIFT of raise: not lifted');
+  run(g, { forkUp: true }, PICKUP_LIFT - 0.1 + 0.05);
+  assert.deepEqual(g.carried, [0, 1], 'raised by PICKUP_LIFT: lifted');
+  run(g, {}, 0.05);
+  const lifted = g.hy;
+  assert.ok(lifted > PICKUP_LIFT - 0.01 && lifted < 0.6, `carried between levels (hy ${lifted})`);
+  run(g, { forkUp: true }, TAP_S + 1); run(g, {}, 0.05);
+  assert.equal(g.carried.length, 2);
+  assert.ok(g.hy > 1, 'keeps rising');
+  run(g, { forkDown: true }, 3);
+  assert.equal(g.carried, null, 'lowered to the floor: set down');
+  assert.equal(g.stacks.length, 1);
+  assert.equal(g.stacks[0].layers.length, 2);
+  assert.equal(g.hy, 0);
+  assert.equal(g.hits.length, 0, 'holding down after the set-down does not damage it');
+  console.log('fork pickup threshold ok');
+}
+
+// Hard mode: standing still less than a level above a stack after lowering flashes the proximity alert, and a tap sets the load down on it.
+{
+  const g = newGame(1, 1, true);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: [0] }];
+  g.fl.x = 6; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
+  g.carried = [1];
+  g.carriedRots = [0]; g.carriedPen = []; g.carriedOffs = [{ x: 0, y: 0 }];
+  g.H = 3; g.hy = 3;
+  const at = (x) => { g.fl.x = x - FL.carryX; };
+  at(10);
+  run(g, {}, 0.1);
+  assert.ok(!crashAlert(g), 'high above: no alert');
+  run(g, { forkDown: true }, TAP_S + 1.5);
+  assert.ok(g.hy > 1 && g.hy < 1.9, `hovering above the stack (hy ${g.hy})`);
+  run(g, {}, 0.05);
+  assert.ok(crashAlert(g), 'alert while standing still within a level above a box');
+  g.fl.speed = 2;
+  assert.ok(!crashAlert(g) || g.fl.speed > 0, 'alert is for standing still');
+  g.fl.speed = 0;
+  run(g, { forkDown: true }, 0.1); run(g, {}, 0.05);
+  assert.equal(g.carried, null, 'a tap sets it down on the stack underneath');
+  assert.equal(g.stacks[0].layers.length, 2);
+  console.log('fork hover alert ok');
+}
 
 console.log('fork tests passed');
