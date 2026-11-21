@@ -1,18 +1,16 @@
-// Controller rumble: mixes short fading pulses (bonks, box damage, blocked forks) and steady layers (acceleration, braking,
-// fork movement, scraping, tyre slip) into one strong/weak motor pair, and sends it to a gamepad with whichever haptics API
+// Controller rumble: mixes short fading pulses (bonks, box damage, blocked forks) and steady layers (scraping, tyre slip,
+// horn) into one strong/weak motor pair, and sends it to a gamepad with whichever haptics API
 // it has: `vibrationActuator.playEffect('dual-rumble')` (Chromium, Safari) or else `hapticActuators[i].pulse()` (Firefox).
 // DOM-free apart from the gamepad object passed in, so Node tests can drive it with fakes.
 export const RUMBLE_REFRESH = 0.05; // s between re-sends while rumbling
 export const RUMBLE_EFFECT_MS = 100; // each effect outlasts the refresh, so a lost frame does not leave a gap
-const ACC_REF = 3.2; // tiles/s², the forklift's full-throttle acceleration (forklift.js ACC)
-const FORK_REF = 2; // box heights/s of fork travel that gives the full fork hum
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
-// Feature switches (menu checkboxes): pulses bonk/damage/blocked, layers accel/brake/fork/scrape/slip.
+// Feature switches (menu checkboxes): pulses bonk/damage/blocked, layers scrape/slip/horn.
 export const RUMBLE_FEATURES = [
   ['bonk', 'Bumps'], ['damage', 'Box damage'], ['blocked', 'Blocked forks'], ['scrape', 'Scraping (sparks)'],
-  ['slip', 'Wheel spin (tyre smoke)'], ['accel', 'Speeding up'], ['brake', 'Braking'], ['fork', 'Fork movement'],
+  ['slip', 'Wheel spin (tyre smoke)'], ['horn', 'Horn'],
 ];
 // Output effects (menu drop-down). 'auto' = dual where available, else pulse.
 export const RUMBLE_EFFECTS = [
@@ -56,7 +54,6 @@ export function createRumble() {
   let pulses = []; // { strong, weak, t, dur }: fade linearly to 0 over dur seconds
   const layers = new Map(); // name -> { strong, weak }
   let sinceSend = Infinity, sent = { strong: 0, weak: 0 };
-  let feed = null; // previous truck sample for feedTruck
   const off = new Set(); // disabled RUMBLE_FEATURES ids
   const r = {
     strength: RUMBLE_STRENGTH, // 0..1, scales the whole mix
@@ -65,7 +62,7 @@ export function createRumble() {
     feature: (name) => !off.has(name),
     pulse(name, strong, weak, dur) { if (!off.has(name)) pulses.push({ strong, weak, t: 0, dur }); },
     set(name, strong = 0, weak = 0) { if (!off.has(name) && (strong > 0 || weak > 0)) layers.set(name, { strong, weak }); else layers.delete(name); },
-    clear() { pulses = []; layers.clear(); feed = null; },
+    clear() { pulses = []; layers.clear(); },
     // The current motor mix after ageing the pulses by dt seconds.
     mix(dt = 0) {
       let strong = 0, weak = 0;
@@ -75,28 +72,18 @@ export function createRumble() {
       for (const l of layers.values()) { strong += l.strong; weak += l.weak; }
       return { strong: clamp01(strong) * r.strength, weak: clamp01(weak) * r.strength };
     },
-    // Steady layers from the own truck's motion: speeding up and slowing down (fade at a steady speed), fork travel
-    // (the smoothed height `hf`, so easy-mode steps give a short hum and hard-mode holds a continuous one),
-    // scraping a wall (sparks) and tyre slip (smoke).
-    feedTruck(t, dt) {
-      const v = Math.abs(t.fl.speed), hf = t.hf ?? t.H ?? 0;
-      if (!feed || feed.t !== t || dt <= 0) { feed = { t, v, hf, a: 0 }; return; }
-      const a = (v - feed.v) / dt / ACC_REF;
-      feed.a += (a - feed.a) * Math.min(1, dt * 15);
-      const fork = Math.abs(hf - feed.hf) / dt / FORK_REF;
-      feed.v = v; feed.hf = hf;
-      r.set('accel', 0, feed.a > 0.1 ? 0.2 * clamp01(feed.a) : 0);
-      r.set('brake', feed.a < -0.1 ? 0.15 * clamp01(-feed.a) : 0, feed.a < -0.1 ? 0.1 * clamp01(-feed.a) : 0);
-      r.set('fork', 0.05 * clamp01(fork), 0.25 * clamp01(fork));
+    // Steady layers from the own truck: scraping a wall (sparks), tyre slip (smoke) and the held horn (`horn`).
+    feedTruck(t) {
       r.set('scrape', t.scrape > 0 ? 0.08 : 0, t.scrape > 0 ? Math.min(0.5, 0.2 + 0.1 * t.scrape) : 0);
       const slip = (t.slip || 0) > 0.05 ? clamp01(t.slip) : 0;
       r.set('slip', 0.1 * slip, 0.35 * slip);
+      r.set('horn', t.horn ? 0.15 : 0, t.horn ? 0.45 : 0);
     },
     // One frame: mixes and (throttled) sends to gp. When disabled or without a pad, everything is dropped and a running
     // effect is stopped once. Returns the mix.
     frame(dt, gp, enabled = true) {
       if (!enabled || !gp) {
-        pulses = []; layers.clear(); feed = null;
+        pulses = []; layers.clear();
         if ((sent.strong || sent.weak) && gp) sendRumble(gp, 0, 0, 0, r.effect);
         sent = { strong: 0, weak: 0 }; sinceSend = Infinity;
         return { strong: 0, weak: 0 };

@@ -1461,7 +1461,7 @@ function frame(now) {
   }
   const rumbleOn = rumbleOpt.checked && !splashOn && !view.paused && !view.menuOpen && !won && !document.hidden
     && !localOpt.checked && !game.trucks[game.self]?.gone && st.motionSource === 'gamepad';
-  if (rumbleOn) rumble.feedTruck(game, dtReal);
+  if (rumbleOn) rumble.feedTruck(game);
   rumble.frame(dtReal, standardPads()[0]?.gp ?? null, rumbleOn);
   if (game.status === 'won' && !game.endless) {
     if (!reduceEffectsOn && galleryGame !== game) { galleryGame = game; startGallery(() => endPhotos(game)); }

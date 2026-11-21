@@ -290,16 +290,14 @@ console.log('input tests passed');
   assert.deepEqual(r.mix(), { strong: 0.5, weak: 0.5 }, 'strength scales the mix');
   r.clear(); r.strength = 1;
 
-  // Truck feed: speeding up and fork travel rumble, a steady speed does not
-  const t = { fl: { speed: 0 }, hf: 0, scrape: 0, slip: 0 };
-  r.feedTruck(t, 0.01);
-  for (let i = 0; i < 20; i++) { t.fl.speed += 0.032; r.feedTruck(t, 0.01); }
-  assert.ok(r.mix().weak > 0.1, 'accelerating rumbles');
-  for (let i = 0; i < 60; i++) r.feedTruck(t, 0.01);
-  assert.deepEqual(r.mix(), { strong: 0, weak: 0 }, 'steady speed is quiet');
-  for (let i = 0; i < 10; i++) { t.fl.speed -= 0.03; r.feedTruck(t, 0.01); }
-  assert.ok(r.mix().strong > 0, 'braking rumbles');
-  t.fl.speed = 0; r.feedTruck(t, 0.01); r.feedTruck(t, 0.2);
-  t.hf = 0.06; r.feedTruck(t, 0.01);
-  assert.ok(r.mix().weak > 0.2, 'fork travel hums');
+  // Truck feed: the held horn buzzes, scraping and tyre slip rumble, a quiet truck does not
+  const t = { fl: { speed: 2 }, scrape: 0, slip: 0, horn: false };
+  r.feedTruck(t);
+  assert.deepEqual(r.mix(), { strong: 0, weak: 0 }, 'driving alone is quiet');
+  t.horn = true; r.feedTruck(t);
+  assert.ok(r.mix().weak > 0.3, 'honking buzzes');
+  r.setFeature('horn', false); r.feedTruck(t);
+  assert.deepEqual(r.mix(), { strong: 0, weak: 0 }, 'horn rumble can be switched off');
+  t.scrape = 1; t.slip = 0.5; r.feedTruck(t);
+  assert.ok(r.mix().weak > 0.3, 'scrape and slip rumble');
 }
