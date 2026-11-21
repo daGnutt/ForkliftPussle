@@ -175,6 +175,7 @@ export function createInput(handlers) {
     pad.lookD = ry > DEAD;
     pad.horn = b(2);
     for (const [i, act] of padActions) if (edge(i)) act();
+    if (edge(11)) handlers.cameraReset?.();
     if (edge(12)) handlers.cameraOverview?.();
     if (edge(14)) handlers.cameraCabin?.();
     if (edge(15)) handlers.cameraChase?.();

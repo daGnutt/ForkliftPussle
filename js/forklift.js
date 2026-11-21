@@ -52,13 +52,6 @@ export function maxSteerFor(speed) {
   return FL.maxSteer * steerSpeedFactor(speed);
 }
 
-export function maxForwardSpeed(h = 0) {
-  return MAX_FWD * heightSpeedFactor(h);
-}
-
-export function maxReverseSpeed(h = 0) {
-  return MAX_REV * heightSpeedFactor(h);
-}
 
 // Multiplayer: up to MAX_PLAYERS trucks, one primary colour each (slot i uses TRUCK_COLORS[i]).
 // `dark` is a deep shade of the colour, used behind the fork gauge.

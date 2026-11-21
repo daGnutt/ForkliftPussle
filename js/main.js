@@ -8,7 +8,7 @@ import { createRelay } from './net/relay.js';
 import { createHost } from './net/host.js';
 import { createGuest } from './net/guest.js';
 import { applySnapshot } from './net/protocol.js';
-import { truckColor, maxForwardSpeed, maxReverseSpeed } from './forklift.js';
+import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
 import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState } from './savestate.js';
 import { parseSeed } from './level.js';
@@ -1304,14 +1304,6 @@ function frame(now) {
         if (inp.lookL && !view.lookHeld?.L) quarterTurn(-1);
         if (inp.lookU || inp.lookD) lookBy(0, pitch * LOOK_SPEED * dt);
         turnStep(dt);
-      }
-      if (view.manualCab) {
-        const cap = game.fl.gear === 'R' ? maxReverseSpeed(game.H) : maxForwardSpeed(game.H);
-        if (Math.abs(game.fl.speed) >= cap * 0.995) {
-          view.look = null;
-          view.manualCab = false;
-          view.snap = false;
-        }
       }
       view.lookHeld = { L: inp.lookL, R: inp.lookR };
     }
