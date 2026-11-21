@@ -12,6 +12,7 @@ const SCHEMES = {
 export function createInput(handlers) {
   const down = new Set();
   let scheme = SCHEMES.arrows;
+  let motionSource = 'keyboard';
   const keyOf = (code) => (code in scheme ? scheme[code] : code);
   function press(code) {
     down.add(code);
@@ -123,7 +124,12 @@ export function createInput(handlers) {
     if (e.code === 'Tab' && e.target !== document.body) return;
     if (GAME_KEYS.has(e.code)) e.preventDefault();
     if (e.repeat) return;
-    press(keyOf(e.code));
+    const code = keyOf(e.code);
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code) && !down.has(code) && !handlers.blocked?.()) {
+      pollPad();
+      motionSource = 'keyboard';
+    }
+    press(code);
   });
   window.addEventListener('keyup', (e) => down.delete(keyOf(e.code)));
   window.addEventListener('blur', () => { stickRelease(); twoFingerHorn = false; down.clear(); held.clear(); padTouches.clear(); touchKeys.clear(); });
@@ -135,7 +141,7 @@ export function createInput(handlers) {
   let localMode = false; // local multiplayer: pads belong to local.js; only Start and the menu still use them
   const pad = { forkUp: false, thr: 0, str: 0, up: false, down: false, left: false, right: false, lookL: false, lookR: false, lookU: false, lookD: false, horn: false };
   let padPrev = [];
-  let padActive = false;
+  let lastPadMotion = { thr: 0, str: 0 };
   const padActions = [
     [0, () => { handlers.up?.(); handlers.next?.(); }], [5, () => handlers.up?.()],
     [1, () => press('KeyZ')], [4, () => press('KeyZ')],
@@ -145,12 +151,11 @@ export function createInput(handlers) {
   function pollPad() {
     const gp = standardPads()[0]?.gp ?? null;
     const was = padPrev;
-    padActive = !!gp;
     padPrev = gp ? gp.buttons.map((b) => b.pressed) : [];
     const edge = (i) => !!gp && padPrev[i] && !was[i];
     pad.thr = pad.str = 0;
     pad.up = pad.down = pad.left = pad.right = pad.lookL = pad.lookR = pad.lookU = pad.lookD = pad.horn = pad.forkUp = false;
-    if (!gp) return;
+    if (!gp) { lastPadMotion = { thr: 0, str: 0 }; return; }
     if (edge(0) || edge(9)) handlers.anyKey?.();
     if (edge(9)) { handlers.menuToggle?.(); return; }
     if (handlers.blocked?.()) {
@@ -159,12 +164,19 @@ export function createInput(handlers) {
       if (edge(1)) handlers.menuBack?.();
       return;
     }
-    if (localMode) return;
+    if (localMode) { lastPadMotion = { thr: 0, str: 0 }; return; }
     const b = (i) => !!gp.buttons[i]?.pressed;
     const rx = gp.axes[2] ?? 0;
     const ry = gp.axes[3] ?? 0;
     // analog: trigger travel is the throttle/brake, left stick X the steering
     ({ thr: pad.thr, str: pad.str } = padAxes(gp));
+    for (const axis of ['thr', 'str']) {
+      if (!pad[axis]) lastPadMotion[axis] = 0;
+      else if (Math.abs(pad[axis] - lastPadMotion[axis]) >= 0.05) {
+        motionSource = 'gamepad';
+        lastPadMotion[axis] = pad[axis];
+      }
+    }
     pad.up = pad.thr > 0;
     pad.down = pad.thr < 0;
     pad.left = pad.str < 0;
@@ -204,7 +216,7 @@ export function createInput(handlers) {
         lookR: down.has('KeyQ') || pad.lookR,
         lookU: pad.lookU,
         lookD: pad.lookD,
-        gamepad: padActive,
+        motionSource,
         brake: !!stickRect() && stickId === null && !kThr && !pad.thr, // joystick scheme shown but untouched: brake
         horn: down.has('KeyH') || twoFingerHorn || pad.horn,
         forkUp: down.has('KeyA') || pad.forkUp, // held fork keys: hard mode reads them (tap = next level, hold = fluid); easy mode uses the press handlers

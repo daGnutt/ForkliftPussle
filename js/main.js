@@ -1292,7 +1292,7 @@ function frame(now) {
   let steps = 0;
   // Camera follow-up for one step of `dt` seconds (the heading of the chase camera, look-around spring-back).
   const cameraStep = (inp, dt) => {
-    view.gamepadCab = !!inp.gamepad;
+    view.gamepadCab = inp.motionSource === 'gamepad';
     if (inp.up || inp.down || inp.left || inp.right) view.snap = true;
     if (!splashOn && glEnabled()) {
       const pitch = (inp.lookU ? 1 : 0) - (inp.lookD ? 1 : 0);

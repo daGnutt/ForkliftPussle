@@ -11,8 +11,8 @@ Both cabin renderers (`pov.js` and `gl/views.js`) import `drawRepairEdgeArrow` f
 
 ## Controller camera
 
-Gamepad d-pad buttons select GL camera modes: up = overview, left = cabin, right = chase, down = reset the active camera. D-down resets orbit/zoom/look/position state in overview, cabin, and chase; right-stick cabin looking is held until the truck reaches its height-adjusted forward/reverse top speed or d-down resets it. This behavior is absent when WebGL is disabled. Switching among overview, chase, and cabin glides the camera pose and field of view between modes over 0.8 s; while a blended camera is above the ceiling threshold, ceiling geometry is clipped and overview-style clear lighting replaces cabin fog, with cabin fog restored once below the threshold.
+Gamepad d-pad buttons select GL camera modes: up = overview, left = cabin, right = chase, down = reset the active camera. D-down resets orbit/zoom/look/position state in overview, cabin, and chase; right-stick cabin looking is held until d-down or right-stick click resets it. This behavior is absent when WebGL is disabled. Switching among overview, chase, and cabin glides the camera pose and field of view between modes over 0.8 s; while a blended camera is above the ceiling threshold, ceiling geometry is clipped and overview-style clear lighting replaces cabin fog, with cabin fog restored once below the threshold.
 
 Right-stick Y adds GL vertical look (cabin pitch or overview/chase tilt); right-stick X remains left/right look. Right-stick click and d-pad down reset the active GL camera; reaching speed never clears cabin look automatically.
 
-The GL cabin camera disables its steering-linked head yaw while a standard gamepad is active, so controller steering does not rotate the view; keyboard cabin controls keep the existing steering head-turn.
+The GL cabin camera enables steering-linked head yaw after keyboard driving/steering and disables it after controller driving/steering, regardless of controller connection. In local multiplayer this is tracked for the keyboard truck; gamepad trucks do not auto-yaw.

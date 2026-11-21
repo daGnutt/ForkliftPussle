@@ -1273,7 +1273,7 @@ export function drawForkGauge(ctx, g, gx, gy) {
 
 function drawCompass(ctx, g, view, width) {
   let a; // world heading of the screen's "up"
-  if (view.povBig) a = g.fl.a + (view.look ? view.look.yaw : 0) + headTurn(g.fl);
+  if (view.povBig) a = g.fl.a + (view.look ? view.look.yaw : 0) + (view.gamepadCab ? 0 : headTurn(g.fl));
   else if (view.chase) a = (view.camA ?? g.fl.a) + (view.orbit ? view.orbit.yaw : 0);
   else a = view.orbit ? view.orbit.yaw - Math.PI / 2 : -Math.PI / 2;
   const theta = Math.atan2(-Math.cos(a), -Math.sin(a)), cx = width - 29, cy = 262, r = 18;
@@ -1380,7 +1380,7 @@ export function draw(ctx, g, view) {
     if (tiles) {
       cabs.forEach((i, k) => {
         const t = tiles.cabs[k], tv = i === g.self ? g : truckView(g, i);
-        if (!drawPov3d(ctx, tv, t.x, t.y, t.w, t.h, view.dpr, null, !view.gamepadCab)) drawPov(ctx, tv, t.x, t.y, t.w, t.h);
+        if (!drawPov3d(ctx, tv, t.x, t.y, t.w, t.h, view.dpr, null, i === g.self && !view.gamepadCab)) drawPov(ctx, tv, t.x, t.y, t.w, t.h);
         ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
         ctx.strokeStyle = truckColor(g.trucks[i].color).body;
         ctx.lineWidth = 4;
