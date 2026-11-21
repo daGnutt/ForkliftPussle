@@ -1,5 +1,5 @@
-import { newGame, forkUp, forkDown } from './game.js';
-import { rectPoly } from './geom.js';
+import { newGame, forkUp, forkDown, stepDrawForks } from './game.js';
+import { rectPoly, FORK_CLEARANCE } from './geom.js';
 import { FL } from './forklift.js';
 
 // Scripted forklift for the GL splash diorama (pure, DOM-free). A small room has four pallet spots in a ring and three
@@ -132,10 +132,10 @@ export function createDemo() {
       el = 0;
       q.shift();
     }
-    g.hf += Math.max(-6 * dt, Math.min(6 * dt, g.H - g.hf));
+    stepDrawForks(g, dt);
     g.ef += (g.hf - g.ef) * (1 - Math.exp(-dt / 0.22));
     // a released stack is drawn lowering with the forks until they reach it; without this it keeps following them up
-    for (const s of g.stacks) if (s.dropFrom != null && (g.hf <= s.dropFrom + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;
+    for (const s of g.stacks) if (s.dropFrom != null && (g.hf <= s.dropFrom + FORK_CLEARANCE + 1e-3 || g.H > s.dropFrom)) delete s.dropFrom;
   }
   return { g, step };
 }

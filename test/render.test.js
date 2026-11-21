@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { BARREL_COLOR, COLORS, ZONE_COLORS, generateLevel, parseSeed, isReachable } from '../js/level.js';
-import { pointRectDist } from '../js/geom.js';
+import { pointRectDist, FORK_CLEARANCE, LEVEL_H, TINE_H, PALLET_DECK_H } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
 import { chaseOrbit, lookYawDelta } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, blendCameras, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes, ceilingClip, renderMode, CEILING_HIDE_Z } from '../js/gl/scene.js';
-import { addStack as addGLStack, PAL, PALLET_COLOR } from '../js/gl/models.js';
+import { addStack as addGLStack, addForks as addGLForks, PAL, PALLET_COLOR } from '../js/gl/models.js';
 import { buildFaces as buildPovFaces } from '../js/pov/scene.js';
 import { makeCamera } from '../js/pov/camera.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
@@ -25,9 +25,9 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
+import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, carriedDrawH, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 import { addParticles, setParticlesEnabled, shouldSpawnSetdownDust } from '../js/gl/particles.js';
-import { Mesh } from '../js/gl/mesh.js';
+import { Mesh, parseColor } from '../js/gl/mesh.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
@@ -55,6 +55,71 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(Math.abs(tops[2] - 0.6) < 0.02, 'the landed box rests on the floor');
 }
 
+// All views show the same box height before pickup, while carried, and after release.
+{
+  const g = newGame(1, 1, true);
+  flatWorld(g);
+  g.zones = []; g.hatch = null; g.bot = null; g.inspector = null; g.repair = null;
+  g.stacks = [{ x: 10, y: 5, layers: [1, 0], a: 0 }];
+  faceStack(g, 0);
+  g.H = g.hy = g.hf = 1;
+  const cam = makeCamera({ x: 8, y: 5 }, 2, 0, Math.PI / 2, 0, 0, 800, 400);
+  const check = (height) => {
+    const color = parseColor(COLORS[0]), mesh = dynamicMeshes(g, 'pov', [8, 5]).opaque, zs = [];
+    for (let i = 0; i < mesh.n; i += 10) {
+      if (color.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)) zs.push(mesh.a[i + 2]);
+    }
+    const glTop = Math.max(...zs);
+    const faces = buildPovFaces(g, cam);
+    const povTop = Math.max(...faces.filter((f) => f.color === COLORS[0]).flatMap((f) => f.quad.map((p) => p[2])));
+    assert.ok(Math.abs(glTop - (height + 1) * 0.6) < 1e-5, `GL box height ${glTop}`);
+    assert.ok(Math.abs(povTop - glTop) < 1e-5, `software cabin box height ${povTop}`);
+
+    const translations = [];
+    const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
+      get: (t, k) => k in t ? t[k] : k === 'translate' ? (x, y) => translations.push([x, y])
+        : k === 'measureText' ? (text) => ({ width: text.length * 7 })
+          : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
+      set: (t, k, v) => { t[k] = v; return true; },
+    });
+    const oldOffscreen = globalThis.OffscreenCanvas;
+    globalThis.OffscreenCanvas = class { getContext() { return ctx; } };
+    try { draw(ctx, g, { width: 1200, height: 800, dpr: 1 }); }
+    finally { globalThis.OffscreenCanvas = oldOffscreen; }
+    assert.ok(translations.some(([x, y]) => Math.abs(x - (10 + height * 0.06)) < 1e-6 && Math.abs(y - (5 - height * 0.1)) < 1e-6), 'overview draws the box at the same height');
+  };
+  run(g, { forkUp: true }, 0.025);
+  assert.equal(g.carried, null);
+  check(1);
+  run(g, { forkUp: true }, 0.4);
+  assert.ok(g.carried);
+  check(g.hf - FORK_CLEARANCE);
+  run(g, {}, 0.05);
+  run(g, { forkDown: true }, 0.1);
+  run(g, {}, 1 / 120);
+  assert.equal(g.carried, null);
+  assert.ok(g.stacks[0].dropFrom != null);
+  check(Math.max(1, g.hf - FORK_CLEARANCE));
+}
+
+// The pallet deck touches the tines when a box is carried in either mode.
+{
+  for (const hard of [false, true]) {
+    const g = newGame(1, 1, hard);
+    g.carried = [0]; g.carriedRots = [0]; g.carriedPen = [{}]; g.carriedOffs = [{ x: 0, y: 0 }];
+    g.H = 1; g.hy = hard ? 1.5 : 1; g.hf = g.hy + FORK_CLEARANCE;
+    const boxes = [], forks = [];
+    addGLStack({ cuboid: (...p) => boxes.push(p) }, new Mesh(), 10, 5, [0], [0], carriedDrawH(g), [], 0, 0, [{}]);
+    addGLForks({ cuboid: (...p) => forks.push(p) }, g, true);
+    const deckBottom = boxes.find((p) => Math.abs(p[5] - (carriedDrawH(g) * LEVEL_H + PAL - PALLET_DECK_H)) < 1e-8)[5];
+    assert.ok(Math.abs(deckBottom - forks[0][6]) < 1e-8, 'pallet deck meets the top of the tine');
+    assert.ok(Math.abs(forks[0][6] - forks[0][5] - 0.05) < 1e-8, 'tines are half their former thickness');
+    assert.ok(Math.abs(PAL - PALLET_DECK_H - 0.095) < 1e-8, 'pallet opening is half its former height');
+    assert.ok(boxes.some((p) => Math.abs(p[5] - (carriedDrawH(g) * LEVEL_H + PAL)) < 1e-8 &&
+      Math.abs(p[6] - ((carriedDrawH(g) + 1) * LEVEL_H)) < 1e-8), 'box grows down to the deck while its top stays at the same level');
+  }
+}
+
 // Barrel pallets retain the full-size footprint and leave room for the tines beneath the deck.
 {
   const layers = [BARREL_COLOR, BARREL_COLOR], pen = [{ barrelPart: 'base' }, { barrelPart: 'top' }];
@@ -64,7 +129,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const maxX = Math.max(...wood.map(([cx, , , hx]) => cx + hx));
   const maxY = Math.max(...wood.map(([, cy, , , hy]) => cy + hy));
   assert.ok(Math.abs(maxX - x - 0.5) < 1e-8 && Math.abs(maxY - y - 0.5) < 1e-8);
-  assert.ok(wood.filter((p) => p[5] > 0).every((p) => p[5] > PAL), 'GL deck clears the full-height tine');
+  assert.ok(Math.abs(PAL - PALLET_DECK_H - TINE_H - FORK_CLEARANCE * LEVEL_H) < 1e-9, 'the slot has the intended free tine travel');
+  assert.ok(wood.filter((p) => p[5] > 0).every((p) => p[5] > TINE_H), 'GL deck clears the full-height tine');
   assert.equal(drums[0][2], Math.max(...wood.map((p) => p[6])), 'the drum sits on the deck');
 
   const g = newGame(1);
@@ -74,7 +140,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const palletDeck = Math.max(...pallet.flatMap((f) => f.quad.map((p) => p[2])));
   assert.equal(palletDeck, drums[0][2], 'software and GL decks agree');
   assert.equal(Math.min(...barrel.flatMap((f) => f.quad.map((p) => p[2]))), palletDeck);
-  assert.ok(pallet.some((f) => f.quad.every((p) => p[2] > PAL)), 'software deck clears the tines');
+  assert.ok(pallet.some((f) => f.quad.every((p) => p[2] > TINE_H)), 'software deck clears the tines');
 }
 
 // The open-top tape strap stays aligned with the standard box tape when the box rotates.
