@@ -1334,7 +1334,7 @@ export function draw(ctx, g, view) {
   const cabs = view.shared && view.cabs ? [...view.cabs].filter((i) => g.trucks[i] && !g.trucks[i].gone).sort((a, b) => a - b) : [];
   const tiles = cabs.length ? cabTiles(width, height, cabs.length) : null;
   if (view.povBig && !view.shared) {
-    if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr, view.look)) drawPov(ctx, g, 0, 0, width, height);
+    if (!drawPov3d(ctx, g, 0, 0, width, height, view.dpr, view.look, !view.gamepadCab)) drawPov(ctx, g, 0, 0, width, height);
     if (view.touch && width > height) { // easter egg: the minimap stays tappable to swap back to the overview
       const mm = miniSize(g, 120, 70), mx = (width - mm.w) / 2, my = height - 8 - mm.h;
       drawMiniMap(ctx, g, { x: 0, y: 0, w: g.w, h: g.h }, mx, my, mm.s);
@@ -1380,7 +1380,7 @@ export function draw(ctx, g, view) {
     if (tiles) {
       cabs.forEach((i, k) => {
         const t = tiles.cabs[k], tv = i === g.self ? g : truckView(g, i);
-        if (!drawPov3d(ctx, tv, t.x, t.y, t.w, t.h, view.dpr)) drawPov(ctx, tv, t.x, t.y, t.w, t.h);
+        if (!drawPov3d(ctx, tv, t.x, t.y, t.w, t.h, view.dpr, null, !view.gamepadCab)) drawPov(ctx, tv, t.x, t.y, t.w, t.h);
         ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
         ctx.strokeStyle = truckColor(g.trucks[i].color).body;
         ctx.lineWidth = 4;

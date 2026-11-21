@@ -36,9 +36,9 @@ function lineClear(g, x0, y0, x1, y1) {
 const floorProj = (proj) => (x, y) => { const p = proj(x, y, 0.06); return p && p[2] > 0.1 ? [p[0], p[1]] : null; };
 
 // Cabin view into the css-px box (x, y, w, h). Returns false if WebGL is unavailable.
-export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null) {
+export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null, autoHead = true) {
   if (!glAvailable()) return false;
-  let cam = povCamera(g, w, h, look);
+  let cam = povCamera(g, w, h, look, autoHead);
   cam = swoopCamera(cam, 'pov');
   const proj = drawGl(ctx, g, 'pov', cam, x, y, dpr);
   if (!proj) return false;

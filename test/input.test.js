@@ -21,7 +21,7 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   const inp = createInput({ up: () => calls.push('up'), menuNav: (d) => calls.push(d), menuSelect: () => calls.push('select'), menuBack: () => calls.push('back'), menuToggle: () => calls.push('menu'), blocked: () => blocked });
   pad = mkPad({ axes: [0.8, 0, 0, 0], pressed: [7] });
   let s = inp.state();
-  assert.ok(s.up && s.right && !s.left && !s.down);
+  assert.ok(s.up && s.right && !s.left && !s.down && s.gamepad);
   pad = mkPad({ pressed: [0] });
   inp.state(); inp.state();
   assert.deepEqual(calls, ['up'], 'A fires fork up once per press');
@@ -38,7 +38,8 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   pad = mkPad({ pressed: [1] }); inp.state();
   assert.deepEqual(calls.slice(2), ['down', 'select', 'back'], 'd-pad navigates, A selects, B goes back in the menu');
   pad = null;
-  assert.ok(!inp.state().up, 'unplugging releases the controls');
+  s = inp.state();
+  assert.ok(!s.up && !s.gamepad, 'unplugging releases the controls');
 }
 
 // D-pad selects GL camera modes and resets the active camera

@@ -135,6 +135,7 @@ export function createInput(handlers) {
   let localMode = false; // local multiplayer: pads belong to local.js; only Start and the menu still use them
   const pad = { forkUp: false, thr: 0, str: 0, up: false, down: false, left: false, right: false, lookL: false, lookR: false, lookU: false, lookD: false, horn: false };
   let padPrev = [];
+  let padActive = false;
   const padActions = [
     [0, () => { handlers.up?.(); handlers.next?.(); }], [5, () => handlers.up?.()],
     [1, () => press('KeyZ')], [4, () => press('KeyZ')],
@@ -144,6 +145,7 @@ export function createInput(handlers) {
   function pollPad() {
     const gp = standardPads()[0]?.gp ?? null;
     const was = padPrev;
+    padActive = !!gp;
     padPrev = gp ? gp.buttons.map((b) => b.pressed) : [];
     const edge = (i) => !!gp && padPrev[i] && !was[i];
     pad.thr = pad.str = 0;
@@ -201,6 +203,7 @@ export function createInput(handlers) {
         lookR: down.has('KeyQ') || pad.lookR,
         lookU: pad.lookU,
         lookD: pad.lookD,
+        gamepad: padActive,
         brake: !!stickRect() && stickId === null && !kThr && !pad.thr, // joystick scheme shown but untouched: brake
         horn: down.has('KeyH') || twoFingerHorn || pad.horn,
         forkUp: down.has('KeyA') || pad.forkUp, // held fork keys: hard mode reads them (tap = next level, hold = fluid); easy mode uses the press handlers
