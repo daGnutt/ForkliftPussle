@@ -75,7 +75,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Tines / forks / blades** | The two prongs that go into a pallet | `addForks` |
 | **Tine tips** | Thin tapered ends; look-at point of the cabin camera | `g.ef` |
 | **Fork level** | Integer 0–5 height of the tines in box heights | `g.H` |
-| **Fluid fork height** | Hard mode: exact tine height, changed continuously by holding fork up/down (tap = one level) | `g.hy`; the small line right of the fork gauge's level frame follows it |
+| **Fluid fork height** | Hard mode: exact tine height, changed continuously by holding fork up/down (tap = one level) | `g.hy`; in hard mode the small line right of the fork gauge follows it |
 | **Fork gauge** | HUD ladder showing fork height, boxes under the forks and the carried stack | `drawForkGauge` |
 | **Box status badge** | In the fork gauge, after inspection and until the stack is nudged, a warning triangle marks repairable damage and a tilted diamond marks crookedness | `boxStatus`, `drawBoxStatus` |
 | **Smoothed fork height** | Animated height used only for drawing | `g.hf`, `g.ef` |
