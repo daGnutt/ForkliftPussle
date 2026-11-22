@@ -31,7 +31,7 @@
         <button type="button" id="menuResume" class="primary" data-observer>Resume</button>
         <button type="button" id="menuLeave" class="sec" data-observer hidden>Leave party</button>
         <label class="item"><input type="checkbox" id="muteOpt"> <u>M</u>ute all sounds</label>
-        <button type="button" id="menuRestart" class="sec" data-hostonly>Restart level</button>
+        <button type="button" id="menuRestart" class="sec" data-hostonly data-observer>Restart level</button>
         <hr>
         <button type="button" class="nav" data-go="play" data-observer><span>Play</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="sound"><span>Sound</span><i>&#9656;</i></button>
@@ -156,7 +156,7 @@
       </div>
       <div class="page" data-page="play" hidden>
         <h3>Play</h3>
-        <label title="Applies when the level is restarted (Restart level is on the main page)"><input type="checkbox" id="menuHardOpt"> Hard mode (on restart)</label>
+        <label data-hostonly data-observer title="Applies when a level is loaded or restarted"><input type="checkbox" id="menuHardOpt"> Hard mode (on next level load)</label>
         <button type="button" id="menuEndless" class="sec" data-hostonly title="Unload incoming trucks and fill the delivery trucks before all docks are occupied">Start endless mode</button>
         <button type="button" id="menuEndRun" class="sec" data-hostonly hidden title="Finish this endless run now and record its points">End endless run</button>
         <form id="menuGoto" autocomplete="off" data-hostonly data-observer><label><u>G</u>o to level <input type="number" id="menuLevel" min="1" step="1"></label> <button type="submit" class="sec">Go</button></form>
