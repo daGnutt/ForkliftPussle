@@ -192,6 +192,7 @@ function closeRecord() {
 
 function load(n) {
   if (mp?.role === 'guest') return; // only the host changes levels
+  hard = hardOpt.checked;
   if (recordOpen) closeRecord();
   recorded = false;
   manualEnd = false;
@@ -210,6 +211,7 @@ function load(n) {
 // Resumes the saved endless game of this seed and mode unless `fresh`.
 function loadEndless(fresh = false) {
   if (mp?.role === 'guest') return;
+  hard = hardOpt.checked;
   if (recordOpen) closeRecord();
   recorded = false;
   manualEnd = false;
@@ -735,13 +737,14 @@ const tutorialOpt = document.getElementById('tutorialOpt');
 tutorialOpt.checked = tutStep >= 0;
 const hardOpt = document.getElementById('hardOpt');
 hardOpt.checked = hard;
+hardOpt.addEventListener('change', () => {
+  localStorage.setItem('forklift-hard', hardOpt.checked ? '1' : '0');
+});
 showTutorial();
 
 function startGame(endless = false) {
   if (mp?.role === 'guest' && !mp.go) return; // waiting for the host
   if (mp?.role !== 'guest' && hardOpt.checked !== hard) {
-    hard = hardOpt.checked;
-    localStorage.setItem('forklift-hard', hard ? '1' : '0');
     load(level);
   }
   if (endless && mp?.role !== 'guest') loadEndless();
@@ -1040,6 +1043,10 @@ let discoPreference = localStorage.getItem('forklift-disco') === '1';
 setDiscoEnabled(discoPreference && !reduceEffectsOn);
 setParticlesEnabled(!reduceEffectsOn);
 const menuHardOpt = document.getElementById('menuHardOpt');
+menuHardOpt.addEventListener('change', () => {
+  hardOpt.checked = menuHardOpt.checked;
+  hardOpt.dispatchEvent(new Event('change'));
+});
 const localOpt = document.getElementById('localOpt');
 function stopLocal() {
   localOpt.checked = false;
@@ -1114,7 +1121,7 @@ function toggleMenu(open) {
     chaseOpt.checked = view.chase;
     chaseZoomSel.value = view.chaseZoom ?? chaseZoomOf(Math.max(CHASE_TILES, (view.ovTiles || 14) * CHASE_DEFAULT));
     themeSel.value = themeMode();
-    menuHardOpt.checked = hard;
+    menuHardOpt.checked = hardOpt.checked;
     localOpt.disabled = !!mp;
     menuLevel.value = level;
     for (const el of menuEl.querySelectorAll('[data-hostonly]')) el.hidden = mp?.role === 'guest';
@@ -1300,9 +1307,6 @@ menuTutorial.addEventListener('click', () => {
 document.getElementById('menuFullscreen').addEventListener('click', toggleFullscreen);
 document.getElementById('menuResume').addEventListener('click', () => toggleMenu(false));
 document.getElementById('menuRestart').addEventListener('click', () => {
-  hard = menuHardOpt.checked;
-  localStorage.setItem('forklift-hard', hard ? '1' : '0');
-  hardOpt.checked = hard;
   if (game.endless) loadEndless(true); else load(level);
   toggleMenu(false);
 });
