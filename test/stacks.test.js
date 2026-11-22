@@ -16,7 +16,7 @@ import { createHost } from '../js/net/host.js';
 import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
-import { rectPoly, sat, overlapArea, halfY } from '../js/geom.js';
+import { rectPoly, sat, overlapArea, halfY, palletRunnerDims } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, carriedJoltZ, crashAlert, crashBlink, crashProbes, alertTriggers } from '../js/game.js';
 
@@ -358,6 +358,36 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   };
   assert.ok(turned(20) > 0.05, 'turns towards a positive heading');
   assert.ok(turned(-20) < -0.05, 'turns towards a negative heading');
+}
+
+// A crooked pallet caught by both tines must not jump ahead while the truck creeps forward.
+{
+  for (const side of [-1, 1]) for (const thr of [0.1, 0.2]) {
+    const g = newGame(44, 0, true);
+    g.zones = []; g.walls = [];
+    Object.assign(g.fl, { x: 15, y: 8, a: 0, speed: 0, steer: 0 });
+    const angle = side * 0.314868433;
+    const s = { x: 16.5921463346, y: 8 + side * 0.1064773491,
+      layers: [0, 2], rots: [angle, side * 0.4249593], a: angle };
+    g.stacks = [s];
+    for (let i = 0; i < 120; i++) {
+      const before = toLocal(g.fl, s.x, s.y);
+      update(g, { thr }, 1 / 120);
+      const after = toLocal(g.fl, s.x, s.y);
+      assert.ok(after.x - before.x < 1e-5, 'the pallet does not jump ahead of the truck');
+      for (const off of [-FL.tineOff, FL.tineOff]) {
+        const c = toWorld(g.fl, (FL.tineX0 + FL.tineX1) / 2, off);
+        const tine = rectPoly(c.x, c.y, (FL.tineX1 - FL.tineX0) / 2, FL.tineHalf, g.fl.a);
+        for (const [y, half] of palletRunnerDims(s.pen[0])) {
+          const r = toWorld(s, 0, y);
+          const runner = rectPoly(r.x, r.y, 0.5, half, s.a);
+          assert.ok((sat(tine, runner)?.depth || 0) < 1e-4, 'the tines do not clip through the runners');
+        }
+      }
+    }
+    assert.ok(Math.abs(s.a) < Math.abs(angle), 'contact still turns the pallet towards the forks');
+    assert.ok(s.pen.every((p) => p.crash === 0), 'gentle contact does not damage the stack');
+  }
 }
 
 // A slow off-centre push against a pallet's closed side turns it clockwise, even when square to the truck.
