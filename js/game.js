@@ -1,5 +1,5 @@
 import { boxDecalKind } from './decals.js';
-import { rectPoly, sat, overlapArea, BOX_HALF_X, halfY, palletRunnerDims, zoneExt, FORK_CLEARANCE, TINE_H, LEVEL_H } from './geom.js';
+import { rectPoly, sat, overlapArea, intersectionCenter, BOX_HALF_X, halfY, palletRunnerDims, zoneExt, FORK_CLEARANCE, TINE_H, LEVEL_H } from './geom.js';
 export { zoneExt } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
@@ -1040,8 +1040,8 @@ function resolve(g) {
       const wf = 1 / FORKLIFT_MASS;
       for (const sh of shapes) {
         if (!sh.stackFilter || !sh.stackFilter(s)) continue;
-        let m = null, from = 0;
-        for (const t of sh.targets(s)) { m = sat(sh.poly, t.poly); if (m) { from = t.from; break; } }
+        let m = null, from = 0, target;
+        for (const t of sh.targets(s)) { m = sat(sh.poly, t.poly); if (m) { from = t.from; target = t.poly; break; } }
         if (!m) continue;
         ensure(s);
         touchStack(s);
@@ -1060,6 +1060,7 @@ function resolve(g) {
             g.aligning?.set(s, { from: Math.min(range?.from ?? from, from), to: Math.max(range?.to ?? to, to) });
           }
         }
+        const contact = sh.tine ? intersectionCenter(sh.poly, target) : null;
         const d = m.depth * 1.001;
         moveF(m.x * d * (wf / (wf + ws)), m.y * d * (wf / (wf + ws)));
         if (!sh.tine && Math.abs(f.speed) >= CRASH_MIN_SPEED) {
@@ -1069,7 +1070,10 @@ function resolve(g) {
         }
         const sx = -m.x * d * (ws / (wf + ws)), sy = -m.y * d * (ws / (wf + ws));
         shiftBoxes(s, from, sx, sy);
-        if (sh.tine || Math.abs(f.speed) >= CRASH_MIN_SPEED) spinStack(s, from, deepest(sh.poly, -m.x, -m.y), -m.x, -m.y, sx, sy);
+        if (sh.tine || Math.abs(f.speed) >= CRASH_MIN_SPEED) {
+          const tip = contact ? { x: contact.x + sx, y: contact.y + sy } : deepest(sh.poly, -m.x, -m.y);
+          spinStack(s, from, tip, -m.x, -m.y, sx, sy);
+        }
         if (!sh.tine) nudgeStack(g, s, from, -m.x, -m.y, Math.abs(f.speed));
         if (from > 0) settle(g, s);
       }
