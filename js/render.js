@@ -18,7 +18,7 @@ import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { qrMatrix } from './qr.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark } from './decals.js';
-import { liftedHf, carriedDrawH, carriedWorldOffs, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
+import { liftedHf, carriedDrawH, carriedWorldOffs, forkHeight, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
 import { BOX_SCALE, BOX_HALF_X, halfY } from './geom.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
@@ -1333,7 +1333,7 @@ export function drawForkGauge(ctx, g, gx, gy) {
   ctx.lineWidth = 3;
   ctx.strokeRect(gx - 3, yOf(g.H) - 2, 36, cell + 2);
   ctx.fillStyle = tc.body;
-  if (g.hard) ctx.fillRect(gx + 34, yOf(g.hy ?? g.H) + cell - 4, 8, 4); // exact fork height (box bottom), between levels in hard mode
+  if (g.hard) ctx.fillRect(gx + 34, yOf(forkHeight(g)) + cell - 4, 8, 4); // exact box-bottom height between levels
 }
 
 function drawCompass(ctx, g, view, width) {

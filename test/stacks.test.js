@@ -30,15 +30,15 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     flatWorld(g);
     g.H = 1;
     g.stacks = [{ x: 10, y: 5, layers: [0, 1], rots: [0, 0], a: 0,
-      offs: [{ x: 0, y: 0 }, { x: 0, y: 0 }], pen: [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }] }];
+      offs: [{ x: 0, y: 0 }, { x: 0.45, y: 0 }], pen: [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }] }];
     Object.assign(g.fl, { x: 7.6, y, a: 0, speed: 0 });
     for (let i = 0; i < 360 && !g.carried && !g.stacks.some((s) => s.fall); i++) {
-      g.fl.speed = 1.5;
+      g.fl.speed = 2.5;
       update(g, { up: true }, 1 / 120);
     }
     return g;
   };
-  const caught = push(5.08);
+  const caught = push(5.1);
   assert.deepEqual(caught.carried, [1], 'the displaced upper box is caught');
   assert.equal(caught.stacks[0].layers.length, 1, 'the lower box remains on the floor');
   assert.ok(caught.carriedOffs[0].x || caught.carriedOffs[0].y, 'the caught box keeps its offset on the forks');
@@ -50,6 +50,59 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const missed = push(5.6);
   assert.equal(missed.carried, null, 'a box outside the tine footprint is not caught');
   assert.ok(missed.stacks.some((s) => s.fall), 'the missed box falls normally');
+}
+
+// In hard mode offset upper boxes collide even when their bottom boxes are separate.
+{
+  const g = newGame(1, 0, true);
+  g.zones = []; g.walls = [];
+  const a = { x: 10, y: 5, a: 0, layers: [0, 1], rots: [0, 0], offs: [{ x: 0, y: 0 }, { x: 0.3, y: 0 }] };
+  const b = { x: 11.3, y: 5, a: 0, layers: [2, 3], rots: [0, 0], offs: [{ x: 0, y: 0 }, { x: -0.3, y: 0 }] };
+  g.stacks = [a, b];
+  Object.assign(g.fl, { x: 4, y: 4, a: 0, speed: 0 });
+  update(g, NONE, 1 / 120);
+  const pa = rectPoly(a.x + a.offs[1].x, a.y + a.offs[1].y, 0.5, 0.5, a.rots[1]);
+  const pb = rectPoly(b.x + b.offs[1].x, b.y + b.offs[1].y, 0.5, 0.5, b.rots[1]);
+  assert.ok((sat(pa, pb)?.depth || 0) < 1e-4, 'upper boxes are separated');
+  assert.equal(a.x, 10); assert.equal(b.x, 11.3);
+  assert.equal(a.pen[1].crash, 0); assert.equal(b.pen[1].crash, 0);
+}
+
+// Each carried layer collides at its own position and height.
+{
+  const g = newGame(1, 0, true);
+  g.zones = []; g.walls = [];
+  const neighbour = { x: 11.4, y: 5, a: 0, layers: [2, 3, 4], rots: [0, 0, 0] };
+  g.stacks = [neighbour];
+  Object.assign(g.fl, { x: 10 - FL.carryX, y: 5, a: 0, speed: 0 });
+  g.H = 1; g.hy = 1;
+  g.carried = [0, 1]; g.carriedRel = 0; g.carriedRots = [0, 0];
+  g.carriedOffs = [{ x: 0, y: 0 }, { x: 0.6, y: 0 }];
+  g.carriedPen = [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }];
+  update(g, NONE, 1 / 120);
+  const carriedTop = rectPoly(g.fl.x + FL.carryX + g.carriedOffs[1].x, g.fl.y + g.carriedOffs[1].y, 0.5, 0.5, g.fl.a + g.carriedRots[1]);
+  const neighbourTop = rectPoly(neighbour.x + neighbour.offs[2].x, neighbour.y + neighbour.offs[2].y, 0.5, 0.5, neighbour.rots[2]);
+  assert.ok((sat(carriedTop, neighbourTop)?.depth || 0) < 1e-4, 'overlapping upper boxes are separated');
+  assert.equal(neighbour.x, 11.4, 'the bottom box is not displaced by an upper-level contact');
+}
+
+// A simultaneous impact damages each contacted layer, with one stack-level cooldown.
+{
+  const g = newGame(1, 0, true);
+  g.zones = []; g.walls = [];
+  const s = { x: 11, y: 5, a: 0, layers: [0, 1, 2], rots: [0, 0, 0] };
+  g.stacks = [s];
+  Object.assign(g.fl, { x: 10 - FL.carryX, y: 5, a: 0, speed: 4 });
+  g.H = 1; g.hy = 1.2;
+  g.carried = [0, 1]; g.carriedRel = 0; g.carriedRots = [0, 0];
+  g.carriedOffs = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
+  g.carriedPen = [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }];
+  update(g, { up: true }, 1 / 120);
+  assert.equal(s.pen[0].crash, 0, 'the untouched bottom box is not damaged');
+  assert.ok(s.pen[1].crash > 0 && s.pen[2].crash > 0, 'both contacted boxes take damage');
+  const damage = s.pen.map((p) => p.crash);
+  update(g, { up: true }, 1 / 120);
+  assert.deepEqual(s.pen.map((p) => p.crash), damage, 'repeated contact is subject to the stack cooldown');
 }
 
 // A full-size carried crate pushes a neighbouring stack less than one tile from its path.
@@ -182,6 +235,49 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   }
   assert.ok(Math.abs(c.fl.a + c.carriedRel) < 0.05, 'carried stack squares to the wall on the forks');
   console.log('wall-align ok');
+}
+
+// A stationary pallet touching a wall is not damaged by an unrelated truck's speed.
+{
+  const g = newGame(1, 0, true);
+  g.zones = [];
+  g.walls = [{ x: 12, y: 0, w: 1, h: 15, poly: rectPoly(12.5, 7.5, 0.5, 7.5) }];
+  const s = { x: 11.6, y: 5, layers: [0], a: 0, rots: [0], pen: [{ crash: 0, sq: 0 }] };
+  g.stacks = [s];
+  Object.assign(g.fl, { x: 4, y: 5, a: 0, speed: 4 });
+  update(g, { up: true }, 1 / 120);
+  assert.equal(s.pen[0].crash, 0);
+  assert.equal(s.pen[0].dent, undefined);
+}
+
+// Correcting overlapping stationary stacks beside a wall does not create impact energy.
+{
+  const g = newGame(1, 0, true);
+  g.zones = [];
+  g.walls = [{ x: 12, y: 0, w: 1, h: 12, poly: rectPoly(12.5, 6, 0.5, 6) }];
+  g.stacks = [{ x: 11.55, y: 5, layers: [0], a: 0 }, { x: 10.65, y: 5, layers: [1], a: 0 }];
+  Object.assign(g.fl, { x: 4, y: 4, a: 0, speed: 4 });
+  update(g, { up: true }, 1 / 120);
+  assert.ok(g.stacks.every((s) => s.pen[0].crash === 0), 'depenetration is not an impact');
+  assert.equal(g.hitCount, 0);
+}
+
+// A truck can press two pallets against a wall without accumulating penetration or damage.
+{
+  const g = newGame(1, 0, true);
+  g.zones = [];
+  g.walls = [{ x: 12, y: 0, w: 1, h: 12, poly: rectPoly(12.5, 6, 0.5, 6) }];
+  g.stacks = [{ x: 10, y: 5, layers: [0], a: 0 }, { x: 11.2, y: 5, layers: [1], a: 0 }];
+  Object.assign(g.fl, { x: 8, y: 5, a: 0, speed: 0 });
+  const poly = (s) => rectPoly(s.x + s.offs[0].x, s.y + s.offs[0].y, 0.5, 0.5, s.rots[0]);
+  for (let i = 0; i < 600; i++) {
+    g.fl.speed = 0.5;
+    update(g, { up: true }, 1 / 120);
+    const [a, b] = g.stacks;
+    assert.ok((sat(poly(a), poly(b))?.depth || 0) < 0.005, 'pallet penetration stays bounded');
+    assert.ok((sat(poly(b), g.walls[0].poly)?.depth || 0) < 1e-4, 'the wall remains solid');
+    assert.ok(a.pen[0].crash === 0 && b.pen[0].crash === 0, 'slow pressure does not accumulate damage');
+  }
 }
 
 // Wall contact slides protruding carried boxes back without clipping or gentle-contact damage.
@@ -424,7 +520,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   }
 }
 
-// Turning with the forks in a pallet glides it with the forks sideways (and turns it) without lifting it.
+// Turning with the forks in a pallet moves it by contact without lifting it.
 {
   const g = newGame(1, 0, true);
   flatWorld(g);
@@ -435,9 +531,9 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const s = g.stacks[0];
   assert.equal(g.carried, null, 'pallet is not carried');
   assert.ok(Math.abs(g.fl.a) > 0.05, 'forklift turned');
-  assert.ok(Math.abs(s.a - g.fl.a) < 1e-6, 'pallet turned with the forks');
+  assert.ok(s.a > 0.05 && s.a <= g.fl.a, 'contact turns the pallet without rigidly attaching it');
   const l = toLocal(g.fl, s.x, s.y);
-  assert.ok(Math.abs(l.y) < 1e-6, 'held sideways on the forks');
+  assert.ok(Math.abs(l.y) < 0.11, 'the pallet stays within the slots');
 }
 
 // Driving the forks in at too steep an angle pushes the stack instead.
@@ -467,7 +563,36 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const s = g.stacks[0];
   assert.equal(s.layers.length, 3, 'stack stays whole');
   assert.equal(s.rots[0], 0, 'bottom box does not turn');
-  assert.ok(s.rots[1] > 0.05 && Math.abs(s.rots[1] - g.fl.a) < 1e-6 && s.rots[2] === s.rots[1], 'boxes from the forks up turn');
+  assert.ok(s.rots[1] > 0.05 && s.rots[1] <= g.fl.a && s.rots[2] === s.rots[1], 'contact turns the boxes from the forks up');
+}
+
+// Hard-mode body impacts use closing speed, not the truck's tangential speed.
+{
+  const hit = (headOn) => {
+    const g = newGame(1, 0, true);
+    g.walls = []; g.zones = [];
+    g.stacks = [{ x: headOn ? 10 : 9, y: headOn ? 5.8 : 6.04, layers: [0], a: 0, rots: [0] }];
+    Object.assign(g.fl, { x: 10, y: 5, a: headOn ? Math.PI / 2 : 0, speed: 4, steer: 0 });
+    update(g, { up: true }, 1 / 120);
+    return g.stacks[0].pen[0].crash;
+  };
+  assert.equal(hit(false), 0, 'sliding along a box does not cause impact damage');
+  assert.ok(hit(true) > 0, 'a head-on impact damages the contacted box');
+}
+
+// A fast sideways scrape is not a hard tine impact; a head-on hit is.
+{
+  const damage = (angle) => {
+    const g = newGame(1, 0, true);
+    g.zones = []; g.walls = [];
+    const s = { x: 10, y: 5.42, layers: [0], a: angle, rots: [angle], pen: [{ crash: 0, sq: 0 }] };
+    g.stacks = [s];
+    Object.assign(g.fl, { x: 8.5, y: 5, a: 0, speed: 3 });
+    update(g, { up: true }, 1 / 120);
+    return s.pen[0].crash;
+  };
+  assert.equal(damage(0), 0, 'sliding parallel to a runner does not cause impact damage');
+  assert.ok(damage(Math.PI / 2) > 0, 'hitting the closed side causes damage');
 }
 
 // Fork contact damages only the pallet at tine height, at every impact speed.
