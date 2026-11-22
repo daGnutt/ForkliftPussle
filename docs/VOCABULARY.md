@@ -172,6 +172,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Local multiplayer** | Extra trucks driven by gamepads on the same screen | `createLocal`, `view.shared` |
 | **Gamepad** | Controller input polled in `createInput` (standard mapping) | `pollPad` |
 | **Controller rumble** | Gamepad vibration feedback (bonks, box damage, blocked forks, scrape, slip, horn), only while the pad was the last driving input; menu subpage "Controller rumble" (from Controls) with on/off, effect, strength and per-feature checkboxes | `rumble.js`, `#rumbleOpt`, `data-page="rumble"` |
+| **Phone vibration** | The rumble mix sent to `navigator.vibrate` as buzz lengths while the last input was touch; checkbox on the Controller rumble page, hidden without the API | `rumble.js` (`frameVibrate`), `#vibrateOpt` |
 | **Touch controls** | On-screen buttons or joystick (classic / rotated / joystick) | `#touch`, `#stick` |
 | **Paused overlay** | Drawn when the window is unfocused | `view.paused` |
 | **Debug overlay** | `?debug` timing panel | `debug.js` |

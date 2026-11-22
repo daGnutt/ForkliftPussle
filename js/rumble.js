@@ -50,10 +50,22 @@ export function sendRumble(gp, strong, weak, ms = RUMBLE_EFFECT_MS, effect = 'au
   return use ?? null;
 }
 
+export const VIBRATE_REFRESH = 0.1; // s between phone vibrations; each is a buzz of up to that long
+const VIBRATE_MIN = 0.12; // weaker mixes are not felt through navigator.vibrate
+
+export function vibrateSupported(nav = globalThis.navigator) { return typeof nav?.vibrate === 'function'; }
+
+// navigator.vibrate only has on/off pulses, so the mix strength becomes the buzz length within one refresh window.
+export function vibrateMs(m) {
+  const level = Math.max(m.strong, m.weak);
+  return level < VIBRATE_MIN ? 0 : Math.round(VIBRATE_REFRESH * 1000 * Math.min(1, level + 0.2));
+}
+
 export function createRumble() {
   let pulses = []; // { strong, weak, t, dur }: fade linearly to 0 over dur seconds
   const layers = new Map(); // name -> { strong, weak }
   let sinceSend = Infinity, sent = { strong: 0, weak: 0 };
+  let sinceVib = Infinity, vibing = false;
   const off = new Set(); // disabled RUMBLE_FEATURES ids
   const r = {
     strength: RUMBLE_STRENGTH, // 0..1, scales the whole mix
@@ -78,6 +90,20 @@ export function createRumble() {
       const slip = (t.slip || 0) > 0.05 ? clamp01(t.slip) : 0;
       r.set('slip', 0.1 * slip, 0.35 * slip);
       r.set('horn', t.horn ? 0.15 : 0, t.horn ? 0.45 : 0);
+    },
+    // Phone variant of frame(): same mix, sent to navigator.vibrate. Best effort; vibrate(0) when the mix ends or it is disabled.
+    frameVibrate(dt, enabled = true, nav = globalThis.navigator) {
+      if (!vibrateSupported(nav)) return 0;
+      const stop = () => { if (vibing) { try { nav.vibrate(0); } catch { /* best effort */ } } vibing = false; sinceVib = Infinity; };
+      if (!enabled) { pulses = []; layers.clear(); stop(); return 0; }
+      const ms = vibrateMs(r.mix(dt));
+      sinceVib += dt;
+      if (!ms) { stop(); return 0; }
+      if (sinceVib >= VIBRATE_REFRESH) {
+        try { nav.vibrate(ms); vibing = true; } catch { /* best effort */ }
+        sinceVib = 0;
+      }
+      return ms;
     },
     // One frame: mixes and (throttled) sends to gp. When disabled or without a pad, everything is dropped and a running
     // effect is stopped once. Returns the mix.

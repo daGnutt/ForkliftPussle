@@ -27,7 +27,7 @@ import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
 import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
-import { createRumble, sendRumble, rumbleSupport, RUMBLE_FEATURES, RUMBLE_EFFECTS, RUMBLE_STRENGTH } from './rumble.js';
+import { createRumble, vibrateSupported, sendRumble, rumbleSupport, RUMBLE_FEATURES, RUMBLE_EFFECTS, RUMBLE_STRENGTH } from './rumble.js';
 import { pickScheme, KEYBOARD, TOUCH } from './schemepicker.js';
 import { batterySaverOption, canvasDpr, shouldDraw } from './power.js';
 import { startAudio, playDroid as droid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, setPageHidden, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
@@ -115,6 +115,8 @@ let otherBonks = new Map(); // truck id -> last seen bonk count (other trucks' b
 const otherH = new Map(); // truck id -> last seen fork level
 // Controller rumble (js/rumble.js): only while the gamepad was the last driving input; menu option #rumbleOpt.
 const rumble = createRumble();
+let lastTouch = false; // the last pointer input was a finger: only then does the phone vibrate
+addEventListener('pointerdown', (e) => { lastTouch = e.pointerType === 'touch'; }, true);
 const RUMBLE_HIT_DIST = 2.5; // tiles: box damage this close to the own truck is felt
 refreshBest();
 // Loudness 0..1 of a sound at (x, y), falling off with the distance from the local truck (same curve as the horns).
@@ -923,6 +925,11 @@ const rumbleOpt = document.getElementById('rumbleOpt');
 rumbleOpt.checked = localStorage.getItem('forklift-rumble') !== '0';
 rumbleOpt.addEventListener('change', () => localStorage.setItem('forklift-rumble', rumbleOpt.checked ? '1' : '0'));
 // Rumble subpage: effect, strength, one checkbox per feature (disabled ones saved as a comma list in forklift-rumble-off).
+// Phone vibration (navigator.vibrate): same mix as the rumble, only after a touch; hidden where the browser has no API.
+const vibrateOpt = document.getElementById('vibrateOpt');
+vibrateOpt.checked = localStorage.getItem('forklift-vibrate') !== '0';
+vibrateOpt.addEventListener('change', () => localStorage.setItem('forklift-vibrate', vibrateOpt.checked ? '1' : '0'));
+document.getElementById('vibrateRow').hidden = !vibrateSupported();
 const rumbleEffect = document.getElementById('rumbleEffect');
 const rumbleStrength = document.getElementById('rumbleStrength');
 const rumbleSupportEl = document.getElementById('rumbleSupport');
@@ -953,6 +960,7 @@ document.getElementById('rumbleTest').addEventListener('click', () => {
   const gp = standardPads()[0]?.gp;
   const s = rumble.strength;
   if (gp) sendRumble(gp, 0.8 * s, 0.6 * s, 250, rumble.effect);
+  if (vibrateSupported() && vibrateOpt.checked) { try { navigator.vibrate(Math.round(250 * Math.max(0.2, s))); } catch { /* best effort */ } }
 });
 // Temporary, only with ?controller: V opens the menu on the Rumble page, for tuning the rumble while testing a pad.
 if (new URLSearchParams(location.search).has('controller')) {
@@ -1465,10 +1473,14 @@ function frame(now) {
     if (game.bonks > bonkCount) { const pw = game.bonkPower || 0.5; playBonk(game.bonkPower); rumble.pulse('bonk', 0.35 + 0.65 * pw, 0.3 + 0.5 * pw, 0.12 + 0.18 * pw); }
     bonkCount = game.bonks;
   }
+  const vibrateOn = vibrateOpt.checked && lastTouch && st.motionSource !== 'gamepad' && !splashOn && !view.paused && !view.menuOpen
+    && !won && !document.hidden && !localOpt.checked && !game.trucks[game.self]?.gone;
   const rumbleOn = rumbleOpt.checked && !splashOn && !view.paused && !view.menuOpen && !won && !document.hidden
     && !localOpt.checked && !game.trucks[game.self]?.gone && st.motionSource === 'gamepad';
-  if (rumbleOn) rumble.feedTruck(game);
-  rumble.frame(dtReal, standardPads()[0]?.gp ?? null, rumbleOn);
+  if (rumbleOn || vibrateOn) rumble.feedTruck(game);
+  if (vibrateOn) rumble.frameVibrate(dtReal, true);
+  else if (vibrateSupported()) rumble.frameVibrate(dtReal, false);
+  if (!vibrateOn) rumble.frame(dtReal, standardPads()[0]?.gp ?? null, rumbleOn);
   if (game.status === 'won' && !game.endless) {
     if (!reduceEffectsOn && galleryGame !== game) { galleryGame = game; startGallery(() => endPhotos(game)); }
     else if (reduceEffectsOn && galleryGame) { galleryGame = null; stopGallery(); }

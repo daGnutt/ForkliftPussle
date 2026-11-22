@@ -286,6 +286,29 @@ console.log('input tests passed');
   assert.ok(!z(500, 100, 900, 800, true), 'free area beside the gauge');
 }
 
+// Phone vibration: the rumble mix goes to navigator.vibrate as buzz lengths; silent below a threshold, no-op without the API
+{
+  const { createRumble, vibrateSupported, vibrateMs } = await import('../js/rumble.js');
+  const calls = [];
+  const nav = { vibrate: (v) => { calls.push(v); return true; } };
+  assert.ok(vibrateSupported(nav) && !vibrateSupported({}));
+  assert.equal(vibrateMs({ strong: 0.05, weak: 0.05 }), 0);
+  assert.ok(vibrateMs({ strong: 1, weak: 0 }) > vibrateMs({ strong: 0.3, weak: 0 }));
+  const r = createRumble();
+  r.strength = 1;
+  r.pulse('bonk', 1, 0.5, 0.2);
+  assert.ok(r.frameVibrate(0.01, true, nav) > 0);
+  r.frameVibrate(0.01, true, nav);
+  assert.equal(calls.length, 1, 'throttled to the refresh interval');
+  for (let i = 0; i < 40; i++) r.frameVibrate(0.01, true, nav);
+  assert.equal(calls.at(-1), 0, 'vibrate(0) once the pulse faded');
+  r.pulse('bonk', 1, 1, 1);
+  r.frameVibrate(0.01, true, nav);
+  r.frameVibrate(0.01, false, nav);
+  assert.equal(calls.at(-1), 0, 'disabling stops it');
+  assert.equal(r.frameVibrate(0.01, true, {}), 0, 'no API: no-op');
+}
+
 // Rumble: dual-rumble where available, Firefox hapticActuators otherwise; pulses fade, throttled sends, stop when disabled
 {
   const { createRumble, sendRumble, rumbleSupport } = await import('../js/rumble.js');
