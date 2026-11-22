@@ -235,6 +235,8 @@ function partyGameChanged() {
   else {
     removeTruck(game, 0);
     view.fullMap = true;
+    document.body.classList.add('observer-party');
+    tutorialEl.classList.add('hide');
   }
   mp.host.levelLoaded(game);
 }
@@ -599,6 +601,7 @@ let tipUntil = 0;
 // One-off tips for events: the first blocked fork action (ceiling / lowering through a box) and the first damaged oil barrel.
 const pendingTips = {};
 function showTip(key, html) {
+  if (mp?.observer) return;
   localStorage.setItem(key, '1');
   tipUntil = performance.now() + OPEN_TIP_MS;
   tutorialEl.classList.remove('hide');
@@ -606,7 +609,7 @@ function showTip(key, html) {
 }
 const barrelDamaged = (pens = []) => pens.some((p, i) => p?.barrelPart === 'base' && (p.crash || 0) + (pens[i + 1]?.crash || 0) > 0);
 function checkEventTips() {
-  if (tipUntil || splashOn || view.menuOpen) return;
+  if (mp?.observer || tipUntil || splashOn || view.menuOpen) return;
   if (!localStorage.getItem(CEILING_TIP_KEY) && pendingTips.ceiling) showTip(CEILING_TIP_KEY, 'Carried boxes <b>hit the ceiling</b> and were damaged. Lower the forks before you drive on.');
   else if (!localStorage.getItem(FORKBOX_TIP_KEY) && pendingTips.forkbox) showTip(FORKBOX_TIP_KEY, 'You cannot lower the forks <b>through a box</b>: it gets damaged. Raise the forks or back out first, then lower them.');
   else if (!localStorage.getItem(OIL_TIP_KEY) && (barrelDamaged(game.carriedPen) || game.stacks.some((s) => barrelDamaged(s.pen)))) showTip(OIL_TIP_KEY, 'A damaged barrel <b>drips oil</b>, and oil is slippery. Don\'t worry, a <b>cleaning bot</b> has been dispatched to help you.');
@@ -629,6 +632,7 @@ function watchForkEvents(ev) {
   if (ev.res !== 'blocked' && ev.moved) playFork(ev.dir > 0);
 }
 function checkOpenTip() {
+  if (mp?.observer) return;
   if (tipUntil) {
     if (performance.now() < tipUntil) return;
     tipUntil = 0;
@@ -646,6 +650,7 @@ function checkOpenTip() {
 // Until the first repair on this device, carrying one damaged box shows a pop-up and the arrow/glow/blink in the views (js/repairhint.js).
 let repairTipOn = false;
 function checkRepairTip() {
+  if (mp?.observer) { setRepairHint(false); return; }
   if (game.repair?.on) localStorage.setItem(REPAIRED_KEY, '1');
   const on = !splashOn && !view.menuOpen && !tipUntil && repairHintWanted(game, !!localStorage.getItem(REPAIRED_KEY));
   setRepairHint(on);
@@ -658,6 +663,7 @@ function checkRepairTip() {
 }
 function showTutorial() {
   tutShownAt = performance.now();
+  if (mp?.observer) { tutorialEl.classList.add('hide'); return; }
   if (tipUntil || repairTipOn) return;
   tutorialEl.classList.toggle('hide', tutStep < 0);
   if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep].html}${TUTORIAL[tutStep].extra?.() ?? ''}`;
@@ -669,6 +675,7 @@ function nextTutorial() {
 }
 let tutStart = { x: game.fl.x, y: game.fl.y };
 function checkTutorial() {
+  if (mp?.observer) { tutorialEl.classList.add('hide'); setRepairHint(false); return; }
   checkEventTips();
   checkOpenTip();
   checkRepairTip();
@@ -731,7 +738,11 @@ function startGame(endless = false) {
   }
   if (endless && mp?.role !== 'guest') loadEndless();
   else refreshBest();
-  if (tutorialOpt.checked) {
+  if (mp?.observer) {
+    tutStep = -1;
+    tutDone = {};
+    tutorialEl.classList.add('hide');
+  } else if (tutorialOpt.checked) {
     localStorage.removeItem('forklift-tutorial-done');
     tutStep = 0;
     tutDone = {};
@@ -875,6 +886,8 @@ async function hostParty(nameText = partyName.value, observer = observerOpt.chec
     view.povBig = false;
     view.chase = false;
     view.zoom = null;
+    document.body.classList.add('observer-party');
+    tutorialEl.classList.add('hide');
   } else {
     game.trucks[0].name = name;
     view.fullMap = false;
