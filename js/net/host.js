@@ -2,6 +2,7 @@
 import { addTruck, removeTruck, truckView, forkUp, forkDown } from '../game.js';
 import { createLink } from './peer.js';
 import { createSnapshotter, snapshot, encode, SNAPSHOT_HZ } from './protocol.js';
+import { HARD_PHYSICS_VERSION } from '../hard-physics.js';
 
 const STALE = 3; // seconds without any message before a guest counts as gone when its name is taken again
 const DEFAULT_ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -12,9 +13,10 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
   const members = new Map(); // peer id -> { name, slot, link }
   const snapper = createSnapshotter();
   const banned = new Set(); // lower-case names; relay peer ids change on every join, so names are all there is to go on
+  const observer = meta?.observer === true;
   let code = null, token = null, stream = null, lastSent = -Infinity, lastPing = -Infinity, closed = false;
 
-  const payload = (g) => ({ ...levelInfo(), snap: snapshot(g) });
+  const payload = (g) => ({ ...levelInfo(), hardPhysicsVersion: HARD_PHYSICS_VERSION, snap: snapshot(g) });
   const live = (m) => m.slot >= 0 && m.link.open;
 
   function drop(peer) {
@@ -31,10 +33,16 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
     const g = getGame();
     if (msg.t === 'hello' && m.slot < 0) {
       m.name = String(msg.name || 'Player').slice(0, 24);
+      m.hardPhysicsVersion = msg.hardPhysicsVersion;
+      if (g.hard && m.hardPhysicsVersion !== HARD_PHYSICS_VERSION) {
+        m.link.sendReliable({ t: 'bye', reason: 'physics' });
+        setTimeout(() => drop(peer), 300);
+        return;
+      }
       if (banned.has(m.name.toLowerCase())) { m.link.sendReliable({ t: 'bye', reason: 'banned' }); drop(peer); return; }
       // a reloaded page rejoins before the host notices the old connection is dead: the stale one is replaced
       // (only silent ones: guests send inputs/pings at least every second, and two live players may share a name)
-      for (const [p, o] of members) if (p !== peer && o.slot > 0 && o.name?.toLowerCase() === m.name.toLowerCase() && clock() - o.lastRx > STALE) drop(p);
+      for (const [p, o] of members) if (p !== peer && o.slot >= 0 && o.name?.toLowerCase() === m.name.toLowerCase() && clock() - o.lastRx > STALE) drop(p);
       const slot = addTruck(g, m.name);
       if (slot < 0) { m.link.sendReliable({ t: 'bye', reason: 'full' }); drop(peer); return; }
       m.slot = slot;
@@ -84,12 +92,12 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
     players() {
       const g = getGame();
       const ping = (i) => [...members.values()].find((m) => m.slot === i)?.ping ?? null;
-      return g.trucks.map((t, i) => (t.gone ? null : { slot: i, name: t.name || (i === 0 ? name : `Player ${i + 1}`), ping: i === 0 ? 0 : ping(i) })).filter(Boolean);
+      return g.trucks.map((t, i) => (t.gone ? null : { slot: i, name: t.name || (!observer && i === 0 ? name : `Player ${i + 1}`), ping: !observer && i === 0 ? 0 : ping(i) })).filter(Boolean);
     },
     // Removes a guest's truck and sends it away; `ban` also refuses its name for the rest of the party.
     kick(slot, ban = false) {
       for (const [peer, m] of members) {
-        if (m.slot !== slot || slot <= 0) continue;
+        if (m.slot !== slot || (!observer && slot <= 0)) continue;
         if (ban) banned.add(m.name.toLowerCase());
         members.delete(peer);
         removeTruck(getGame(), slot);
@@ -105,7 +113,14 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
     // After the host loaded a new level: every guest gets a new truck in its old slot and the new level.
     levelLoaded(g) {
       snapper.reset();
-      for (const m of members.values()) if (m.slot >= 0) m.slot = addTruck(g, m.name, m.slot);
+      for (const [peer, m] of members) {
+        if (m.slot < 0) continue;
+        if (g.hard && m.hardPhysicsVersion !== HARD_PHYSICS_VERSION) {
+          m.link.sendReliable({ t: 'bye', reason: 'physics' });
+          m.slot = -1;
+          setTimeout(() => drop(peer), 300);
+        } else m.slot = addTruck(g, m.name, m.slot);
+      }
       for (const m of members.values()) if (live(m)) m.link.sendReliable({ t: 'level', ...payload(g) });
     },
     // The host left the splash: waiting guests may start.

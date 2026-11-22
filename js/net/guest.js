@@ -2,12 +2,13 @@
 import { createLink } from './peer.js';
 import { createInterpolator, encode } from './protocol.js';
 import { createPredictor } from './predict.js';
+import { HARD_PHYSICS_VERSION } from '../hard-physics.js';
 
 const INPUT_REFRESH = 0.25; // seconds; inputs are also resent while unchanged, as a guard against a lost message
 
 // Events: onGame({ slot, started, level, seed, hard, seedText, endless, snap }) for the welcome and every level change,
 // onClosed(reason) when the party ends or the connection drops.
-const BYE = { full: 'The party is full', kicked: 'The host removed you from the party', banned: 'You are banned from this party' };
+const BYE = { full: 'The party is full', kicked: 'The host removed you from the party', banned: 'You are banned from this party', physics: 'Hard-mode physics differs from the host; reload the game' };
 const analog = (v) => Math.round(Math.max(-1, Math.min(1, +v || 0)) * 20) / 20;
 
 export function createGuest({ relay, code, name, onGame, onClosed, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
@@ -31,11 +32,12 @@ export function createGuest({ relay, code, name, onGame, onClosed, linkFactory =
         initiator: false,
         iceServers: r.iceServers,
         sendSignal: (s) => relay.signal(code, { from: peer, to: 'host', ...s }).catch(() => end('Could not reach the host')),
-        onOpen: () => link.sendReliable({ t: 'hello', name }),
+        onOpen: () => link.sendReliable({ t: 'hello', name, hardPhysicsVersion: HARD_PHYSICS_VERSION }),
         onMessage: (msg) => {
           if (msg.t === 'snap') { interp.push(msg, clock()); predictor.onSnapshot(msg, clock(), rtt); }
           else if (msg.t === 'gpong') rtt += (Math.max(0, clock() - msg.n) - rtt) * 0.3;
           else if (msg.t === 'welcome' || msg.t === 'level') {
+            if (msg.hard && msg.hardPhysicsVersion !== HARD_PHYSICS_VERSION) { end(BYE.physics); return; }
             if (msg.t === 'welcome') slot = msg.slot;
             interp.reset(msg.snap?.stacks);
             if (msg.t === 'welcome') lastGping = -Infinity;

@@ -1,11 +1,12 @@
 import { boxDecalKind } from './decals.js';
-import { rectPoly, sat, overlapArea, BOX_HALF_X, halfY, palletRunnerDims, zoneExt, FORK_CLEARANCE, TINE_H, LEVEL_H } from './geom.js';
+import { rectPoly, sat, overlapArea, intersectionCenter, BOX_HALF_X, halfY, palletRunnerDims, zoneExt, FORK_CLEARANCE, TINE_H, LEVEL_H } from './geom.js';
 export { zoneExt } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
 import { makeStation, stepRepair, repairable, recordDropAngle } from './repair.js';
 import { makeHatch, makeBot, makeInspector, stepBot, stepInspector, stackSig, makePhoto } from './bot.js';
+import { closingSpeed, contactCorrection, palletSupported, solveContacts, supported } from './hard-physics.js';
 
 const FORKLIFT_MASS = 6;
 const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
@@ -63,7 +64,7 @@ export function makeTruck(start, id = 0, name = '') {
     bonks: 0, bonkPower: 0, bonkAt: -1, scrape: 0, wallPush: null,
     contact: null, // last wall hit: { x, y, nx, ny } = point on the truck and the direction the wall pushed it (for sparks)
     slip: 0, // 0..1, how much the tyres are spinning (driving into something that does not give, or being shoved); drives tyre smoke
-    H: 0, hy: 0, hf: 0, ef: 0, // H = floor(hy): the logical level; hy = the real fork height (box heights, whole numbers except between levels in hard mode)
+    H: 0, hy: 0, hf: 0, ef: 0, // hard-mode hy is physical tine height; H is the logical load/pallet level
     fk: { dir: 0, t: 0, fluid: false, hit: false, last: 0, n: 0, ev: null }, // hard mode fork key state: held direction, time held, last direction moved, last event
     horn: false, // the horn key is held
     lifting: -1, // id of the truck riding on this truck's tines (-1 none)
@@ -316,7 +317,8 @@ export function alertTriggers(g) {
 function hoverStack(g) {
   if (!g.hard || !g.carried || g.fk.last >= 0 || Math.abs(g.fl.speed) > 0.05) return null;
   const S = stackInZone(g);
-  return S && S.layers.length > 0 && g.hy > S.layers.length && g.hy - S.layers.length < 1 - 1e-6 ? S : null;
+  const height = forkHeight(g);
+  return S && S.layers.length > 0 && height > S.layers.length && height - S.layers.length < 1 - 1e-6 ? S : null;
 }
 
 export const crashAlert = (g) => alertTriggers(g).length > 0;
@@ -343,8 +345,10 @@ export function carriedWorldOffs(g) {
   return (g.carriedOffs || []).map((o) => ({ x: o.x * c - o.y * sn, y: o.x * sn + o.y * c }));
 }
 
+export const forkHeight = (g) => g.hy - (g.hard && g.carried ? FORK_CLEARANCE : 0);
 const carriedBase = (g) => {
-  const hy = Math.floor(g.hy + 1e-6) === g.H ? g.hy : g.H;
+  const height = forkHeight(g);
+  const hy = Math.floor(height + 1e-6) === g.H ? height : g.H;
   return g.hard ? hy : g.H;
 };
 const carriedLevel = (g) => Math.floor(carriedBase(g) + 1e-6);
@@ -376,6 +380,66 @@ function fallSpot(g, S, dx, dy, a, pen) {
   return { x: S.x + best.ux * best.d, y: S.y + best.uy * best.d };
 }
 
+function hardFallSpot(g, S, from, dx, dy) {
+  const start = boxPos(S, from);
+  const boxes = S.layers.slice(from).map((_, j) => {
+    const i = from + j, p = boxPos(S, i);
+    return { x: p.x - start.x, y: p.y - start.y, a: S.rots[i], pen: S.pen[i] };
+  });
+  const polysAt = (x, y) => boxes.map((b) => boxPoly(x + b.x, y + b.y, b.a, b.pen));
+  const wallFree = (polys) => polys.every((p) => p.every((v) => v.x >= 0 && v.x <= g.w && v.y >= 0 && v.y <= g.h) && g.walls.every((w) => !sat(p, w.poly)));
+  const clearPath = (x, y) => {
+    const steps = Math.ceil(Math.hypot(x - start.x, y - start.y) / 0.1);
+    for (let k = 1; k <= steps; k++) {
+      const t = k / steps;
+      if (!wallFree(polysAt(start.x + (x - start.x) * t, start.y + (y - start.y) * t))) return false;
+    }
+    return true;
+  };
+  const angle = Math.atan2(dy, dx);
+  for (const distance of [1, 1.15, 1.3, 1.45]) {
+    for (const turn of [0, 1, -1, 2, -2, 3, -3, 4]) {
+      const a = angle + turn * Math.PI / 4;
+      const x = S.x + Math.cos(a) * distance, y = S.y + Math.sin(a) * distance;
+      const polys = polysAt(x, y);
+      if (!wallFree(polys)) continue;
+      const supports = g.stacks.filter((s) => {
+        if (s === S || s.leaving || s.layers.length > from || s.layers.length + boxes.length > MAX_LAYERS) return false;
+        ensure(s);
+        if (blocksStacking(s.pen) || wideBox(s.pen) !== !!boxes[0].pen?.wide) return false;
+        const p = boxPos(s, s.layers.length - 1);
+        const top = boxPoly(p.x, p.y, s.rots[s.layers.length - 1], s.pen[s.layers.length - 1]);
+        return supported([top, ...polys], [s.pen[s.layers.length - 1], ...boxes.map((b) => b.pen)], 1);
+      });
+      for (const under of [...supports, null]) {
+        const height = under?.layers.length || 0;
+        const obstructed = g.stacks.some((s) => {
+          ensure(s);
+          for (let j = 0; j < boxes.length; j++) {
+            const k = height + j;
+            if (k >= s.layers.length || (s === S && k >= from)) continue;
+            const p = boxPos(s, k);
+            if (sat(polys[j], boxPoly(p.x, p.y, s.rots[k], s.pen[k]))) return true;
+          }
+          return false;
+        });
+        if (obstructed || g.root.trucks.some((t, i) => {
+          if (t.gone) return false;
+          if (polys.some((p) => sat(p, bodyPoly(t)))) return true;
+          const base = Math.floor(carriedBase(truckView(g.root, i)) + 1e-6);
+          return polys.some((p, j) => {
+            const k = height + j - base;
+            return t.carried && k >= 0 && k < t.carried.length &&
+              !S.pen.includes(t.carriedPen[k]) && sat(p, carriedPoly(t, k));
+          });
+        })) continue;
+        if (clearPath(x, y)) return { x, y, under };
+      }
+    }
+  }
+  return null;
+}
+
 const FALL_TIME = 0.5; // seconds a toppled box takes to tumble to the floor (drawing only; the stack is at its landing spot at once)
 
 // The stack as it should be drawn: while boxes are still tumbling off a stack (`s.fall`), they slide in from where they
@@ -401,29 +465,43 @@ function fallBase(g, s) {
   return v;
 }
 
-// A box with less than MIN_SUPPORT of its area on the box below falls off, together with everything above it,
-// to the floor beside the stack, taking maximum damage.
+// Unsupported boxes fall together, taking maximum damage.
 function settle(g, S) {
   ensure(S);
-  for (let i = 1; i < S.layers.length; i++) {
+  for (let level = 1; level < S.layers.length; level++) {
+    const i = g.hard ? S.layers.length - level : level;
     if (S.pen[i]?.barrelPart === 'top') continue;
     const a = boxPos(S, i), b = boxPos(S, i - 1);
-    if (overlapArea(boxPoly(a.x, a.y, S.rots[i], S.pen[i]), boxPoly(b.x, b.y, S.rots[i - 1], S.pen[i - 1])) >= MIN_SUPPORT * boxArea(S.pen[i])) continue;
-    if (catchFallingBoxes(g, S, i)) return;
+    const stable = g.hard
+      ? supported(S.layers.map((_, j) => { const p = boxPos(S, j); return boxPoly(p.x, p.y, S.rots[j], S.pen[j]); }), S.pen, i)
+      : overlapArea(boxPoly(a.x, a.y, S.rots[i], S.pen[i]), boxPoly(b.x, b.y, S.rots[i - 1], S.pen[i - 1])) >= MIN_SUPPORT * boxArea(S.pen[i]);
+    if (stable) continue;
+    if (catchFallingBoxes(g, S, i)) {
+      if (g.hard && S.layers.length > 1) settle(g, S);
+      return;
+    }
     let dx = a.x - b.x, dy = a.y - b.y;
+    if (g.hard && Math.hypot(dx, dy) < 1e-9) {
+      for (let j = i + 1; j < S.layers.length; j++) {
+        const p = boxPos(S, j);
+        dx += p.x - b.x; dy += p.y - b.y;
+      }
+    }
     const len = Math.hypot(dx, dy) || 1;
     dx /= len; dy /= len;
+    const target = g.hard ? hardFallSpot(g, S, i, dx, dy) : null;
+    if (g.hard && !target) return;
     const startZ = i;
     addDent(S.pen[i - 1], 't');
     const pen = S.pen.splice(i);
-    hurt(g, pen, CRASH_POINTS, S.x + dx * 1.45, S.y + dy * 1.45, pen.length);
     const offs = S.offs.splice(i);
     const rots = S.rots.splice(i);
-    const { x: nx, y: ny } = fallSpot(g, S, dx, dy, rots[0], pen[0]);
+    const { x: nx, y: ny } = target || fallSpot(g, S, dx, dy, rots[0], pen[0]);
+    hurt(g, pen, CRASH_POINTS, target ? nx : S.x + dx * 1.45, target ? ny : S.y + dy * 1.45, pen.length);
     const layers = S.layers.splice(i);
     const rel = offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y }));
     // Landing within stackable reach of another stack's top box, the fallen boxes come to rest on it.
-    const under = g.stacks.find((t) => {
+    const under = g.hard ? target.under : g.stacks.find((t) => {
       if (t === S || t.layers.length + layers.length > MAX_LAYERS || blocksStacking(t.pen) || wideBox(t.pen) !== wideBox(pen)) return false;
       const c = boxPos(t, t.layers.length - 1);
       return Math.abs(c.x - nx) < 0.55 && Math.abs(c.y - ny) < 0.55;
@@ -437,6 +515,7 @@ function settle(g, S) {
     } else {
       g.stacks.push({ x: nx, y: ny, layers, rots, pen, a: rots[0], offs: rel, fall: fall(0, startZ) });
     }
+    if (g.hard && S.layers.length > 1) settle(g, S);
     break;
   }
 }
@@ -450,7 +529,10 @@ const HIT_MERGE = 0.6; // further damage to the same stack within this time adds
 // Applies crash points and records the actual loss as a floating popup (x, y, z in box heights).
 function hurt(g, pens, pts, x, y, z, owner = null) {
   let lost = 0;
-  for (const p of pens) { const n = Math.min(CRASH_POINTS, p.crash + pts); lost += n - p.crash; p.crash = n; }
+  for (let i = 0; i < pens.length; i++) {
+    const p = pens[i], n = Math.min(CRASH_POINTS, p.crash + (Array.isArray(pts) ? pts[i] : pts));
+    lost += n - p.crash; p.crash = n;
+  }
   lost = Math.round(lost);
   if (lost <= 0) return;
   g.hits ||= [];
@@ -469,8 +551,7 @@ function dentBoxes(pens, count, dent) {
   }
 }
 
-function crash(g, pens, owner, count = pens.length, dent = null) {
-  const speed = Math.abs(g.fl.speed);
+function crash(g, pens, owner, count = pens.length, dent = null, speed = Math.abs(g.fl.speed)) {
   const hardPallet = g.hard && g.stacks.includes(owner);
   if (speed < (hardPallet ? HARD_PALLET_CRASH_MIN_SPEED : CRASH_MIN_SPEED) || g.clock - (owner.hitAt ?? -1) < CRASH_COOLDOWN) return;
   owner.hitAt = g.clock;
@@ -652,10 +733,10 @@ function forkShapes(g) {
     const c = toWorld(f, lx, ly);
     return { poly: rectPoly(c.x, c.y, hx, hy, f.a), stackFilter, targets };
   };
-  const boxes = (from) => (s) => {
+  const boxes = (from, to = Infinity) => (s) => {
     ensure(s);
     const out = [];
-    for (let i = from; i < s.layers.length; i++) { const c = boxPos(s, i); out.push({ poly: boxPoly(c.x, c.y, s.rots[i], s.pen?.[i]), from: i }); }
+    for (let i = from; i < Math.min(to, s.layers.length); i++) { const c = boxPos(s, i); out.push({ poly: boxPoly(c.x, c.y, s.rots[i], s.pen?.[i]), from: i }); }
     return out;
   };
   const shapes = [
@@ -669,9 +750,20 @@ function forkShapes(g) {
     if (vc) shapes.push({ poly: vc, stackFilter: (s) => s.layers.length > g.H + v.rideLv + v.H, targets: (s) => [{ poly: stackPoly(s), from: 0 }] });
   }
   if (g.carried) {
-    const c = carriedCenter(g);
     const level = carriedLevel(g);
-    shapes.push({ poly: boxPoly(c.x, c.y, f.a + g.carriedRel, g.carriedPen?.[0]), stackFilter: (s) => s.layers.length > level, carried: true, targets: boxes(level) });
+    if (g.hard) {
+      for (let i = 0; i < g.carried.length; i++) {
+        const base = carriedBase(g) + i, low = Math.floor(base + 1e-6), high = Math.ceil(base + 1 - 1e-6);
+        shapes.push({
+          poly: carriedPoly(g, i), carried: true, layer: i,
+          stackFilter: (s) => s.layers.length > low,
+          targets: boxes(low, high),
+        });
+      }
+    } else {
+      const c = carriedCenter(g);
+      shapes.push({ poly: boxPoly(c.x, c.y, f.a + g.carriedRel, g.carriedPen?.[0]), stackFilter: (s) => s.layers.length > level, carried: true, targets: boxes(level) });
+    }
   }
   const blocks = (s) => s.layers.length > g.H && s.pen?.[g.H]?.barrelPart !== 'top' && g.hard;
   // Tines above the pallet's clearance hit its deck rather than entering the slots.
@@ -684,12 +776,10 @@ function forkShapes(g) {
 function catchFallingBoxes(g, S, from) {
   const count = S.layers.length - from;
   if (!g.hard || g.carried || g.lifting >= 0 || g.H !== from || g.H + count >= CEILING_LEVELS) return false;
-  if (S.pen[from]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[from])) > WIDE_ALIGN) return false;
-  const c = boxPos(S, from), local = toLocal(g.fl, c.x, c.y);
-  if (Math.abs(local.x - FL.carryX) >= 0.55 || Math.abs(local.y) >= 0.5) return false;
+  const c = boxPos(S, from);
   const box = boxPoly(c.x, c.y, S.rots[from], S.pen[from]);
-  const tines = forkShapes(g).filter((shape) => shape.tine);
-  if (tines.length !== 2 || !tines.every((tine) => sat(box, tine.poly))) return false;
+  const tines = forkShapes(g).filter((shape) => shape.tine).map((shape) => shape.poly);
+  if (!palletSupported(tines, box, palletRunners(g, S))) return false;
 
   liftBoxes(g, S, from);
   return true;
@@ -701,6 +791,7 @@ function liftBoxes(g, S, from) {
     return { x: l.x - FL.carryX, y: l.y };
   });
   g.carried = S.layers.splice(from);
+  if (g.hard) g.hy += FORK_CLEARANCE;
   g.carriedRots = S.rots.splice(from).map((r) => r - g.fl.a);
   g.carriedPen = S.pen.splice(from);
   g.carriedRel = g.carriedRots[0];
@@ -778,7 +869,11 @@ function twistCarried(g, da) {
   for (let i = 0; i < after.length; i++) {
     const back = Math.min(FL.front, ...before[i].map((v) => v.x));
     if (after[i].some((v) => v.x < back - 1e-9)) return;
-    if (i > 0 && overlapArea(after[i], after[i - 1]) < Math.min(MIN_SUPPORT * boxArea(g.carriedPen[i]), overlapArea(before[i], before[i - 1])) - 1e-9) return;
+    if (i > 0) {
+      if (g.hard && supported(before, g.carriedPen, i)) {
+        if (!supported(after, g.carriedPen, i)) return;
+      } else if (overlapArea(after[i], after[i - 1]) < Math.min(MIN_SUPPORT * boxArea(g.carriedPen[i]), overlapArea(before[i], before[i - 1])) - 1e-9) return;
+    }
   }
   g.carriedRel += d;
   g.carriedRots = g.carriedRots.map((r) => r + d);
@@ -786,9 +881,20 @@ function twistCarried(g, da) {
 
 const WALL_GAP = 1e-7;
 
-function supportedShift(polys, pens, from, dx, dy) {
+function recordImpact(g, impact) {
+  const prior = g.hard && g.impacts.find((p) => p.nx * impact.nx + p.ny * impact.ny > 0.999 &&
+    Math.hypot(p.x - impact.x, p.y - impact.y) < 0.2);
+  if (prior) prior.w = Math.max(prior.w, impact.w);
+  else g.impacts.push(impact);
+}
+
+function supportedShift(polys, pens, from, dx, dy, hard = false) {
   if (from === 0) return true;
   const p = polys[from], below = polys[from - 1];
+  if (hard && supported(polys, pens, from)) {
+    const shifted = polys.map((poly, i) => i >= from ? poly.map((v) => ({ x: v.x + dx, y: v.y + dy })) : poly);
+    return supported(shifted, pens, from);
+  }
   const need = Math.min(MIN_SUPPORT * boxArea(pens[from]), overlapArea(p, below));
   return overlapArea(p.map((v) => ({ x: v.x + dx, y: v.y + dy })), below) >= need - 1e-9;
 }
@@ -826,7 +932,7 @@ function slideCarried(g, from, m) {
   });
   const safe = (fraction) => {
     const x = dx * fraction, y = dy * fraction;
-    if (!supportedShift(local, g.carriedPen, from, x, y)) return false;
+    if (!supportedShift(local, g.carriedPen, from, x, y, g.hard)) return false;
     for (let i = from; i < local.length; i++) {
       const p = local[i].map((v) => ({ x: v.x + x, y: v.y + y }));
       const back = Math.min(...local[i].map((v) => v.x));
@@ -858,7 +964,7 @@ function resolveTruckWalls(g, shapes, moveF, effects = true) {
     const tip = deepest(poly, -m.x, -m.y);
     g.contact = { x: tip.x, y: tip.y, nx: m.x, ny: m.y };
     if (dx || dy) {
-      g.impacts.push({ x: tip.x, y: tip.y, nx: m.x, ny: m.y, w: 1 });
+      recordImpact(g, { x: tip.x, y: tip.y, nx: m.x, ny: m.y, w: 1 });
       const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
       wp.x += dx; wp.y += dy;
     }
@@ -874,7 +980,7 @@ function resolveTruckWalls(g, shapes, moveF, effects = true) {
       moveF(dx, dy);
       if (effects && g.carried && sh.tine) {
         forgetInspection(g.carriedPen);
-        if (Math.abs(g.fl.speed) < CRASH_MIN_SPEED) g.carriedAligning = true;
+        if (!g.hard && Math.abs(g.fl.speed) < CRASH_MIN_SPEED) g.carriedAligning = true;
         else turnCarried(g, deepest(sh.poly, -m.x, -m.y), m);
       }
     }
@@ -893,12 +999,12 @@ function resolveTruckWalls(g, shapes, moveF, effects = true) {
       moveF(dx, dy);
       if (effects) {
         crash(g, g.carriedPen, g, g.carriedPen.length, { kind: 'c', dx: -m.x, dy: -m.y, rots: carriedRotsWorld(g) });
-        if (Math.abs(g.fl.speed) < CRASH_MIN_SPEED) g.carriedAligning = true;
+        if (!g.hard && Math.abs(g.fl.speed) < CRASH_MIN_SPEED) g.carriedAligning = true;
         else turnCarried(g, deepest(poly, -m.x, -m.y), m);
       }
     }
   }
-  for (const sh of shapes) if (sh.carried) sh.poly = carriedPoly(g);
+  for (const sh of shapes) if (sh.carried) sh.poly = carriedPoly(g, sh.layer || 0);
   return changed;
 }
 
@@ -915,15 +1021,15 @@ function resolveStackWalls(g, effects = true) {
         if (!m) continue;
         changed = true;
         touchStack(s);
+        const sp = Math.abs(g.fl.speed);
         const dx = m.x * (m.depth + WALL_GAP), dy = m.y * (m.depth + WALL_GAP);
         const from = s.pen[i]?.barrelPart === 'top' ? i - 1 : i;
         const polys = s.layers.map((_, j) => { const p = boxPos(s, j); return boxPoly(p.x, p.y, s.rots[j], s.pen[j]); });
-        shiftBoxes(s, supportedShift(polys, s.pen, from, dx, dy) ? from : 0, dx, dy);
+        shiftBoxes(s, supportedShift(polys, s.pen, from, dx, dy, g.hard) ? from : 0, dx, dy);
         if (!effects) continue;
-        const sp = Math.abs(g.fl.speed);
-        if (sp < CRASH_MIN_SPEED) g.wallAligning?.add(s);
+        if (!g.hard && sp < CRASH_MIN_SPEED) g.wallAligning?.add(s);
         else spinStack(s, from, deepest(poly, -m.x, -m.y), m.x, m.y, dx, dy);
-        if (sp >= CRASH_MIN_SPEED && g.clock - (s.wallHitAt ?? -1) >= CRASH_COOLDOWN) {
+        if (!g.hard && sp >= CRASH_MIN_SPEED && g.clock - (s.wallHitAt ?? -1) >= CRASH_COOLDOWN) {
           s.wallHitAt = g.clock;
           dentBoxes(s.pen, s.pen.length, { kind: 'c', dx: -m.x, dy: -m.y, rots: s.rots });
         }
@@ -995,7 +1101,271 @@ function containStacks(g) {
   }
 }
 
-function resolve(g) {
+function noteHardImpact(events, s, k, speed, dx, dy, kind = 's') {
+  const pen = s.pen[k], old = events.get(pen);
+  if (!old || speed > old.speed) events.set(pen, { owner: s, pen, speed, dx, dy, kind, rot: s.rots[k] });
+}
+
+function resolveHardTines(g, s, shapes, moveF, wf, motion, events, moving, unstable) {
+  const contacts = [];
+  for (const sh of shapes) {
+    if (!sh.tine || !sh.stackFilter(s)) continue;
+    for (const target of sh.targets(s)) {
+      const m = sat(sh.poly, target.poly);
+      if (m) contacts.push({ m, point: intersectionCenter(sh.poly, target.poly) });
+    }
+  }
+  if (!contacts.length) return false;
+  ensure(s);
+  touchStack(s);
+  const from = g.H, ws = 1 / ((s.layers.length - from) * boxMass(s));
+  for (const { m, point } of contacts) {
+    const speed = closingSpeed(motion, point || g.fl, m);
+    if (speed > 1e-9) moving.add(s);
+    noteHardImpact(events, s, from, speed, m.x, m.y);
+  }
+  const correction = contactCorrection(contacts.map(({ m }) => m));
+  moveF(correction.x * wf / (wf + ws), correction.y * wf / (wf + ws));
+  const sx = -correction.x * ws / (wf + ws), sy = -correction.y * ws / (wf + ws);
+  shiftBoxes(s, from, sx, sy);
+  for (const { m, point } of contacts) {
+    const tip = point && { x: point.x + sx, y: point.y + sy };
+    if (tip) spinStack(s, from, tip, -m.x, -m.y, -m.x * m.depth / contacts.length, -m.y * m.depth / contacts.length);
+  }
+  if (from > 0) unstable.add(s);
+  return true;
+}
+
+function applyHardImpacts(g, hardImpacts) {
+  const impactsByOwner = new Map();
+  for (const impact of hardImpacts.values()) {
+    if (impact.speed < HARD_PALLET_CRASH_MIN_SPEED) continue;
+    const impacts = impactsByOwner.get(impact.owner) || [];
+    impacts.push(impact);
+    impactsByOwner.set(impact.owner, impacts);
+  }
+  for (const [owner, impacts] of impactsByOwner) {
+    if (g.clock - (owner.hitAt ?? -1) < CRASH_COOLDOWN) continue;
+    owner.hitAt = g.clock;
+    const points = impacts.map(({ speed }) => Math.max(1, Math.round(Math.min(5, Math.max(1, Math.round(speed))) * HARD_PALLET_DAMAGE_FACTOR)));
+    hurt(g, impacts.map(({ pen }) => pen), points, owner.x, owner.y, owner.pen.length, owner);
+    for (const { pen, dx, dy, kind, rot } of impacts) dentBoxes([pen], 1, { kind, dx, dy, rots: [rot] });
+  }
+}
+
+function resolveHard(g, motion) {
+  const f = g.fl, starts = new WeakMap(), events = new Map(), moving = new Set(), unstable = new Set();
+  const maxSpeed = Math.hypot(motion.x, motion.y) + 6 * Math.abs(motion.turn);
+  const wf = 1 / FORKLIFT_MASS;
+  let loadImpact = null;
+  g.wallPush = null; g.contact = null; g.impacts = [];
+  for (const s of g.stacks) {
+    ensure(s);
+    starts.set(s, s.layers.map((_, i) => boxPos(s, i)));
+  }
+  const moveF = (dx, dy) => { f.x += dx; f.y += dy; };
+  const noteLoad = (speed, dx, dy, kind) => {
+    if (!loadImpact || speed > loadImpact.speed) loadImpact = { speed, dx, dy, kind };
+  };
+  const wallHit = (poly, m, dx, dy) => {
+    const tip = deepest(poly, -m.x, -m.y);
+    g.contact = { x: tip.x, y: tip.y, nx: m.x, ny: m.y };
+    if (dx || dy) {
+      recordImpact(g, { x: tip.x, y: tip.y, nx: m.x, ny: m.y, w: 1 });
+      const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
+      wp.x += dx; wp.y += dy;
+    }
+  };
+  const boxAt = (s, i) => {
+    const c = boxPos(s, i);
+    return boxPoly(c.x, c.y, s.rots[i], s.pen[i]);
+  };
+  const truckPart = (o, layer) => layer == null ? bodyPoly(o.truck) : carriedPoly(o.truck, layer);
+  const overlapsHeight = (sh, o, layer) => {
+    if (!sh.carried || layer == null) return true;
+    const a = carriedBase(g) + sh.layer, b = carriedBase(o) + layer;
+    return a < b + 1 - 1e-6 && b < a + 1 - 1e-6;
+  };
+
+  const collect = (iteration) => {
+    const contacts = [], shapes = forkShapes(g);
+    for (let i = 0; i < shapes.length; i++) {
+      for (const w of g.walls) if (sat(shapes[i].poly, w.poly)) contacts.push({ kind: 'wall', shape: i, wall: w });
+    }
+    for (const o of otherTrucks(g)) {
+      if (Math.hypot(o.fl.x - f.x, o.fl.y - f.y) > 6 || ghostBetween(g, g.truck.id, o.truck.id) || o.truck.liftedBy === g.truck.id) continue;
+      const parts = [null, ...(o.carried || []).map((_, i) => i)];
+      for (let i = 0; i < shapes.length; i++) {
+        const sh = shapes[i];
+        if (sh.tine) continue;
+        for (const layer of parts) {
+          if (overlapsHeight(sh, o, layer) && sat(sh.poly, truckPart(o, layer))) contacts.push({ kind: 'truck', shape: i, other: o, layer });
+        }
+      }
+    }
+    for (const s of g.stacks) {
+      if (Math.abs(s.x - f.x) > 5 || Math.abs(s.y - f.y) > 5 || s.ghost?.includes(g.truck.id)) continue;
+      let tine = false;
+      for (let i = 0; i < shapes.length; i++) {
+        const sh = shapes[i];
+        if (!sh.stackFilter || !sh.stackFilter(s)) continue;
+        for (const target of sh.targets(s)) {
+          const m = sat(sh.poly, target.poly);
+          if (!m) continue;
+          if (sh.tine) { tine = true; continue; }
+          contacts.push({ kind: 'pallet', shape: i, stack: s, layer: target.from });
+          if (iteration === 0 && sh.carried) {
+            const speed = closingSpeed(motion, intersectionCenter(sh.poly, target.poly) || f, m);
+            if (speed > 1e-9) moving.add(s);
+            noteHardImpact(events, s, target.from, speed, m.x, m.y);
+          }
+        }
+      }
+      if (tine) contacts.push({ kind: 'tines', stack: s });
+    }
+    for (const s of g.stacks) {
+      if (s.leaving) continue;
+      for (let i = 0; i < s.layers.length; i++) {
+        const c = boxPos(s, i), r = Math.hypot(BOX_HALF_X, halfY(s.pen[i]));
+        for (const w of g.walls) {
+          if (c.x + r < w.x || c.x - r > w.x + w.w || c.y + r < w.y || c.y - r > w.y + w.h) continue;
+          if (sat(boxAt(s, i), w.poly)) contacts.push({ kind: 'stackWall', stack: s, layer: i, wall: w });
+        }
+      }
+    }
+    const extents = new Map();
+    for (const s of g.stacks) {
+      let x = 0, y = 0;
+      for (const o of s.offs) { x = Math.max(x, Math.abs(o.x)); y = Math.max(y, Math.abs(o.y)); }
+      extents.set(s, { x, y, reach: reach(s) });
+    }
+    for (let i = 0; i < g.stacks.length; i++) for (let j = i + 1; j < g.stacks.length; j++) {
+      const a = g.stacks[i], b = g.stacks[j], ea = extents.get(a), eb = extents.get(b), r = ea.reach + eb.reach;
+      if (Math.abs(a.x - b.x) >= r + ea.x + eb.x || Math.abs(a.y - b.y) >= r + ea.y + eb.y) continue;
+      for (let k = 0; k < Math.min(a.layers.length, b.layers.length); k++) {
+        const ac = boxPos(a, k), bc = boxPos(b, k);
+        const rr = Math.hypot(BOX_HALF_X, halfY(a.pen[k])) + Math.hypot(BOX_HALF_X, halfY(b.pen[k]));
+        if (Math.abs(ac.x - bc.x) < rr && Math.abs(ac.y - bc.y) < rr && sat(boxAt(a, k), boxAt(b, k))) {
+          contacts.push({ kind: 'stacks', a, b, layer: k });
+        }
+      }
+    }
+    return contacts;
+  };
+
+  const resolveContact = (c) => {
+    if (c.kind === 'wall') {
+      const sh = forkShapes(g)[c.shape], poly = sh.poly, m = sat(poly, c.wall.poly);
+      if (!m) return;
+      if (!sh.carried) {
+        const dx = m.x * (m.depth + WALL_GAP), dy = m.y * (m.depth + WALL_GAP);
+        wallHit(poly, m, dx, dy); moveF(dx, dy);
+        if (g.carried && sh.tine) { forgetInspection(g.carriedPen); turnCarried(g, deepest(poly, -m.x, -m.y), m); }
+      } else {
+        forgetInspection(g.carriedPen);
+        slideCarried(g, sh.layer, m);
+        const remaining = sat(carriedPoly(g, sh.layer), c.wall.poly);
+        const dx = remaining ? remaining.x * (remaining.depth + WALL_GAP) : 0;
+        const dy = remaining ? remaining.y * (remaining.depth + WALL_GAP) : 0;
+        wallHit(poly, m, dx, dy); moveF(dx, dy);
+        noteLoad(closingSpeed(motion, intersectionCenter(poly, c.wall.poly) || f, m), -m.x, -m.y, 'c');
+        turnCarried(g, deepest(poly, -m.x, -m.y), m);
+      }
+    } else if (c.kind === 'truck') {
+      const sh = forkShapes(g)[c.shape], o = c.other, q = truckPart(o, c.layer);
+      if (!overlapsHeight(sh, o, c.layer)) return;
+      const m = sat(sh.poly, q);
+      if (!m) return;
+      const point = sh.carried ? intersectionCenter(sh.poly, q) : null;
+      if (sh.carried) forgetInspection(g.carriedPen);
+      if (c.layer != null) forgetInspection(o.carriedPen);
+      const d = m.depth * 0.5005;
+      moveF(m.x * d, m.y * d); o.fl.x -= m.x * d; o.fl.y -= m.y * d;
+      o.slip = 1;
+      const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
+      wp.x += m.x * d; wp.y += m.y * d;
+      if (sh.carried) {
+        const relative = { ...motion, x: motion.x - Math.cos(o.fl.a) * o.fl.speed, y: motion.y - Math.sin(o.fl.a) * o.fl.speed };
+        noteLoad(closingSpeed(relative, point || f, m), -m.x, -m.y, 'c');
+      }
+    } else if (c.kind === 'pallet') {
+      const s = c.stack, sh = forkShapes(g)[c.shape];
+      if (!sh.stackFilter(s)) return;
+      const target = sh.targets(s).find((t) => t.from === c.layer);
+      if (!target) return;
+      const m = sat(sh.poly, target.poly);
+      if (!m) return;
+      const from = c.layer, ws = 1 / ((s.layers.length - from) * boxMass(s));
+      touchStack(s);
+      if (sh.carried) forgetInspection(g.carriedPen);
+      const p = boxPos(s, from), start = starts.get(s)?.[from] || p;
+      const relative = { ...motion, x: motion.x - (p.x - start.x) * motion.invDt, y: motion.y - (p.y - start.y) * motion.invDt };
+      const point = intersectionCenter(sh.poly, target.poly) || f;
+      const driven = Math.hypot(motion.x, motion.y) + Math.abs(motion.turn) * Math.hypot(point.x - motion.x0, point.y - motion.y0);
+      const speed = Math.min(driven, closingSpeed(relative, point, m));
+      if (speed > 1e-9) moving.add(s);
+      noteHardImpact(events, s, from, speed, m.x, m.y);
+      if (sh.carried) noteLoad(speed, -m.x, -m.y, 's');
+      const d = m.depth * 1.001, fx = m.x * d * wf / (wf + ws), fy = m.y * d * wf / (wf + ws);
+      moveF(fx, fy); shiftPoly(sh.poly, fx, fy);
+      if (Math.abs(f.speed) >= CRASH_MIN_SPEED) {
+        const tip = deepest(sh.poly, -m.x, -m.y);
+        recordImpact(g, { x: tip.x, y: tip.y, nx: m.x, ny: m.y, w: wf / (wf + ws) });
+      }
+      const sx = -m.x * d * ws / (wf + ws), sy = -m.y * d * ws / (wf + ws);
+      shiftBoxes(s, from, sx, sy);
+      spinStack(s, from, deepest(sh.poly, -m.x, -m.y), -m.x, -m.y, sx, sy);
+      if (from > 0) unstable.add(s);
+    } else if (c.kind === 'tines') {
+      const shapes = forkShapes(g);
+      resolveHardTines(g, c.stack, shapes, (dx, dy) => {
+        moveF(dx, dy);
+        for (const sh of shapes) shiftPoly(sh.poly, dx, dy);
+      }, wf, motion, events, moving, unstable);
+    } else if (c.kind === 'stackWall') {
+      const s = c.stack, i = c.layer, poly = boxAt(s, i), m = sat(poly, c.wall.poly);
+      if (!m) return;
+      const p = boxPos(s, i), start = starts.get(s)?.[i] || p;
+      const speed = moving.has(s) ? Math.min(maxSpeed, Math.max(0, -((p.x - start.x) * m.x + (p.y - start.y) * m.y) * motion.invDt)) : 0;
+      touchStack(s); noteHardImpact(events, s, i, speed, -m.x, -m.y, 'c');
+      const dx = m.x * (m.depth + WALL_GAP), dy = m.y * (m.depth + WALL_GAP);
+      const from = s.pen[i]?.barrelPart === 'top' ? i - 1 : i;
+      const polys = s.layers.map((_, j) => boxAt(s, j));
+      shiftBoxes(s, supportedShift(polys, s.pen, from, dx, dy, true) ? from : 0, dx, dy);
+      spinStack(s, from, deepest(poly, -m.x, -m.y), m.x, m.y, dx, dy);
+      if (from > 0) unstable.add(s);
+    } else {
+      const { a, b, layer: k } = c, ac = boxPos(a, k), bc = boxPos(b, k);
+      const ap = boxAt(a, k), bp = boxAt(b, k), m = sat(ap, bp);
+      if (!m) return;
+      const fromA = a.pen[k]?.barrelPart === 'top' ? k - 1 : k;
+      const fromB = b.pen[k]?.barrelPart === 'top' ? k - 1 : k;
+      const pa = starts.get(a)?.[k] || ac, pb = starts.get(b)?.[k] || bc;
+      const speed = moving.has(a) || moving.has(b)
+        ? Math.min(maxSpeed, Math.max(0, -((ac.x - pa.x - bc.x + pb.x) * m.x + (ac.y - pa.y - bc.y + pb.y) * m.y) * motion.invDt)) : 0;
+      if (speed > 1e-9) { moving.add(a); moving.add(b); }
+      touchStack(a); touchStack(b);
+      noteHardImpact(events, a, k, speed, -m.x, -m.y); noteHardImpact(events, b, k, speed, m.x, m.y);
+      const wa = 1 / ((a.layers.length - fromA) * boxMass(a)), wb = 1 / ((b.layers.length - fromB) * boxMass(b)), d = m.depth * 1.001;
+      const ax = m.x * d * wa / (wa + wb), ay = m.y * d * wa / (wa + wb);
+      const bx = -m.x * d * wb / (wa + wb), by = -m.y * d * wb / (wa + wb);
+      spinStack(a, fromA, deepest(bp, m.x, m.y), m.x, m.y, ax, ay);
+      spinStack(b, fromB, deepest(ap, -m.x, -m.y), -m.x, -m.y, bx, by);
+      shiftBoxes(a, fromA, ax, ay); shiftBoxes(b, fromB, bx, by);
+      if (fromA > 0) unstable.add(a);
+      if (fromB > 0) unstable.add(b);
+    }
+  };
+
+  solveContacts(collect, resolveContact);
+  for (const s of unstable) if (g.stacks.includes(s)) settle(g, s);
+  applyHardImpacts(g, events);
+  if (loadImpact && g.carried) crash(g, g.carriedPen, g, g.carriedPen.length,
+    { kind: loadImpact.kind, dx: loadImpact.dx, dy: loadImpact.dy, rots: carriedRotsWorld(g) }, loadImpact.speed);
+}
+
+function resolve(g, motion) {
+  if (g.hard) return resolveHard(g, motion);
   const f = g.fl;
   g.wallPush = null;
   g.contact = null;
@@ -1012,17 +1382,19 @@ function resolve(g) {
     // Other trucks are solid (body and carried stack, not their tines) unless they are ghosts to this one; each moves half the overlap.
     for (const o of otherTrucks(g)) {
       if (Math.hypot(o.fl.x - f.x, o.fl.y - f.y) > 6 || ghostBetween(g, g.truck.id, o.truck.id) || o.truck.liftedBy === g.truck.id) continue;
-      const theirCarried = carriedPoly(o.truck), theirs = [bodyPoly(o.truck), theirCarried].filter(Boolean);
+      const theirCarried = carriedPoly(o.truck);
+      const theirs = [bodyPoly(o.truck), theirCarried].filter(Boolean).map((poly) => ({ poly, layer: poly === theirCarried ? 0 : null }));
       // carried stacks only touch when their height ranges overlap (a stack held above or below another passes it)
       const apart = g.carried && o.carried && (carriedBase(g) >= carriedBase(o) + o.carried.length || carriedBase(o) >= carriedBase(g) + g.carried.length);
       for (const sh of shapes) {
         if (sh.tine) continue;
-        for (const q of theirs) {
-          if (apart && sh.carried && q === theirCarried) continue;
+        for (const part of theirs) {
+          const q = part.poly;
+          if (apart && sh.carried && part.layer !== null) continue;
           const m = sat(sh.poly, q);
           if (!m) continue;
           if (sh.carried) forgetInspection(g.carriedPen);
-          if (q === theirCarried) forgetInspection(o.carriedPen);
+          if (part.layer !== null) forgetInspection(o.carriedPen);
           const d = m.depth * 0.5005;
           moveF(m.x * d, m.y * d);
           o.fl.x -= m.x * d; o.fl.y -= m.y * d;
@@ -1040,8 +1412,8 @@ function resolve(g) {
       const wf = 1 / FORKLIFT_MASS;
       for (const sh of shapes) {
         if (!sh.stackFilter || !sh.stackFilter(s)) continue;
-        let m = null, from = 0;
-        for (const t of sh.targets(s)) { m = sat(sh.poly, t.poly); if (m) { from = t.from; break; } }
+        let m = null, from = 0, target;
+        for (const t of sh.targets(s)) { m = sat(sh.poly, t.poly); if (m) { from = t.from; target = t.poly; break; } }
         if (!m) continue;
         ensure(s);
         touchStack(s);
@@ -1060,23 +1432,26 @@ function resolve(g) {
             g.aligning?.set(s, { from: Math.min(range?.from ?? from, from), to: Math.max(range?.to ?? to, to) });
           }
         }
+        const contact = sh.tine ? intersectionCenter(sh.poly, target) : null;
         const d = m.depth * 1.001;
         moveF(m.x * d * (wf / (wf + ws)), m.y * d * (wf / (wf + ws)));
         if (!sh.tine && Math.abs(f.speed) >= CRASH_MIN_SPEED) {
           let tip = sh.poly[0];
           for (const p of sh.poly) if (p.x * m.x + p.y * m.y < tip.x * m.x + tip.y * m.y) tip = p;
-          g.impacts.push({ x: tip.x, y: tip.y, nx: m.x, ny: m.y, w: wf / (wf + ws) });
+          recordImpact(g, { x: tip.x, y: tip.y, nx: m.x, ny: m.y, w: wf / (wf + ws) });
         }
         const sx = -m.x * d * (ws / (wf + ws)), sy = -m.y * d * (ws / (wf + ws));
         shiftBoxes(s, from, sx, sy);
-        if (sh.tine || Math.abs(f.speed) >= CRASH_MIN_SPEED) spinStack(s, from, deepest(sh.poly, -m.x, -m.y), -m.x, -m.y, sx, sy);
+        if (sh.tine || Math.abs(f.speed) >= CRASH_MIN_SPEED) {
+          const tip = contact ? { x: contact.x + sx, y: contact.y + sy } : deepest(sh.poly, -m.x, -m.y);
+          spinStack(s, from, tip, -m.x, -m.y, sx, sy);
+        }
         if (!sh.tine) nudgeStack(g, s, from, -m.x, -m.y, Math.abs(f.speed));
         if (from > 0) settle(g, s);
       }
     }
 
     resolveStackWalls(g);
-
     for (let i = 0; i < g.stacks.length; i++) {
       for (let j = i + 1; j < g.stacks.length; j++) {
         const a = g.stacks[i], b = g.stacks[j];
@@ -1117,21 +1492,6 @@ function alignStack(g, s, dt, heading = g.fl.a, from = 0, to = s.layers.length -
   for (let i = from; i <= to; i++) s.rots[i] += turn(s.rots[i]);
   for (let i = to + 1; i < s.rots.length; i++) s.rots[i] += topTurn;
   if (from === 0) s.a = (s.a || 0) + turn(s.a || 0);
-}
-
-// A pallet on the tines is held sideways with the forks (the whole stack moves) but can still slide along them;
-// only the boxes from the fork level upward turn with the forks.
-function glideWithForks(g, S, ly, da, from) {
-  touchStack(S);
-  const f = g.fl;
-  const ux = Math.cos(f.a), uy = Math.sin(f.a), rx = -uy, ry = ux;
-  const c = boxPos(S, from);
-  const along = c.x * ux + c.y * uy;
-  const across = f.x * rx + f.y * ry + ly;
-  S.x += ux * along + rx * across - c.x;
-  S.y += uy * along + ry * across - c.y;
-  S.rots = S.rots.map((r, i) => (i >= from ? r + da : r));
-  if (from === 0) S.a = (S.a || 0) + da;
 }
 
 // Classifies this step's wall contact for sound. `kept` is the fraction of the intended forward motion that survived
@@ -1214,6 +1574,15 @@ function watchForkedStack(g) {
 
 // Steps the game. `input` drives the local truck; the other trucks use their `input` field (set by the host from the network).
 export function update(g, input, dt) {
+  if (g.hard && dt > 1 / 120 + 1e-9) {
+    const steps = Math.ceil(dt * 120);
+    for (let i = 0; i < steps; i++) updateStep(g, input, dt / steps);
+    return;
+  }
+  updateStep(g, input, dt);
+}
+
+function updateStep(g, input, dt) {
   const root = g.root;
   root.clock += dt;
   for (const s of root.stacks) {
@@ -1221,12 +1590,12 @@ export function update(g, input, dt) {
     if (s.jolt != null && root.clock - s.jolt >= JOLT_TIME) delete s.jolt;
   }
   if (root.hits) root.hits = root.hits.filter((h) => root.clock - h.t < hitLife(h));
-  root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self ? input : t.input, dt); });
+  root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self && input != null ? input : t.input, dt); });
   if (root.trucks.length > 1) root.trucks.forEach((t, i) => {
     if (!t.gone && t.liftedBy < 0) clearWallOverlaps(truckView(root, i));
   });
   stepOil(root, dt);
-  watchForkedStack(root);
+  if (!root.truck.gone) watchForkedStack(root);
   stepRepair(root, dt, root.trucks.flatMap((t, i) => (t.gone ? [] : [truckView(root, i).fl])));
   stepBot(root, dt, OIL_DROP_AREA);
   stepInspector(root, dt, root.zones.filter((z) => zoneDone(root, z)), (z) => stackForZone(root, z), (s, z) => {
@@ -1382,10 +1751,10 @@ const joltHop = (clock, t0) => { const p = t0 == null ? 1 : (clock - t0) / JOLT_
 export const carriedJoltZ = (g) => (g.carried ? joltHop(g.root.clock, g.truck.jolt) : 0);
 
 export function stepDrawForks(g, dt) {
-  const target = g.hy + (g.carried ? FORK_CLEARANCE : 0);
+  const target = g.hy + (!g.hard && g.carried ? FORK_CLEARANCE : 0);
   g.hf += Math.max(-6 * dt, Math.min(6 * dt, target - g.hf));
   if (g.carriedRest && g.hf >= g.carriedRest + FORK_CLEARANCE - 1e-6) g.carriedRest = 0;
-  else if (g.carriedRest && g.hy < g.carriedRest) g.carriedRest = Math.max(g.hy, g.carriedRest - 6 * dt);
+  else if (g.carriedRest && forkHeight(g) < g.carriedRest) g.carriedRest = Math.max(forkHeight(g), g.carriedRest - 6 * dt);
 }
 
 function stepTruck(g, input, dt) {
@@ -1412,16 +1781,15 @@ function stepTruck(g, input, dt) {
       return;
     }
   }
-  const forked = g.hard ? forkedStack(g) : null;
-  const forkedY = forked ? toLocal(f, boxPos(forked, g.H).x, boxPos(forked, g.H).y).y : 0;
   const prevA = f.a;
+  const prevX = f.x, prevY = f.y;
   const frontGrip = axleOilGrip(g, FL.frontWheelX), rearGrip = axleOilGrip(g, -FL.L);
   const th = input.thr ?? (input.up ? 1 : 0) - (input.down ? 1 : 0);
   const str = input.str ?? (input.right ? 1 : 0) - (input.left ? 1 : 0);
   const affected = frontGrip.grip < 1 || rearGrip.grip < 1;
   drive(f, affected
     ? { ...input, thr: th * (0.35 + frontGrip.grip * 0.65), str: str * rearGrip.grip }
-    : input, dt, g.hy);
+    : input, dt, forkHeight(g));
   oilDrift(f, rearGrip, dt);
   skidStep(f, dt);
   if (f.speed !== 0) g.started = true; // the level timer starts when a truck first moves
@@ -1430,9 +1798,10 @@ function stepTruck(g, input, dt) {
   g.aligning = new Map();
   g.wallAligning = new Set();
   g.carriedAligning = false;
-  if (forked && f.a !== prevA) glideWithForks(g, forked, forkedY, f.a - prevA, g.H);
   const speed0 = f.speed;
-  resolve(g);
+  const invDt = dt > 0 ? 1 / dt : 0;
+  const motion = { x: (f.x - prevX) * invDt, y: (f.y - prevY) * invDt, turn: (f.a - prevA) * invDt, x0: f.x, y0: f.y, invDt };
+  resolve(g, motion);
   impactKick(g, speed0, dt);
   for (const [s, range] of g.aligning) alignStack(g, s, dt, g.fl.a, range.from, range.to);
   for (const s of g.wallAligning) alignStack(g, s, dt, 0); // walls are axis-aligned
@@ -1512,9 +1881,38 @@ export function stackInZone(g) {
 // with boxes. A carried stack's bottom is at height H.
 // The stack whose box at the current fork level the tines are in, or null.
 function forkedStack(g) {
+  if (g.hard) {
+    if (g.carried || g.lifting >= 0) return null;
+    if (g.hy - g.H > FORK_CLEARANCE + 1e-6) return null;
+    const tines = forkShapes(g).filter((shape) => shape.tine).map((shape) => shape.poly);
+    let best = null, distance = Infinity;
+    for (const s of g.stacks) {
+      if (s.layers.length <= g.H || s.ghost?.includes(g.truck.id)) continue;
+      ensure(s);
+      if (s.pen[g.H]?.barrelPart === 'top') continue;
+      const c = boxPos(s, g.H);
+      if (Math.abs(c.x - g.fl.x) > 3 || Math.abs(c.y - g.fl.y) > 3) continue;
+      const box = boxPoly(c.x, c.y, s.rots[g.H], s.pen[g.H]);
+      if (!palletSupported(tines, box, palletRunners(g, s))) continue;
+      const l = toLocal(g.fl, c.x, c.y), d = Math.hypot(l.x - FL.carryX, l.y);
+      if (d < distance) { best = s; distance = d; }
+    }
+    return best;
+  }
   const S = stackInZone(g);
   if (S) ensure(S);
   return S && S.layers.length > g.H && S.pen[g.H]?.barrelPart !== 'top' ? S : null;
+}
+
+function forkObstructed(g) {
+  const tines = forkShapes(g).filter((shape) => shape.tine);
+  return g.stacks.some((s) => {
+    if (s.layers.length <= g.H || s.ghost?.includes(g.truck.id)) return false;
+    const c = boxPos(s, g.H);
+    if (Math.abs(c.x - g.fl.x) > 3 || Math.abs(c.y - g.fl.y) > 3) return false;
+    const box = boxPoly(c.x, c.y, s.rots[g.H], s.pen[g.H]);
+    return tines.some((tine) => sat(tine.poly, box));
+  });
 }
 
 // Moves the boxes from index `k` up of the stack on `from`'s forks onto `to`'s forks (k > 0 splits the stack), keeping their
@@ -1539,6 +1937,7 @@ function transferCarried(from, to, k = 0, onto = false) {
     to.carriedOffs = to.carriedOffs.concat(offs);
   } else {
     to.carried = layers;
+    if (to.hard) to.hy = to.H + FORK_CLEARANCE;
     to.carriedPen = pen;
     to.carriedRots = rots;
     to.carriedOffs = offs;
@@ -1663,6 +2062,7 @@ function forkUpStep(g) {
     return;
   }
   const S = forkedStack(g);
+  if (g.hard && !S && forkObstructed(g)) return 'blocked';
   if (S && pickUp(g, S) === 'blocked') return 'blocked';
   g.H = Math.min(MAX_H, g.H + 1);
 }
@@ -1670,7 +2070,7 @@ function forkUpStep(g) {
 // The tines under the box at the fork level lift it and everything above it. Refused ('blocked') when the tines don't both fit under a wide box.
 function pickUp(g, S) {
   const k = g.H;
-  if (S.pen?.[k]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[k])) > WIDE_ALIGN) return 'blocked';
+  if (!g.hard && S.pen?.[k]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[k])) > WIDE_ALIGN) return 'blocked';
   const rider = perchedOn(g, S);
   liftBoxes(g, S, k);
   if (rider) { // a truck perched on top of the stack rides along on it
@@ -1704,15 +2104,15 @@ export function forkUp(g) {
   syncHy(g);
   const h = g.H;
   const res = forkUpStep(g);
-  if (res !== 'blocked' && g.H !== h) g.hy = g.H;
+  if (res !== 'blocked' && g.H !== h) setHy(g, g.H);
   return res;
 }
 
 export function forkDown(g) {
   syncHy(g);
-  const frac = g.hy > g.H;
+  const frac = forkHeight(g) > g.H;
   if (frac && !g.carried && g.lifting < 0) { // empty forks between levels: the level below is the one they are in
-    g.hy = g.H;
+    setHy(g, g.H);
     return;
   }
   const h = frac ? g.H + 1 : g.H;
@@ -1722,18 +2122,19 @@ export function forkDown(g) {
     if (frac) g.H = h - 1;
     return res;
   }
-  if (g.H !== h) g.hy = g.H;
+  if (g.H !== h) setHy(g, g.H);
   return res;
 }
 
 // The logical level may be assigned directly (tests, snapshots): the real height follows it.
-const syncHy = (g) => { if (g.H !== Math.floor(g.hy + 1e-6)) g.hy = g.H; };
+const syncHy = (g) => { if (g.H !== Math.floor(forkHeight(g) + 1e-6)) setHy(g, g.H); };
 
 // Sets the real fork height (box heights); the logical level is its whole part.
 function setHy(g, hy) {
   const r = Math.round(hy);
-  g.hy = Math.abs(hy - r) < 1e-6 ? r : hy;
-  g.H = Math.floor(g.hy);
+  const height = Math.abs(hy - r) < 1e-6 ? r : hy;
+  g.hy = height + (g.hard && g.carried ? FORK_CLEARANCE : 0);
+  g.H = Math.floor(height);
 }
 
 // Hard mode: the fork keys are read from the held state in `input.forkUp` / `input.forkDown`. A key released within TAP_S is a tap
@@ -1776,16 +2177,18 @@ function stepForks(g, input, dt) {
 
 function fluidUp(g, k, dt) {
   if (g.carried) {
-    if (g.hy + g.carried.length >= CEILING_LEVELS - 1e-6) { // the ceiling is hit once per press
+    const height = forkHeight(g);
+    if (height + g.carried.length >= CEILING_LEVELS - 1e-6) { // the ceiling is hit once per press
       if (k.hit) return 'blocked';
       hitCeiling(g);
       return 'blocked';
     }
-    setHy(g, Math.min(CEILING_LEVELS - g.carried.length, g.hy + FORK_RATE * dt));
+    setHy(g, Math.min(CEILING_LEVELS - g.carried.length, height + FORK_RATE * dt));
     return;
   }
   const hy = Math.min(MAX_H, g.hy + FORK_RATE * dt);
   const S = forkedStack(g);
+  if (!S && hy - g.H >= FORK_CLEARANCE - 1e-6 && forkObstructed(g)) return 'blocked';
   if (S && hy - g.H >= FORK_CLEARANCE - 1e-6) {
     if (pickUp(g, S) === 'blocked') return 'blocked';
     k.last = 1;
@@ -1798,7 +2201,7 @@ function fluidUp(g, k, dt) {
 function fluidDown(g, k, dt) {
   if (g.carried) {
     const { S, n, minH } = carriedRest(g);
-    const hy = g.hy - FORK_RATE * dt;
+    const hy = forkHeight(g) - FORK_RATE * dt;
     if (hy <= minH + 1e-6) {
       if (minH !== n) { setHy(g, Math.max(minH, hy)); return; } // cannot be merged: it rests on top
       putDown(g, S, n);

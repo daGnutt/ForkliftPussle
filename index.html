@@ -28,17 +28,17 @@
     <div class="panel">
       <h2>Menu</h2>
       <div class="page" data-page="main">
-        <button type="button" id="menuResume" class="primary">Resume</button>
-        <button type="button" id="menuLeave" class="sec" hidden>Leave party</button>
+        <button type="button" id="menuResume" class="primary" data-observer>Resume</button>
+        <button type="button" id="menuLeave" class="sec" data-observer hidden>Leave party</button>
         <label class="item"><input type="checkbox" id="muteOpt"> <u>M</u>ute all sounds</label>
         <button type="button" id="menuRestart" class="sec" data-hostonly>Restart level</button>
         <hr>
-        <button type="button" class="nav" data-go="play"><span>Play</span><i>&#9656;</i></button>
+        <button type="button" class="nav" data-go="play" data-observer><span>Play</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="sound"><span>Sound</span><i>&#9656;</i></button>
-        <button type="button" class="nav" data-go="graphics"><span>Graphics</span><i>&#9656;</i></button>
+        <button type="button" class="nav" data-go="graphics" data-observer><span>Graphics</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="camera"><span>Camera</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="controls"><span>Controls</span><i>&#9656;</i></button>
-        <button type="button" class="nav" data-go="party"><span>Multiplayer</span><i>&#9656;</i></button>
+        <button type="button" class="nav" data-go="party" data-observer><span>Multiplayer</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="scores"><span>Scores &amp; saves</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="info"><span>Info &amp; scoring</span><i>&#9656;</i></button>
         <a class="nav" href="https://github.com/daGnutt/ForkliftPussle/issues" target="_blank" rel="noopener"><span>Report a bug / request a feature</span><i>&#8599;</i></a>
@@ -63,7 +63,7 @@
         <label title="Cap the canvas at DPR 1 and about 0.9 million pixels; on by default on touch devices"><input type="checkbox" id="batteryResolutionOpt"> Lower resolution</label>
         <label title="Limit game and splash drawing to 30 fps; on by default on touch devices"><input type="checkbox" id="batteryFrameRateOpt"> Limit frame rate to 30 fps</label>
         <label title="Reduce decorative effects; off by default"><input type="checkbox" id="batteryEffectsOpt"> Reduce decorative effects</label>
-        <label class="row"><span>Colour mode</span> <select id="themeSel"><option value="auto">Follow OS</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+        <label class="row" data-observer><span>Colour mode</span> <select id="themeSel"><option value="auto">Follow OS</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
         <label><input type="checkbox" id="decalOpt"> Decals</label>
         <label><input type="checkbox" id="glOpt"> 3D graphics (WebGL)</label>
         <label title="Cabin view (3D graphics): hide the forklift body and mast, leaving only the carriage and tines"><input type="checkbox" id="bareOpt"> Bare forks <small>(cabin view)</small></label>
@@ -142,10 +142,11 @@
         <h4>Online party</h4>
         <div id="mpStart">
           <label class="row"><span>Your name</span> <input type="text" id="mpName" maxlength="24" placeholder="Your name" autocomplete="off" spellcheck="false"></label>
+          <label class="opt"><input type="checkbox" id="mpObserverOpt"> Observer mode (host shows overview only)</label>
           <button type="button" id="mpHost" class="sec">Host a game</button>
-          <small>Up to 4 players. Friends join with the party code from the start screen.</small>
+          <small>Up to 4 guest trucks. Friends join with the party code or QR.</small>
         </div>
-        <div id="mpBox" hidden>
+        <div id="mpBox" data-observer hidden>
           <div class="code">Party code <b id="mpCode"></b></div>
           <ul id="mpList"></ul>
           <button type="button" id="mpLeave" class="sec">Leave party</button>
@@ -158,7 +159,7 @@
         <label title="Applies when the level is restarted (Restart level is on the main page)"><input type="checkbox" id="menuHardOpt"> Hard mode (on restart)</label>
         <button type="button" id="menuEndless" class="sec" data-hostonly title="Unload incoming trucks and fill the delivery trucks before all docks are occupied">Start endless mode</button>
         <button type="button" id="menuEndRun" class="sec" data-hostonly hidden title="Finish this endless run now and record its points">End endless run</button>
-        <form id="menuGoto" autocomplete="off" data-hostonly><label><u>G</u>o to level <input type="number" id="menuLevel" min="1" step="1"></label> <button type="submit" class="sec">Go</button></form>
+        <form id="menuGoto" autocomplete="off" data-hostonly data-observer><label><u>G</u>o to level <input type="number" id="menuLevel" min="1" step="1"></label> <button type="submit" class="sec">Go</button></form>
         <button type="button" id="menuLowest" class="sec" data-hostonly title="Lowest level with no saved score on this seed">Jump to lowest unscored level</button>
         <button type="button" id="menuTutorial" class="sec"></button>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
@@ -215,6 +216,7 @@
       <div class="row">
         <input id="partyName" type="text" maxlength="24" placeholder="Your name" spellcheck="false" aria-label="Your name">
         <button type="button" id="hostBtn" title="Host a co-op game for up to 4 players">Host game</button>
+        <label class="opt" title="The host does not receive a truck and always shows the full play field"><input type="checkbox" id="observerOpt"> Observer</label>
         <input id="joinCode" type="text" maxlength="5" placeholder="Party code" spellcheck="false" autocapitalize="characters" aria-label="Party code">
         <button type="button" id="joinBtn">Join game</button>
       </div>

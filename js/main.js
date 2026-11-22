@@ -1,5 +1,5 @@
 import './firstplay.js';
-import { newGame, update, endPhotos, forkUp, forkDown, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges, crashAlert } from './game.js';
+import { newGame, update, endPhotos, forkUp, forkDown, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges, crashAlert, removeTruck } from './game.js';
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput, createCameraPointerInput, inTouchControlZone } from './input.js';
 import { createLocal } from './local.js';
@@ -10,7 +10,7 @@ import { createGuest } from './net/guest.js';
 import { applySnapshot } from './net/protocol.js';
 import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
-import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState } from './savestate.js';
+import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState, HardPhysicsVersionError } from './savestate.js';
 import { parseSeed } from './level.js';
 import { draw, drawResults } from './render.js';
 import { showPhoto, dodgePhoto, startGallery, stopGallery, clearPhotos } from './photo.js';
@@ -72,7 +72,10 @@ function loadSaved() {
   try {
     const data = JSON.parse(localStorage.getItem('forklift-state'));
     if (data && data.level === level && data.seed === seed && data.hard === hard) game = deserializeGame(data);
-  } catch { localStorage.removeItem('forklift-state'); }
+  } catch (err) {
+    if (err instanceof HardPhysicsVersionError) window.alert('This saved hard-mode level uses an incompatible physics version and will restart.');
+    localStorage.removeItem('forklift-state');
+  }
 }
 if (levelParam >= 1) localStorage.removeItem('forklift-state'); // ?level always starts fresh
 else loadSaved();
@@ -215,7 +218,10 @@ function loadEndless(fresh = false) {
     try {
       const data = JSON.parse(localStorage.getItem(ENDLESS_KEY));
       if (data && data.seed === seed && !!data.hard === hard) game = deserializeEndless(data);
-    } catch { localStorage.removeItem(ENDLESS_KEY); }
+    } catch (err) {
+      if (err instanceof HardPhysicsVersionError) window.alert('This saved hard-mode endless game uses an incompatible physics version and will restart.');
+      localStorage.removeItem(ENDLESS_KEY);
+    }
   }
   game ||= newEndless(seed, hard);
   partyGameChanged();
@@ -231,7 +237,13 @@ function loadEndless(fresh = false) {
 function partyGameChanged() {
   local.levelLoaded(game);
   if (mp?.role !== 'host') return;
-  game.trucks[0].name = mp.name;
+  if (!mp.observer) game.trucks[0].name = mp.name;
+  else {
+    removeTruck(game, 0);
+    view.fullMap = true;
+    document.body.classList.add('observer-party');
+    tutorialEl.classList.add('hide');
+  }
   mp.host.levelLoaded(game);
 }
 
@@ -263,7 +275,7 @@ function nextLevel() {
 }
 
 function toggleChase() {
-  if (!glEnabled()) return;
+  if (mp?.observer || !glEnabled()) return;
   if (view.povBig) {
     view.povBig = false;
     localStorage.setItem('forklift-cab-view', '0');
@@ -289,7 +301,7 @@ function setCameraOverview() {
 }
 
 function setCameraCabin() {
-  if (!glEnabled() || isTouch) return;
+  if (mp?.observer || !glEnabled() || isTouch) return;
   view.povBig = true;
   view.chase = false;
   view.look = null;
@@ -304,7 +316,7 @@ function setCameraCabin() {
 }
 
 function setCameraChase() {
-  if (!glEnabled()) return;
+  if (mp?.observer || !glEnabled()) return;
   view.povBig = false;
   view.chase = true;
   view.look = null;
@@ -354,13 +366,14 @@ const input = createInput({
   cameraChase: setCameraChase,
   cameraReset: resetCamera,
   swapView: () => {
-    if (isTouch) return;
+    if (mp?.observer || isTouch) return;
     if (view.shared) { toggleCab(game.self); return; }
     view.povBig = !view.povBig;
     localStorage.setItem('forklift-cab-view', view.povBig ? '1' : '0');
     if (view.povBig) tutDone.cab = true;
   },
   up: () => {
+    if (mp?.observer) return;
     if (game.hard) return; // hard mode reads the held fork keys in update()
     if (mp?.role === 'guest') { mp.guest.sendFork('up'); noteForkResult('up', mp.guest.predictor.fork('up', performance.now() / 1000)); return; }
     const h = game.H;
@@ -369,6 +382,7 @@ const input = createInput({
     if (res !== 'blocked' && game.H !== h) playFork(true);
   },
   down: () => {
+    if (mp?.observer) return;
     if (game.hard) return;
     if (mp?.role === 'guest') { mp.guest.sendFork('down'); noteForkResult('down', mp.guest.predictor.fork('down', performance.now() / 1000)); return; }
     const h = game.H;
@@ -478,7 +492,7 @@ function tapped(e) {
 }
 const cameraDragging = createCameraPointerInput(canvas, {
   allowed: (e) => {
-    if (e.target !== canvas || !glEnabled() || splashOn || recordOpen || view.menuOpen || specialTouch.has(e)) return false;
+    if (mp?.observer || e.target !== canvas || !glEnabled() || splashOn || recordOpen || view.menuOpen || specialTouch.has(e)) return false;
     if (e.pointerType !== 'touch') return true;
     if (!glAvailable()) return false;
     const r = canvas.getBoundingClientRect();
@@ -595,6 +609,7 @@ let tipUntil = 0;
 // One-off tips for events: the first blocked fork action (ceiling / lowering through a box) and the first damaged oil barrel.
 const pendingTips = {};
 function showTip(key, html) {
+  if (mp?.observer) return;
   localStorage.setItem(key, '1');
   tipUntil = performance.now() + OPEN_TIP_MS;
   tutorialEl.classList.remove('hide');
@@ -602,7 +617,7 @@ function showTip(key, html) {
 }
 const barrelDamaged = (pens = []) => pens.some((p, i) => p?.barrelPart === 'base' && (p.crash || 0) + (pens[i + 1]?.crash || 0) > 0);
 function checkEventTips() {
-  if (tipUntil || splashOn || view.menuOpen) return;
+  if (mp?.observer || tipUntil || splashOn || view.menuOpen) return;
   if (!localStorage.getItem(CEILING_TIP_KEY) && pendingTips.ceiling) showTip(CEILING_TIP_KEY, 'Carried boxes <b>hit the ceiling</b> and were damaged. Lower the forks before you drive on.');
   else if (!localStorage.getItem(FORKBOX_TIP_KEY) && pendingTips.forkbox) showTip(FORKBOX_TIP_KEY, 'You cannot lower the forks <b>through a box</b>: it gets damaged. Raise the forks or back out first, then lower them.');
   else if (!localStorage.getItem(OIL_TIP_KEY) && (barrelDamaged(game.carriedPen) || game.stacks.some((s) => barrelDamaged(s.pen)))) showTip(OIL_TIP_KEY, 'A damaged barrel <b>drips oil</b>, and oil is slippery. Don\'t worry, a <b>cleaning bot</b> has been dispatched to help you.');
@@ -625,6 +640,7 @@ function watchForkEvents(ev) {
   if (ev.res !== 'blocked' && ev.moved) playFork(ev.dir > 0);
 }
 function checkOpenTip() {
+  if (mp?.observer) return;
   if (tipUntil) {
     if (performance.now() < tipUntil) return;
     tipUntil = 0;
@@ -642,6 +658,7 @@ function checkOpenTip() {
 // Until the first repair on this device, carrying one damaged box shows a pop-up and the arrow/glow/blink in the views (js/repairhint.js).
 let repairTipOn = false;
 function checkRepairTip() {
+  if (mp?.observer) { setRepairHint(false); return; }
   if (game.repair?.on) localStorage.setItem(REPAIRED_KEY, '1');
   const on = !splashOn && !view.menuOpen && !tipUntil && repairHintWanted(game, !!localStorage.getItem(REPAIRED_KEY));
   setRepairHint(on);
@@ -654,6 +671,7 @@ function checkRepairTip() {
 }
 function showTutorial() {
   tutShownAt = performance.now();
+  if (mp?.observer) { tutorialEl.classList.add('hide'); return; }
   if (tipUntil || repairTipOn) return;
   tutorialEl.classList.toggle('hide', tutStep < 0);
   if (tutStep >= 0) tutorialEl.innerHTML = `<small>Tutorial ${tutStep + 1}/${TUTORIAL.length}</small>${TUTORIAL[tutStep].html}${TUTORIAL[tutStep].extra?.() ?? ''}`;
@@ -665,6 +683,7 @@ function nextTutorial() {
 }
 let tutStart = { x: game.fl.x, y: game.fl.y };
 function checkTutorial() {
+  if (mp?.observer) { tutorialEl.classList.add('hide'); setRepairHint(false); return; }
   checkEventTips();
   checkOpenTip();
   checkRepairTip();
@@ -727,7 +746,11 @@ function startGame(endless = false) {
   }
   if (endless && mp?.role !== 'guest') loadEndless();
   else refreshBest();
-  if (tutorialOpt.checked) {
+  if (mp?.observer) {
+    tutStep = -1;
+    tutDone = {};
+    tutorialEl.classList.add('hide');
+  } else if (tutorialOpt.checked) {
     localStorage.removeItem('forklift-tutorial-done');
     tutStep = 0;
     tutDone = {};
@@ -767,13 +790,21 @@ const partyList = document.getElementById('partyList');
 const partyMsg = document.getElementById('partyMsg');
 const partyErr = document.getElementById('partyErr');
 partyName.value = localStorage.getItem('forklift-player') || '';
+const observerOpt = document.getElementById('observerOpt');
+const mpObserverOpt = document.getElementById('mpObserverOpt');
 const partyNotice = sessionStorage.getItem('forklift-party-msg');
 if (partyNotice) { partyErr.textContent = partyNotice; sessionStorage.removeItem('forklift-party-msg'); }
 for (const el of [partyName, joinCode]) el.addEventListener('keydown', (e) => e.stopPropagation());
 joinCode.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); joinParty(); } });
-hostBtn.addEventListener('click', () => { startAudio(); hostParty(); });
+hostBtn.addEventListener('click', () => { startAudio(); hostParty(partyName.value, observerOpt.checked); });
 joinBtn.addEventListener('click', () => { startAudio(); joinParty(); });
-const leaveParty = () => { mp?.host?.close(); mp?.guest?.close(); mp = null; location.reload(); };
+const leaveParty = () => {
+  mp?.host?.close(); mp?.guest?.close(); mp = null;
+  const url = new URL(location.href);
+  url.searchParams.delete('observer'); url.searchParams.delete('multiplayer');
+  history.replaceState(null, '', url);
+  location.reload();
+};
 document.getElementById('partyLeave').addEventListener('click', leaveParty);
 menuLeave.addEventListener('click', leaveParty);
 window.addEventListener('pagehide', () => { mp?.host?.close(); mp?.guest?.close(); });
@@ -797,6 +828,16 @@ function showParty(msg) {
 // `trucks` are the player slots ({ name, gone }); also feeds the in-game badge (view.party).
 function refreshParty(trucks) {
   view.party = mp ? { code: mp.code } : null;
+  if (mp?.role === 'host' && mp.observer) {
+    const live = trucks.filter((t) => t && !t.gone).length;
+    if (live < 4) {
+      const url = new URL(location.href);
+      url.search = '';
+      url.searchParams.set('multiplayer', mp.code);
+      url.hash = '';
+      view.partyJoin = { code: mp.code, url: url.href };
+    } else view.partyJoin = null;
+  } else view.partyJoin = null;
   partyList.replaceChildren(...trucks.map((t, i) => {
     if (t.gone) return null;
     const li = document.createElement('li');
@@ -809,7 +850,7 @@ function refreshParty(trucks) {
 const mpName = document.getElementById('mpName');
 const mpErr = document.getElementById('mpErr');
 mpName.addEventListener('keydown', (e) => e.stopPropagation());
-document.getElementById('mpHost').addEventListener('click', () => { startAudio(); hostParty(mpName.value).catch(() => {}); });
+document.getElementById('mpHost').addEventListener('click', () => { startAudio(); hostParty(mpName.value, mpObserverOpt.checked).catch(() => {}); });
 document.getElementById('mpLeave').addEventListener('click', () => leaveParty());
 function renderMpPage() {
   const box = document.getElementById('mpBox');
@@ -824,14 +865,14 @@ function renderMpPage() {
     li.style.setProperty('--c', truckColor(p.slot).body);
     const nm = document.createElement('span');
     nm.className = 'nm';
-    nm.textContent = (p.name || `Player ${p.slot + 1}`) + (p.slot === game.self ? ' (you)' : '') + (p.slot === 0 ? ' – host' : '');
+    nm.textContent = (p.name || `Player ${p.slot + 1}`) + (!mp.observer && p.slot === game.self ? ' (you)' : '') + (!mp.observer && p.slot === 0 ? ' – host' : '');
     li.append(nm);
     if (isHost) {
       const ping = document.createElement('span');
       ping.className = 'ping';
-      ping.textContent = p.slot === 0 ? '' : p.ping == null ? '… ms' : `${p.ping} ms`;
+      ping.textContent = (!mp.observer && p.slot === 0) ? '' : p.ping == null ? '… ms' : `${p.ping} ms`;
       li.append(ping);
-      if (p.slot !== 0) for (const [label, ban] of [['Kick', false], ['Ban', true]]) {
+      if (mp.observer || p.slot !== 0) for (const [label, ban] of (mp.observer ? [['Kick', false]] : [['Kick', false], ['Ban', true]])) {
         const b = document.createElement('button');
         b.type = 'button'; b.className = 'sec'; b.textContent = label;
         b.addEventListener('click', () => mp.host.kick(p.slot, ban));
@@ -842,18 +883,31 @@ function renderMpPage() {
   }));
 }
 setInterval(() => { if (view.menuOpen && menuEl.dataset.page === 'party') renderMpPage(); }, 1000);
-async function hostParty(nameText = partyName.value) {
+async function hostParty(nameText = partyName.value, observer = observerOpt.checked) {
   if (mp) return;
   const name = (nameText.trim() || 'Player').slice(0, 24);
   savePlayerName(name);
   partyErr.textContent = '';
   busy(true);
-  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed });
+  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, meta: { observer }, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed });
   try { await host.start(); } catch (e) { busy(false); partyErr.textContent = mpErr.textContent = e.message; return; }
   mpErr.textContent = '';
   stopLocal();
-  mp = { role: 'host', code: host.code, name, host };
-  game.trucks[0].name = name;
+  mp = { role: 'host', code: host.code, name, host, observer };
+  if (observer) {
+    removeTruck(game, 0);
+    view.fullMap = true;
+    view.povBig = false;
+    view.chase = false;
+    view.zoom = null;
+    view.orbit = null;
+    document.body.classList.add('observer-party');
+    tutorialEl.classList.add('hide');
+    resize();
+  } else {
+    game.trucks[0].name = name;
+    view.fullMap = false;
+  }
   showParty('Press Start when everyone has joined (others can still join later).');
   refreshParty(game.trucks);
   renderMpPage();
@@ -1065,8 +1119,10 @@ function toggleMenu(open) {
     menuLevel.value = level;
     for (const el of menuEl.querySelectorAll('[data-hostonly]')) el.hidden = mp?.role === 'guest';
     menuLeave.hidden = !mp;
+    menuLeave.textContent = mp?.observer ? 'End game' : 'Leave party';
     menuEndRun.hidden = !game.endless || game.status === 'over' || mp?.role === 'guest';
     mpName.value = localStorage.getItem('forklift-player') || '';
+    mpObserverOpt.checked = mp?.observer ?? observerOpt.checked;
     renderMpPage();
     updateTutorialBtn();
     showPage('main');
@@ -1183,7 +1239,7 @@ touchMap.addEventListener('click', (e) => {
 });
 markTouch();
 // First run on the splash: nothing saved yet, so ask which control scheme to use.
-if (!localStorage.getItem(isTouch ? 'forklift-touch-scheme' : 'forklift-keys') && !new URLSearchParams(location.search).has('skip')) {
+if (!localStorage.getItem(isTouch ? 'forklift-touch-scheme' : 'forklift-keys') && !new URLSearchParams(location.search).has('skip') && !new URLSearchParams(location.search).has('observer')) {
   pickScheme(isTouch ? 'touch' : 'keyboard').then((name) => {
     if (isTouch) { touchSel.value = name; applyTouch(); } else { keySel.value = name; localStorage.setItem('forklift-keys', name); applyKeys(); }
   });
@@ -1271,6 +1327,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Enter' && e.target !== menuLevel && e.target !== pullName) { e.preventDefault(); toggleMenu(false); return; }
   if (e.target === trackSel || e.target === themeSel) return;
   if (typing || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (mp?.observer && e.code === 'KeyM') return;
   const actions = {
     KeyM: () => { muteOpt.checked = !muteOpt.checked; muteOpt.dispatchEvent(new Event('change')); },
     KeyG: () => { showPage('play'); menuLevel.focus(); menuLevel.select(); },
@@ -1345,10 +1402,19 @@ const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 if (new URLSearchParams(location.search).has('endless')) loadEndless();
 // ?skip in the URL bypasses the splash (on touch it opens the main menu; keeps saved settings; no audio until a key/click starts it)
-if (new URLSearchParams(location.search).has('skip')) {
+if (new URLSearchParams(location.search).has('skip') && !new URLSearchParams(location.search).has('observer')) {
   startGame();
   // On touch, start in the main menu: leaving it is the user gesture that lets full-screen kick in (auto full-screen on for this visit only; not saved)
   if (isTouch) { autoFs = true; autoFsOpt.checked = true; toggleMenu(true); }
+}
+const multiplayerParam = new URLSearchParams(location.search).get('multiplayer');
+if (multiplayerParam) {
+  joinCode.value = multiplayerParam.trim().toUpperCase();
+  setTimeout(() => { if (!mp) joinParty(); }, 0);
+}
+if (new URLSearchParams(location.search).has('observer') && !multiplayerParam) {
+  observerOpt.checked = true;
+  hostParty(partyName.value, true).then(() => { if (mp?.observer) startGame(); });
 }
 const START_BOARD_SECS = 10;
 let lastDraw = -Infinity;
@@ -1412,13 +1478,13 @@ function frame(now) {
     }
   }
   watchPops();
-  if (mp?.role !== 'guest') watchForkEvents(game.fk.ev);
+  if (mp?.role !== 'guest' && !mp?.observer) watchForkEvents(game.fk.ev);
   if (!mp && !splashOn && !view.paused && !view.menuOpen && localOpt.checked) local.step(game, performance.now() / 1000);
   view.shared = !mp && localOpt.checked && local.players > 0;
   while (mp?.role !== 'guest' && !splashOn && !view.paused && acc >= STEP) {
     const inp = input.state();
-    cameraStep(inp, STEP);
-    update(game, inp, STEP);
+    if (!mp?.observer) cameraStep(inp, STEP);
+    update(game, mp?.observer ? null : inp, STEP);
     stepEndless(game, STEP);
     followStep(STEP);
     acc -= STEP;
@@ -1430,12 +1496,12 @@ function frame(now) {
   checkRecord();
   const st = input.state();
   const won = game.status === 'won'; // end-of-level screen: continuous sfx are cut (jingle and music go on)
-  setCrashAlert(crashAlert(game) && !splashOn && !view.paused && !won);
-  if (won) setEngine(0, false, false, game.self, 0);
+  setCrashAlert(!mp?.observer && crashAlert(game) && !splashOn && !view.paused && !won);
+  if (won || mp?.observer) setEngine(0, false, false, game.self, 0);
   else setEngine(game.fl.speed, st.up || st.down, game.fl.gear === 'R', game.self);
-  game.horn = !!st.horn && !splashOn && !view.paused;
+  if (!mp?.observer) game.horn = !!st.horn && !splashOn && !view.paused;
   setHorns(game.trucks.map((t, i) => {
-    const own = i === game.self;
+    const own = !mp?.observer && i === game.self;
     return { id: t.id, on: !won && !t.gone && !splashOn && !view.paused && (own ? !!st.horn : !!t.horn), vol: own ? 1 : hearVol(t.fl.x, t.fl.y) };
   }));
   honkTrucks();
@@ -1455,7 +1521,7 @@ function frame(now) {
   let scrapeV = game.scrape, scrapeVol = 1, slipV = game.slip || 0, slipVol = 1;
   for (let i = 0; i < game.trucks.length; i++) {
     const t = game.trucks[i];
-    if (i === game.self) continue;
+    if (!mp?.observer && i === game.self) continue;
     if (t.gone) { setEngine(0, false, false, t.id, 0); otherH.delete(t.id); continue; }
     const vol = hearVol(t.fl.x, t.fl.y);
     if (t.H !== (otherH.get(t.id) ?? t.H)) playFork(t.H > otherH.get(t.id), vol);

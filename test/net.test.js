@@ -11,11 +11,12 @@ import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
+import { qrMatrix, QR_SIZE } from '../js/qr.js';
 import { createHost } from '../js/net/host.js';
 import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
-import { rectPoly, sat } from '../js/geom.js';
+import { rectPoly, sat, FORK_CLEARANCE } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, POP_DELAY, truckPopScale, otherTrucksShown, truckPopChanges } from '../js/game.js';
 
@@ -114,6 +115,27 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(g.carried, null);
   assert.equal(g.H, 1);
 
+  // Hard-mode handoffs preserve physical tine height for both trucks.
+  {
+    const h = newGame(1, 0, true);
+    addTruck(h, 'Carrier');
+    h.ghostPairs = [];
+    h.stacks = [{ x: 10, y: 10, layers: [0], a: 0, rots: [0] }];
+    const a = h.trucks[0], b = h.trucks[1];
+    Object.assign(b.fl, { x: 10 - FL.carryX, y: 10, a: 0, speed: 0 });
+    forkUp(truckView(h, 1));
+    assert.ok(Math.abs(b.hy - b.H - FORK_CLEARANCE) < 1e-6);
+    Object.assign(a.fl, { x: 10 + FL.carryX, y: 10, a: Math.PI, speed: 0 });
+    forkUp(h);
+    assert.deepEqual(a.carried, [0]);
+    assert.equal(b.carried, null);
+    assert.ok(Math.abs(a.hy - a.H - FORK_CLEARANCE) < 1e-6);
+    forkDown(h);
+    assert.equal(a.carried, null);
+    assert.deepEqual(b.carried, [0]);
+    assert.ok(Math.abs(b.hy - b.H - FORK_CLEARANCE) < 1e-6);
+  }
+
   // a receiver cannot take only the upper box from a carried barrel
   {
     const barrelGame = newGame(1);
@@ -189,6 +211,20 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(addTruck(g, 'C'), 1, 'the slot is reused');
   for (let i = 0; i < 3; i++) addTruck(g, 'x');
   assert.equal(addTruck(g, 'full'), -1, 'at most four trucks');
+
+  // An observer host has no truck; guests can occupy the four real truck slots.
+  const observer = newGame(1);
+  removeTruck(observer, 0);
+  assert.equal(observer.trucks[0].gone, true, 'the observer host owns no truck');
+  assert.equal(addTruck(observer, 'Guest 1'), 0, 'slot 0 is reused by the first guest');
+
+  const joinUrl = 'https://palletpolka.gnutt.se/?multiplayer=ABCDE';
+  const joinQr = qrMatrix(joinUrl);
+  assert.equal(joinQr.length, QR_SIZE, 'the QR matrix is a version 3 square');
+  assert.ok(joinQr.every((row) => row.length === QR_SIZE), 'the QR matrix has complete rows');
+  assert.equal(qrMatrix('x'.repeat(60)).length, 33, 'longer deployment URLs use version 4');
+  assert.equal(qrMatrix('x'.repeat(90)).length, 37, 'still longer URLs use version 5');
+  assert.throws(() => qrMatrix('x'.repeat(107)), RangeError, 'unrepresentable URLs are rejected');
 
   // any parked truck finishes the level
   const g2 = newGame(1);
@@ -338,6 +374,78 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     assert.equal(pg.trucks[1].H, 1, 'the host refused the first raise, so the prediction was reset to level 0');
   }
 
+  // Prediction displays offset-only stack motion, then accepts the host's geometry.
+  {
+    const pg = newGame(1, 0, true);
+    pg.stacks = [
+      { x: 10, y: 5, a: 0, layers: [0, 1], rots: [0, 0], offs: [{ x: 0, y: 0 }, { x: 0.3, y: 0 }] },
+      { x: 11.3, y: 5, a: 0, layers: [2, 3], rots: [0, 0], offs: [{ x: 0, y: 0 }, { x: -0.3, y: 0 }] },
+    ];
+    Object.assign(pg.fl, { x: 4, y: 4, a: 0, speed: 0 });
+    const pr = createPredictor();
+    pr.reset(pg);
+    pr.step(pg, {}, 1 / 120, 0);
+    pr.apply(pg, 0);
+    assert.ok(pg.stacks[0].offs[1].x < 0.2, 'predicted upper-box displacement is displayed');
+    const auth = structuredClone(snapshot(pg));
+    auth.stacks[0].offs[1].x = 0.1;
+    auth.stacks[0].rots[1] = 0.2;
+    pr.onSnapshot(auth, 1, 0);
+    pr.fork('up', 2);
+    pr.apply(pg, 2);
+    assert.equal(pg.stacks[0].offs[1].x, 0.1, 'host offset replaces expired prediction');
+    assert.equal(pg.stacks[0].rots[1], 0.2, 'host rotation replaces expired prediction');
+  }
+
+  // Held hard-mode fork motion stays predicted until it is old enough for host correction.
+  {
+    const pg = newGame(1, 0, true);
+    pg.stacks = [{ x: 10, y: 5, a: 0, layers: [0], rots: [0], offs: [{ x: 0, y: 0 }] }];
+    Object.assign(pg.fl, { x: 4, y: 4, speed: 0 });
+    const auth = structuredClone(snapshot(pg)), pr = createPredictor();
+    pr.reset(pg);
+    for (let i = 1; i <= 42; i++) pr.step(pg, { forkUp: true }, 1 / 60, i / 60);
+    auth.stacks[0].x += 0.4;
+    pr.onSnapshot(auth, 0.7, 0.05);
+    pr.apply(pg, 0.7);
+    assert.ok(pg.hy > 0.3 && pg.hy < 1, 'held motion is shown despite an older host snapshot');
+    assert.equal(pg.stacks[0].x, 10.4, 'other players can still move stacks while the fork is held');
+    pr.onSnapshot(auth, 1.2, 0.05);
+    pr.step(pg, { forkUp: true }, 0, 1.2);
+    pr.apply(pg, 1.2);
+    assert.equal(pg.hy, 0, 'host corrects fractional height even within the same level');
+  }
+
+  // Multiplayer contacts use the actual upper-layer footprints and height intervals.
+  {
+    const setup = (otherHeight) => {
+      const g = newGame(1, 0, true);
+      g.stacks = []; g.walls = []; g.zones = [];
+      addTruck(g, 'Bob');
+      g.ghostPairs = [];
+      g.trucks.forEach((t, i) => {
+        Object.assign(t.fl, { x: i ? 11.5 : 8, y: 5, a: i ? Math.PI : 0, speed: 0 });
+        t.H = i ? otherHeight : 1; t.hy = t.H + FORK_CLEARANCE;
+        t.carried = [0, 1]; t.carriedRel = 0; t.carriedRots = [0, 0];
+        t.carriedOffs = [{ x: 0, y: 0 }, { x: 0.4, y: 0 }];
+        t.carriedPen = [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }];
+      });
+      return g;
+    };
+    const g = setup(1);
+    const top = (t) => {
+      const p = toWorld(t.fl, FL.carryX + t.carriedOffs[1].x, t.carriedOffs[1].y);
+      return rectPoly(p.x, p.y, 0.5, 0.5, t.fl.a + t.carriedRots[1]);
+    };
+    assert.ok(sat(top(g.trucks[0]), top(g.trucks[1])));
+    update(g, {}, 1 / 120);
+    assert.ok((sat(top(g.trucks[0]), top(g.trucks[1]))?.depth || 0) < 1e-4);
+    const separated = setup(3);
+    update(separated, {}, 1 / 120);
+    assert.equal(separated.trucks[0].fl.x, 8, 'loads at separate heights do not push');
+    assert.equal(separated.trucks[1].fl.x, 11.5);
+  }
+
   // a new level keeps everyone in their slot
   host = newGame(8, 3, false);
   h.levelLoaded(host);
@@ -362,6 +470,42 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   guest.close();
   for (let i = 0; i < 4; i++) await tick();
   assert.equal(host.trucks[1].gone, true, 'truck removed when the guest left');
+
+  // Mixed physics versions must not simulate the same hard-mode party.
+  const oldGuestLink = (opts) => {
+    const link = linkFactory(opts), send = link.sendReliable;
+    link.sendReliable = (msg) => {
+      if (msg.t === 'hello') { const { hardPhysicsVersion, ...old } = msg; return send(old); }
+      return send(msg);
+    };
+    return link;
+  };
+  let versionError = '';
+  const oldGuest = createGuest({ relay, code: 'ABCDE', name: 'Old', linkFactory: oldGuestLink, onGame: () => {}, onClosed: (why) => { versionError = why; } });
+  await oldGuest.join();
+  for (let i = 0; i < 6; i++) await tick();
+  assert.ok(oldGuest.slot > 0, 'old guest can join an easy-mode party');
+  host = newGame(8, 3, true);
+  h.levelLoaded(host);
+  for (let i = 0; i < 6; i++) await tick();
+  assert.match(versionError, /physics differs/i, 'switching to hard disconnects an incompatible guest');
+  assert.equal(host.trucks.filter((t) => !t.gone).length, 1, 'incompatible guest never gets a truck');
+  versionError = '';
+  const oldHardGuest = createGuest({ relay, code: 'ABCDE', name: 'OldHard', linkFactory: oldGuestLink, onClosed: (why) => { versionError = why; } });
+  await oldHardGuest.join();
+  for (let i = 0; i < 6; i++) await tick();
+  assert.match(versionError, /physics differs/i, 'host rejects a guest without the current solver');
+  const oldHostLink = (opts) => linkFactory({ ...opts, onMessage: (msg) => {
+    if (msg.t === 'welcome') { const { hardPhysicsVersion, ...old } = msg; opts.onMessage(old); }
+    else opts.onMessage(msg);
+  } });
+  versionError = '';
+  const oldHostGuest = createGuest({ relay, code: 'ABCDE', name: 'New', linkFactory: oldHostLink, onClosed: (why) => { versionError = why; } });
+  await oldHostGuest.join();
+  for (let i = 0; i < 6; i++) await tick();
+  assert.match(versionError, /physics differs/i, 'guest rejects a hard-mode host without the current solver');
+  host = newGame(8, 3, false);
+  h.levelLoaded(host);
 
   // ping, kick and ban
   let cyGame = null, cyClosed = null;
@@ -388,6 +532,38 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(host.trucks.filter((t) => !t.gone).length, 1, 'a banned name gets no truck');
   h.close();
   assert.equal(ended, 'tok', 'party ended at the relay');
+  host = newGame(1);
+  removeTruck(host, 0);
+  const observerHost = createHost({ relay, getGame: () => host, levelInfo: info, isStarted: () => true, name: 'Observer', meta: { observer: true }, linkFactory });
+  await observerHost.start();
+  for (let i = 0; i < 120; i++) update(host, null, 1 / 120);
+  assert.equal(host.trucks.filter((t) => !t.gone).length, 0, 'starting an observer game does not create a truck');
+  host = newGame(2);
+  removeTruck(host, 0);
+  observerHost.levelLoaded(host);
+  assert.equal(host.trucks.filter((t) => !t.gone).length, 0, 'changing levels with no guests does not spawn a truck');
+  const observerGuests = [];
+  for (let i = 0; i < 4; i++) {
+    const player = createGuest({ relay, code: 'ABCDE', name: `Guest ${i + 1}`, linkFactory, onGame: () => {} });
+    observerGuests.push(player);
+    await player.join();
+    for (let j = 0; j < 6; j++) await tick();
+    assert.equal(player.slot, i, 'all four truck slots are available to guests');
+  }
+  host = newGame(3);
+  removeTruck(host, 0);
+  observerHost.levelLoaded(host);
+  assert.deepEqual(host.trucks.filter((t) => !t.gone).map((t) => t.name), ['Guest 1', 'Guest 2', 'Guest 3', 'Guest 4'], 'level changes restore every guest in the same slot');
+  observerGuests[0].sendInput({ up: true, horn: true });
+  for (let i = 0; i < 3; i++) await tick();
+  const before = { ...host.trucks[0].fl };
+  for (let i = 0; i < 120; i++) update(host, null, 1 / 120);
+  assert.ok(Math.hypot(host.trucks[0].fl.x - before.x, host.trucks[0].fl.y - before.y) > 0.1, 'slot 0 follows guest input on an observer host');
+  assert.equal(host.trucks[0].horn, true, 'slot 0 retains the guest horn input');
+  assert.equal(observerHost.kick(0), true, 'observer can kick the first guest');
+  assert.equal(host.trucks[0].gone, true);
+  observerHost.close();
+  for (const player of observerGuests) player.close();
   console.log('party networking ok');
 }
 
