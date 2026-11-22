@@ -1523,19 +1523,44 @@ export function drawResults(ctx, g, view) {
   if (g.status !== 'won') return;
   const lost = lostBreakdown(g);
   const pts = score(g);
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
-  ctx.fillRect(0, height / 2 - 110, width, 220 + 210);
-  ctx.fillStyle = '#fff';
+  const k = Math.min(1, Math.max(0.55, width / 620)); // shrink text and spacing on narrow (portrait) screens
+  const maxW = width * 0.94;
+  const font = (px, bold) => `${bold ? 'bold ' : ''}${Math.round(px * k)}px sans-serif`;
+  const cx = width / 2;
+  const top = Math.max(0, height / 2 - 110 * k - 20);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
-  ctx.font = 'bold 36px sans-serif';
-  ctx.fillText('Level complete!', width / 2, height / 2 - 64);
-  ctx.font = '18px sans-serif';
-  ctx.fillText(`Boxes in zones: ${pts + lost.crash + lost.square} − crashes ${lost.crash} − ${g.hard ? 'wonkiness' : 'squareness'} ${lost.square} = ${pts}`, width / 2, height / 2 - 28);
-  ctx.fillText(`Time ${formatTime(g.time)}: −${timePenalty(g.time)} (1 point per 10 s)`, width / 2, height / 2 - 2);
-  ctx.font = 'bold 22px sans-serif';
-  ctx.fillText(`Final score: ${finalScore(pts, g.time)}`, width / 2, height / 2 + 30);
-  ctx.font = '20px sans-serif';
-  ctx.fillText(view.touch ? 'Tap to continue to the next level' : 'Press Enter for the next level', width / 2, height / 2 + 70);
-  drawTopLists(ctx, view, width / 2, height / 2 + 90, width / 2);
+  // Lay out the lines first so the backdrop can be sized to fit them.
+  const lines = [];
+  const add = (text, px, bold, gap) => {
+    ctx.font = font(px, bold);
+    for (const t of wrapText(ctx, text, maxW)) lines.push({ t, f: ctx.font, gap });
+  };
+  add('Level complete!', 36, true, 46);
+  add(`Boxes in zones: ${pts + lost.crash + lost.square} − crashes ${lost.crash} − ${g.hard ? 'wonkiness' : 'squareness'} ${lost.square} = ${pts}`, 18, false, 26);
+  add(`Time ${formatTime(g.time)}: −${timePenalty(g.time)} (1 point per 10 s)`, 18, false, 32);
+  add(`Final score: ${finalScore(pts, g.time)}`, 22, true, 34);
+  add(view.touch ? 'Tap to continue to the next level' : 'Press Enter for the next level', 20, false, 36);
+  let y = top + 20;
+  const ys = lines.map((l, i) => (y += (i ? lines[i - 1].gap * k : 36 * k)));
+  const listY = y + 20 * k;
+  const listH = 18 * 11 + 6;
+  const boxH = Math.min(height - top, listY + listH + 10 - top);
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fillRect(0, top, width, boxH);
+  ctx.fillStyle = '#fff';
+  lines.forEach((l, i) => { ctx.font = l.f; ctx.fillText(l.t, cx, ys[i], maxW); });
+  drawTopLists(ctx, view, cx, listY, Math.max(width / 2, Math.min(width, 540)));
+}
+
+// Splits text on spaces into lines no wider than maxWidth (a single overlong word stays on its own line).
+function wrapText(ctx, text, maxWidth) {
+  const out = [];
+  let cur = '';
+  for (const w of text.split(' ')) {
+    const next = cur ? `${cur} ${w}` : w;
+    if (cur && ctx.measureText(next).width > maxWidth) { out.push(cur); cur = w; } else cur = next;
+  }
+  if (cur) out.push(cur);
+  return out;
 }
