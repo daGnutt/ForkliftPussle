@@ -142,8 +142,9 @@
         <h4>Online party</h4>
         <div id="mpStart">
           <label class="row"><span>Your name</span> <input type="text" id="mpName" maxlength="24" placeholder="Your name" autocomplete="off" spellcheck="false"></label>
+          <label class="opt"><input type="checkbox" id="mpObserverOpt"> Observer mode (host shows overview only)</label>
           <button type="button" id="mpHost" class="sec">Host a game</button>
-          <small>Up to 4 players. Friends join with the party code from the start screen.</small>
+          <small>Up to 4 guest trucks. Friends join with the party code or QR.</small>
         </div>
         <div id="mpBox" hidden>
           <div class="code">Party code <b id="mpCode"></b></div>
@@ -215,6 +216,7 @@
       <div class="row">
         <input id="partyName" type="text" maxlength="24" placeholder="Your name" spellcheck="false" aria-label="Your name">
         <button type="button" id="hostBtn" title="Host a co-op game for up to 4 players">Host game</button>
+        <label class="opt" title="The host does not receive a truck and always shows the full play field"><input type="checkbox" id="observerOpt"> Observer</label>
         <input id="joinCode" type="text" maxlength="5" placeholder="Party code" spellcheck="false" autocapitalize="characters" aria-label="Party code">
         <button type="button" id="joinBtn">Join game</button>
       </div>

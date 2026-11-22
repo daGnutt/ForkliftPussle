@@ -190,6 +190,8 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Multiplayer page** | Menu page for hosting, roster, ping, kick/ban | `#mpList`, `renderMpPage` |
 | **Kick / ban** | Host removes a guest; a ban refuses that name for the party | `host.kick` |
 | **Party badge** | Top-right party code and player list | `drawPartyBadge` |
+| **Observer host** | Party host without a truck, forced to the full-map overview | `Observer`, `view.fullMap` |
+| **Party join card** | Polaroid-style QR and party code shown while observer guest slots remain | `drawPartyJoinCard`, `js/qr.js` |
 
 ## Audio
 

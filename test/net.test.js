@@ -11,6 +11,7 @@ import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
+import { qrMatrix, QR_SIZE } from '../js/qr.js';
 import { createHost } from '../js/net/host.js';
 import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
@@ -189,6 +190,17 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(addTruck(g, 'C'), 1, 'the slot is reused');
   for (let i = 0; i < 3; i++) addTruck(g, 'x');
   assert.equal(addTruck(g, 'full'), -1, 'at most four trucks');
+
+  // An observer host has no truck; guests can occupy the four real truck slots.
+  const observer = newGame(1);
+  removeTruck(observer, 0);
+  assert.equal(observer.trucks[0].gone, true, 'the observer host owns no truck');
+  assert.equal(addTruck(observer, 'Guest 1'), 0, 'slot 0 is reused by the first guest');
+
+  const joinUrl = 'https://palletpolka.gnutt.se/?multiplayer=ABCDE';
+  const joinQr = qrMatrix(joinUrl);
+  assert.equal(joinQr.length, QR_SIZE, 'the QR matrix is a version 3 square');
+  assert.ok(joinQr.every((row) => row.length === QR_SIZE), 'the QR matrix has complete rows');
 
   // any parked truck finishes the level
   const g2 = newGame(1);

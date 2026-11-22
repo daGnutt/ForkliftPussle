@@ -12,6 +12,7 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
   const members = new Map(); // peer id -> { name, slot, link }
   const snapper = createSnapshotter();
   const banned = new Set(); // lower-case names; relay peer ids change on every join, so names are all there is to go on
+  const observer = meta?.observer === true;
   let code = null, token = null, stream = null, lastSent = -Infinity, lastPing = -Infinity, closed = false;
 
   const payload = (g) => ({ ...levelInfo(), snap: snapshot(g) });
@@ -89,7 +90,7 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
     // Removes a guest's truck and sends it away; `ban` also refuses its name for the rest of the party.
     kick(slot, ban = false) {
       for (const [peer, m] of members) {
-        if (m.slot !== slot || slot <= 0) continue;
+        if (m.slot !== slot || (!observer && slot <= 0)) continue;
         if (ban) banned.add(m.name.toLowerCase());
         members.delete(peer);
         removeTruck(getGame(), slot);
