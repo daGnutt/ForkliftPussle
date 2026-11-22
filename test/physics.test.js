@@ -21,6 +21,41 @@ import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetwee
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
+// Hard-mode substeps replay identically, including contact events and cargo.
+{
+  const setup = () => {
+    const g = newGame(1, 0, true);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, a: 0, layers: [0, 1], rots: [0, 0], offs: [{ x: 0, y: 0 }, { x: 0.3, y: 0 }] }];
+    Object.assign(g.fl, { x: 7, y: 5.2, a: 0, speed: 0 });
+    return g;
+  };
+  const a = setup(), b = setup();
+  for (let i = 0; i < 180; i++) {
+    const input = { up: i < 140, right: i >= 60 && i < 100, forkUp: i >= 100 && i < 130 };
+    update(a, input, 1 / 30);
+    for (let j = 0; j < 4; j++) update(b, input, 1 / 120);
+  }
+  assert.deepEqual(serializeGame(a), serializeGame(b));
+  assert.deepEqual(a.hits, b.hits);
+  assert.equal(a.hitCount, b.hitCount);
+  assert.equal(a.stacks.reduce((n, s) => n + s.layers.length, 0) + (a.carried?.length || 0), 2);
+}
+
+// Iterative wall correction emits each local impact only once per step.
+{
+  const g = newGame(1, 0, true);
+  g.zones = []; g.stacks = [];
+  g.walls = [{ x: 10, y: 0, w: 1, h: 12, poly: rectPoly(10.5, 6, 0.5, 6) }];
+  Object.assign(g.fl, { x: 9.8, y: 5, a: 0.1, speed: 4 });
+  update(g, { up: true }, 1 / 120);
+  assert.ok(g.impacts.length > 0);
+  for (let i = 0; i < g.impacts.length; i++) for (let j = i + 1; j < g.impacts.length; j++) {
+    const a = g.impacts[i], b = g.impacts[j];
+    assert.ok(a.nx * b.nx + a.ny * b.ny <= 0.999 || Math.hypot(a.x - b.x, a.y - b.y) >= 0.2, 'repeated solver passes do not repeat an impact');
+  }
+}
+
 // Rear steering: pressing right while moving forward turns the nose right and the rear swings left.
 {
   const g = newGame(1);

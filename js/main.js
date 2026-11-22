@@ -10,7 +10,7 @@ import { createGuest } from './net/guest.js';
 import { applySnapshot } from './net/protocol.js';
 import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
-import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState } from './savestate.js';
+import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState, HardPhysicsVersionError } from './savestate.js';
 import { parseSeed } from './level.js';
 import { draw, drawResults } from './render.js';
 import { showPhoto, dodgePhoto, startGallery, stopGallery, clearPhotos } from './photo.js';
@@ -72,7 +72,10 @@ function loadSaved() {
   try {
     const data = JSON.parse(localStorage.getItem('forklift-state'));
     if (data && data.level === level && data.seed === seed && data.hard === hard) game = deserializeGame(data);
-  } catch { localStorage.removeItem('forklift-state'); }
+  } catch (err) {
+    if (err instanceof HardPhysicsVersionError) window.alert('This saved hard-mode level uses an incompatible physics version and will restart.');
+    localStorage.removeItem('forklift-state');
+  }
 }
 if (levelParam >= 1) localStorage.removeItem('forklift-state'); // ?level always starts fresh
 else loadSaved();
@@ -215,7 +218,10 @@ function loadEndless(fresh = false) {
     try {
       const data = JSON.parse(localStorage.getItem(ENDLESS_KEY));
       if (data && data.seed === seed && !!data.hard === hard) game = deserializeEndless(data);
-    } catch { localStorage.removeItem(ENDLESS_KEY); }
+    } catch (err) {
+      if (err instanceof HardPhysicsVersionError) window.alert('This saved hard-mode endless game uses an incompatible physics version and will restart.');
+      localStorage.removeItem(ENDLESS_KEY);
+    }
   }
   game ||= newEndless(seed, hard);
   partyGameChanged();

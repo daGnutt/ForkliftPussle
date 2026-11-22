@@ -17,6 +17,17 @@ const SHOWN = ['lifting', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 
 const CONFIRM_SLACK = 0.3; // seconds after one round trip before the host's fork state is trusted over the predicted one
 
 const wrap = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+const stackGeometry = (s) => JSON.stringify([s.x, s.y, s.a, s.rots, s.offs]);
+
+function stackNear(a, b) {
+  if (Math.hypot(a.x - b.x, a.y - b.y) > MAX_STACK_DIFF) return false;
+  for (let i = 0; i < a.layers.length; i++) {
+    const ao = a.offs?.[i] || { x: 0, y: 0 }, bo = b.offs?.[i] || { x: 0, y: 0 };
+    if (Math.hypot(a.x + ao.x - b.x - bo.x, a.y + ao.y - b.y - bo.y) > MAX_STACK_DIFF) return false;
+    if (Math.abs(wrap((a.rots?.[i] ?? a.a ?? 0) - (b.rots?.[i] ?? b.a ?? 0))) > MAX_STACK_DIFF) return false;
+  }
+  return true;
+}
 
 export function createPredictor() {
   let sim = null, pred = null, hist = [], acc = 0, movedAt = [], forkAt = -Infinity, confirmWindow = 0.4;
@@ -66,7 +77,7 @@ export function createPredictor() {
       const auth = authTruck?.fl;
       if (!auth) return;
       const mine = sim.trucks[sim.self];
-      if (!pending(now) && (authTruck.H !== mine.H || authTruck.liftedBy !== mine.liftedBy || authTruck.lifting !== mine.lifting || JSON.stringify(authTruck.carried) !== JSON.stringify(mine.carried))) {
+      if (!pending(now) && (authTruck.H !== mine.H || Math.abs(authTruck.hy - mine.hy) > 1e-4 || authTruck.liftedBy !== mine.liftedBy || authTruck.lifting !== mine.lifting || JSON.stringify(authTruck.carried) !== JSON.stringify(mine.carried))) {
         for (const k of AUX) mine[k] = structuredClone(authTruck[k]);
       }
       const past = nearest(now - rtt);
@@ -79,12 +90,17 @@ export function createPredictor() {
         for (const h of hist) { h.x += dx; h.y += dy; h.a += da; h.speed += dv; }
       }
       const s = snap.stacks;
-      if (!s || pending(now)) return;
+      if (!s) return;
       if (s.length !== sim.stacks.length || s.some((x, i) => x.layers.length !== sim.stacks[i].layers.length)) {
+        if (pending(now)) return;
         sim.stacks = structuredClone(s);
         movedAt = [];
       } else {
-        s.forEach((x, i) => { if (now - (movedAt[i] ?? -Infinity) > PUSH_MEMORY) { sim.stacks[i].x = x.x; sim.stacks[i].y = x.y; } });
+        s.forEach((x, i) => {
+          if (now - (movedAt[i] ?? -Infinity) <= PUSH_MEMORY) return;
+          for (const key of Object.keys(sim.stacks[i])) if (!Object.hasOwn(x, key)) delete sim.stacks[i][key];
+          Object.assign(sim.stacks[i], structuredClone(x));
+        });
       }
     },
     // A fork action was sent to the host: it is applied to the prediction at once and shown until the host confirms it.
@@ -96,12 +112,13 @@ export function createPredictor() {
     // Advances the prediction by `dt` seconds of real time with the held keys; `g` is the interpolated host game.
     step(g, input, dt, now) {
       if (!sim || !pred || g.status !== 'play') return;
+      if (g.hard && (input.forkUp || input.forkDown)) forkAt = now;
       syncWorld(g);
       acc = Math.min(acc + dt, 0.1);
       while (acc >= STEP) {
-        const before = sim.stacks.map((s) => [s.x, s.y]);
+        const before = sim.stacks.map(stackGeometry);
         update(sim, input, STEP);
-        sim.stacks.forEach((s, i) => { if (before[i] && (s.x !== before[i][0] || s.y !== before[i][1])) movedAt[i] = now; });
+        sim.stacks.forEach((s, i) => { if (before[i] && stackGeometry(s) !== before[i]) movedAt[i] = now; });
         acc -= STEP;
       }
       pred = sim.trucks[sim.self].fl;
@@ -123,7 +140,7 @@ export function createPredictor() {
       g.stacks = g.stacks.map((s, i) => {
         const p = sim.stacks[i];
         if (!p || p.layers.length !== s.layers.length || now - (movedAt[i] ?? -Infinity) > PUSH_MEMORY) return s;
-        return Math.hypot(p.x - s.x, p.y - s.y) > MAX_STACK_DIFF ? s : { ...s, x: p.x, y: p.y };
+        return !stackNear(p, s) ? s : { ...s, x: p.x, y: p.y, a: p.a, rots: p.rots, offs: p.offs };
       });
     },
   };

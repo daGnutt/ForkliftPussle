@@ -72,6 +72,121 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(bad.stacks[1].pen[0].crash, 50, 'maximum crash damage');
 }
 
+// In hard mode, the combined weight above a contact can tip a well-overlapped box.
+{
+  const drop = (topOffset) => {
+    const g = newGame(1, 0, true);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+    g.carried = [1, 2]; g.carriedRots = [0, 0];
+    g.carriedPen = [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }];
+    g.carriedOffs = [{ x: 0, y: 0 }, { x: topOffset, y: 0 }];
+    g.carriedRel = 0;
+    Object.assign(g.fl, { x: 9.4, y: 5, a: 0 });
+    g.H = 2;
+    forkDown(g);
+    return g;
+  };
+  const stable = drop(0);
+  assert.deepEqual(stable.stacks[0].layers, [0, 1, 2]);
+  const unstable = drop(0.4);
+  assert.deepEqual(unstable.stacks[0].layers, [0], 'the unsupported group falls together');
+  assert.deepEqual(unstable.stacks[1].layers, [1, 2]);
+  const topFalls = drop(0.9);
+  assert.deepEqual(topFalls.stacks[0].layers, [0, 1], 'an unsupported top falls before it can pull down a stable box');
+  assert.deepEqual(topFalls.stacks[1].layers, [2]);
+}
+
+// A fall blocked in its preferred direction finds a legal nearby position without losing cargo.
+{
+  const drop = () => {
+    const g = newGame(1, 0, true);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 },
+      { x: 11, y: 5, layers: [3], rots: [0], a: 0, pen: [{ crash: 0, sq: 0, open: true }] }];
+    g.carried = [1, 2]; g.carriedRots = [0, 0];
+    g.carriedPen = [{ crash: 0, sq: 0, deco: 1 }, { crash: 0, sq: 0, deco: 2 }];
+    g.carriedOffs = [{ x: 0, y: 0 }, { x: 0.4, y: 0 }];
+    Object.assign(g.fl, { x: 9.4, y: 5, a: 0 });
+    g.H = 2;
+    forkDown(g);
+    return g;
+  };
+  const a = drop(), b = drop();
+  const fallen = a.stacks.find((s) => s.layers[0] === 1);
+  assert.ok(fallen && fallen.fall, 'the unsupported group lands elsewhere');
+  assert.deepEqual(fallen.layers, [1, 2]);
+  assert.deepEqual(fallen.pen.map((p) => p.deco), [1, 2]);
+  assert.deepEqual(a.stacks.map((s) => [s.x, s.y, s.layers]), b.stacks.map((s) => [s.x, s.y, s.layers]), 'landing is deterministic');
+  const box = rectPoly(fallen.x, fallen.y, 0.5, 0.5, fallen.rots[0]);
+  for (const s of a.stacks.filter((s) => s !== fallen)) {
+    const p = rectPoly(s.x, s.y, 0.5, 0.5, s.rots[0]);
+    assert.ok(!sat(box, p), 'landing does not overlap another floor stack');
+  }
+}
+
+// Falling cargo can land on a compatible neighboring stack during set-down.
+{
+  const g = newGame(1, 0, true);
+  flatWorld(g);
+  const neighbor = { x: 11.2, y: 5, layers: [3], rots: [0], a: 0 };
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }, neighbor];
+  g.carried = [1, 2]; g.carriedRots = [0, 0];
+  g.carriedPen = [{ crash: 0, sq: 0, deco: 1 }, { crash: 0, sq: 0, deco: 2 }];
+  g.carriedOffs = [{ x: 0, y: 0 }, { x: 0.4, y: 0 }];
+  Object.assign(g.fl, { x: 9.4, y: 5, a: 0 });
+  g.H = 2;
+  forkDown(g);
+  assert.deepEqual(neighbor.layers, [3, 1, 2]);
+  assert.deepEqual(neighbor.pen.slice(1).map((p) => p.deco), [1, 2]);
+  assert.equal(g.stacks.length, 2);
+}
+
+// Falling boxes cannot land on a taller stack or pass through a wall.
+{
+  const g = newGame(1, 0, true);
+  flatWorld(g);
+  const wall = { x: 11.6, y: 3.5, w: 0.2, h: 3 };
+  wall.poly = rectPoly(wall.x + wall.w / 2, wall.y + wall.h / 2, wall.w / 2, wall.h / 2, 0);
+  g.walls.push(wall);
+  const tall = { x: 11, y: 5, layers: [3, 4], rots: [0, 0], a: 0 };
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }, tall];
+  g.carried = [1, 2]; g.carriedRots = [0, 0];
+  g.carriedPen = [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }];
+  g.carriedOffs = [{ x: 0, y: 0 }, { x: 0.4, y: 0 }];
+  Object.assign(g.fl, { x: 9.4, y: 5, a: 0 });
+  g.H = 2;
+  forkDown(g);
+  assert.deepEqual(tall.layers, [3, 4], 'a fall never rises onto a taller stack');
+  const fallen = g.stacks.find((s) => s.layers[0] === 1);
+  assert.ok(fallen?.fall);
+  for (let i = 0; i < fallen.layers.length; i++) {
+    const p = rectPoly(fallen.x + fallen.offs[i].x, fallen.y + fallen.offs[i].y, 0.5, 0.5, fallen.rots[i]);
+    assert.ok(!sat(p, wall.poly));
+    assert.ok(p.every((v) => v.x <= wall.x), 'the wall is not crossed');
+  }
+}
+
+// When every reachable landing is blocked, the group stays in place without losing cargo.
+{
+  const g = newGame(1, 0, true);
+  flatWorld(g);
+  g.walls = [
+    { x: 11.31, y: 3, w: 0.2, h: 4 }, { x: 8.5, y: 3, w: 0.2, h: 4 },
+    { x: 8.5, y: 3.5, w: 3, h: 0.2 }, { x: 8.5, y: 6.3, w: 3, h: 0.2 },
+  ].map((w) => ({ ...w, poly: rectPoly(w.x + w.w / 2, w.y + w.h / 2, w.w / 2, w.h / 2) }));
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+  g.carried = [1, 2]; g.carriedRots = [0, 0];
+  g.carriedPen = [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }];
+  g.carriedOffs = [{ x: 0, y: 0 }, { x: 0.4, y: 0 }];
+  Object.assign(g.fl, { x: 9.4, y: 5, a: 0 });
+  g.H = 2;
+  forkDown(g);
+  assert.deepEqual(g.stacks[0].layers, [0, 1, 2]);
+  assert.equal(g.stacks.length, 1);
+  assert.ok(g.stacks[0].pen.every((p) => p.crash === 0), 'no fall means no fall damage');
+}
+
 // A crooked tower keeps its offsets when lifted and put down.
 {
   const g = newGame(1);
@@ -389,6 +504,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const hardGame = () => {
     const g = newGame(1, 1, true);
     flatWorld(g);
+    g.stacks = [];
     g.fl.x = 6; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
     return g;
   };
@@ -420,6 +536,43 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   run(floor, { up: true }, 1);
   assert.ok(lowSpeed > floor.fl.speed * 0.95, 'barely raised forks cost almost no speed');
   console.log('fork fluid height ok');
+}
+
+// Both tines must be under a pallet before it can be lifted in hard mode.
+{
+  const game = (hard, y) => {
+    const g = newGame(1, 0, hard);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+    Object.assign(g.fl, { x: 9, y, a: 0, speed: 0 });
+    return g;
+  };
+  const oneTine = game(true, 5.4);
+  assert.equal(forkUp(oneTine), 'blocked');
+  assert.equal(oneTine.carried, null);
+  const both = game(true, 5);
+  forkUp(both);
+  assert.deepEqual(both.carried, [0]);
+  const easy = game(false, 5.4);
+  forkUp(easy);
+  assert.deepEqual(easy.carried, [0], 'easy mode retains its permissive pickup');
+}
+
+// Large hard-mode updates cross the same fork boundaries as fixed simulation steps.
+{
+  const make = () => {
+    const g = newGame(1, 0, true);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], a: 0 }];
+    Object.assign(g.fl, { x: 9, y: 5, a: 0, speed: 0 });
+    return g;
+  };
+  const long = make(), fixed = make();
+  update(long, { forkUp: true }, 0.4);
+  run(fixed, { forkUp: true }, 0.4);
+  assert.deepEqual(long.carried, fixed.carried);
+  assert.ok(Math.abs(long.hy - fixed.hy) < 1e-9);
+  assert.equal(long.fk.ev.n, fixed.fk.ev.n);
 }
 
 // Hard mode: forks move through the pallet clearance before lifting its load.
@@ -470,7 +623,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
       assert.ok(Math.abs(next - before) <= dt + 1e-6, 'pickup advances without a visual jump');
       assert.ok(Math.abs(g.hf - tineBefore) <= 6 * dt + 1e-6, 'pickup does not move the tines abruptly');
       picked = !!g.carried;
-      if (picked) assert.ok(Math.abs(g.hy + FORK_CLEARANCE - hyBefore - dt) < 1e-6, 'pickup converts tine height to load height');
+      if (picked) assert.ok(Math.abs(g.hy - hyBefore - dt) < 1e-6, 'physical tine height remains continuous at pickup');
       before = next;
     }
     assert.ok(picked, 'the box is picked up after the forks reach the deck');
@@ -486,7 +639,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
       assert.ok(next >= n - 1e-6, 'load never clips through its support');
       assert.ok(Math.abs(g.hf - tineBefore) <= 6 * dt + 1e-6, 'release does not move the tines abruptly');
       released = !g.carried;
-      if (released) assert.ok(Math.abs(g.hy - n - FORK_CLEARANCE) < 1e-6, 'set-down converts load height to tine height');
+      if (released) assert.ok(Math.abs(g.hy - n - FORK_CLEARANCE) < 1e-6, 'tines remain at the pallet deck at set-down');
       before = next;
     }
     assert.ok(released, 'logical set-down still occurs');
@@ -503,7 +656,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     g.stacks = n ? [{ x: 10, y: 5, layers: [1], a: 0 }] : [];
     Object.assign(g.fl, { x: 10 - FL.carryX, y: 5, a: 0, speed: 0 });
     g.carried = [0]; g.carriedRots = [0]; g.carriedPen = [{}]; g.carriedOffs = [{ x: 0, y: 0 }];
-    g.H = g.hy = n + 1; g.hf = g.hy + FORK_CLEARANCE;
+    g.H = n + 1; g.hy = g.hf = g.H + FORK_CLEARANCE;
     run(g, { forkDown: true }, 2);
     assert.equal(g.carried, null);
     assert.equal(g.stacks.length, 1);
@@ -605,7 +758,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     g.stacks = [{ x: 10, y: 5, layers: [1], a: 0 }];
     Object.assign(g.fl, { x: 6, y: 5, a: 0, speed: 0 });
     g.carried = [0]; g.carriedRots = [0]; g.carriedPen = [{}]; g.carriedOffs = [{ x: 0, y: 0 }];
-    g.H = Math.floor(height); g.hy = height; g.hf = height + FORK_CLEARANCE;
+    g.H = Math.floor(height); g.hy = g.hf = height + FORK_CLEARANCE;
     for (let i = 0; i < 600 && g.fl.x + FL.carryX < 9.7 && g.stacks[0].x < 10.1; i++) update(g, { up: true }, 1 / 120);
     if (height === 1) {
       assert.ok(g.fl.x + FL.carryX >= 9.7, 'level 1 reaches over the stack');
@@ -624,7 +777,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   g.stacks = [{ x: 10, y: 5, layers: [0], a: 0 }, { x: 14, y: 5, layers: [1], a: 0 }];
   faceStack(g, 0);
   run(g, { forkUp: true }, 0.1); run(g, {}, 0.5);
-  assert.equal(g.hy, 1);
+  assert.ok(Math.abs(g.hy - 1 - FORK_CLEARANCE) < 1e-6);
   assert.deepEqual(g.carried, [0]);
   assert.ok(Math.abs(carriedDrawH(g) - 1) < 1e-6, 'load and height indicator agree');
   for (let i = 0; i < 1200 && g.fl.x + FL.carryX < 14; i++)
@@ -645,7 +798,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   g.fl.x = 6; g.fl.y = 5; g.fl.a = 0; g.fl.speed = 0;
   g.carried = [1];
   g.carriedRots = [0]; g.carriedPen = []; g.carriedOffs = [{ x: 0, y: 0 }];
-  g.H = 3; g.hy = 3;
+  g.H = 3; g.hy = 3 + FORK_CLEARANCE;
   const at = (x) => { g.fl.x = x - FL.carryX; };
   at(10);
   run(g, {}, 0.1);

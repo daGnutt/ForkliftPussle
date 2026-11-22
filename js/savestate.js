@@ -1,11 +1,16 @@
-import { newGame } from './game.js';
+import { newGame, forkHeight } from './game.js';
 import { newEndless, endlessSnapshot, restoreEndless } from './endless.js';
 import { MAX_H, MAX_LAYERS } from './forklift.js';
+import { FORK_CLEARANCE } from './geom.js';
 import { stackSig } from './bot.js';
+import { HARD_PHYSICS_VERSION } from './hard-physics.js';
 
 const SAVE_VERSION = 1;
 const LEVEL_LAYOUT_VERSION = 5;
 const INSPECTION_VERSION = 2;
+export class HardPhysicsVersionError extends Error {
+  constructor() { super('Saved hard-mode physics is no longer compatible'); }
+}
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const num = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -23,7 +28,7 @@ const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carrie
 export function serializeGame(g, seedText = '') {
   const state = {};
   for (const k of DYNAMIC) if (g[k] !== undefined) state[k] = clone(g[k]);
-  return { version: SAVE_VERSION, layoutVersion: LEVEL_LAYOUT_VERSION, inspectionVersion: INSPECTION_VERSION, level: g.level, seed: g.seed, seedText, hard: g.hard, state };
+  return { version: SAVE_VERSION, layoutVersion: LEVEL_LAYOUT_VERSION, inspectionVersion: INSPECTION_VERSION, ...(g.hard && { hardPhysicsVersion: HARD_PHYSICS_VERSION }), level: g.level, seed: g.seed, seedText, hard: g.hard, state };
 }
 
 // Older saves tracked inspections by zone; only recover boxes still matching a recorded photo.
@@ -64,10 +69,18 @@ function checkState(s) {
   if (s.status !== 'play' && s.status !== 'won') throw new Error('Corrupt state');
 }
 
+function restoreForkHeight(g, version) {
+  if (g.hard && version !== HARD_PHYSICS_VERSION && g.carried && num(g.hy)) g.hy += FORK_CLEARANCE;
+  const height = forkHeight(g);
+  if (!num(height) || height < g.H - 1e-6 || height >= g.H + 1) g.hy = g.H + (g.hard && g.carried ? FORK_CLEARANCE : 0);
+  if (!num(g.hf)) g.hf = g.hy;
+}
+
 // Returns a new game from a snapshot, or throws if the data is not a valid snapshot.
 export function deserializeGame(data) {
   if (!data || data.version !== SAVE_VERSION || !data.state) throw new Error('Unknown save format');
   const { level, seed, hard, state: s } = data;
+  if (hard && data.hardPhysicsVersion !== undefined && data.hardPhysicsVersion !== 1 && data.hardPhysicsVersion !== HARD_PHYSICS_VERSION) throw new HardPhysicsVersionError();
   if (!Number.isInteger(level) || level < 1 || !num(seed)) throw new Error('Bad level or seed');
   if (data.layoutVersion !== LEVEL_LAYOUT_VERSION) {
     throw new Error('Saved level layout is no longer compatible');
@@ -80,8 +93,7 @@ export function deserializeGame(data) {
   restoreInspections(g, data);
   const ph = g.photo; // the observer's last picture; a malformed one is dropped rather than failing the load
   if (ph != null && !(Array.isArray(ph.layers) && Array.isArray(ph.pens) && Array.isArray(ph.rots) && Array.isArray(ph.offs) && num(ph.at?.x) && num(ph.at?.y))) g.photo = null;
-  if (!num(g.hy) || g.hy < g.H || g.hy >= g.H + 1) g.hy = g.H;
-  if (!num(g.hf)) g.hf = g.hy;
+  restoreForkHeight(g, data.hardPhysicsVersion);
   if (!num(g.time)) g.time = 0;
   // Saves from before `clock` was stored: start it past every stack's last-hit time so cooldowns have expired.
   if (!num(g.clock)) g.clock = Math.max(0, ...g.stacks.map((st) => st.hitAt ?? 0)) + 1;
@@ -118,19 +130,19 @@ const ENDLESS_VERSION = 1;
 export function serializeEndless(g) {
   const state = {};
   for (const k of DYNAMIC) if (g[k] !== undefined) state[k] = clone(g[k]);
-  return { version: ENDLESS_VERSION, inspectionVersion: INSPECTION_VERSION, seed: g.seed, hard: g.hard, state, endless: clone(endlessSnapshot(g)) };
+  return { version: ENDLESS_VERSION, inspectionVersion: INSPECTION_VERSION, ...(g.hard && { hardPhysicsVersion: HARD_PHYSICS_VERSION }), seed: g.seed, hard: g.hard, state, endless: clone(endlessSnapshot(g)) };
 }
 
 // Returns the resumed endless game, or throws if the data is not a valid snapshot.
 export function deserializeEndless(data) {
   if (!data || data.version !== ENDLESS_VERSION || !data.state || !data.endless || !num(data.seed)) throw new Error('Unknown save format');
+  if (data.hard && data.hardPhysicsVersion !== undefined && data.hardPhysicsVersion !== 1 && data.hardPhysicsVersion !== HARD_PHYSICS_VERSION) throw new HardPhysicsVersionError();
   const s = data.state;
   checkState(s);
   if (s.status !== 'play') throw new Error('Corrupt state');
   const g = newEndless(data.seed, !!data.hard);
   Object.assign(g, clone(s));
-  if (!num(g.hy) || g.hy < g.H || g.hy >= g.H + 1) g.hy = g.H;
-  if (!num(g.hf)) g.hf = g.hy;
+  restoreForkHeight(g, data.hardPhysicsVersion);
   if (!num(g.time)) g.time = 0;
   if (!num(g.bonks)) g.bonks = 0;
   g.started = false; // the start board (with the high scores) shows until the truck moves again
