@@ -11,6 +11,7 @@ import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
+import { qrMatrix, QR_SIZE } from '../js/qr.js';
 import { createHost } from '../js/net/host.js';
 import { createGuest } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
@@ -189,6 +190,20 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(addTruck(g, 'C'), 1, 'the slot is reused');
   for (let i = 0; i < 3; i++) addTruck(g, 'x');
   assert.equal(addTruck(g, 'full'), -1, 'at most four trucks');
+
+  // An observer host has no truck; guests can occupy the four real truck slots.
+  const observer = newGame(1);
+  removeTruck(observer, 0);
+  assert.equal(observer.trucks[0].gone, true, 'the observer host owns no truck');
+  assert.equal(addTruck(observer, 'Guest 1'), 0, 'slot 0 is reused by the first guest');
+
+  const joinUrl = 'https://palletpolka.gnutt.se/?multiplayer=ABCDE';
+  const joinQr = qrMatrix(joinUrl);
+  assert.equal(joinQr.length, QR_SIZE, 'the QR matrix is a version 3 square');
+  assert.ok(joinQr.every((row) => row.length === QR_SIZE), 'the QR matrix has complete rows');
+  assert.equal(qrMatrix('x'.repeat(60)).length, 33, 'longer deployment URLs use version 4');
+  assert.equal(qrMatrix('x'.repeat(90)).length, 37, 'still longer URLs use version 5');
+  assert.throws(() => qrMatrix('x'.repeat(107)), RangeError, 'unrepresentable URLs are rejected');
 
   // any parked truck finishes the level
   const g2 = newGame(1);
@@ -388,6 +403,38 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(host.trucks.filter((t) => !t.gone).length, 1, 'a banned name gets no truck');
   h.close();
   assert.equal(ended, 'tok', 'party ended at the relay');
+  host = newGame(1);
+  removeTruck(host, 0);
+  const observerHost = createHost({ relay, getGame: () => host, levelInfo: info, isStarted: () => true, name: 'Observer', meta: { observer: true }, linkFactory });
+  await observerHost.start();
+  for (let i = 0; i < 120; i++) update(host, null, 1 / 120);
+  assert.equal(host.trucks.filter((t) => !t.gone).length, 0, 'starting an observer game does not create a truck');
+  host = newGame(2);
+  removeTruck(host, 0);
+  observerHost.levelLoaded(host);
+  assert.equal(host.trucks.filter((t) => !t.gone).length, 0, 'changing levels with no guests does not spawn a truck');
+  const observerGuests = [];
+  for (let i = 0; i < 4; i++) {
+    const player = createGuest({ relay, code: 'ABCDE', name: `Guest ${i + 1}`, linkFactory, onGame: () => {} });
+    observerGuests.push(player);
+    await player.join();
+    for (let j = 0; j < 6; j++) await tick();
+    assert.equal(player.slot, i, 'all four truck slots are available to guests');
+  }
+  host = newGame(3);
+  removeTruck(host, 0);
+  observerHost.levelLoaded(host);
+  assert.deepEqual(host.trucks.filter((t) => !t.gone).map((t) => t.name), ['Guest 1', 'Guest 2', 'Guest 3', 'Guest 4'], 'level changes restore every guest in the same slot');
+  observerGuests[0].sendInput({ up: true, horn: true });
+  for (let i = 0; i < 3; i++) await tick();
+  const before = { ...host.trucks[0].fl };
+  for (let i = 0; i < 120; i++) update(host, null, 1 / 120);
+  assert.ok(Math.hypot(host.trucks[0].fl.x - before.x, host.trucks[0].fl.y - before.y) > 0.1, 'slot 0 follows guest input on an observer host');
+  assert.equal(host.trucks[0].horn, true, 'slot 0 retains the guest horn input');
+  assert.equal(observerHost.kick(0), true, 'observer can kick the first guest');
+  assert.equal(host.trucks[0].gone, true);
+  observerHost.close();
+  for (const player of observerGuests) player.close();
   console.log('party networking ok');
 }
 

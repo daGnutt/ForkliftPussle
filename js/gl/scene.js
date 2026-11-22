@@ -373,6 +373,7 @@ function addBlobShadows(tm, g) {
     tm.poly([at(-h, -h), at(h, -h), at(h, h), at(-h, h)], 0.002, [0, 0, 0, a]);
   };
   for (const s of g.stacks) sq(s.x + (s.offs?.[0]?.x || 0), s.y + (s.offs?.[0]?.y || 0), s.rots?.[0] || 0, 0.26, 0.53);
+  if (g.truck.gone) return;
   const f = g.fl, W = FL.halfW, c = toWorld(f, (FL.back + FL.front) / 2, 0);
   const co = Math.cos(f.a), si = Math.sin(f.a), hl = (FL.front - FL.back) / 2;
   const at = (u, v) => [c.x + 0.08 + u * co - v * si, c.y + 0.1 + u * si + v * co];
@@ -396,7 +397,7 @@ function discoLights(g, eye) {
 const HEAD_I = 1.5, WARM = [1, 0.95, 0.8];
 function darkLights(g, eye) {
   const out = [];
-  const trucks = [g, ...otherTrucksShown(g).filter((t) => !isGhost(g, t.truck.id))];
+  const trucks = [...(!g.truck.gone ? [g] : []), ...otherTrucksShown(g).filter((t) => !isGhost(g, t.truck.id))];
   for (const t of trucks) truckLights(t, out);
   for (const l of out) l.d = Math.hypot(l.x - eye[0], l.y - eye[1]);
   return out.sort((p, q) => p.d - q.d).slice(0, LIGHT_MAX);
@@ -501,13 +502,13 @@ export function dynamicMeshes(g, mode, eye) {
   addBot(om, tm, g);
   for (const st0 of g.stacks) {
     const st = fallView(g, st0);
-    const ghost = st.ghost?.includes(g.truck.id);
+    const ghost = !g.truck.gone && st.ghost?.includes(g.truck.id);
     if (ghost) tm.alpha = 0.4;
     addStack(ghost ? tm : om, tm, st.x, st.y, st.rots || [], st.layers, stackZ(st), st.offs, st.dropFrom ?? 0,
       dropLift(g, st), st.pen);
     tm.alpha = 1;
   }
-  addCarried(om, tm, g);
+  if (!g.truck.gone) addCarried(om, tm, g);
   if (mode === 'pov') for (const { w } of animatedDoors(g)) { if (w.roller) addRollerDoor(om, w, w.lift); else addTruckPart(om, w, w.lift); }
   for (const t of otherTrucksShown(g)) {
     const ghost = isGhost(g, t.truck.id), m = ghost ? tm : om;
@@ -523,16 +524,18 @@ export function dynamicMeshes(g, mode, eye) {
     tm.alpha = 1;
   }
   const bare = mode === 'pov' && bareForksEnabled();
-  if (!bare) addForklift(om, g, mode === 'ov');
-  addForks(om, g, bare);
+  if (!g.truck.gone) {
+    if (!bare) addForklift(om, g, mode === 'ov');
+    addForks(om, g, bare);
+  }
   addMarks(tm, g, mode);
   addBlobShadows(tm, g);
-  addRevLight(tm, g);
+  if (!g.truck.gone) addRevLight(tm, g);
   const sparkLights = addParticles(om, tm, g, eye);
   const disco = discoOn();
   if (disco && mode === 'pov') addDisco(om, g, eye);
   const lights = theme().dark ? darkLights(g, eye) : [];
-  if (!theme().dark) for (const t of [g, ...otherTrucksShown(g)]) if (crashBlink(t)) truckLights(t, lights, true);
+  if (!theme().dark) for (const t of [...(!g.truck.gone ? [g] : []), ...otherTrucksShown(g)]) if (crashBlink(t)) truckLights(t, lights, true);
   lights.push(...sparkLights.slice(0, Math.max(0, LIGHT_MAX - lights.length)));
   if (disco) lights.push(...discoLights(g, eye).slice(0, LIGHT_MAX - lights.length));
   return { opaque: om, trans: tm, lights };

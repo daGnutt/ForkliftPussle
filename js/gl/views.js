@@ -119,7 +119,7 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = n
   const proj = drawGl(ctx, g, 'ov', cam, rx, ry, dpr);
   if (!proj) return false;
   const tp = proj(g.fl.x, g.fl.y, 0.6), te = proj(g.fl.x + 2, g.fl.y, 0.6);
-  if (tp && te) setTruckSpot(tp[0], tp[1], Math.hypot(te[0] - tp[0], te[1] - tp[1]));
+  if (!g.truck.gone && tp && te) setTruckSpot(tp[0], tp[1], Math.hypot(te[0] - tp[0], te[1] - tp[1]));
   ctx.save();
   ctx.beginPath();
   ctx.rect(rx, ry, rw, rh);
@@ -133,7 +133,7 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = n
     labelRows(ctx, hitRows(h), p[0], p[1], 0.55 * s);
   }
   ctx.globalAlpha = 1;
-  if (repairHintOn() && g.repair && tp) {
+  if (!g.truck.gone && repairHintOn() && g.repair && tp) {
     const pp = proj(g.repair.x, g.repair.y, 0.1);
     if (pp) {
       drawHintGlow(ctx, pp[0], pp[1], 2 * s, g.clock);

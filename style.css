@@ -130,6 +130,17 @@ footer b { color: var(--accent); }
 #menu button { padding: 8px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
 
 #touch { display: none; }
+body.observer-party #tutorial,
+body.observer-party #zoomBar,
+body.observer-party footer { display: none !important; }
+body.observer-party #touch { display: block; position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+body.observer-party #touch .left,
+body.observer-party #touch .right,
+body.observer-party #stick { display: none !important; }
+body.observer-party #touch .top { position: absolute; top: 8px; right: 8px; }
+body.observer-party #touch .top button { pointer-events: auto; cursor: pointer; }
+body.observer-party #menu .page > :not([data-observer]):not(h3):not(.back) { display: none; }
+body.observer-party #mpLeave { display: none; }
 @media (pointer: coarse) {
   footer, #splash .tip:not(.story) { display: none; }
   canvas { touch-action: none; }

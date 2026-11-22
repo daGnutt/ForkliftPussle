@@ -16,6 +16,7 @@ import { drawPov3d, drawOverview3d, drawLook3d } from './gl/views.js';
 import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
+import { qrMatrix } from './qr.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark } from './decals.js';
 import { liftedHf, carriedDrawH, carriedWorldOffs, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
 import { BOX_SCALE, BOX_HALF_X, halfY } from './geom.js';
@@ -445,11 +446,12 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
       return { x: c.x - rw / s2 / 2, y: c.y - rh / s2 / 2, w: rw / s2, h: rh / s2 };
     }
   }
-  if (drawOverview3d(ctx, g, rx, ry, rw, rh, (rx + rw / 2 - ox) / s, (ry + rh / 2 - oy) / s, s, view.dpr, follow ? view.orbit : null)) {
+  const orbit = view.fullMap ? { yaw: 0, tilt: 0 } : follow ? view.orbit : null;
+  if (drawOverview3d(ctx, g, rx, ry, rw, rh, (rx + rw / 2 - ox) / s, (ry + rh / 2 - oy) / s, s, view.dpr, orbit)) {
     if (zoomed) ctx.restore();
     return cam;
   }
-  setTruckSpot(ox + g.fl.x * s, oy + g.fl.y * s, 2 * s);
+  if (!g.truck.gone) setTruckSpot(ox + g.fl.x * s, oy + g.fl.y * s, 2 * s);
   ctx.setTransform(s * view.dpr, 0, 0, s * view.dpr, ox * view.dpr, oy * view.dpr);
   drawWorld(ctx, g, null, s * view.dpr);
   if (g.debugBots) drawBotDebugWorld(ctx, g, view.dpr);
@@ -516,7 +518,7 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
     ctx.fillRect(st.x * s - dot / 2, st.y * s - dot / 2, dot, dot);
   }
   for (const f of flaggedStacks(g)) drawFlag(ctx, f, f.x * s, f.y * s - dot / 2 - Math.max(5, s * 1.1), Math.max(10, s * 2.2), g.clock); // the inspector's "!" on the minimap
-  for (const t of [...otherTrucksShown(g), g]) {
+  for (const t of [...otherTrucksShown(g), ...(!g.truck.gone ? [g] : [])]) {
     if (!t.carried?.length) continue;
     const p = toWorld(t.fl, FL.carryX, 0);
     ctx.fillStyle = COLORS[t.carried[t.carried.length - 1]];
@@ -528,7 +530,7 @@ function drawMiniMap(ctx, g, cam, x, y, s) {
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 1;
   const fr = Math.max(4, s * 1.1); // heading arrow in the truck's colour: the tip points where the forklift faces
-  for (const t of [...otherTrucksShown(g), g]) {
+  for (const t of [...otherTrucksShown(g), ...(!g.truck.gone ? [g] : [])]) {
     ctx.fillStyle = truckColor(t.truck.color).body;
     ctx.save();
     ctx.translate(t.fl.x * s, t.fl.y * s);
@@ -790,7 +792,7 @@ function drawWorldObjects(ctx, g, vis) {
     ctx.globalAlpha = 1;
   }
 
-  const rl = reverseLight(g);
+  const rl = g.truck.gone ? null : reverseLight(g);
   if (rl) {
     ctx.fillStyle = '#2979ff';
     ctx.globalAlpha = 0.45 + 0.2 * Math.sin(g.clock * 14);
@@ -842,7 +844,7 @@ function drawWorldObjects(ctx, g, vis) {
   const dstack = (st) => drawStack(ctx, st.layers, st.x, st.y, stackZ(st), st.rots, st.offs, st.pen, st.dropFrom ?? 0, dropLift(g, st));
   for (const st of low) dstack(st);
   // other trucks first, so the local one is always on top; ghosts are translucent
-  const trucks = [...otherTrucksShown(g), g];
+  const trucks = [...otherTrucksShown(g), ...(!g.truck.gone ? [g] : [])];
   for (const t of trucks) {
     ctx.globalAlpha = isGhost(g, t.truck.id) ? 0.4 : 1;
     const popScale = truckPopScale(g, t.truck.id);
@@ -1136,6 +1138,68 @@ function drawReadyFlash(ctx, width, height, t) {
   ctx.restore();
 }
 
+// Observer join card: a Polaroid-style QR image with the five-character party code below it.
+const partyQrCache = new Map();
+export function observerLayout(width, height, mapWidth, mapHeight, hasCard) {
+  const margin = 8, top = 48;
+  const area = { x: margin, y: top, w: Math.max(1, width - margin * 2), h: Math.max(1, height - top - margin) };
+  if (!hasCard) return { area, card: null };
+  const w = Math.max(90, Math.min(190, width * 0.3, (height - top - margin - 54) * 0.75));
+  const h = w + 34, gap = 8;
+  const options = [
+    { area: { ...area, w: Math.max(1, area.w - w - gap) }, card: { x: width - margin - w, y: top, w, h } },
+    { area: { ...area, y: top + h + gap, h: Math.max(1, area.h - h - gap) }, card: { x: margin, y: top, w, h } },
+    { area: { ...area, h: Math.max(1, area.h - h - gap) }, card: { x: margin, y: height - margin - h, w, h } },
+  ];
+  return options.reduce((best, option) => {
+    const scale = (r) => Math.min(r.w / mapWidth, r.h / mapHeight);
+    return scale(option.area) > scale(best.area) ? option : best;
+  });
+}
+function drawPartyJoinCard(ctx, party, rect) {
+  if (!rect) return null;
+  const { x, y, w, h } = rect;
+  const picture = w - 20;
+  ctx.save();
+  ctx.fillStyle = '#fff';
+  ctx.shadowColor = 'rgba(0,0,0,.55)';
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 4;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 4);
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  let matrix = partyQrCache.get(party.url);
+  if (!matrix) {
+    try { matrix = qrMatrix(party.url); } catch { matrix = []; }
+    partyQrCache.set(party.url, matrix);
+  }
+  const px = x + (w - picture) / 2, py = y + 10;
+  ctx.fillStyle = '#111';
+  ctx.fillRect(px, py, picture, picture);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(px + 1, py + 1, picture - 2, picture - 2);
+  const unit = matrix.length ? Math.floor(picture / (matrix.length + 8)) : 0;
+  const ox = px + Math.floor((picture - unit * matrix.length) / 2);
+  const oy = py + Math.floor((picture - unit * matrix.length) / 2);
+  ctx.fillStyle = '#111';
+  for (let yy = 0; yy < matrix.length; yy++) for (let xx = 0; xx < matrix.length; xx++) {
+    if (matrix[yy][xx]) ctx.fillRect(ox + xx * unit, oy + yy * unit, unit, unit);
+  }
+  if (!matrix.length) {
+    ctx.fillStyle = '#111'; ctx.textAlign = 'center'; ctx.font = '12px sans-serif';
+    ctx.fillText('Enter party code', x + w / 2, py + picture / 2, picture - 8);
+  }
+  ctx.fillStyle = '#111';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText(`PARTY ${party.code}`, x + w / 2, y + picture + 29);
+  ctx.restore();
+  addHudRect(x, y, x + w, y + h);
+  return { x, y, w, h };
+}
+
 // Top right: the party code and one swatch + name per player (the local one in bold).
 function drawPartyBadge(ctx, g, party, width) {
   ctx.save();
@@ -1327,7 +1391,7 @@ export function draw(ctx, g, view) {
     ctx.fillStyle = theme().bg;
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   }
-  const strip = view.touch && !view.povBig && width > height;
+  const strip = view.touch && !view.fullMap && !view.povBig && width > height;
   let mmBox = null;
   view.miniHit = null;
   const hx0 = 20;
@@ -1359,16 +1423,17 @@ export function draw(ctx, g, view) {
     if (strip) Object.assign(mm, miniSize(g, 120, 70));
     const bottom = strip ? mm.h + 16 : view.touch ? 208 : 20;
     let rx = 20, ry = strip ? 8 : 50, rw = width - 40, rh = height - ry - bottom;
+    let joinCard = null;
     if (tiles?.ov) { const t = tiles.ov; rx = t.x + 8; ry = t.y + 50; rw = t.w - 16; rh = t.h - 58; }
     // When the map doesn't fit, reserve room for the minimap (above the field in portrait, left of it in landscape)
     // so it never covers the playing field.
     // Touch landscape: keep the field clear of the fork gauge at the right edge even when the whole map fits.
-    const touchLand = view.touch && !portrait;
-    if (!tiles && view.touch && portrait && view.tutorialBottom) {
+    const touchLand = view.touch && !view.fullMap && !portrait;
+    if (!tiles && view.touch && !view.fullMap && portrait && view.tutorialBottom) {
       ry = Math.max(ry, Math.min(view.tutorialBottom + 12, height - bottom - 30));
       rh = height - ry - bottom;
     }
-    const ext = rotatedExtent(g, view), zoomedIn = Math.min(48, rw / ext.w, rh / ext.h) < MIN_FOLLOW_SCALE;
+    const ext = rotatedExtent(g, view), zoomedIn = !view.fullMap && Math.min(48, rw / ext.w, rh / ext.h) < MIN_FOLLOW_SCALE;
     if (!tiles && touchLand && !zoomedIn) { rw = width - rx - GAUGE_W; rh = Math.min(rh, height - ry - PAD_H); }
     let mmX = 13, mmY = 100 + 6;
     if (strip) {
@@ -1380,8 +1445,14 @@ export function draw(ctx, g, view) {
       if (portrait) { ry = Math.max(ry, mmY + mm.h + 12); rh = height - ry - bottom; }
       else { rx = mmX + mm.w + 16; rw = width - rx - (touchLand ? 20 : GAUGE_W); }
     }
-    const cam = tiles && !tiles.ov ? null : drawOverview(ctx, g, view, rx, ry, rw, rh, 48, true, !tiles && touchLand && zoomedIn ? GAUGE_W : 0, !tiles && touchLand && zoomedIn ? PAD_H : 0);
+    if (view.fullMap) {
+      const layout = observerLayout(width, height, g.w, g.h, !!view.partyJoin);
+      ({ x: rx, y: ry, w: rw, h: rh } = layout.area);
+      joinCard = layout.card;
+    }
+    const cam = tiles && !tiles.ov ? null : drawOverview(ctx, g, view, rx, ry, rw, rh, view.fullMap ? Infinity : 48, !view.fullMap, !tiles && touchLand && zoomedIn ? GAUGE_W : 0, !tiles && touchLand && zoomedIn ? PAD_H : 0);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+    if (joinCard && view.partyJoin) drawPartyJoinCard(ctx, view.partyJoin, joinCard);
     if (tiles) {
       cabs.forEach((i, k) => {
         const t = tiles.cabs[k], tv = i === g.self ? g : truckView(g, i);
@@ -1447,6 +1518,14 @@ export function draw(ctx, g, view) {
   ctx.save();
   ctx.translate(0, -hudOff);
   if (hudHidden) { /* hidden in full screen */ }
+  else if (view.fullMap) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(8, 8, Math.max(1, width - 100), 30);
+    ctx.fillStyle = '#eee';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText(title, 14, 23, Math.max(1, width - 112));
+  }
   else if (view.povBig && view.touch && width > height) { /* cab view on touch landscape: no scoring HUD */ }
   else if (mmBox) drawStatusStrip(ctx, g, mmBox, scoreLine, lostNow, bestText, globalText, hint, width, height);
   else {
@@ -1485,16 +1564,16 @@ export function draw(ctx, g, view) {
   }
   ctx.restore();
 
-  if (view.party) drawPartyBadge(ctx, g, view.party, width);
+  if (view.party && !view.fullMap) drawPartyBadge(ctx, g, view.party, width);
 
   // fork height gauge(s): one per live truck in local multiplayer, extra ones to the left
-  const gauged = view.shared ? g.trucks.map((_, i) => i).filter((i) => !g.trucks[i].gone) : [g.self];
+  const gauged = view.fullMap ? [] : view.shared ? g.trucks.map((_, i) => i).filter((i) => !g.trucks[i].gone) : [g.self];
   gauged.forEach((i, k) => drawForkGauge(ctx, i === g.self ? g : truckView(g, i), width - 70 - k * GAUGE_W, 70));
   drawCompass(ctx, g, view, width);
   if (g.endless) drawDockWaits(ctx, g, width, view.touch && width > height);
 
   if (view.fullscreen && view.flashAt != null && ready) drawReadyFlash(ctx, width, height, (now - view.flashAt) / 1000);
-  if (g.status === 'play' && !g.started && !view.startHidden && !view.paused && !view.menuOpen) drawStartBoard(ctx, g, view, width, height);
+  if (!view.fullMap && g.status === 'play' && !g.started && !view.startHidden && !view.paused && !view.menuOpen) drawStartBoard(ctx, g, view, width, height);
   if (view.paused) {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(0, 0, width, height);

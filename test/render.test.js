@@ -15,7 +15,7 @@ import { popupScale, placePhoto, drawPhoto, boxStatus, issues, stripHeight, scor
 import { projectPoint } from '../js/gl/mat.js';
 import { oilDropMark } from '../js/decals.js';
 import { setThemeMode } from '../js/theme.js';
-import { draw, drawForkGauge } from '../js/render.js';
+import { draw, drawForkGauge, observerLayout } from '../js/render.js';
 import { drawHintArrow, repairHintOn, setRepairHint } from '../js/repairhint.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
@@ -185,6 +185,21 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     .filter((face) => face.deco === 4).map((face) => face.edge);
   assert.deepEqual(visibleDecalEdges(8, 0), [3], 'the back entry face has its decal');
   assert.deepEqual(visibleDecalEdges(12, Math.PI), [1], 'the front entry face has its decal');
+}
+
+// The observer reserves room for the join card on the side that gives the largest full-map view.
+{
+  for (const [width, height] of [[1200, 800], [390, 844], [844, 390]]) {
+    const withCard = observerLayout(width, height, 30, 20, true);
+    const without = observerLayout(width, height, 30, 20, false);
+    const a = withCard.area, c = withCard.card;
+    assert.ok(a.x + a.w <= c.x || c.x + c.w <= a.x || a.y + a.h <= c.y || c.y + c.h <= a.y, 'card does not overlap the map');
+    assert.ok(Math.min(without.area.w / 30, without.area.h / 20) >= Math.min(a.w / 30, a.h / 20), 'removing the card never reduces map size');
+  }
+  const g = newGame(1);
+  const withTruck = dynamicMeshes(g, 'ov', [0, 0]).opaque.count;
+  removeTruck(g, 0);
+  assert.ok(dynamicMeshes(g, 'ov', [0, 0]).opaque.count < withTruck, 'a removed host truck is not drawn in WebGL');
 }
 
 // The desktop overview and touch-landscape strip separate both kinds of damage from placement.

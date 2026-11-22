@@ -12,6 +12,7 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
   const members = new Map(); // peer id -> { name, slot, link }
   const snapper = createSnapshotter();
   const banned = new Set(); // lower-case names; relay peer ids change on every join, so names are all there is to go on
+  const observer = meta?.observer === true;
   let code = null, token = null, stream = null, lastSent = -Infinity, lastPing = -Infinity, closed = false;
 
   const payload = (g) => ({ ...levelInfo(), snap: snapshot(g) });
@@ -34,7 +35,7 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
       if (banned.has(m.name.toLowerCase())) { m.link.sendReliable({ t: 'bye', reason: 'banned' }); drop(peer); return; }
       // a reloaded page rejoins before the host notices the old connection is dead: the stale one is replaced
       // (only silent ones: guests send inputs/pings at least every second, and two live players may share a name)
-      for (const [p, o] of members) if (p !== peer && o.slot > 0 && o.name?.toLowerCase() === m.name.toLowerCase() && clock() - o.lastRx > STALE) drop(p);
+      for (const [p, o] of members) if (p !== peer && o.slot >= 0 && o.name?.toLowerCase() === m.name.toLowerCase() && clock() - o.lastRx > STALE) drop(p);
       const slot = addTruck(g, m.name);
       if (slot < 0) { m.link.sendReliable({ t: 'bye', reason: 'full' }); drop(peer); return; }
       m.slot = slot;
@@ -84,12 +85,12 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
     players() {
       const g = getGame();
       const ping = (i) => [...members.values()].find((m) => m.slot === i)?.ping ?? null;
-      return g.trucks.map((t, i) => (t.gone ? null : { slot: i, name: t.name || (i === 0 ? name : `Player ${i + 1}`), ping: i === 0 ? 0 : ping(i) })).filter(Boolean);
+      return g.trucks.map((t, i) => (t.gone ? null : { slot: i, name: t.name || (!observer && i === 0 ? name : `Player ${i + 1}`), ping: !observer && i === 0 ? 0 : ping(i) })).filter(Boolean);
     },
     // Removes a guest's truck and sends it away; `ban` also refuses its name for the rest of the party.
     kick(slot, ban = false) {
       for (const [peer, m] of members) {
-        if (m.slot !== slot || slot <= 0) continue;
+        if (m.slot !== slot || (!observer && slot <= 0)) continue;
         if (ban) banned.add(m.name.toLowerCase());
         members.delete(peer);
         removeTruck(getGame(), slot);

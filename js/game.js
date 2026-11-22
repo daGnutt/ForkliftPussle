@@ -1221,12 +1221,12 @@ export function update(g, input, dt) {
     if (s.jolt != null && root.clock - s.jolt >= JOLT_TIME) delete s.jolt;
   }
   if (root.hits) root.hits = root.hits.filter((h) => root.clock - h.t < hitLife(h));
-  root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self ? input : t.input, dt); });
+  root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self && input != null ? input : t.input, dt); });
   if (root.trucks.length > 1) root.trucks.forEach((t, i) => {
     if (!t.gone && t.liftedBy < 0) clearWallOverlaps(truckView(root, i));
   });
   stepOil(root, dt);
-  watchForkedStack(root);
+  if (!root.truck.gone) watchForkedStack(root);
   stepRepair(root, dt, root.trucks.flatMap((t, i) => (t.gone ? [] : [truckView(root, i).fl])));
   stepBot(root, dt, OIL_DROP_AREA);
   stepInspector(root, dt, root.zones.filter((z) => zoneDone(root, z)), (z) => stackForZone(root, z), (s, z) => {
