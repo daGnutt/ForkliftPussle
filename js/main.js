@@ -607,9 +607,7 @@ function checkRecord() {
     const board = game.endless ? 0 : level;
     mp.host.startRound();
     const submission = observerPartyScore(seed, board, players, mp.name, points, game.time, mp.code, mp.host.token);
-    if (players.length > 4) {
-      roundScoreMessage.textContent = 'Score not submitted: the server supports at most four players.';
-    } else if (submission) {
+    if (submission) {
       const roundId = mp.host.roundState().id;
       submitPartyScore(submission.board, submission.entry).then((rank) => {
         if (rank == null && !isTesting() && mp?.observer && mp.host.roundState()?.id === roundId) roundScoreMessage.textContent = 'Could not submit the party score.';

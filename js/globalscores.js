@@ -34,7 +34,7 @@ async function submitScore(board, { name, points, time, level, party }) {
 export const partyBoard = (seed, level, players) => `${seed || 0}:${level}:p${players}`;
 export const submitPartyScore = (board, entry) => submitScore(board, entry);
 export function observerPartyScore(seed, level, players, name, points, time, partyCode, hostToken) {
-  if (!players.length || players.length > 4) return null;
+  if (!players.length) return null;
   return {
     board: partyBoard(seed, level, players.length),
     entry: { name, points, time, level, party: { players: [...players], partyCode, hostToken } },

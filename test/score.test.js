@@ -32,7 +32,9 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   players.push('Cy');
   assert.equal(result.entry.party.players.length, 2, 'submission keeps the completed roster');
   assert.equal(observerPartyScore(0, 3, [], 'Observer', 0, 0, 'ABCDE', 'token'), null);
-  assert.equal(observerPartyScore(0, 3, ['a', 'b', 'c', 'd', 'e'], 'Observer', 0, 0, 'ABCDE', 'token'), null, 'the score server accepts at most four names');
+  const five = observerPartyScore(0, 3, ['a', 'b', 'c', 'd', 'e'], 'Observer', 0, 0, 'ABCDE', 'token');
+  assert.equal(five.board, '0:3:p5');
+  assert.deepEqual(five.entry.party.players, ['a', 'b', 'c', 'd', 'e'], 'all participants are sent, including players who left');
 }
 
 // Damage to a loose stack lowers the score right away (negative before anything is on a drop point).
