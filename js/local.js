@@ -14,6 +14,39 @@ export function createLocal(onCab = null) {
     get players() { return players.size; },
     // Slots of the joined pads, in join order.
     slots() { return [...players.values()].map((p) => p.slot); },
+    beginVote() {
+      const pads = new Map(standardPads().map(({ index, gp }) => [index, gp]));
+      for (const [index, p] of players) p.votePrev = pressed(pads.get(index) || { buttons: [] });
+    },
+    pollVote(g, acceptBallots = true) {
+      const pads = new Map(standardPads().map(({ index, gp }) => [index, gp]));
+      const ballots = [], left = [];
+      for (const [index, p] of players) {
+        const gp = pads.get(index);
+        if (!gp) {
+          left.push(p.slot);
+          removeTruck(g, p.slot);
+          players.delete(index);
+          continue;
+        }
+        const cur = pressed(gp), prev = p.votePrev || cur;
+        if (acceptBallots && cur[0] && !prev[0]) ballots.push({ slot: p.slot, choice: 'yes' });
+        else if (acceptBallots && cur[1] && !prev[1]) ballots.push({ slot: p.slot, choice: 'no' });
+        p.votePrev = cur;
+        if (acceptBallots) p.prev = cur;
+      }
+      return { ballots, left };
+    },
+    remove(g, slot) {
+      for (const [index, p] of players) if (p.slot === slot) {
+        const gp = standardPads().find((pad) => pad.index === index)?.gp;
+        if (gp) seen.set(index, pressed(gp));
+        players.delete(index);
+        removeTruck(g, slot);
+        return true;
+      }
+      return false;
+    },
     // Called every frame while the game runs: joins, leaves, sets each local truck's input and fires fork actions.
     step(g, now) {
       const pads = standardPads();

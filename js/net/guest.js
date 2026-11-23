@@ -16,7 +16,7 @@ export function withoutJoinParam(href) {
 }
 const analog = (v) => Math.round(Math.max(-1, Math.min(1, +v || 0)) * 20) / 20;
 
-export function createGuest({ relay, code, name, playerId, onGame, onClosed, onRound, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
+export function createGuest({ relay, code, name, playerId, onGame, onClosed, onRound, onVote, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
   const interp = createInterpolator();
   const predictor = createPredictor();
   let link = null, stream = null, peer = null, slot = -1, closed = false, lastIn = '', lastInAt = -Infinity, rtt = 0.1, lastGping = -Infinity;
@@ -49,6 +49,7 @@ export function createGuest({ relay, code, name, playerId, onGame, onClosed, onR
             onGame({ slot, started: true, ...msg }); // a level message means the host is playing
           } else if (msg.t === 'ping') link.sendReliable({ t: 'pong', n: msg.n });
           else if (msg.t === 'round') onRound?.(msg);
+          else if (msg.t === 'vote') onVote?.(msg.state || null, msg.enabled !== false);
           else if (msg.t === 'bye') end(BYE[msg.reason] || 'The host closed the party');
         },
         onClose: () => end('Lost the connection to the host'),
@@ -68,6 +69,8 @@ export function createGuest({ relay, code, name, playerId, onGame, onClosed, onR
     },
     sendFork(dir) { link?.sendReliable({ t: 'fork', dir }); },
     ready(id) { link?.sendReliable({ t: 'ready', id }); },
+    callVote(action) { link?.sendReliable({ t: 'voteCall', action }); },
+    castVote(id, choice) { link?.sendReliable({ t: 'voteCast', id, choice }); },
     close() { end('left'); },
   };
 }

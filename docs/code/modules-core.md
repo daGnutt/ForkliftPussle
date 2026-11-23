@@ -2,6 +2,8 @@
 
 Part of the code guide (see `../CODE_GUIDE.md`). Game rules, vehicle, level generator, input, save state, misc plumbing.
 
+Local multiplayer voting uses `createLocal().beginVote/pollVote` to read each joined pad's A/B edges while the shared menu is open; `remove` removes a voted-out pad, which may join again normally.
+
 | File | Role | Key exports |
 |------|------|-------------|
 | `js/main.js` | Desktop zoom slider `#zoomSlider` (HUD, bound to `view.chaseZoom` in the chase camera and to `view.zoom` (`forklift-ov-zoom`) in the overview); tutorial steps may have an `extra()` theme-dependent hint; `checkOpenTip` shows a one-off 8 s tip in the `#tutorial` banner the first time the truck carries or comes within 1.2 tiles of an open-top box (nothing can be stacked on it; seen flag `forklift-opentop-tip`); `checkEventTips` shows further one-off 8 s tips (flags `forklift-ceiling-tip`, `forklift-forkbox-tip`, `forklift-oil-tip`) the first time a fork action is blocked by the ceiling, the first time empty forks are lowered through a box (`noteForkResult` after every local fork action), and the first time an oil barrel is damaged; Browser entry: canvas setup, backing-store dpr capped to ~3M pixels everywhere; separate Battery Saver controls for resolution, frame rate and effects (only resolution/effects default on touch), fixed 1/120 s simulation loop, level persistence in `localStorage` (`forklift-level`), stops the main animation loop while a solo game is paused. The splash and Play menu hard-mode checkboxes share the immediately saved `forklift-hard` preference, applied on the next level or endless load/restart (not mid-game); party guests follow the host. |

@@ -15,6 +15,7 @@ import { qrMatrix, QR_SIZE } from '../js/qr.js';
 import { createHost } from '../js/net/host.js';
 import { createGuest, withoutJoinParam } from '../js/net/guest.js';
 import { createRound } from '../js/net/round.js';
+import { createVote } from '../js/net/vote.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat, FORK_CLEARANCE } from '../js/geom.js';
@@ -26,6 +27,29 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 // Successful link joins remove only the join parameter.
 {
   assert.equal(withoutJoinParam('https://example.test/?seed=x&multiplayer=ABCDE&testing#map'), 'https://example.test/?seed=x&testing=#map');
+}
+
+// Party votes reveal only aggregate ballots, need a strict majority, and expire.
+{
+  const vote = createVote();
+  const opened = vote.start({ type: 'level', level: 4 }, ['a', 'b', 'c'], 0);
+  assert.equal(opened.status, 'active');
+  assert.equal(opened.total, 3);
+  assert.equal(opened.eligible, false);
+  assert.equal(vote.cast(opened.id, 'stranger', 'yes', 1), null, 'non-members cannot vote');
+  assert.equal(vote.cast(opened.id, 'a', 'maybe', 1), null, 'ballots are yes or no');
+  vote.cast(opened.id, 'a', 'yes', 1);
+  vote.cast(opened.id, 'b', 'no', 1);
+  const passed = vote.cast(opened.id, 'c', 'yes', 2);
+  assert.equal(passed.status, 'passed', 'two of three votes pass');
+  assert.equal(passed.yes, 2);
+  assert.equal(passed.no, 1);
+  assert.equal('ballots' in passed, false, 'public state does not expose individual choices');
+  assert.equal(vote.poll(7), null, 'results disappear after a short notice');
+
+  const expiring = vote.start({ type: 'endless' }, ['a', 'b', 'c'], 10);
+  vote.cast(expiring.id, 'a', 'no', 11);
+  assert.equal(vote.poll(30).status, 'failed', 'a vote fails at its deadline without a majority');
 }
 
 // Observer readiness uses the round-end roster and never extends a deadline.
@@ -336,8 +360,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
   let host = newGame(7, 3, false);
   const info = () => ({ level: host.level, seed: host.seed, hard: host.hard, seedText: '' });
-  let changes = 0, started = false, hostClock = 0;
-  const h = createHost({ relay, getGame: () => host, levelInfo: info, isStarted: () => started, name: 'Anna', onChange: () => changes++, linkFactory, clock: () => hostClock });
+  let changes = 0, started = false, hostClock = 0, appliedVote = null, guestVote = null, guestVotingEnabled = null;
+  const h = createHost({ relay, getGame: () => host, levelInfo: info, isStarted: () => started, name: 'Anna', onChange: () => changes++, onVoteResult: (action) => { appliedVote = action; }, linkFactory, clock: () => hostClock });
   assert.equal(await h.start(), 'ABCDE');
 
   let guestGame = null, welcomes = 0, closedWith = null;
@@ -350,6 +374,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
       applySnapshot(guestGame, m.snap);
     },
     onClosed: (why) => { closedWith = why; },
+    onVote: (state, enabled) => { guestVote = state; guestVotingEnabled = enabled; },
   });
   await guest.join();
   for (let i = 0; i < 6; i++) await tick();
@@ -376,6 +401,48 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   guest.sendFork('up');
   for (let i = 0; i < 3; i++) await tick();
   assert.equal(host.trucks[1].H, 1, 'fork action applied to the guest truck');
+
+  assert.equal(h.callVote({ type: 'mode', hard: true }), true, 'host can initiate a vote');
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(guestVote.status, 'active');
+  assert.equal(guestVote.eligible, true, 'all connected players receive a ballot');
+  guest.castVote(guestVote.id, 'yes');
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(h.voteState().yes, 1);
+  assert.equal(appliedVote, null, 'one of two players is not a majority');
+  assert.equal(h.castVote(guestVote.id, 'yes'), true);
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(guestVote.status, 'passed');
+  assert.deepEqual(appliedVote, { type: 'mode', hard: true }, 'the host applies a passed action');
+  assert.equal('ballots' in guestVote, false, 'individual choices are never sent to guests');
+  guest.callVote({ type: 'level', level: 2 });
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(guestVote.status, 'active', 'a guest can call a vote in a driving-host party');
+  const cancelledId = guestVote.id;
+  h.setVotingEnabled(false);
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(guestVotingEnabled, false);
+  assert.equal(guestVote, null, 'disabling voting cancels the current ballot');
+  guest.callVote({ type: 'endless' });
+  guest.castVote(cancelledId, 'yes');
+  assert.equal(h.callVote({ type: 'endless' }), false, 'host cannot call a vote while disabled');
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(h.voteState(), null, 'guest requests cannot bypass the setting');
+  let newGuestVotingEnabled = null;
+  const disabledJoin = createGuest({ relay, code: 'ABCDE', name: 'Late', linkFactory, onGame: () => {}, onVote: (_state, enabled) => { newGuestVotingEnabled = enabled; } });
+  await disabledJoin.join();
+  for (let i = 0; i < 6; i++) await tick();
+  assert.equal(newGuestVotingEnabled, false, 'a new guest is told voting is disabled');
+  disabledJoin.close();
+  for (let i = 0; i < 3; i++) await tick();
+  h.setVotingEnabled(true);
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(guestVotingEnabled, true);
+  guest.callVote({ type: 'endless' });
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(guestVote.action.type, 'endless', 'voting works again after re-enabling');
+  h.setVotingEnabled(false);
+  h.setVotingEnabled(true);
 
   // interpolation blends between two snapshots
   const a = snapshot(host), b = JSON.parse(JSON.stringify(a));
@@ -609,17 +676,37 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(host.trucks.filter((t) => !t.gone).length, 0, 'changing levels with no guests does not spawn a truck');
   const observerGuests = [];
   const roundStates = [];
+  const observerVoteStates = [];
+  const observerVotingEnabled = [];
+  const observerGames = [];
   for (let i = 0; i < 4; i++) {
-    const player = createGuest({ relay, code: 'ABCDE', name: `Guest ${i + 1}`, linkFactory, onGame: () => {}, onRound: (state) => { roundStates[i] = state; } });
+    const player = createGuest({ relay, code: 'ABCDE', name: `Guest ${i + 1}`, linkFactory, onGame: (state) => { observerGames[i] = state; }, onRound: (state) => { roundStates[i] = state; }, onVote: (state, enabled) => { observerVoteStates[i] = state; observerVotingEnabled[i] = enabled; } });
     observerGuests.push(player);
     await player.join();
     for (let j = 0; j < 6; j++) await tick();
     assert.equal(player.slot, i, 'all four truck slots are available to guests');
+    assert.equal(observerGames[i].observer, true, 'guests know slot zero is not the host in observer mode');
   }
   host = newGame(3);
   removeTruck(host, 0);
   observerHost.levelLoaded(host);
   assert.deepEqual(host.trucks.filter((t) => !t.gone).map((t) => t.name), ['Guest 1', 'Guest 2', 'Guest 3', 'Guest 4'], 'level changes restore every guest in the same slot');
+  observerGuests[1].callVote({ type: 'kick', slot: 0 });
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(observerVoteStates[1].action.slot, 0, 'a guest can call a vote against the first observer-party slot');
+  observerHost.setVotingEnabled(false);
+  for (let i = 0; i < 3; i++) await tick();
+  assert.ok(observerVotingEnabled.every((enabled) => !enabled));
+  assert.ok(observerVoteStates.every((state) => state === null), 'observer disabling voting cancels the ballot for everyone');
+  observerHost.setVotingEnabled(true);
+  assert.equal(observerHost.callVote({ type: 'mode', hard: true }), true, 'observer hosts can call player votes');
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(observerHost.voteState().total, 4, 'observer is not counted as a voter');
+  assert.equal(observerHost.voteState().eligible, false, 'observer has no ballot');
+  assert.equal(observerVoteStates[0].eligible, true, 'players receive ballots on observer-hosted games');
+  for (let i = 0; i < 3; i++) observerGuests[i].castVote(observerVoteStates[i].id, 'yes');
+  for (let i = 0; i < 4; i++) await tick();
+  assert.equal(observerVoteStates[0].status, 'passed', 'guest votes pass by majority with an observer host');
   observerGuests[0].sendInput({ up: true, horn: true });
   for (let i = 0; i < 3; i++) await tick();
   const before = { ...host.trucks[0].fl };

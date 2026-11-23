@@ -182,6 +182,17 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   assert.equal(local.players, 3, 'at most three pads join besides the keyboard player');
   assert.deepEqual(local.slots(), [1, 2, 3]);
   assert.equal(g.trucks.length, 4);
+  local.beginVote();
+  assert.deepEqual(local.pollVote(g).ballots, [], 'buttons held when voting starts do not cast ballots');
+  pads = [mk(0), mk(1), mk(2), mk(3)];
+  local.pollVote(g);
+  pads = [mk(0, [0]), mk(1, [1]), mk(2), mk(3)];
+  assert.deepEqual(local.pollVote(g).ballots, [{ slot: 1, choice: 'yes' }, { slot: 2, choice: 'no' }], 'each joined controller casts its own ballot');
+  assert.deepEqual(local.pollVote(g).ballots, [], 'held buttons do not vote repeatedly');
+  pads = [mk(0), mk(1), mk(2), mk(3)];
+  local.pollVote(g, false);
+  pads = [mk(0, [0]), mk(1), mk(2), mk(3)];
+  assert.deepEqual(local.pollVote(g, false).ballots, [], 'gameplay button presses do not cast ballots while the menu is closed');
   pads = [mk(0, [], 1), mk(1), mk(2), mk(3)];
   local.step(g, 0.2);
   for (let i = 0; i < 120; i++) update(g, {}, 1 / 120);
@@ -194,6 +205,14 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   pads = [mk(0), mk(1), mk(3)];
   local.step(g, 1);
   assert.ok(g.trucks[3].gone && !g.trucks[2].gone && local.players === 2, 'unplugging removes the truck');
+  assert.equal(local.remove(g, 1), true, 'a vote can remove a joined controller');
+  assert.equal(g.trucks[1].gone, true);
+  local.step(g, 1.1);
+  assert.equal(local.players, 1, 'a removed controller stays out until joining again');
+  pads = [mk(0, [0]), mk(1), mk(3)];
+  local.step(g, 1.2);
+  assert.equal(local.players, 2, 'a removed local controller can join again');
+  pads = [];
 }
 console.log('input tests passed');
 

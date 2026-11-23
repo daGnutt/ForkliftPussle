@@ -190,6 +190,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Handoff** | Taking or giving a carried stack via tines | `transferCarried` |
 | **Multiplayer page** | Menu page for hosting, roster, ping, kick/ban | `#mpList`, `renderMpPage` |
 | **Kick / ban** | Host removes a guest; a kick blocks that name for 60 seconds, a ban for the party | `host.kick` |
+| **Party vote** | Anonymous majority ballot to change mode/level or kick a guest, announced to all screens | `createVote`, `#mpVote`, `#voteNotice` |
 | **Party badge** | Top-right party code and player list | `drawPartyBadge` |
 | **Observer host** | Party host without a truck, forced to the full-map overview with a limited menu | `Observer`, `?observer`, `view.fullMap` |
 | **Round countdown / Ready** | Observer-hosted round ends with a 10-second countdown; eligible guests may press Ready to shorten it to at most three seconds | `roundReady`, `createRound` |

@@ -7,6 +7,7 @@ import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard, obs
 import { createRelay } from './net/relay.js';
 import { createHost } from './net/host.js';
 import { createGuest, withoutJoinParam } from './net/guest.js';
+import { createVote } from './net/vote.js';
 import { applySnapshot } from './net/protocol.js';
 import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
@@ -447,8 +448,8 @@ const input = createInput({
   pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   menuToggle: () => { if (view.menuOpen) toggleMenu(false); else if (!splashOn && !recordOpen) toggleMenu(true); else if (splashOn) startBtn.click(); },
   menuNav: (dir) => padMenuNav(dir),
-  menuSelect: () => { if (splashOn) startBtn.click(); else if (view.menuOpen) document.activeElement?.click?.(); },
-  menuBack: () => { if (!view.menuOpen) return; if (menuEl.dataset.page !== 'main') showPage(parentPage()); else toggleMenu(false); },
+  menuSelect: () => { if (!mp && view.vote?.status === 'active') return; if (splashOn) startBtn.click(); else if (view.menuOpen) document.activeElement?.click?.(); },
+  menuBack: () => { if (!mp && view.vote?.status === 'active') return; if (!view.menuOpen) return; if (menuEl.dataset.page !== 'main') showPage(parentPage()); else toggleMenu(false); },
   blocked: () => splashOn || recordOpen || !!view.menuOpen,
 });
 
@@ -917,25 +918,167 @@ function refreshParty(trucks) {
 // The menu's multiplayer page: start hosting, or show the roster (host: ping, kick and ban).
 const mpName = document.getElementById('mpName');
 const mpErr = document.getElementById('mpErr');
+const voteNotice = document.getElementById('voteNotice');
+const voteNoticeText = document.getElementById('voteNoticeText');
+const mpVoteStatus = document.getElementById('mpVoteStatus');
+const mpVoteBallot = document.getElementById('mpVoteBallot');
+const mpVoteCall = document.getElementById('mpVoteCall');
+const mpVoteMessage = document.getElementById('mpVoteMessage');
+const mpVotingEnabled = document.getElementById('mpVotingEnabled');
+const localVote = createVote();
+let votingEnabled = true, localVoteResolved = 0;
+let localVoteSubmitted = 0;
 mpName.addEventListener('keydown', (e) => e.stopPropagation());
 document.getElementById('mpHost').addEventListener('click', () => { startAudio(); hostParty(mpName.value, mpObserverOpt.checked).catch(() => {}); });
 document.getElementById('mpLeave').addEventListener('click', () => leaveParty());
+
+function voteDescription(action) {
+  if (action.type === 'mode') return `Switch to ${action.hard ? 'hard' : 'easy'} mode`;
+  if (action.type === 'level') return `Switch to level ${action.level}`;
+  if (action.type === 'endless') return 'Switch to endless mode';
+  const player = mp?.role === 'host' ? mp.host.players().find((p) => p.slot === action.slot) : game.trucks[action.slot];
+  return `Kick ${player?.name || `Player ${action.slot + 1}`}`;
+}
+
+function renderVote(state, enabled = votingEnabled) {
+  votingEnabled = enabled;
+  view.vote = state;
+  voteNotice.hidden = !state;
+  document.getElementById('mpLocalVoteHelp').hidden = !!mp;
+  mpVotingEnabled.checked = enabled;
+  if (!state) {
+    localVoteSubmitted = 0;
+    mpVoteStatus.textContent = enabled ? 'Votes are anonymous.' : 'The host has disabled voting.';
+    mpVoteBallot.hidden = true;
+    mpVoteCall.hidden = !enabled;
+    mpVoteMessage.textContent = '';
+    return;
+  }
+  if (localVoteSubmitted !== state.id) localVoteSubmitted = 0;
+  const active = state.status === 'active';
+  const summary = active ? `${state.yes} yes, ${state.no} no · ${Math.ceil(state.remaining)}s` : `Vote ${state.status}`;
+  voteNoticeText.textContent = `${voteDescription(state.action)}? ${summary}`;
+  document.getElementById('mpVoteStatus').textContent = `${voteDescription(state.action)}? ${summary}. Votes are anonymous.`;
+  mpVoteBallot.hidden = !active || !state.eligible;
+  mpVoteCall.hidden = active;
+  mpVoteMessage.textContent = localVoteSubmitted === state.id ? 'Your anonymous vote was sent.' : '';
+}
+
+function requestPartyVote(action) {
+  if ((!mp && !local.players) || !votingEnabled || view.vote?.status === 'active') return;
+  mpVoteMessage.textContent = '';
+  if (!mp) {
+    const now = performance.now() / 1000;
+    if (localVote.start(action, ['keyboard', ...local.slots()], now)) {
+      local.beginVote();
+      renderVote(localVote.state(now, 'keyboard'));
+    }
+  } else if (mp.role === 'host') {
+    if (!mp.host.callVote(action)) mpVoteMessage.textContent = 'Could not start that vote.';
+  } else mp.guest.callVote(action);
+}
+
+mpVotingEnabled.addEventListener('change', () => {
+  if (mp?.role === 'host') mp.host.setVotingEnabled(mpVotingEnabled.checked);
+  else if (!mp && local.players) {
+    if (!mpVotingEnabled.checked) localVote.clear();
+    renderVote(localVote.state(performance.now() / 1000, 'keyboard'), mpVotingEnabled.checked);
+    renderMpPage();
+  }
+});
+
+document.getElementById('mpVoteMode').addEventListener('click', () => requestPartyVote({ type: 'mode', hard: !game.hard }));
+document.getElementById('mpVoteLevel').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const n = Number(document.getElementById('mpVoteLevelNumber').value);
+  if (Number.isSafeInteger(n) && n >= 1) requestPartyVote({ type: 'level', level: n });
+  else mpVoteMessage.textContent = 'Choose a positive whole-number level.';
+});
+document.getElementById('mpVoteEndless').addEventListener('click', () => requestPartyVote({ type: 'endless' }));
+for (const [id, choice] of [['mpVoteYes', 'yes'], ['mpVoteNo', 'no']]) {
+  document.getElementById(id).addEventListener('click', () => {
+    const state = view.vote;
+    if (!state || state.status !== 'active' || !state.eligible) return;
+    localVoteSubmitted = state.id;
+    if (!mp) {
+      localVote.cast(state.id, 'keyboard', choice, performance.now() / 1000);
+      updateLocalVote();
+    } else if (mp.role === 'host') mp.host.castVote(state.id, choice);
+    else {
+      mp.guest.castVote(state.id, choice);
+      mpVoteMessage.textContent = 'Your anonymous vote was sent.';
+    }
+  });
+}
+document.getElementById('voteMenuBtn').addEventListener('click', () => {
+  toggleMenu(true);
+  showPage('party');
+});
+
+function applyPartyVote(action) {
+  if (action.type === 'kick') {
+    if (mp) mp.host.kick(action.slot);
+    else local.remove(game, action.slot);
+  } else if (action.type === 'mode') {
+    hardOpt.checked = action.hard;
+    hardOpt.dispatchEvent(new Event('change'));
+    if (game.endless) loadEndless(true); else load(level);
+  } else if (action.type === 'level') {
+    load(action.level);
+  } else if (action.type === 'endless') {
+    loadEndless(true);
+  }
+}
+
+function updateLocalVote() {
+  if (mp || !localOpt.checked) return;
+  const now = performance.now() / 1000;
+  const current = localVote.state(now);
+  if (!current && !view.vote) return;
+  if (current?.status === 'active') {
+    const { ballots, left } = local.pollVote(game, view.menuOpen);
+    for (const slot of left) {
+      if (current.action.type === 'kick' && current.action.slot === slot) localVote.cancel(now);
+      else localVote.leave(slot, now);
+    }
+    if (view.menuOpen) for (const { slot, choice } of ballots) localVote.cast(current.id, slot, choice, now);
+  }
+  const state = localVote.poll(now);
+  if (state?.status === 'passed' && state.id !== localVoteResolved) {
+    localVoteResolved = state.id;
+    applyPartyVote(state.action);
+  }
+  renderVote(localVote.state(now, 'keyboard'));
+}
+setInterval(() => {
+  if (!mp && localOpt.checked && (local.players || view.vote)) {
+    if (view.paused && view.menuOpen) input.state();
+    updateLocalVote();
+  }
+}, 100);
+
 function renderMpPage() {
   const box = document.getElementById('mpBox');
   document.getElementById('mpStart').hidden = !!mp;
-  box.hidden = !mp;
-  if (!mp) return;
-  document.getElementById('mpCode').textContent = mp.code;
-  const isHost = mp.role === 'host';
-  const roster = isHost ? mp.host.players() : game.trucks.map((t, i) => (t.gone ? null : { slot: i, name: t.name })).filter(Boolean);
+  const localSession = !mp && localOpt.checked && local.players > 0;
+  box.hidden = !mp && !localSession;
+  if (box.hidden) return;
+  document.getElementById('mpCodeRow').hidden = !mp;
+  document.getElementById('mpLeave').hidden = !mp;
+  document.getElementById('mpCode').textContent = mp?.code || '';
+  const isHost = !mp || mp.role === 'host';
+  const observerHost = !!(mp?.observer || mp?.hostObserver);
+  document.getElementById('mpVotingSetting').hidden = !isHost;
+  mpVotingEnabled.checked = votingEnabled;
+  const roster = mp?.role === 'host' ? mp.host.players() : game.trucks.map((t, i) => (t.gone ? null : { slot: i, name: t.name })).filter(Boolean);
   document.getElementById('mpList').replaceChildren(...roster.map((p) => {
     const li = document.createElement('li');
     li.style.setProperty('--c', truckColor(p.slot).body);
     const nm = document.createElement('span');
     nm.className = 'nm';
-    nm.textContent = (p.name || `Player ${p.slot + 1}`) + (!mp.observer && p.slot === game.self ? ' (you)' : '') + (!mp.observer && p.slot === 0 ? ' – host' : '');
+    nm.textContent = (p.name || `Player ${p.slot + 1}`) + (!mp?.observer && p.slot === game.self ? ' (you)' : '') + (!observerHost && p.slot === 0 ? ' – host' : '');
     li.append(nm);
-    if (isHost) {
+    if (mp?.role === 'host') {
       const ping = document.createElement('span');
       ping.className = 'ping';
       ping.textContent = (!mp.observer && p.slot === 0) ? '' : p.ping == null ? '… ms' : `${p.ping} ms`;
@@ -947,8 +1090,17 @@ function renderMpPage() {
         li.append(b);
       }
     }
+    const ownSlot = mp?.role === 'guest' ? game.self : (mp?.observer ? -1 : 0);
+    if (votingEnabled && p.slot !== ownSlot && (observerHost || p.slot !== 0)) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'sec'; b.textContent = 'Vote to kick';
+      b.addEventListener('click', () => requestPartyVote({ type: 'kick', slot: p.slot }));
+      li.append(b);
+    }
     return li;
   }));
+  document.getElementById('mpVoteMode').textContent = `Vote to switch to ${game.hard ? 'easy' : 'hard'} mode`;
+  document.getElementById('mpVoteEndless').hidden = !!game.endless;
 }
 setInterval(() => { if (view.menuOpen && menuEl.dataset.page === 'party') renderMpPage(); }, 1000);
 async function hostParty(nameText = partyName.value, observer = observerOpt.checked) {
@@ -957,7 +1109,7 @@ async function hostParty(nameText = partyName.value, observer = observerOpt.chec
   savePlayerName(name);
   partyErr.textContent = '';
   busy(true);
-  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, meta: { observer }, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed, onRound: observerRoundChanged });
+  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, meta: { observer }, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed, onRound: observerRoundChanged, onVote: renderVote, onVoteResult: applyPartyVote });
   try { await host.start(); } catch (e) { busy(false); partyErr.textContent = mpErr.textContent = e.message; return; }
   stateHistory?.clear();
   mpErr.textContent = '';
@@ -993,7 +1145,7 @@ async function joinParty() {
     playerId = Array.from(crypto.getRandomValues(new Uint8Array(16)), (n) => n.toString(16).padStart(2, '0')).join('');
     sessionStorage.setItem('forklift-party-player-id', playerId);
   }
-  const guest = createGuest({ relay: createRelay(), code, name, playerId, onGame: onGuestGame, onClosed: partyClosed, onRound: showRound });
+  const guest = createGuest({ relay: createRelay(), code, name, playerId, onGame: onGuestGame, onClosed: partyClosed, onRound: showRound, onVote: renderVote });
   stateHistory?.clear();
   stopLocal();
   mp = { role: 'guest', code, name, guest, go: false, connected: false, lastH: null };
@@ -1004,6 +1156,7 @@ async function joinParty() {
 // The host's level (welcome, and again on every level change): build it and mirror the host's state.
 function onGuestGame(m) {
   if (mp?.role !== 'guest') return;
+  mp.hostObserver = !!m.observer;
   showRound(null);
   if (m.t === 'welcome') history.replaceState(null, '', withoutJoinParam(location.href));
   mp.connected = true;
@@ -1126,10 +1279,16 @@ function stopLocal() {
   localOpt.checked = false;
   input.setLocalMode(false);
   local.clear(game);
+  localVote.clear();
+  renderVote(null, true);
 }
 localOpt.addEventListener('change', () => {
   input.setLocalMode(localOpt.checked);
-  if (!localOpt.checked) local.clear(game);
+  if (!localOpt.checked) {
+    local.clear(game);
+    localVote.clear();
+    renderVote(null, true);
+  }
 });
 // ?local turns on local multiplayer for this visit
 if (new URLSearchParams(location.search).has('local')) {
@@ -1197,6 +1356,12 @@ function toggleMenu(open) {
     chaseZoomSel.value = view.chaseZoom ?? chaseZoomOf(Math.max(CHASE_TILES, (view.ovTiles || 14) * CHASE_DEFAULT));
     themeSel.value = themeMode();
     menuHardOpt.checked = hardOpt.checked;
+    const mainPage = menuEl.querySelector('.page[data-page="main"]');
+    const partyButton = document.getElementById('menuParty');
+    const multiplayer = !!mp || (localOpt.checked && local.players > 0);
+    menuEl.classList.toggle('multiplayer-active', multiplayer);
+    if (multiplayer) mainPage.insertBefore(partyButton, mainPage.querySelector('[data-go="play"]'));
+    else mainPage.insertBefore(partyButton, mainPage.querySelector('[data-go="scores"]'));
     localOpt.disabled = !!mp;
     menuLevel.value = level;
     for (const el of menuEl.querySelectorAll('[data-hostonly]')) el.hidden = mp?.role === 'guest';
@@ -1401,10 +1566,11 @@ window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
   if (e.target.closest?.('#keyMap')) { if (e.code === 'Enter' || e.code === 'Space') pickKeys(e); if (e.code !== 'Escape') return; }
-  const typing = e.target === menuLevel || e.target === pullName;
+  const typing = e.target === menuLevel || e.target === pullName || e.target.id === 'mpVoteLevelNumber';
   if (e.target === stateText) { if (e.code === 'Escape') { e.preventDefault(); showPage('main'); } return; }
   if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage(parentPage()); return; }
   if (e.code === 'Escape' || (e.code === 'KeyP' && !typing)) { e.preventDefault(); toggleMenu(false); return; }
+  if (e.code === 'Enter' && e.target.closest?.('#mpVote, #mpList, #mpVotingSetting')) return;
   if (e.code === 'Enter' && e.target !== menuLevel && e.target !== pullName) { e.preventDefault(); toggleMenu(false); return; }
   if (e.target === trackSel || e.target === themeSel) return;
   if (typing || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
