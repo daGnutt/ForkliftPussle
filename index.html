@@ -16,6 +16,15 @@
   <div id="stage"><canvas id="gameGl" aria-hidden="true"></canvas><canvas id="game"></canvas><canvas id="results" aria-hidden="true"></canvas></div>
   <label id="zoomBar" title="Camera zoom (overview): right = zoomed in, left = zoomed out"><span>Zoom</span> <input type="range" id="zoomSlider" min="0" max="100" step="1"></label>
   <div id="testingBanner" class="hide">TESTING</div>
+  <div id="roundReady" hidden role="status">
+    <span id="roundCountdown"></span>
+    <button type="button" id="roundReadyButton">Ready / OK (Enter)</button>
+    <small id="roundScoreMessage"></small>
+  </div>
+  <div id="voteNotice" hidden role="status">
+    <span id="voteNoticeText"></span>
+    <button type="button" id="voteMenuBtn">Open party menu</button>
+  </div>
   <div id="record" class="hide">
     <form id="recordForm" autocomplete="off">
       <h2>New high score!</h2>
@@ -38,7 +47,7 @@
         <button type="button" class="nav" data-go="graphics" data-observer><span>Graphics</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="camera"><span>Camera</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="controls"><span>Controls</span><i>&#9656;</i></button>
-        <button type="button" class="nav" data-go="party" data-observer><span>Multiplayer</span><i>&#9656;</i></button>
+        <button type="button" id="menuParty" class="nav" data-go="party" data-observer><span>Multiplayer</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="scores"><span>Scores &amp; saves</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="info"><span>Info &amp; scoring</span><i>&#9656;</i></button>
         <a class="nav" href="https://github.com/daGnutt/ForkliftPussle/issues" target="_blank" rel="noopener"><span>Report a bug / request a feature</span><i>&#8599;</i></a>
@@ -147,8 +156,27 @@
           <small>Up to 4 guest trucks. Friends join with the party code or QR.</small>
         </div>
         <div id="mpBox" data-observer hidden>
-          <div class="code">Party code <b id="mpCode"></b></div>
+          <div class="code" id="mpCodeRow">Party code <b id="mpCode"></b></div>
           <ul id="mpList"></ul>
+          <label id="mpVotingSetting" hidden><input type="checkbox" id="mpVotingEnabled" checked> Allow player voting</label>
+          <div id="mpVote" data-observer>
+            <h4>Player vote</h4>
+            <small id="mpVoteStatus">Votes are anonymous.</small>
+            <div id="mpVoteBallot" hidden>
+              <small>Your choice is anonymous; you can change it until the vote ends.</small>
+              <small id="mpLocalVoteHelp" hidden>Keyboard player: use the buttons below. Joined gamepads: press A for yes or B for no while the menu is open.</small>
+              <div class="pair"><button type="button" id="mpVoteYes">Yes</button><button type="button" id="mpVoteNo" class="sec">No</button></div>
+            </div>
+            <div id="mpVoteCall">
+              <button type="button" id="mpVoteMode" class="sec"></button>
+              <form id="mpVoteLevel" autocomplete="off">
+                <label>Vote to switch to level <input type="number" id="mpVoteLevelNumber" min="1" step="1" value="1"></label>
+                <button type="submit" class="sec">Call vote</button>
+              </form>
+              <button type="button" id="mpVoteEndless" class="sec">Vote to switch to endless mode</button>
+            </div>
+            <small id="mpVoteMessage"></small>
+          </div>
           <button type="button" id="mpLeave" class="sec">Leave party</button>
         </div>
         <small id="mpErr"></small>
@@ -195,6 +223,7 @@
           <h4>Save / load level state</h4>
           <textarea id="stateText" rows="4" spellcheck="false" placeholder="Level state (export, or paste here and import)"></textarea>
           <div class="pair"><button type="button" id="stateExport" class="sec">Export state</button> <button type="button" id="stateImport" class="sec">Import state</button></div>
+          <button type="button" id="stateExportEarlier" class="sec">Export 5 seconds earlier</button>
           <small id="stateMsg"></small>
         </div>
         <button type="button" class="back" data-go="main">&#9666; Back</button>

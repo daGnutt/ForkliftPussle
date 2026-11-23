@@ -104,6 +104,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Final score** | Score minus time penalty, submitted to the high scores | `finalScore` |
 | **Local / global top list** | Local top 10 / online top 10 per seed+level | `highscores.js`, `globalscores.js` |
 | **Endless save** | Endless game checkpoint saved on opening the pause menu or starting/loading a run, resumed by Start endless after a browser restart; game over clears it | `forklift-endless-state`, `serializeEndless` |
+| **Earlier-state export** | Testing-only export of a snapshot from about five seconds of active gameplay earlier; unavailable until enough history exists | `stateExportEarlier`, `createStateHistory` |
 | **Skid marks / smoke** | Splash-animation effects | `splash.js` |
 
 ## Decals (cosmetic)
@@ -188,9 +189,11 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Ghost** | Translucent truck that overlaps another truck (or a stack, `s.ghost`) at spawn; not solid until separated | `isGhost`, `ghostBetween` |
 | **Handoff** | Taking or giving a carried stack via tines | `transferCarried` |
 | **Multiplayer page** | Menu page for hosting, roster, ping, kick/ban | `#mpList`, `renderMpPage` |
-| **Kick / ban** | Host removes a guest; a ban refuses that name for the party | `host.kick` |
+| **Kick / ban** | Host removes a guest; a kick blocks that name for 60 seconds, a ban for the party | `host.kick` |
+| **Party vote** | Anonymous majority ballot to change mode/level or kick a guest, announced to all screens | `createVote`, `#mpVote`, `#voteNotice` |
 | **Party badge** | Top-right party code and player list | `drawPartyBadge` |
 | **Observer host** | Party host without a truck, forced to the full-map overview with a limited menu | `Observer`, `?observer`, `view.fullMap` |
+| **Round countdown / Ready** | Observer-hosted round ends with a 10-second countdown; eligible guests may press Ready to shorten it to at most three seconds | `roundReady`, `createRound` |
 | **Party join card** | Polaroid-style QR and party code placed outside the observer's field while guest slots remain | `drawPartyJoinCard`, `observerLayout`, `js/qr.js` |
 
 ## Audio

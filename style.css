@@ -55,6 +55,18 @@ footer b { color: var(--accent); }
 
 #record { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); color: var(--fg); z-index: 20; }
 #record.hide { display: none; }
+#roundReady { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 19; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; background: rgba(0,0,0,.85); color: white; }
+#roundReady[hidden] { display: none; }
+#roundReady button { cursor: pointer; }
+#voteNotice { position: fixed; top: 42px; left: 50%; transform: translateX(-50%); z-index: 16; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 24px); padding: 8px 12px; border: 1px solid #f9a825; border-radius: 8px; background: rgba(0,0,0,.9); color: white; }
+#voteNotice[hidden] { display: none; }
+#voteNotice button { flex: none; cursor: pointer; }
+#mpVote { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: min(320px, calc(100vw - 60px)); padding: 8px; border: 1px solid rgba(128,128,128,.45); border-radius: 8px; }
+#mpVote h4 { margin: 0; }
+#mpVote [hidden] { display: none !important; }
+#mpVote form { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#mpVote input { width: 4.5em; font: inherit; }
+#mpVoteMessage { min-height: 1em; }
 #record form { background: var(--splash1); padding: 20px 28px; border-radius: 8px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
 #record h2 { margin: 0; color: var(--accent); }
 #record p { margin: 0; }
@@ -110,6 +122,7 @@ footer b { color: var(--accent); }
 #menu a.nav:hover, #menu a.nav:focus-visible { background: rgba(128,128,128,.18); }
 #menu button.nav:hover, #menu button.back:hover, #menu button.nav:focus-visible, #menu button.back:focus-visible { background: rgba(128,128,128,.18); }
 #menu a.nav i, #menu button.nav i { font-style: normal; opacity: .6; }
+#menu.multiplayer-active #menuParty { font-weight: bold; }
 
 #menu .pair { display: flex; gap: 8px; }
 #menu .pair button { flex: 1; }

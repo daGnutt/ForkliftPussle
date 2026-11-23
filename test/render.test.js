@@ -202,6 +202,38 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(dynamicMeshes(g, 'ov', [0, 0]).opaque.count < withTruck, 'a removed host truck is not drawn in WebGL');
 }
 
+// Observer score bar stays visible in fullscreen without changing the driving HUD.
+{
+  const g = newGame(1);
+  g.started = true;
+  const texts = [];
+  const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
+    get: (t, k) => k in t ? t[k] : k === 'fillText' ? (text, x, y) => texts.push({ text, x, y })
+      : k === 'measureText' ? (text) => ({ width: text.length * 7 })
+        : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
+    set: (t, k, v) => { t[k] = v; return true; },
+  });
+  const previous = globalThis.OffscreenCanvas;
+  globalThis.OffscreenCanvas = class { getContext() { return ctx; } };
+  try {
+    for (const [width, height, touch] of [[1200, 800, false], [390, 844, true], [844, 390, true]]) {
+      texts.length = 0;
+      draw(ctx, g, { width, height, touch, dpr: 1, fullMap: true, fullscreen: true });
+      assert.ok(texts.some(({ text, y }) => text.includes('Zones ') && text.includes('Score ') && y === 23), 'observer score bar appears at the top');
+    }
+    texts.length = 0;
+    const endless = newEndless(0, false);
+    draw(ctx, endless, { width: 1200, height: 800, dpr: 1, fullMap: true, fullscreen: true });
+    assert.ok(texts.some(({ text, y }) => text.startsWith('Endless ') && text.includes('Score ') && y === 23), 'endless score stays visible too');
+    texts.length = 0;
+    draw(ctx, g, { width: 1200, height: 800, dpr: 1, fullscreen: true });
+    assert.ok(!texts.some(({ text }) => text.includes('Zones ') && text.includes('Score ')), 'driving HUD still hides in fullscreen');
+  } finally {
+    if (previous === undefined) delete globalThis.OffscreenCanvas;
+    else globalThis.OffscreenCanvas = previous;
+  }
+}
+
 // The desktop overview and touch-landscape strip separate both kinds of damage from placement.
 {
   const g = newGame(1);

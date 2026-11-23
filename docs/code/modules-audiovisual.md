@@ -4,7 +4,7 @@ Part of the code guide (see `../CODE_GUIDE.md`).
 
 Battery saver suppresses decals, disco lights, GL particles, and photo popups while retaining each graphics option's saved preference. In `audio.js`, `setSilenced` keeps music running but stops continuous sound-effect voices; they are recreated if needed after unpausing. `setPageHidden` suspends Web Audio and clears MIDI scheduling while the page is hidden, then resumes previously started audio when visible without changing mute preferences; a blocked automatic resume is retried on the next user gesture.
 
-Observer overview: `observerLayout` uses the available screen space and reserves the join card on the side that gives the largest full-map scale. WebGL uses an untilted overview camera so the full floor fits; the 2D and GL renderers skip the gone host placeholder.
+Observer overview: `observerLayout` uses the available screen space and reserves the join card on the side that gives the largest full-map scale. Its top score bar stays visible in fullscreen as well as windowed mode. WebGL uses an untilted overview camera so the full floor fits; the 2D and GL renderers skip the gone host placeholder.
 
 | File | Role | Key exports |
 |------|------|-------------|
