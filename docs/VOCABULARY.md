@@ -104,6 +104,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Final score** | Score minus time penalty, submitted to the high scores | `finalScore` |
 | **Local / global top list** | Local top 10 / online top 10 per seed+level | `highscores.js`, `globalscores.js` |
 | **Endless save** | Endless game checkpoint saved on opening the pause menu or starting/loading a run, resumed by Start endless after a browser restart; game over clears it | `forklift-endless-state`, `serializeEndless` |
+| **Earlier-state export** | Testing-only export of a snapshot from about five seconds of active gameplay earlier; unavailable until enough history exists | `stateExportEarlier`, `createStateHistory` |
 | **Skid marks / smoke** | Splash-animation effects | `splash.js` |
 
 ## Decals (cosmetic)

@@ -11,6 +11,7 @@ import { applySnapshot } from './net/protocol.js';
 import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
 import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState, HardPhysicsVersionError } from './savestate.js';
+import { createStateHistory } from './state-history.js';
 import { parseSeed } from './level.js';
 import { draw, drawResults } from './render.js';
 import { showPhoto, dodgePhoto, startGallery, stopGallery, clearPhotos } from './photo.js';
@@ -99,6 +100,7 @@ function refreshBest() {
 }
 // Party state: null when playing alone, else { role: 'host' | 'guest', code, name, host | guest, go }. A guest mirrors the host's game and never steps it.
 let mp = null;
+const stateHistory = isTesting() ? createStateHistory() : null;
 const ENDLESS_KEY = 'forklift-endless-state';
 function saveState() {
   if (mp) return;
@@ -192,6 +194,7 @@ function closeRecord() {
 
 function load(n) {
   if (mp?.role === 'guest') return; // only the host changes levels
+  stateHistory?.clear();
   hard = hardOpt.checked;
   if (recordOpen) closeRecord();
   recorded = false;
@@ -211,6 +214,7 @@ function load(n) {
 // Resumes the saved endless game of this seed and mode unless `fresh`.
 function loadEndless(fresh = false) {
   if (mp?.role === 'guest') return;
+  stateHistory?.clear();
   hard = hardOpt.checked;
   if (recordOpen) closeRecord();
   recorded = false;
@@ -894,6 +898,7 @@ async function hostParty(nameText = partyName.value, observer = observerOpt.chec
   busy(true);
   const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, meta: { observer }, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed });
   try { await host.start(); } catch (e) { busy(false); partyErr.textContent = mpErr.textContent = e.message; return; }
+  stateHistory?.clear();
   mpErr.textContent = '';
   stopLocal();
   mp = { role: 'host', code: host.code, name, host, observer };
@@ -923,6 +928,7 @@ async function joinParty() {
   partyErr.textContent = '';
   busy(true);
   const guest = createGuest({ relay: createRelay(), code, name, onGame: onGuestGame, onClosed: partyClosed });
+  stateHistory?.clear();
   stopLocal();
   mp = { role: 'guest', code, name, guest, go: false, connected: false, lastH: null };
   try { await guest.join(); } catch (e) { mp = null; busy(false); partyErr.textContent = e.message; return; }
@@ -1108,6 +1114,7 @@ function toggleMenu(open) {
   setFullscreen(!open);
   menuEl.classList.toggle('hide', !open);
   if (open) {
+    if (stateHistory && !stateHistory.earlier()) stateMsg.textContent = 'Five seconds of gameplay history are not yet available.';
     muteOpt.checked = isAllMuted();
     for (const el of volSliders) el.value = Math.round(getVolume(el.dataset.vol) * 100);
     musicOpt.checked = !isMusicMuted();
@@ -1341,14 +1348,20 @@ window.addEventListener('keydown', (e) => {
 
 const stateText = document.getElementById('stateText');
 const stateMsg = document.getElementById('stateMsg');
-document.getElementById('stateExport').addEventListener('click', async () => {
-  const snap = game.endless ? { ...serializeEndless(game), seedText } : serializeGame(game, seedText);
+const stateSnapshot = () => game.endless ? { ...serializeEndless(game), seedText } : serializeGame(game, seedText);
+async function exportSnapshot(snap) {
   stateText.value = debug ? JSON.stringify(snap) : await encodeState(snap);
   stateText.select();
   try {
     await navigator.clipboard.writeText(stateText.value);
     stateMsg.textContent = 'Exported and copied to clipboard.';
   } catch { stateMsg.textContent = 'Exported; copy the text above.'; }
+}
+document.getElementById('stateExport').addEventListener('click', () => exportSnapshot(stateSnapshot()));
+document.getElementById('stateExportEarlier').addEventListener('click', () => {
+  const snap = stateHistory?.earlier();
+  if (!snap) { stateMsg.textContent = 'Five seconds of gameplay history are not yet available.'; return; }
+  exportSnapshot(snap);
 });
 document.getElementById('stateImport').addEventListener('click', async () => {
   if (mp?.role === 'guest') return;
@@ -1361,6 +1374,7 @@ document.getElementById('stateImport').addEventListener('click', async () => {
     return;
   }
   if (recordOpen) closeRecord();
+  stateHistory?.clear();
   seed = g.seed;
   hard = g.hard;
   if (!g.endless) level = g.level;
@@ -1490,6 +1504,7 @@ function frame(now) {
     if (!mp?.observer) cameraStep(inp, STEP);
     update(game, mp?.observer ? null : inp, STEP);
     stepEndless(game, STEP);
+    if (game.status === 'play') stateHistory?.step(STEP, stateSnapshot);
     followStep(STEP);
     acc -= STEP;
     steps++;

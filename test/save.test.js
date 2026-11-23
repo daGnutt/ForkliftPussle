@@ -4,6 +4,7 @@ import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
+import { createStateHistory } from '../js/state-history.js';
 import { chaseOrbit } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
@@ -21,6 +22,37 @@ import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecal
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
+
+// Rolling history is detached, bounded and based on active simulation time.
+{
+  for (const endless of [false, true]) {
+    const g = endless ? newEndless(7) : newGame(3, 7);
+    const history = createStateHistory();
+    const snap = () => endless ? serializeEndless(g) : serializeGame(g, 'seed');
+    let calls = 0;
+    for (let i = 0; i < 600; i++) {
+      g.fl.x = i / 120;
+      history.step(1 / 120, () => { calls++; return snap(); });
+    }
+    const saved = history.earlier();
+    assert.ok(saved, 'five seconds of active time makes a snapshot available');
+    const oldX = saved.state.fl.x;
+    g.fl.x = 100;
+    assert.equal(saved.state.fl.x, oldX, 'later changes do not mutate a snapshot');
+    const restored = endless ? deserializeEndless(saved) : deserializeGame(saved);
+    assert.equal(restored.fl.x, oldX, 'historical save remains importable');
+    assert.ok(calls <= 52, 'snapshot cadence is approximately ten per second');
+    const frozen = history.earlier();
+    assert.equal(history.earlier(), frozen, 'without simulation steps history does not advance');
+    for (let i = 0; i < 240; i++) { g.fl.x = 5 + i / 120; history.step(1 / 120, snap); }
+    assert.ok(Math.abs(history.earlier().state.fl.x - 2) < 0.15, 'export is about five active seconds old');
+    history.clear();
+    assert.equal(history.earlier(), null, 'reset discards prior snapshots');
+  }
+  const history = createStateHistory();
+  for (let i = 0; i < 599; i++) history.step(1 / 120, () => ({}));
+  assert.equal(history.earlier(), null, 'short histories are unavailable');
+}
 
 // Save / restore a level in progress through JSON (localStorage and export/import).
 {
