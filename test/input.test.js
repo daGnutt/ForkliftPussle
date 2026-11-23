@@ -79,6 +79,57 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   assert.ok(!s.up && s.motionSource === 'gamepad', 'unplugging releases controls without changing the last motion source');
 }
 
+// Touches on overlays take precedence over controls underneath, while pad touches can still slide.
+{
+  const listeners = {};
+  const savedDocument = globalThis.document, savedWindow = globalThis.window;
+  const button = (key, left) => ({
+    dataset: { key }, addEventListener() {}, contains(target) { return target === this; },
+    getBoundingClientRect: () => ({ left, right: left + 40, top: 0, bottom: 40, width: 40 }),
+    classList: { toggle() {}, remove() {} },
+  });
+  const left = button('ArrowLeft', 0), right = button('ArrowRight', 40);
+  const knob = { style: {} };
+  const stick = {
+    addEventListener() {}, contains(target) { return target === this; }, querySelector: () => knob,
+    getBoundingClientRect: () => ({ left: 100, right: 200, top: 0, bottom: 100, width: 100 }),
+    classList: { add() {}, remove() {} },
+  };
+  globalThis.document = { querySelectorAll: () => [left, right], getElementById: () => stick };
+  globalThis.window = { addEventListener: (type, f) => { (listeners[type] ??= []).push(f); } };
+  const inp = createInput({});
+  const touch = (id, x, target) => ({ identifier: id, clientX: x, clientY: 20, target });
+  const emit = (type, touches, changedTouches) => {
+    let prevented = false;
+    for (const f of listeners[type]) f({ type, touches, changedTouches, cancelable: true, preventDefault() { prevented = true; } });
+    return prevented;
+  };
+  const overlay = {};
+  let t = touch(1, 20, overlay);
+  assert.equal(emit('touchstart', [t], [t]), false, 'overlay over a button keeps its tap');
+  assert.equal(inp.state().left, false);
+  emit('touchend', [], [t]);
+  t = touch(2, 180, overlay);
+  assert.equal(emit('touchstart', [t], [t]), false, 'overlay over the joystick keeps its tap');
+  assert.equal(inp.state().str, 0);
+  emit('touchend', [], [t]);
+  t = touch(3, 20, left);
+  assert.equal(emit('touchstart', [t], [t]), true);
+  assert.equal(inp.state().left, true);
+  t = touch(3, 60, left);
+  emit('touchmove', [t], [t]);
+  assert.equal(inp.state().right, true, 'a touch starting on a button can slide to another');
+  emit('touchend', [], [t]);
+  assert.equal(inp.state().right, false);
+  t = touch(4, 180, stick);
+  assert.equal(emit('touchstart', [t], [t]), true);
+  assert.ok(inp.state().str > 0, 'a touch on the joystick still steers');
+  emit('touchend', [], [t]);
+  assert.equal(inp.state().str, 0);
+  globalThis.document = savedDocument;
+  globalThis.window = savedWindow;
+}
+
 // D-pad selects GL camera modes and resets the active camera
 {
   const calls = [];
@@ -182,6 +233,17 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   assert.equal(local.players, 3, 'at most three pads join besides the keyboard player');
   assert.deepEqual(local.slots(), [1, 2, 3]);
   assert.equal(g.trucks.length, 4);
+  local.beginVote();
+  assert.deepEqual(local.pollVote(g).ballots, [], 'buttons held when voting starts do not cast ballots');
+  pads = [mk(0), mk(1), mk(2), mk(3)];
+  local.pollVote(g);
+  pads = [mk(0, [0]), mk(1, [1]), mk(2), mk(3)];
+  assert.deepEqual(local.pollVote(g).ballots, [{ slot: 1, choice: 'yes' }, { slot: 2, choice: 'no' }], 'each joined controller casts its own ballot');
+  assert.deepEqual(local.pollVote(g).ballots, [], 'held buttons do not vote repeatedly');
+  pads = [mk(0), mk(1), mk(2), mk(3)];
+  local.pollVote(g, false);
+  pads = [mk(0, [0]), mk(1), mk(2), mk(3)];
+  assert.deepEqual(local.pollVote(g, false).ballots, [], 'gameplay button presses do not cast ballots while the menu is closed');
   pads = [mk(0, [], 1), mk(1), mk(2), mk(3)];
   local.step(g, 0.2);
   for (let i = 0; i < 120; i++) update(g, {}, 1 / 120);
@@ -194,6 +256,14 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   pads = [mk(0), mk(1), mk(3)];
   local.step(g, 1);
   assert.ok(g.trucks[3].gone && !g.trucks[2].gone && local.players === 2, 'unplugging removes the truck');
+  assert.equal(local.remove(g, 1), true, 'a vote can remove a joined controller');
+  assert.equal(g.trucks[1].gone, true);
+  local.step(g, 1.1);
+  assert.equal(local.players, 1, 'a removed controller stays out until joining again');
+  pads = [mk(0, [0]), mk(1), mk(3)];
+  local.step(g, 1.2);
+  assert.equal(local.players, 2, 'a removed local controller can join again');
+  pads = [];
 }
 console.log('input tests passed');
 

@@ -3,43 +3,112 @@ import { addTruck, removeTruck, truckView, forkUp, forkDown } from '../game.js';
 import { createLink } from './peer.js';
 import { createSnapshotter, snapshot, encode, SNAPSHOT_HZ } from './protocol.js';
 import { HARD_PHYSICS_VERSION } from '../hard-physics.js';
+import { createRound } from './round.js';
+import { createVote } from './vote.js';
 
 const STALE = 3; // seconds without any message before a guest counts as gone when its name is taken again
+const KICK_COOLDOWN = 60;
 const DEFAULT_ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 // `getGame()` returns the current game (it is replaced on every level load); `levelInfo()` its { level, seed, hard, seedText, endless };
 // `isStarted()` tells whether the host has left the splash. `onChange()` fires when the player list changes.
-export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, onChange, onClosed, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
+export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, onChange, onClosed, onRound, onVote, onVoteResult, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
   const members = new Map(); // peer id -> { name, slot, link }
   const snapper = createSnapshotter();
   const banned = new Set(); // lower-case names; relay peer ids change on every join, so names are all there is to go on
+  const kicked = new Map();
   const observer = meta?.observer === true;
+  const round = createRound();
+  const vote = createVote();
+  let votingEnabled = true;
   let code = null, token = null, stream = null, lastSent = -Infinity, lastPing = -Infinity, closed = false;
+  let lastVoteSent = -Infinity;
+  let lastVoteResolved = 0;
 
-  const payload = (g) => ({ ...levelInfo(), hardPhysicsVersion: HARD_PHYSICS_VERSION, snap: snapshot(g) });
+  const payload = (g) => ({ ...levelInfo(), observer, hardPhysicsVersion: HARD_PHYSICS_VERSION, snap: snapshot(g) });
   const live = (m) => m.slot >= 0 && m.link.open;
+  function sendRound() {
+    const now = clock();
+    for (const [peer, m] of members) {
+      const state = round.state(peer, now);
+      if (live(m) && state) m.link.sendReliable({ t: 'round', ...state });
+    }
+    onRound?.(round.state(null, now));
+  }
+
+  function validVoteAction(action) {
+    if (!action || typeof action !== 'object') return false;
+    if (action.type === 'mode') return typeof action.hard === 'boolean';
+    if (action.type === 'level') return Number.isSafeInteger(action.level) && action.level >= 1;
+    if (action.type === 'endless') return true;
+    if (action.type === 'kick') {
+      return Number.isInteger(action.slot) && (observer || action.slot > 0) &&
+        [...members.values()].some((m) => m.slot === action.slot && live(m));
+    }
+    return false;
+  }
+
+  function publishVote(force = true, now = clock()) {
+    if (!force && now - lastVoteSent < 1) return;
+    lastVoteSent = now;
+    const localState = vote.state(now, observer ? null : 'host');
+    onVote?.(localState, votingEnabled);
+    for (const [peer, m] of members) {
+      if (live(m)) m.link.sendReliable({ t: 'vote', enabled: votingEnabled, state: vote.state(now, peer) });
+    }
+  }
+
+  function finishVote(now) {
+    const state = vote.poll(now);
+    if (!state || state.status === 'active' || state.id === lastVoteResolved) return;
+    lastVoteResolved = state.id;
+    if (state.status === 'passed' && validVoteAction(state.action)) onVoteResult?.(state.action);
+    publishVote(true, now);
+  }
+
+  function startVote(action) {
+    if (!votingEnabled || !validVoteAction(action)) return false;
+    const voters = [...members].filter(([, m]) => live(m)).map(([peer]) => peer);
+    if (!observer) voters.push('host');
+    const state = vote.start(action, voters, clock());
+    if (!state) return false;
+    publishVote(true);
+    return true;
+  }
 
   function drop(peer) {
     const m = members.get(peer);
     if (!m) return;
     members.delete(peer);
     if (m.slot >= 0) removeTruck(getGame(), m.slot);
+    const activeVote = vote.state(clock());
+    if (activeVote?.status === 'active' && activeVote.action.type === 'kick' && activeVote.action.slot === m.slot) vote.cancel(clock());
+    else vote.leave(peer, clock());
+    finishVote(clock());
+    round.leave(peer, clock());
     m.link.close();
     onChange?.();
+    publishVote(true);
+    if (observer && round.state(null, clock())) sendRound();
   }
 
   function onGuestMessage(peer, m, msg) {
     m.lastRx = clock();
     const g = getGame();
     if (msg.t === 'hello' && m.slot < 0) {
-      m.name = String(msg.name || 'Player').slice(0, 24);
+      m.name = String(msg.name || 'Player').trim().slice(0, 24) || 'Player';
+      m.playerId = typeof msg.playerId === 'string' && msg.playerId.length > 0 && msg.playerId.length <= 64 ? msg.playerId : peer;
       m.hardPhysicsVersion = msg.hardPhysicsVersion;
       if (g.hard && m.hardPhysicsVersion !== HARD_PHYSICS_VERSION) {
         m.link.sendReliable({ t: 'bye', reason: 'physics' });
         setTimeout(() => drop(peer), 300);
         return;
       }
-      if (banned.has(m.name.toLowerCase())) { m.link.sendReliable({ t: 'bye', reason: 'banned' }); drop(peer); return; }
+      const key = m.name.toLowerCase();
+      const until = kicked.get(key);
+      if (until !== undefined && until <= clock()) kicked.delete(key);
+      const reason = banned.has(key) ? 'banned' : kicked.has(key) ? 'cooldown' : null;
+      if (reason) { m.link.sendReliable({ t: 'bye', reason }); setTimeout(() => drop(peer), 300); return; }
       // a reloaded page rejoins before the host notices the old connection is dead: the stale one is replaced
       // (only silent ones: guests send inputs/pings at least every second, and two live players may share a name)
       for (const [p, o] of members) if (p !== peer && o.slot >= 0 && o.name?.toLowerCase() === m.name.toLowerCase() && clock() - o.lastRx > STALE) drop(p);
@@ -47,12 +116,27 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
       if (slot < 0) { m.link.sendReliable({ t: 'bye', reason: 'full' }); drop(peer); return; }
       m.slot = slot;
       m.link.sendReliable({ t: 'welcome', slot, started: isStarted(), ...payload(g) });
+      if (observer) {
+        round.join(peer, m.name, isStarted(), m.playerId);
+        const state = round.state(peer, clock());
+        if (state) m.link.sendReliable({ t: 'round', ...state });
+      }
       onChange?.();
+      publishVote(true);
     } else if (msg.t === 'gping') {
       m.link.sendReliable({ t: 'gpong', n: msg.n });
     } else if (msg.t === 'pong') {
       m.ping = Math.max(0, Math.round((clock() - msg.n) * 1000));
       onChange?.();
+    } else if (msg.t === 'ready' && m.slot >= 0 && observer) {
+      if (round.ready(peer, msg.id, clock())) sendRound();
+    } else if (msg.t === 'voteCall' && m.slot >= 0) {
+      startVote(msg.action);
+    } else if (msg.t === 'voteCast' && m.slot >= 0) {
+      if (vote.cast(msg.id, peer, msg.choice, clock())) {
+        finishVote(clock());
+        publishVote(true);
+      }
     } else if (m.slot >= 0) {
       const t = g.trucks[m.slot];
       if (!t || t.gone) return;
@@ -99,17 +183,46 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
       for (const [peer, m] of members) {
         if (m.slot !== slot || (!observer && slot <= 0)) continue;
         if (ban) banned.add(m.name.toLowerCase());
+        else kicked.set(m.name.toLowerCase(), clock() + KICK_COOLDOWN);
         members.delete(peer);
         removeTruck(getGame(), slot);
+        round.leave(peer, clock());
+        const activeVote = vote.state(clock());
+        if (activeVote?.status === 'active' && activeVote.action.type === 'kick' && activeVote.action.slot === slot) vote.cancel(clock());
+        else vote.leave(peer, clock());
+        finishVote(clock());
         m.link.sendReliable({ t: 'bye', reason: ban ? 'banned' : 'kicked' });
         setTimeout(() => m.link.close(), 300); // let the goodbye out first
         onChange?.();
+        publishVote(true);
+        if (observer && round.state(null, clock())) sendRound();
         return true;
       }
       return false;
     },
     get banned() { return [...banned]; },
     get guests() { return [...members.values()].filter(live).length; },
+    startRound() {
+      if (!observer || round.state(null, clock())) return;
+      round.start(clock());
+      sendRound();
+    },
+    roundState() { return round.state(null, clock()); },
+    roundPlayers() { return round.players(); },
+    get votingEnabled() { return votingEnabled; },
+    setVotingEnabled(enabled) {
+      votingEnabled = !!enabled;
+      if (!votingEnabled) vote.clear();
+      publishVote(true);
+    },
+    callVote(action) { return startVote(action); },
+    castVote(id, choice) {
+      if (!votingEnabled || !vote.cast(id, 'host', choice, clock())) return false;
+      finishVote(clock());
+      publishVote(true);
+      return true;
+    },
+    voteState() { return vote.state(clock(), observer ? null : 'host'); },
     // After the host loaded a new level: every guest gets a new truck in its old slot and the new level.
     levelLoaded(g) {
       snapper.reset();
@@ -122,11 +235,18 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
         } else m.slot = addTruck(g, m.name, m.slot);
       }
       for (const m of members.values()) if (live(m)) m.link.sendReliable({ t: 'level', ...payload(g) });
+      if (observer) round.reset([...members].filter(([, m]) => live(m)).map(([peer, m]) => [peer, m.name, m.playerId]), isStarted());
     },
     // The host left the splash: waiting guests may start.
-    started(g) { for (const m of members.values()) if (live(m)) m.link.sendReliable({ t: 'level', ...payload(g) }); },
+    started(g) {
+      if (observer) round.begin();
+      for (const m of members.values()) if (live(m)) m.link.sendReliable({ t: 'level', ...payload(g) });
+    },
     // Called every frame; sends a snapshot to every guest at SNAPSHOT_HZ.
     broadcast(g, now = clock()) {
+      finishVote(now);
+      publishVote(false, now);
+      if (getGame() !== g) return;
       if (now - lastPing >= 2) {
         lastPing = now;
         for (const m of members.values()) if (live(m)) m.link.sendReliable({ t: 'ping', n: clock() });

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 import { generateLevel, parseSeed, isReachable } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
@@ -20,6 +22,25 @@ import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecal
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
+
+// Autostart hides splash controls before the module and stylesheet load, but join links still need them.
+{
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const script = html.match(/<script id="autostartSplash">([\s\S]*?)<\/script>/)[1];
+  for (const [search, expected] of [
+    ['', false], ['?skip', true], ['?observer', true], ['?endless', false],
+    ['?skip&endless', true], ['?observer&skip', true],
+    ['?multiplayer=ABCDE&skip', false], ['?multiplayer=ABCDE&observer', false],
+    ['?multiplayer=&skip', false], ['?multiplayer=&observer', true],
+  ]) {
+    let active = false;
+    runInNewContext(script, {
+      URLSearchParams, location: { search },
+      document: { documentElement: { classList: { add: (name) => { active = name === 'autostart'; } } } },
+    });
+    assert.equal(active, expected, search);
+  }
+}
 
 // Splash demo: the scripted forklift keeps shuffling the stacks without hitting walls or other stacks, and never loses a box
 {

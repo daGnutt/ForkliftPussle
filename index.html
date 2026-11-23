@@ -10,12 +10,26 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script id="autostartSplash">
+    const params = new URLSearchParams(location.search);
+    if ((params.has('skip') && !params.has('observer') && !params.has('multiplayer')) ||
+        (params.has('observer') && !params.get('multiplayer'))) document.documentElement.classList.add('autostart');
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="stage"><canvas id="gameGl" aria-hidden="true"></canvas><canvas id="game"></canvas><canvas id="results" aria-hidden="true"></canvas></div>
   <label id="zoomBar" title="Camera zoom (overview): right = zoomed in, left = zoomed out"><span>Zoom</span> <input type="range" id="zoomSlider" min="0" max="100" step="1"></label>
   <div id="testingBanner" class="hide">TESTING</div>
+  <div id="roundReady" hidden role="status">
+    <span id="roundCountdown"></span>
+    <button type="button" id="roundReadyButton">Ready / OK (Enter)</button>
+    <small id="roundScoreMessage"></small>
+  </div>
+  <div id="voteNotice" hidden role="status">
+    <span id="voteNoticeText"></span>
+    <button type="button" id="voteMenuBtn">Open party menu</button>
+  </div>
   <div id="record" class="hide">
     <form id="recordForm" autocomplete="off">
       <h2>New high score!</h2>
@@ -29,7 +43,7 @@
       <h2>Menu</h2>
       <div class="page" data-page="main">
         <button type="button" id="menuResume" class="primary" data-observer>Resume</button>
-        <button type="button" id="menuLeave" class="sec" data-observer hidden>Leave party</button>
+        <button type="button" id="menuLeave" class="sec" data-observer>End game</button>
         <label class="item"><input type="checkbox" id="muteOpt"> <u>M</u>ute all sounds</label>
         <button type="button" id="menuRestart" class="sec" data-hostonly data-observer>Restart level</button>
         <hr>
@@ -38,7 +52,7 @@
         <button type="button" class="nav" data-go="graphics" data-observer><span>Graphics</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="camera"><span>Camera</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="controls"><span>Controls</span><i>&#9656;</i></button>
-        <button type="button" class="nav" data-go="party" data-observer><span>Multiplayer</span><i>&#9656;</i></button>
+        <button type="button" id="menuParty" class="nav" data-go="party" data-observer><span>Multiplayer</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="scores"><span>Scores &amp; saves</span><i>&#9656;</i></button>
         <button type="button" class="nav" data-go="info"><span>Info &amp; scoring</span><i>&#9656;</i></button>
         <a class="nav" href="https://github.com/daGnutt/ForkliftPussle/issues" target="_blank" rel="noopener"><span>Report a bug / request a feature</span><i>&#8599;</i></a>
@@ -147,8 +161,27 @@
           <small>Up to 4 guest trucks. Friends join with the party code or QR.</small>
         </div>
         <div id="mpBox" data-observer hidden>
-          <div class="code">Party code <b id="mpCode"></b></div>
+          <div class="code" id="mpCodeRow">Party code <b id="mpCode"></b></div>
           <ul id="mpList"></ul>
+          <label id="mpVotingSetting" hidden><input type="checkbox" id="mpVotingEnabled" checked> Allow player voting</label>
+          <div id="mpVote" data-observer>
+            <h4>Player vote</h4>
+            <small id="mpVoteStatus">Votes are anonymous.</small>
+            <div id="mpVoteBallot" hidden>
+              <small>Your choice is anonymous; you can change it until the vote ends.</small>
+              <small id="mpLocalVoteHelp" hidden>Keyboard player: use the buttons below. Joined gamepads: press A for yes or B for no while the menu is open.</small>
+              <div class="pair"><button type="button" id="mpVoteYes">Yes</button><button type="button" id="mpVoteNo" class="sec">No</button></div>
+            </div>
+            <div id="mpVoteCall">
+              <button type="button" id="mpVoteMode" class="sec"></button>
+              <form id="mpVoteLevel" autocomplete="off">
+                <label>Vote to switch to level <input type="number" id="mpVoteLevelNumber" min="1" step="1" value="1"></label>
+                <button type="submit" class="sec">Call vote</button>
+              </form>
+              <button type="button" id="mpVoteEndless" class="sec">Vote to switch to endless mode</button>
+            </div>
+            <small id="mpVoteMessage"></small>
+          </div>
           <button type="button" id="mpLeave" class="sec">Leave party</button>
         </div>
         <small id="mpErr"></small>
@@ -195,6 +228,7 @@
           <h4>Save / load level state</h4>
           <textarea id="stateText" rows="4" spellcheck="false" placeholder="Level state (export, or paste here and import)"></textarea>
           <div class="pair"><button type="button" id="stateExport" class="sec">Export state</button> <button type="button" id="stateImport" class="sec">Import state</button></div>
+          <button type="button" id="stateExportEarlier" class="sec">Export 5 seconds earlier</button>
           <small id="stateMsg"></small>
         </div>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
@@ -216,9 +250,13 @@
       <div class="row">
         <input id="partyName" type="text" maxlength="24" placeholder="Your name" spellcheck="false" aria-label="Your name">
         <button type="button" id="hostBtn" title="Host a co-op game for up to 4 players">Host game</button>
-        <label class="opt" title="The host does not receive a truck and always shows the full play field"><input type="checkbox" id="observerOpt"> Observer</label>
+      </div>
+      <div class="row">
         <input id="joinCode" type="text" maxlength="5" placeholder="Party code" spellcheck="false" autocapitalize="characters" aria-label="Party code">
         <button type="button" id="joinBtn">Join game</button>
+      </div>
+      <div class="row">
+        <button type="button" id="observerStart" title="Host and watch the full play field without a truck">Start observer mode</button>
       </div>
       <div id="partyBox" hidden>
         <div class="code">Party code <b id="partyCode"></b></div>

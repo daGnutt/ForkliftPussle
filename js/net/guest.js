@@ -8,10 +8,15 @@ const INPUT_REFRESH = 0.25; // seconds; inputs are also resent while unchanged, 
 
 // Events: onGame({ slot, started, level, seed, hard, seedText, endless, snap }) for the welcome and every level change,
 // onClosed(reason) when the party ends or the connection drops.
-const BYE = { full: 'The party is full', kicked: 'The host removed you from the party', banned: 'You are banned from this party', physics: 'Hard-mode physics differs from the host; reload the game' };
+const BYE = { full: 'The party is full', kicked: 'The host removed you from the party; wait 60 seconds before rejoining', cooldown: 'Please wait 60 seconds after being kicked before rejoining', banned: 'You are banned from this party', physics: 'Hard-mode physics differs from the host; reload the game' };
+export function withoutJoinParam(href) {
+  const url = new URL(href);
+  url.searchParams.delete('multiplayer');
+  return url.href;
+}
 const analog = (v) => Math.round(Math.max(-1, Math.min(1, +v || 0)) * 20) / 20;
 
-export function createGuest({ relay, code, name, onGame, onClosed, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
+export function createGuest({ relay, code, name, playerId, onGame, onClosed, onRound, onVote, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
   const interp = createInterpolator();
   const predictor = createPredictor();
   let link = null, stream = null, peer = null, slot = -1, closed = false, lastIn = '', lastInAt = -Infinity, rtt = 0.1, lastGping = -Infinity;
@@ -32,7 +37,7 @@ export function createGuest({ relay, code, name, onGame, onClosed, linkFactory =
         initiator: false,
         iceServers: r.iceServers,
         sendSignal: (s) => relay.signal(code, { from: peer, to: 'host', ...s }).catch(() => end('Could not reach the host')),
-        onOpen: () => link.sendReliable({ t: 'hello', name, hardPhysicsVersion: HARD_PHYSICS_VERSION }),
+        onOpen: () => link.sendReliable({ t: 'hello', name, ...(playerId && { playerId }), hardPhysicsVersion: HARD_PHYSICS_VERSION }),
         onMessage: (msg) => {
           if (msg.t === 'snap') { interp.push(msg, clock()); predictor.onSnapshot(msg, clock(), rtt); }
           else if (msg.t === 'gpong') rtt += (Math.max(0, clock() - msg.n) - rtt) * 0.3;
@@ -43,6 +48,8 @@ export function createGuest({ relay, code, name, onGame, onClosed, linkFactory =
             if (msg.t === 'welcome') lastGping = -Infinity;
             onGame({ slot, started: true, ...msg }); // a level message means the host is playing
           } else if (msg.t === 'ping') link.sendReliable({ t: 'pong', n: msg.n });
+          else if (msg.t === 'round') onRound?.(msg);
+          else if (msg.t === 'vote') onVote?.(msg.state || null, msg.enabled !== false);
           else if (msg.t === 'bye') end(BYE[msg.reason] || 'The host closed the party');
         },
         onClose: () => end('Lost the connection to the host'),
@@ -61,6 +68,9 @@ export function createGuest({ relay, code, name, onGame, onClosed, linkFactory =
       link?.sendReliable(text);
     },
     sendFork(dir) { link?.sendReliable({ t: 'fork', dir }); },
+    ready(id) { link?.sendReliable({ t: 'ready', id }); },
+    callVote(action) { link?.sendReliable({ t: 'voteCall', action }); },
+    castVote(id, choice) { link?.sendReliable({ t: 'voteCast', id, choice }); },
     close() { end('left'); },
   };
 }

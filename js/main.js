@@ -3,14 +3,16 @@ import { newGame, update, endPhotos, forkUp, forkDown, zoneDone, zoneWonky, scor
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput, createCameraPointerInput, inTouchControlZone } from './input.js';
 import { createLocal } from './local.js';
-import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
+import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard, observerPartyScore } from './globalscores.js';
 import { createRelay } from './net/relay.js';
 import { createHost } from './net/host.js';
-import { createGuest } from './net/guest.js';
+import { createGuest, withoutJoinParam } from './net/guest.js';
+import { createVote } from './net/vote.js';
 import { applySnapshot } from './net/protocol.js';
 import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
 import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState, HardPhysicsVersionError } from './savestate.js';
+import { createStateHistory } from './state-history.js';
 import { parseSeed } from './level.js';
 import { draw, drawResults } from './render.js';
 import { showPhoto, dodgePhoto, startGallery, stopGallery, clearPhotos } from './photo.js';
@@ -99,6 +101,49 @@ function refreshBest() {
 }
 // Party state: null when playing alone, else { role: 'host' | 'guest', code, name, host | guest, go }. A guest mirrors the host's game and never steps it.
 let mp = null;
+const stateHistory = isTesting() ? createStateHistory() : null;
+const roundPanel = document.getElementById('roundReady');
+const roundCountdown = document.getElementById('roundCountdown');
+const roundReadyButton = document.getElementById('roundReadyButton');
+const roundScoreMessage = document.getElementById('roundScoreMessage');
+let roundTimer = null, roundDisplay = null;
+function showRound(state) {
+  roundDisplay = state ? { ...state, deadline: performance.now() / 1000 + state.remaining } : null;
+  view.round = !!state;
+  roundPanel.hidden = !state;
+  roundReadyButton.hidden = !state?.eligible;
+  roundReadyButton.disabled = !!state?.ready;
+  if (!state) roundScoreMessage.textContent = '';
+  updateRoundDisplay();
+}
+function updateRoundDisplay() {
+  if (!roundDisplay) return;
+  const seconds = Math.ceil(Math.max(0, roundDisplay.deadline - performance.now() / 1000));
+  roundCountdown.textContent = `${game.endless ? 'Restarting' : 'Next level'} in ${seconds} seconds`;
+}
+function observerRoundChanged(state) {
+  clearTimeout(roundTimer);
+  showRound(state);
+  const blocked = !!state;
+  document.getElementById('menuRestart').disabled = blocked;
+  document.querySelector('#menuGoto button').disabled = blocked;
+  if (!state) return;
+  roundTimer = setTimeout(() => {
+    if (!mp?.observer || mp.role !== 'host') return;
+    const current = mp.host.roundState();
+    if (!current) return;
+    if (current.remaining > 0) { observerRoundChanged(current); return; }
+    showRound(null);
+    document.getElementById('menuRestart').disabled = false;
+    document.querySelector('#menuGoto button').disabled = false;
+    if (game.endless) loadEndless(true); else load(level + 1);
+  }, Math.max(0, state.remaining * 1000));
+}
+roundReadyButton.addEventListener('click', () => {
+  if (mp?.role !== 'guest' || !roundDisplay?.eligible || roundDisplay.ready) return;
+  mp.guest.ready(roundDisplay.id);
+  roundReadyButton.disabled = true;
+});
 const ENDLESS_KEY = 'forklift-endless-state';
 function saveState() {
   if (mp) return;
@@ -192,6 +237,7 @@ function closeRecord() {
 
 function load(n) {
   if (mp?.role === 'guest') return; // only the host changes levels
+  stateHistory?.clear();
   hard = hardOpt.checked;
   if (recordOpen) closeRecord();
   recorded = false;
@@ -211,6 +257,7 @@ function load(n) {
 // Resumes the saved endless game of this seed and mode unless `fresh`.
 function loadEndless(fresh = false) {
   if (mp?.role === 'guest') return;
+  stateHistory?.clear();
   hard = hardOpt.checked;
   if (recordOpen) closeRecord();
   recorded = false;
@@ -252,9 +299,12 @@ function partyGameChanged() {
 // Saved choice wins; with none, full screen is on for touch devices (the default is not written to storage).
 const savedFs = localStorage.getItem('forklift-auto-fullscreen');
 let autoFs = savedFs === null ? matchMedia('(pointer: coarse)').matches : savedFs === '1';
+function enterFullscreen() {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+}
 function setFullscreen(on) {
   if (!autoFs) return;
-  if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+  if (on) enterFullscreen();
   else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
 }
 function toggleFullscreen() {
@@ -272,6 +322,7 @@ canvas.addEventListener('mousemove', wakeCursor);
 document.addEventListener('fullscreenchange', wakeCursor);
 
 function nextLevel() {
+  if (mp?.observer && mp.host.roundState()) return;
   if (game.status === 'won') load(level + 1);
   else if (game.endless && game.status === 'over') loadEndless(true);
 }
@@ -392,13 +443,16 @@ const input = createInput({
     noteForkResult('down', res);
     if (res !== 'blocked' && game.H !== h) playFork(false);
   },
-  next: () => nextLevel(),
+  next: () => {
+    if (mp?.role === 'guest' && roundDisplay?.eligible) roundReadyButton.click();
+    else nextLevel();
+  },
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
-  menuToggle: () => { if (view.menuOpen) toggleMenu(false); else if (!splashOn && !recordOpen) toggleMenu(true); else if (splashOn) startBtn.click(); },
+  menuToggle: () => { if (view.menuOpen) toggleMenu(false); else if (!splashOn && !recordOpen) toggleMenu(true); else if (splashOn && !document.documentElement.classList.contains('autostart')) startBtn.click(); },
   menuNav: (dir) => padMenuNav(dir),
-  menuSelect: () => { if (splashOn) startBtn.click(); else if (view.menuOpen) document.activeElement?.click?.(); },
-  menuBack: () => { if (!view.menuOpen) return; if (menuEl.dataset.page !== 'main') showPage(parentPage()); else toggleMenu(false); },
+  menuSelect: () => { if (!mp && view.vote?.status === 'active') return; if (splashOn && !document.documentElement.classList.contains('autostart')) startBtn.click(); else if (!splashOn && view.menuOpen) document.activeElement?.click?.(); },
+  menuBack: () => { if (!mp && view.vote?.status === 'active') return; if (!view.menuOpen) return; if (menuEl.dataset.page !== 'main') showPage(parentPage()); else toggleMenu(false); },
   blocked: () => splashOn || recordOpen || !!view.menuOpen,
 });
 
@@ -551,6 +605,20 @@ function checkRecord() {
   if ((game.status !== 'won' && !(game.endless && game.status === 'over')) || recorded) return;
   recorded = true;
   if (mp?.role === 'guest') return; // the host submits the shared score
+  if (mp?.observer) {
+    const players = mp.host.roundPlayers();
+    const points = game.endless ? endlessScore(game.endless) : finalScore(score(game), game.time);
+    const board = game.endless ? 0 : level;
+    mp.host.startRound();
+    const submission = observerPartyScore(seed, board, players, points, game.time, mp.code, mp.host.token);
+    if (submission) {
+      const roundId = mp.host.roundState().id;
+      submitPartyScore(submission.board, submission.entry).then((rank) => {
+        if (rank == null && !isTesting() && mp?.observer && mp.host.roundState()?.id === roundId) roundScoreMessage.textContent = 'Could not submit the party score.';
+      });
+    }
+    return;
+  }
   if (game.endless) { recordEndless(manualEnd); manualEnd = false; return; }
   if (mp && liveTrucks(game).length > 1) {
     const players = game.trucks.filter((t) => !t.gone).map((t) => t.name || 'Player');
@@ -743,6 +811,7 @@ hardOpt.addEventListener('change', () => {
 showTutorial();
 
 function startGame(endless = false) {
+  if (hostBtn.disabled && !mp) return;
   if (mp?.role === 'guest' && !mp.go) return; // waiting for the host
   if (mp?.role !== 'guest' && hardOpt.checked !== hard) {
     load(level);
@@ -779,6 +848,8 @@ document.getElementById('seedForm').addEventListener('submit', (e) => {
 window.addEventListener('keydown', (e) => {
   if (!splashOn || e.target === partyName || e.target === joinCode) return;
   e.stopImmediatePropagation();
+  if (document.documentElement.classList.contains('autostart')) { e.preventDefault(); return; }
+  if (e.target instanceof HTMLButtonElement) return;
   if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); startAudio(); startGame(); }
 }, true);
 
@@ -787,31 +858,36 @@ const partyName = document.getElementById('partyName');
 const joinCode = document.getElementById('joinCode');
 const menuLeave = document.getElementById('menuLeave');
 const hostBtn = document.getElementById('hostBtn');
+const observerStart = document.getElementById('observerStart');
 const joinBtn = document.getElementById('joinBtn');
 const partyBox = document.getElementById('partyBox');
 const partyList = document.getElementById('partyList');
 const partyMsg = document.getElementById('partyMsg');
 const partyErr = document.getElementById('partyErr');
 partyName.value = localStorage.getItem('forklift-player') || '';
-const observerOpt = document.getElementById('observerOpt');
 const mpObserverOpt = document.getElementById('mpObserverOpt');
 const partyNotice = sessionStorage.getItem('forklift-party-msg');
 if (partyNotice) { partyErr.textContent = partyNotice; sessionStorage.removeItem('forklift-party-msg'); }
 for (const el of [partyName, joinCode]) el.addEventListener('keydown', (e) => e.stopPropagation());
+partyName.addEventListener('keydown', (e) => { if (e.key === 'Enter' && joinCode.value.trim()) { e.preventDefault(); joinParty(); } });
 joinCode.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); joinParty(); } });
-hostBtn.addEventListener('click', () => { startAudio(); hostParty(partyName.value, observerOpt.checked); });
+hostBtn.addEventListener('click', () => { startAudio(); hostParty(partyName.value); });
+observerStart.addEventListener('click', () => { startAudio(); startObserver(); });
 joinBtn.addEventListener('click', () => { startAudio(); joinParty(); });
 const leaveParty = () => {
   mp?.host?.close(); mp?.guest?.close(); mp = null;
+  returnToSplash();
+};
+function returnToSplash() {
   const url = new URL(location.href);
-  url.searchParams.delete('observer'); url.searchParams.delete('multiplayer');
+  for (const param of ['observer', 'multiplayer', 'skip', 'endless']) url.searchParams.delete(param);
   history.replaceState(null, '', url);
   location.reload();
-};
+}
 document.getElementById('partyLeave').addEventListener('click', leaveParty);
 menuLeave.addEventListener('click', leaveParty);
 window.addEventListener('pagehide', () => { mp?.host?.close(); mp?.guest?.close(); });
-const busy = (on) => { hostBtn.disabled = joinBtn.disabled = on; };
+const busy = (on) => { hostBtn.disabled = observerStart.disabled = joinBtn.disabled = on; };
 function playerName() {
   const name = partyName.value.trim() || 'Player';
   savePlayerName(name);
@@ -821,7 +897,7 @@ function playerName() {
 function partyClosed(why) {
   if (why === 'left') return;
   sessionStorage.setItem('forklift-party-msg', why);
-  location.reload();
+  returnToSplash();
 }
 function showParty(msg) {
   partyBox.hidden = false;
@@ -852,48 +928,200 @@ function refreshParty(trucks) {
 // The menu's multiplayer page: start hosting, or show the roster (host: ping, kick and ban).
 const mpName = document.getElementById('mpName');
 const mpErr = document.getElementById('mpErr');
+const voteNotice = document.getElementById('voteNotice');
+const voteNoticeText = document.getElementById('voteNoticeText');
+const mpVoteStatus = document.getElementById('mpVoteStatus');
+const mpVoteBallot = document.getElementById('mpVoteBallot');
+const mpVoteCall = document.getElementById('mpVoteCall');
+const mpVoteMessage = document.getElementById('mpVoteMessage');
+const mpVotingEnabled = document.getElementById('mpVotingEnabled');
+const localVote = createVote();
+let votingEnabled = true, localVoteResolved = 0;
+let localVoteSubmitted = 0;
 mpName.addEventListener('keydown', (e) => e.stopPropagation());
 document.getElementById('mpHost').addEventListener('click', () => { startAudio(); hostParty(mpName.value, mpObserverOpt.checked).catch(() => {}); });
 document.getElementById('mpLeave').addEventListener('click', () => leaveParty());
+
+function voteDescription(action) {
+  if (action.type === 'mode') return `Switch to ${action.hard ? 'hard' : 'easy'} mode`;
+  if (action.type === 'level') return `Switch to level ${action.level}`;
+  if (action.type === 'endless') return 'Switch to endless mode';
+  const player = mp?.role === 'host' ? mp.host.players().find((p) => p.slot === action.slot) : game.trucks[action.slot];
+  return `Kick ${player?.name || `Player ${action.slot + 1}`}`;
+}
+
+function renderVote(state, enabled = votingEnabled) {
+  votingEnabled = enabled;
+  view.vote = state;
+  voteNotice.hidden = !state;
+  document.getElementById('mpLocalVoteHelp').hidden = !!mp;
+  mpVotingEnabled.checked = enabled;
+  if (!state) {
+    localVoteSubmitted = 0;
+    mpVoteStatus.textContent = enabled ? 'Votes are anonymous.' : 'The host has disabled voting.';
+    mpVoteBallot.hidden = true;
+    mpVoteCall.hidden = !enabled;
+    mpVoteMessage.textContent = '';
+    return;
+  }
+  if (localVoteSubmitted !== state.id) localVoteSubmitted = 0;
+  const active = state.status === 'active';
+  const summary = active ? `${state.yes} yes, ${state.no} no · ${Math.ceil(state.remaining)}s` : `Vote ${state.status}`;
+  voteNoticeText.textContent = `${voteDescription(state.action)}? ${summary}`;
+  document.getElementById('mpVoteStatus').textContent = `${voteDescription(state.action)}? ${summary}. Votes are anonymous.`;
+  mpVoteBallot.hidden = !active || !state.eligible;
+  mpVoteCall.hidden = active;
+  mpVoteMessage.textContent = localVoteSubmitted === state.id ? 'Your anonymous vote was sent.' : '';
+}
+
+function requestPartyVote(action) {
+  if ((!mp && !local.players) || !votingEnabled || view.vote?.status === 'active') return;
+  mpVoteMessage.textContent = '';
+  if (!mp) {
+    const now = performance.now() / 1000;
+    if (localVote.start(action, ['keyboard', ...local.slots()], now)) {
+      local.beginVote();
+      renderVote(localVote.state(now, 'keyboard'));
+    }
+  } else if (mp.role === 'host') {
+    if (!mp.host.callVote(action)) mpVoteMessage.textContent = 'Could not start that vote.';
+  } else mp.guest.callVote(action);
+}
+
+mpVotingEnabled.addEventListener('change', () => {
+  if (mp?.role === 'host') mp.host.setVotingEnabled(mpVotingEnabled.checked);
+  else if (!mp && local.players) {
+    if (!mpVotingEnabled.checked) localVote.clear();
+    renderVote(localVote.state(performance.now() / 1000, 'keyboard'), mpVotingEnabled.checked);
+    renderMpPage();
+  }
+});
+
+document.getElementById('mpVoteMode').addEventListener('click', () => requestPartyVote({ type: 'mode', hard: !game.hard }));
+document.getElementById('mpVoteLevel').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const n = Number(document.getElementById('mpVoteLevelNumber').value);
+  if (Number.isSafeInteger(n) && n >= 1) requestPartyVote({ type: 'level', level: n });
+  else mpVoteMessage.textContent = 'Choose a positive whole-number level.';
+});
+document.getElementById('mpVoteEndless').addEventListener('click', () => requestPartyVote({ type: 'endless' }));
+for (const [id, choice] of [['mpVoteYes', 'yes'], ['mpVoteNo', 'no']]) {
+  document.getElementById(id).addEventListener('click', () => {
+    const state = view.vote;
+    if (!state || state.status !== 'active' || !state.eligible) return;
+    localVoteSubmitted = state.id;
+    if (!mp) {
+      localVote.cast(state.id, 'keyboard', choice, performance.now() / 1000);
+      updateLocalVote();
+    } else if (mp.role === 'host') mp.host.castVote(state.id, choice);
+    else {
+      mp.guest.castVote(state.id, choice);
+      mpVoteMessage.textContent = 'Your anonymous vote was sent.';
+    }
+  });
+}
+document.getElementById('voteMenuBtn').addEventListener('click', () => {
+  toggleMenu(true);
+  showPage('party');
+});
+
+function applyPartyVote(action) {
+  if (action.type === 'kick') {
+    if (mp) mp.host.kick(action.slot);
+    else local.remove(game, action.slot);
+  } else if (action.type === 'mode') {
+    hardOpt.checked = action.hard;
+    hardOpt.dispatchEvent(new Event('change'));
+    if (game.endless) loadEndless(true); else load(level);
+  } else if (action.type === 'level') {
+    load(action.level);
+  } else if (action.type === 'endless') {
+    loadEndless(true);
+  }
+}
+
+function updateLocalVote() {
+  if (mp || !localOpt.checked) return;
+  const now = performance.now() / 1000;
+  const current = localVote.state(now);
+  if (!current && !view.vote) return;
+  if (current?.status === 'active') {
+    const { ballots, left } = local.pollVote(game, view.menuOpen);
+    for (const slot of left) {
+      if (current.action.type === 'kick' && current.action.slot === slot) localVote.cancel(now);
+      else localVote.leave(slot, now);
+    }
+    if (view.menuOpen) for (const { slot, choice } of ballots) localVote.cast(current.id, slot, choice, now);
+  }
+  const state = localVote.poll(now);
+  if (state?.status === 'passed' && state.id !== localVoteResolved) {
+    localVoteResolved = state.id;
+    applyPartyVote(state.action);
+  }
+  renderVote(localVote.state(now, 'keyboard'));
+}
+setInterval(() => {
+  if (!mp && localOpt.checked && (local.players || view.vote)) {
+    if (view.paused && view.menuOpen) input.state();
+    updateLocalVote();
+  }
+}, 100);
+
 function renderMpPage() {
   const box = document.getElementById('mpBox');
   document.getElementById('mpStart').hidden = !!mp;
-  box.hidden = !mp;
-  if (!mp) return;
-  document.getElementById('mpCode').textContent = mp.code;
-  const isHost = mp.role === 'host';
-  const roster = isHost ? mp.host.players() : game.trucks.map((t, i) => (t.gone ? null : { slot: i, name: t.name })).filter(Boolean);
+  const localSession = !mp && localOpt.checked && local.players > 0;
+  box.hidden = !mp && !localSession;
+  if (box.hidden) return;
+  document.getElementById('mpCodeRow').hidden = !mp;
+  document.getElementById('mpLeave').hidden = !mp;
+  document.getElementById('mpCode').textContent = mp?.code || '';
+  const isHost = !mp || mp.role === 'host';
+  const observerHost = !!(mp?.observer || mp?.hostObserver);
+  document.getElementById('mpVotingSetting').hidden = !isHost;
+  mpVotingEnabled.checked = votingEnabled;
+  const roster = mp?.role === 'host' ? mp.host.players() : game.trucks.map((t, i) => (t.gone ? null : { slot: i, name: t.name })).filter(Boolean);
   document.getElementById('mpList').replaceChildren(...roster.map((p) => {
     const li = document.createElement('li');
     li.style.setProperty('--c', truckColor(p.slot).body);
     const nm = document.createElement('span');
     nm.className = 'nm';
-    nm.textContent = (p.name || `Player ${p.slot + 1}`) + (!mp.observer && p.slot === game.self ? ' (you)' : '') + (!mp.observer && p.slot === 0 ? ' – host' : '');
+    nm.textContent = (p.name || `Player ${p.slot + 1}`) + (!mp?.observer && p.slot === game.self ? ' (you)' : '') + (!observerHost && p.slot === 0 ? ' – host' : '');
     li.append(nm);
-    if (isHost) {
+    if (mp?.role === 'host') {
       const ping = document.createElement('span');
       ping.className = 'ping';
       ping.textContent = (!mp.observer && p.slot === 0) ? '' : p.ping == null ? '… ms' : `${p.ping} ms`;
       li.append(ping);
-      if (mp.observer || p.slot !== 0) for (const [label, ban] of (mp.observer ? [['Kick', false]] : [['Kick', false], ['Ban', true]])) {
+      if (mp.observer || p.slot !== 0) for (const [label, ban] of [['Kick', false], ['Ban', true]]) {
         const b = document.createElement('button');
         b.type = 'button'; b.className = 'sec'; b.textContent = label;
         b.addEventListener('click', () => mp.host.kick(p.slot, ban));
         li.append(b);
       }
     }
+    const ownSlot = mp?.role === 'guest' ? game.self : (mp?.observer ? -1 : 0);
+    if (votingEnabled && p.slot !== ownSlot && (observerHost || p.slot !== 0)) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'sec'; b.textContent = 'Vote to kick';
+      b.addEventListener('click', () => requestPartyVote({ type: 'kick', slot: p.slot }));
+      li.append(b);
+    }
     return li;
   }));
+  document.getElementById('mpVoteMode').textContent = `Vote to switch to ${game.hard ? 'easy' : 'hard'} mode`;
+  document.getElementById('mpVoteEndless').hidden = !!game.endless;
 }
 setInterval(() => { if (view.menuOpen && menuEl.dataset.page === 'party') renderMpPage(); }, 1000);
-async function hostParty(nameText = partyName.value, observer = observerOpt.checked) {
+async function hostParty(nameText = partyName.value, observer = false) {
   if (mp) return;
-  const name = (nameText.trim() || 'Player').slice(0, 24);
-  savePlayerName(name);
+  const name = observer ? 'Observer' : (nameText.trim() || 'Player').slice(0, 24);
+  if (!observer) savePlayerName(name);
   partyErr.textContent = '';
   busy(true);
-  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, meta: { observer }, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed });
+  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, meta: { observer }, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed, onRound: observerRoundChanged, onVote: renderVote, onVoteResult: applyPartyVote });
   try { await host.start(); } catch (e) { busy(false); partyErr.textContent = mpErr.textContent = e.message; return; }
+  stateHistory?.clear();
   mpErr.textContent = '';
   stopLocal();
   mp = { role: 'host', code: host.code, name, host, observer };
@@ -915,6 +1143,12 @@ async function hostParty(nameText = partyName.value, observer = observerOpt.chec
   refreshParty(game.trucks);
   renderMpPage();
 }
+async function startObserver() {
+  enterFullscreen();
+  await hostParty('', true);
+  if (mp?.observer && splashOn) startGame();
+  else document.documentElement.classList.remove('autostart');
+}
 async function joinParty() {
   if (mp) return;
   const code = joinCode.value.trim().toUpperCase();
@@ -922,7 +1156,13 @@ async function joinParty() {
   const name = playerName();
   partyErr.textContent = '';
   busy(true);
-  const guest = createGuest({ relay: createRelay(), code, name, onGame: onGuestGame, onClosed: partyClosed });
+  let playerId = sessionStorage.getItem('forklift-party-player-id');
+  if (!playerId) {
+    playerId = Array.from(crypto.getRandomValues(new Uint8Array(16)), (n) => n.toString(16).padStart(2, '0')).join('');
+    sessionStorage.setItem('forklift-party-player-id', playerId);
+  }
+  const guest = createGuest({ relay: createRelay(), code, name, playerId, onGame: onGuestGame, onClosed: partyClosed, onRound: showRound, onVote: renderVote });
+  stateHistory?.clear();
   stopLocal();
   mp = { role: 'guest', code, name, guest, go: false, connected: false, lastH: null };
   try { await guest.join(); } catch (e) { mp = null; busy(false); partyErr.textContent = e.message; return; }
@@ -932,6 +1172,9 @@ async function joinParty() {
 // The host's level (welcome, and again on every level change): build it and mirror the host's state.
 function onGuestGame(m) {
   if (mp?.role !== 'guest') return;
+  mp.hostObserver = !!m.observer;
+  showRound(null);
+  if (m.t === 'welcome') history.replaceState(null, '', withoutJoinParam(location.href));
   mp.connected = true;
   clearTimeout(mp.timer);
   level = m.level; seed = m.seed; seedText = m.seedText || ''; hard = m.hard;
@@ -1019,15 +1262,6 @@ document.getElementById('rumbleTest').addEventListener('click', () => {
   if (gp) sendRumble(gp, 0.8 * s, 0.6 * s, 250, rumble.effect);
   if (vibrateSupported() && vibrateOpt.checked) { try { navigator.vibrate(Math.round(250 * Math.max(0.2, s))); } catch { /* best effort */ } }
 });
-// Temporary, only with ?controller: V opens the menu on the Rumble page, for tuning the rumble while testing a pad.
-if (new URLSearchParams(location.search).has('controller')) {
-  window.addEventListener('keydown', (e) => {
-    if (e.code !== 'KeyV' || e.repeat || e.altKey || e.ctrlKey || e.metaKey || splashOn || recordOpen || view.menuOpen) return;
-    e.preventDefault();
-    toggleMenu(true);
-    showPage('rumble');
-  });
-}
 // What the first pad can play, shown under the effect drop-down while the menu is open.
 function showRumbleSupport() {
   const gp = standardPads()[0]?.gp;
@@ -1052,10 +1286,16 @@ function stopLocal() {
   localOpt.checked = false;
   input.setLocalMode(false);
   local.clear(game);
+  localVote.clear();
+  renderVote(null, true);
 }
 localOpt.addEventListener('change', () => {
   input.setLocalMode(localOpt.checked);
-  if (!localOpt.checked) local.clear(game);
+  if (!localOpt.checked) {
+    local.clear(game);
+    localVote.clear();
+    renderVote(null, true);
+  }
 });
 // ?local turns on local multiplayer for this visit
 if (new URLSearchParams(location.search).has('local')) {
@@ -1108,6 +1348,7 @@ function toggleMenu(open) {
   setFullscreen(!open);
   menuEl.classList.toggle('hide', !open);
   if (open) {
+    if (stateHistory) stateMsg.textContent = stateHistory.earlier() ? '' : 'Five seconds of gameplay history are not yet available.';
     muteOpt.checked = isAllMuted();
     for (const el of volSliders) el.value = Math.round(getVolume(el.dataset.vol) * 100);
     musicOpt.checked = !isMusicMuted();
@@ -1122,14 +1363,18 @@ function toggleMenu(open) {
     chaseZoomSel.value = view.chaseZoom ?? chaseZoomOf(Math.max(CHASE_TILES, (view.ovTiles || 14) * CHASE_DEFAULT));
     themeSel.value = themeMode();
     menuHardOpt.checked = hardOpt.checked;
+    const mainPage = menuEl.querySelector('.page[data-page="main"]');
+    const partyButton = document.getElementById('menuParty');
+    const multiplayer = !!mp || (localOpt.checked && local.players > 0);
+    menuEl.classList.toggle('multiplayer-active', multiplayer);
+    if (multiplayer) mainPage.insertBefore(partyButton, mainPage.querySelector('[data-go="play"]'));
+    else mainPage.insertBefore(partyButton, mainPage.querySelector('[data-go="scores"]'));
     localOpt.disabled = !!mp;
     menuLevel.value = level;
     for (const el of menuEl.querySelectorAll('[data-hostonly]')) el.hidden = mp?.role === 'guest';
-    menuLeave.hidden = !mp;
-    menuLeave.textContent = mp?.observer ? 'End game' : 'Leave party';
     menuEndRun.hidden = !game.endless || game.status === 'over' || mp?.role === 'guest';
     mpName.value = localStorage.getItem('forklift-player') || '';
-    mpObserverOpt.checked = mp?.observer ?? observerOpt.checked;
+    mpObserverOpt.checked = mp?.observer ?? false;
     renderMpPage();
     updateTutorialBtn();
     showPage('main');
@@ -1254,6 +1499,7 @@ if (!localStorage.getItem(isTouch ? 'forklift-touch-scheme' : 'forklift-keys') &
 musicOpt.addEventListener('change', () => setMusicMuted(!musicOpt.checked));
 document.getElementById('menuGoto').addEventListener('submit', (e) => {
   e.preventDefault();
+  if (mp?.observer && mp.host.roundState()) return;
   const n = parseInt(menuLevel.value, 10);
   if (n >= 1) { load(n); toggleMenu(false); }
 });
@@ -1307,6 +1553,7 @@ menuTutorial.addEventListener('click', () => {
 document.getElementById('menuFullscreen').addEventListener('click', toggleFullscreen);
 document.getElementById('menuResume').addEventListener('click', () => toggleMenu(false));
 document.getElementById('menuRestart').addEventListener('click', () => {
+  if (mp?.observer && mp.host.roundState()) return;
   if (game.endless) loadEndless(true); else load(level);
   toggleMenu(false);
 });
@@ -1324,11 +1571,12 @@ window.addEventListener('keydown', (e) => {
   if (!view.menuOpen) return;
   e.stopImmediatePropagation();
   if (e.target.closest?.('#keyMap')) { if (e.code === 'Enter' || e.code === 'Space') pickKeys(e); if (e.code !== 'Escape') return; }
-  const typing = e.target === menuLevel || e.target === pullName;
+  const typing = e.target === menuLevel || e.target === pullName || e.target.id === 'mpVoteLevelNumber';
   if (e.target === stateText) { if (e.code === 'Escape') { e.preventDefault(); showPage('main'); } return; }
   if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage(parentPage()); return; }
   if (e.code === 'Escape' || (e.code === 'KeyP' && !typing)) { e.preventDefault(); toggleMenu(false); return; }
-  if (e.code === 'Enter' && e.target !== menuLevel && e.target !== pullName) { e.preventDefault(); toggleMenu(false); return; }
+  if (e.code === 'Enter' && e.target.closest?.('#mpVote, #mpList, #mpVotingSetting')) return;
+  if (e.code === 'Enter' && e.target !== menuLevel && e.target !== pullName && e.target !== menuLeave) { e.preventDefault(); toggleMenu(false); return; }
   if (e.target === trackSel || e.target === themeSel) return;
   if (typing || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
   if (mp?.observer && e.code === 'KeyM') return;
@@ -1341,14 +1589,20 @@ window.addEventListener('keydown', (e) => {
 
 const stateText = document.getElementById('stateText');
 const stateMsg = document.getElementById('stateMsg');
-document.getElementById('stateExport').addEventListener('click', async () => {
-  const snap = game.endless ? { ...serializeEndless(game), seedText } : serializeGame(game, seedText);
+const stateSnapshot = () => game.endless ? { ...serializeEndless(game), seedText } : serializeGame(game, seedText);
+async function exportSnapshot(snap) {
   stateText.value = debug ? JSON.stringify(snap) : await encodeState(snap);
   stateText.select();
   try {
     await navigator.clipboard.writeText(stateText.value);
     stateMsg.textContent = 'Exported and copied to clipboard.';
   } catch { stateMsg.textContent = 'Exported; copy the text above.'; }
+}
+document.getElementById('stateExport').addEventListener('click', () => exportSnapshot(stateSnapshot()));
+document.getElementById('stateExportEarlier').addEventListener('click', () => {
+  const snap = stateHistory?.earlier();
+  if (!snap) { stateMsg.textContent = 'Five seconds of gameplay history are not yet available.'; return; }
+  exportSnapshot(snap);
 });
 document.getElementById('stateImport').addEventListener('click', async () => {
   if (mp?.role === 'guest') return;
@@ -1361,6 +1615,7 @@ document.getElementById('stateImport').addEventListener('click', async () => {
     return;
   }
   if (recordOpen) closeRecord();
+  stateHistory?.clear();
   seed = g.seed;
   hard = g.hard;
   if (!g.endless) level = g.level;
@@ -1406,7 +1661,7 @@ const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 if (new URLSearchParams(location.search).has('endless')) loadEndless();
 // ?skip in the URL bypasses the splash (on touch it opens the main menu; keeps saved settings; no audio until a key/click starts it)
-if (new URLSearchParams(location.search).has('skip') && !new URLSearchParams(location.search).has('observer')) {
+if (new URLSearchParams(location.search).has('skip') && !new URLSearchParams(location.search).has('observer') && !new URLSearchParams(location.search).has('multiplayer')) {
   startGame();
   // On touch, start in the main menu: leaving it is the user gesture that lets full-screen kick in (auto full-screen on for this visit only; not saved)
   if (isTouch) { autoFs = true; autoFsOpt.checked = true; toggleMenu(true); }
@@ -1414,11 +1669,11 @@ if (new URLSearchParams(location.search).has('skip') && !new URLSearchParams(loc
 const multiplayerParam = new URLSearchParams(location.search).get('multiplayer');
 if (multiplayerParam) {
   joinCode.value = multiplayerParam.trim().toUpperCase();
-  setTimeout(() => { if (!mp) joinParty(); }, 0);
+  partyErr.textContent = `${partyNotice ? partyNotice + ' ' : ''}Confirm your name and select Join game.`;
+  partyName.focus();
 }
 if (new URLSearchParams(location.search).has('observer') && !multiplayerParam) {
-  observerOpt.checked = true;
-  hostParty(partyName.value, true).then(() => { if (mp?.observer) startGame(); });
+  startObserver();
 }
 const START_BOARD_SECS = 10;
 let lastDraw = -Infinity;
@@ -1490,6 +1745,7 @@ function frame(now) {
     if (!mp?.observer) cameraStep(inp, STEP);
     update(game, mp?.observer ? null : inp, STEP);
     stepEndless(game, STEP);
+    if (game.status === 'play' && !view.menuOpen) stateHistory?.step(STEP, stateSnapshot);
     followStep(STEP);
     acc -= STEP;
     steps++;
@@ -1498,6 +1754,7 @@ function frame(now) {
   const t1 = performance.now();
   checkTutorial();
   checkRecord();
+  updateRoundDisplay();
   const st = input.state();
   const won = game.status === 'won'; // end-of-level screen: continuous sfx are cut (jingle and music go on)
   setCrashAlert(!mp?.observer && crashAlert(game) && !splashOn && !view.paused && !won);

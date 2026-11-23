@@ -104,6 +104,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Final score** | Score minus time penalty, submitted to the high scores | `finalScore` |
 | **Local / global top list** | Local top 10 / online top 10 per seed+level | `highscores.js`, `globalscores.js` |
 | **Endless save** | Endless game checkpoint saved on opening the pause menu or starting/loading a run, resumed by Start endless after a browser restart; game over clears it | `forklift-endless-state`, `serializeEndless` |
+| **Earlier-state export** | Testing-only export of a snapshot from about five seconds of active gameplay earlier; unavailable until enough history exists | `stateExportEarlier`, `createStateHistory` |
 | **Skid marks / smoke** | Splash-animation effects | `splash.js` |
 
 ## Decals (cosmetic)
@@ -164,6 +165,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Touch map** | The three touch-layout pictograms (active one highlighted, tap to select) shown instead of the keyboard map on touch devices; reuses `TOUCH` from `schemepicker.js` | `#touchMap`, `applyTouch` |
 | **Keyboard map** | The two keyboard-scheme pictograms (active one highlighted; click or Enter/Space selects it, like the dropdown) above the gamepad map; reuses `KEYBOARD` from `schemepicker.js` | `#keyMap`, `applyKeys` |
 | **Menu / pause menu** | Esc/P menu with pages: main, play, sound, graphics, camera, controls, party (Multiplayer), scores (Scores & saves), info | `#menu` |
+| **End game** | Main-menu action returning to the splash; leaves saved solo progress intact or leaves/closes the party | `#menuLeave` |
 | **Report link** | Main-menu entry "Report a bug / request a feature" opening the GitHub issues page in a new tab | `#menu a.nav` |
 | **Zoom slider** | Desktop-only on-screen camera zoom slider in the bottom-right of the main view (sets the chase camera's zoom, same value as Camera zoom in the menu, while in the chase camera, and the overview's own zoom otherwise) | `#zoomBar` |
 | **Record prompt** | Name entry when a record is set | `#record` |
@@ -188,9 +190,11 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Ghost** | Translucent truck that overlaps another truck (or a stack, `s.ghost`) at spawn; not solid until separated | `isGhost`, `ghostBetween` |
 | **Handoff** | Taking or giving a carried stack via tines | `transferCarried` |
 | **Multiplayer page** | Menu page for hosting, roster, ping, kick/ban | `#mpList`, `renderMpPage` |
-| **Kick / ban** | Host removes a guest; a ban refuses that name for the party | `host.kick` |
+| **Kick / ban** | Host removes a guest; a kick blocks that name for 60 seconds, a ban for the party | `host.kick` |
+| **Party vote** | Anonymous majority ballot to change mode/level or kick a guest, announced to all screens | `createVote`, `#mpVote`, `#voteNotice` |
 | **Party badge** | Top-right party code and player list | `drawPartyBadge` |
-| **Observer host** | Party host without a truck, forced to the full-map overview with a limited menu | `Observer`, `?observer`, `view.fullMap` |
+| **Observer host** | Party host without a truck, forced to the full-map overview with a limited menu; start from the splash without a player name | `#observerStart`, `?observer`, `view.fullMap` |
+| **Round countdown / Ready** | Observer-hosted round ends with a 10-second countdown; eligible guests may press Ready to shorten it to at most three seconds | `roundReady`, `createRound` |
 | **Party join card** | Polaroid-style QR and party code placed outside the observer's field while guest slots remain | `drawPartyJoinCard`, `observerLayout`, `js/qr.js` |
 
 ## Audio

@@ -3,6 +3,7 @@ import { generateLevel, parseSeed, isReachable } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
 import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
+import { observerPartyScore } from '../js/globalscores.js';
 import { stepRepair } from '../js/repair.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
 import { chaseOrbit } from '../js/gl/camera.js';
@@ -21,6 +22,22 @@ import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecal
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
+
+// Observer scores retain the full round roster and use the mode's party board.
+{
+  const players = ['Anna', 'Bob'];
+  const result = observerPartyScore(7, 0, players, 120, 45, 'ABCDE', 'token');
+  assert.equal(result.board, '7:0:p2');
+  assert.equal(result.entry.name, 'Anna', 'the score is attributed to a participant, not the observer host');
+  assert.deepEqual(result.entry.party, { players, partyCode: 'ABCDE', hostToken: 'token' });
+  players.push('Cy');
+  assert.equal(result.entry.party.players.length, 2, 'submission keeps the completed roster');
+  assert.equal(observerPartyScore(0, 3, [], 0, 0, 'ABCDE', 'token'), null);
+  const five = observerPartyScore(0, 3, ['a', 'b', 'c', 'd', 'e'], 0, 0, 'ABCDE', 'token');
+  assert.equal(five.board, '0:3:p5');
+  assert.deepEqual(five.entry.party.players, ['a', 'b', 'c', 'd', 'e'], 'all participants are sent, including players who left');
+  assert.equal(observerPartyScore(0, 1, ['Observer'], 10, 2, 'ABCDE', 'token').entry.name, 'Observer', 'a guest named Observer remains eligible');
+}
 
 // Damage to a loose stack lowers the score right away (negative before anything is on a drop point).
 {

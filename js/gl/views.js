@@ -103,7 +103,8 @@ function swoopCamera(cam, mode) {
 // `orbit` ({ yaw, tilt } radians, set by dragging) rotates/tilts the camera around the same centre (cx, cy); `chase` (tiles visible vertically) uses the
 // third-person camera at floor position `eye2` (null: behind `heading`), looking at the tines' middle (cx, cy, s ignored); `orbit` then swings it around the truck.
 // Returns false without WebGL, else true (chase: the floor footprint polygon, for the minimap).
-export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = null, chase = 0, heading = g.fl.a, eye2 = null) {
+// `onProject`, when supplied, receives the active world-to-screen projector for floating observer overlays.
+export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = null, chase = 0, heading = g.fl.a, eye2 = null, onProject = null) {
   if (!glAvailable()) return false;
   let cam, foot = true;
   if (chase) {
@@ -118,6 +119,7 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = n
   if (chase) foot = groundFootprint(cam);
   const proj = drawGl(ctx, g, 'ov', cam, rx, ry, dpr);
   if (!proj) return false;
+  if (onProject) onProject(proj);
   const tp = proj(g.fl.x, g.fl.y, 0.6), te = proj(g.fl.x + 2, g.fl.y, 0.6);
   if (!g.truck.gone && tp && te) setTruckSpot(tp[0], tp[1], Math.hypot(te[0] - tp[0], te[1] - tp[1]));
   ctx.save();
