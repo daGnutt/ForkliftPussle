@@ -19,7 +19,7 @@ import { discoOn, drawDiscoSpots } from './disco.js';
 import { qrMatrix } from './qr.js';
 import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark } from './decals.js';
 import { liftedHf, carriedDrawH, carriedWorldOffs, forkHeight, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
-import { BOX_SCALE, BOX_HALF_X, halfY } from './geom.js';
+import { BOX_SCALE, BOX_HALF_X, halfY, LEVEL_H } from './geom.js';
 
 // Gradients are interpreted in the coordinate space at fill time, so they can be cached and reused (creating
 // them every frame for every box is slow in Firefox).
@@ -447,10 +447,12 @@ function drawOverview(ctx, g, view, rx, ry, rw, rh, maxScale, follow = false, pa
     }
   }
   const orbit = view.fullMap ? { yaw: 0, tilt: 0 } : follow ? view.orbit : null;
-  if (drawOverview3d(ctx, g, rx, ry, rw, rh, (rx + rw / 2 - ox) / s, (ry + rh / 2 - oy) / s, s, view.dpr, orbit)) {
+  if (drawOverview3d(ctx, g, rx, ry, rw, rh, (rx + rw / 2 - ox) / s, (ry + rh / 2 - oy) / s, s, view.dpr, orbit, 0, g.fl.a, null,
+    view.fullMap ? (proj) => { view.observerProject = (x, y, z = 0) => proj(x, y, z * LEVEL_H); } : null)) {
     if (zoomed) ctx.restore();
     return cam;
   }
+  if (view.fullMap) view.observerProject = (x, y, z = 0) => [ox + (x + z * PX) * s, oy + (y + z * PY) * s];
   if (!g.truck.gone) setTruckSpot(ox + g.fl.x * s, oy + g.fl.y * s, 2 * s);
   ctx.setTransform(s * view.dpr, 0, 0, s * view.dpr, ox * view.dpr, oy * view.dpr);
   drawWorld(ctx, g, null, s * view.dpr);
@@ -1144,29 +1146,101 @@ export function observerLayout(width, height, mapWidth, mapHeight, hasCard) {
   const margin = 8, top = 48;
   const area = { x: margin, y: top, w: Math.max(1, width - margin * 2), h: Math.max(1, height - top - margin) };
   if (!hasCard) return { area, card: null };
-  const w = Math.max(90, Math.min(190, width * 0.3, (height - top - margin - 54) * 0.75));
-  const h = w + 34, gap = 8;
-  const options = [
-    { area: { ...area, w: Math.max(1, area.w - w - gap) }, card: { x: width - margin - w, y: top, w, h } },
-    { area: { ...area, y: top + h + gap, h: Math.max(1, area.h - h - gap) }, card: { x: margin, y: top, w, h } },
-    { area: { ...area, h: Math.max(1, area.h - h - gap) }, card: { x: margin, y: height - margin - h, w, h } },
-  ];
-  return options.reduce((best, option) => {
-    const scale = (r) => Math.min(r.w / mapWidth, r.h / mapHeight);
-    return scale(option.area) > scale(best.area) ? option : best;
-  });
+  const w = Math.max(180, Math.min(260, width * 0.25, height * 0.32)), h = w + 58, angle = -0.055;
+  const bw = w * Math.cos(angle) + h * Math.abs(Math.sin(angle));
+  const bh = h * Math.cos(angle) + w * Math.abs(Math.sin(angle));
+  return { area, card: { x: Math.max(margin, width - margin - bw), y: top, w, h, bw, bh, angle } };
+}
+
+// Compare overlap lexicographically: even a crowded floor must give forklifts priority over boxes, zones, then bots.
+export function placeObserverCard(area, card, obstacles, previous = null) {
+  const x1 = Math.max(area.x, area.x + area.w - card.bw), y1 = Math.max(area.y, area.y + area.h - card.bh);
+  const clamp = (p) => ({ x: Math.max(area.x, Math.min(x1, p.x)), y: Math.max(area.y, Math.min(y1, p.y)) });
+  const anchor = clamp(previous || { x: x1, y: area.y });
+  let best = null, bestScore = null;
+  const consider = (x, y) => {
+    const score = obstacles.map((group) => group.reduce((sum, r) => sum
+      + Math.max(0, Math.min(x + card.bw, r.right) - Math.max(x, r.left))
+      * Math.max(0, Math.min(y + card.bh, r.bottom) - Math.max(y, r.top)), 0));
+    score.push(Math.hypot(x - anchor.x, y - anchor.y));
+    const different = bestScore && score.findIndex((v, i) => Math.abs(v - bestScore[i]) > 0.01);
+    if (!bestScore || (different >= 0 && score[different] < bestScore[different])) {
+      best = { ...card, x, y }; bestScore = score;
+    }
+  };
+  consider(anchor.x, anchor.y);
+  if (bestScore.slice(0, obstacles.length).every((v) => v === 0)) return best;
+  const nx = Math.max(1, Math.ceil((x1 - area.x) / 40)), ny = Math.max(1, Math.ceil((y1 - area.y) / 40));
+  for (let ix = 0; ix <= nx; ix++) for (let iy = 0; iy <= ny; iy++) consider(area.x + (x1 - area.x) * ix / nx, area.y + (y1 - area.y) * iy / ny);
+  return best;
+}
+
+export function observerObstacles(g, project) {
+  const groups = [[], [], [], []];
+  const rect = (group, points, pad = 8) => {
+    const p = points.map(([x, y, z = 0]) => project(x, y, z)).filter(Boolean);
+    if (!p.length) return;
+    groups[group].push({ left: Math.min(...p.map((v) => v[0])) - pad, right: Math.max(...p.map((v) => v[0])) + pad,
+      top: Math.min(...p.map((v) => v[1])) - pad, bottom: Math.max(...p.map((v) => v[1])) + pad });
+  };
+  const box = (group, x, y, hx, hy, a, z0, z1, pad = 8) => {
+    const co = Math.cos(a), si = Math.sin(a);
+    rect(group, [z0, z1].flatMap((z) => [[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy]]
+      .map(([u, v]) => [x + u * co - v * si, y + u * si + v * co, z])), pad);
+  };
+  for (let i = 0; i < g.trucks.length; i++) {
+    if (g.trucks[i].gone) continue;
+    const t = truckView(g, i), f = t.fl, centre = toWorld(f, (FL.back + FL.tineX1) / 2, 0), z = liftedHf(t) ?? 0;
+    box(0, centre.x, centre.y, (FL.tineX1 - FL.back) / 2, FL.halfW + 0.15, f.a, z, z + 2.5, 14);
+    if (t.carried?.length) {
+      const c = toWorld(f, FL.carryX, 0), offs = carriedWorldOffs(t);
+      t.carried.forEach((_, j) => {
+        const o = offs?.[j] || { x: 0, y: 0 };
+        box(1, c.x + o.x, c.y + o.y, BOX_HALF_X, halfY(t.carriedPen?.[j]), (t.carriedRots?.[j] || 0) + f.a,
+          carriedDrawH(t) + j, carriedDrawH(t) + j + 1);
+      });
+    }
+  }
+  for (const st of g.stacks) {
+    const s = fallView(g, st), z = stackZ(s) + dropLift(g, s);
+    s.layers.forEach((_, i) => {
+      const o = s.offs?.[i] || { x: 0, y: 0 };
+      box(1, s.x + o.x, s.y + o.y, BOX_HALF_X, halfY(s.pen?.[i]), s.rots?.[i] ?? s.a ?? 0, z + i, z + i + 1);
+    });
+  }
+  for (const z of g.zones) { const e = zoneExt(z); box(2, z.x, z.y, e.x, e.y, 0, 0, 0); }
+  for (const b of [g.bot, g.inspector]) {
+    if (!b || b.show <= 0) continue;
+    const p = botDrawPos(b, g.hatch);
+    box(3, p.x, p.y, 0.55, 0.55, b.a || 0, 0, 0.8);
+  }
+  return groups;
+}
+
+function floatingObserverCard(view, g, area, card) {
+  const now = performance.now(), old = view.observerCard;
+  const previous = old?.g === g && old.w === card.w && old.areaW === area.w && old.areaH === area.h ? old : null;
+  const target = placeObserverCard(area, card, observerObstacles(g, view.observerProject), previous);
+  const k = previous ? 1 - Math.exp(-8 * Math.min(0.1, Math.max(0, (now - previous.time) / 1000))) : 1;
+  const out = { ...target, x: previous ? previous.x + (target.x - previous.x) * k : target.x,
+    y: previous ? previous.y + (target.y - previous.y) * k : target.y, time: now, g, areaW: area.w, areaH: area.h };
+  view.observerCard = out;
+  return out;
 }
 function drawPartyJoinCard(ctx, party, rect) {
   if (!rect) return null;
-  const { x, y, w, h } = rect;
+  const { x, y, w, h, bw, bh, angle } = rect;
   const picture = w - 20;
   ctx.save();
+  ctx.translate(x + bw / 2, y + bh / 2);
+  ctx.rotate(angle);
+  ctx.translate(-w / 2, -h / 2);
   ctx.fillStyle = '#fff';
   ctx.shadowColor = 'rgba(0,0,0,.55)';
   ctx.shadowBlur = 12;
   ctx.shadowOffsetY = 4;
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, 4);
+  ctx.roundRect(0, 0, w, h, 3);
   ctx.fill();
   ctx.shadowColor = 'transparent';
   let matrix = partyQrCache.get(party.url);
@@ -1174,7 +1248,7 @@ function drawPartyJoinCard(ctx, party, rect) {
     try { matrix = qrMatrix(party.url); } catch { matrix = []; }
     partyQrCache.set(party.url, matrix);
   }
-  const px = x + (w - picture) / 2, py = y + 10;
+  const px = (w - picture) / 2, py = 10;
   ctx.fillStyle = '#111';
   ctx.fillRect(px, py, picture, picture);
   ctx.fillStyle = '#fff';
@@ -1188,15 +1262,18 @@ function drawPartyJoinCard(ctx, party, rect) {
   }
   if (!matrix.length) {
     ctx.fillStyle = '#111'; ctx.textAlign = 'center'; ctx.font = '12px sans-serif';
-    ctx.fillText('Enter party code', x + w / 2, py + picture / 2, picture - 8);
+    ctx.fillText('Enter party code', w / 2, py + picture / 2, picture - 8);
   }
-  ctx.fillStyle = '#111';
+  ctx.fillStyle = '#43a047';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = 'bold 14px sans-serif';
-  ctx.fillText(`PARTY ${party.code}`, x + w / 2, y + picture + 29);
+  ctx.fillText('JOIN THE PARTY', w / 2, w + 9);
+  ctx.fillStyle = '#111';
+  ctx.font = 'bold 24px monospace';
+  ctx.fillText(party.code, w / 2, w + 35);
   ctx.restore();
-  addHudRect(x, y, x + w, y + h);
+  addHudRect(x, y, x + bw, y + bh);
   return { x, y, w, h };
 }
 
@@ -1452,7 +1529,9 @@ export function draw(ctx, g, view) {
     }
     const cam = tiles && !tiles.ov ? null : drawOverview(ctx, g, view, rx, ry, rw, rh, view.fullMap ? Infinity : 48, !view.fullMap, !tiles && touchLand && zoomedIn ? GAUGE_W : 0, !tiles && touchLand && zoomedIn ? PAD_H : 0);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-    if (joinCard && view.partyJoin) drawPartyJoinCard(ctx, view.partyJoin, joinCard);
+    if (joinCard && view.partyJoin && view.observerProject) {
+      drawPartyJoinCard(ctx, view.partyJoin, floatingObserverCard(view, g, { x: rx, y: ry, w: rw, h: rh }, joinCard));
+    } else view.observerCard = null;
     if (tiles) {
       cabs.forEach((i, k) => {
         const t = tiles.cabs[k], tv = i === g.self ? g : truckView(g, i);

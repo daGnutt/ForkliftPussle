@@ -79,6 +79,57 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   assert.ok(!s.up && s.motionSource === 'gamepad', 'unplugging releases controls without changing the last motion source');
 }
 
+// Touches on overlays take precedence over controls underneath, while pad touches can still slide.
+{
+  const listeners = {};
+  const savedDocument = globalThis.document, savedWindow = globalThis.window;
+  const button = (key, left) => ({
+    dataset: { key }, addEventListener() {}, contains(target) { return target === this; },
+    getBoundingClientRect: () => ({ left, right: left + 40, top: 0, bottom: 40, width: 40 }),
+    classList: { toggle() {}, remove() {} },
+  });
+  const left = button('ArrowLeft', 0), right = button('ArrowRight', 40);
+  const knob = { style: {} };
+  const stick = {
+    addEventListener() {}, contains(target) { return target === this; }, querySelector: () => knob,
+    getBoundingClientRect: () => ({ left: 100, right: 200, top: 0, bottom: 100, width: 100 }),
+    classList: { add() {}, remove() {} },
+  };
+  globalThis.document = { querySelectorAll: () => [left, right], getElementById: () => stick };
+  globalThis.window = { addEventListener: (type, f) => { (listeners[type] ??= []).push(f); } };
+  const inp = createInput({});
+  const touch = (id, x, target) => ({ identifier: id, clientX: x, clientY: 20, target });
+  const emit = (type, touches, changedTouches) => {
+    let prevented = false;
+    for (const f of listeners[type]) f({ type, touches, changedTouches, cancelable: true, preventDefault() { prevented = true; } });
+    return prevented;
+  };
+  const overlay = {};
+  let t = touch(1, 20, overlay);
+  assert.equal(emit('touchstart', [t], [t]), false, 'overlay over a button keeps its tap');
+  assert.equal(inp.state().left, false);
+  emit('touchend', [], [t]);
+  t = touch(2, 180, overlay);
+  assert.equal(emit('touchstart', [t], [t]), false, 'overlay over the joystick keeps its tap');
+  assert.equal(inp.state().str, 0);
+  emit('touchend', [], [t]);
+  t = touch(3, 20, left);
+  assert.equal(emit('touchstart', [t], [t]), true);
+  assert.equal(inp.state().left, true);
+  t = touch(3, 60, left);
+  emit('touchmove', [t], [t]);
+  assert.equal(inp.state().right, true, 'a touch starting on a button can slide to another');
+  emit('touchend', [], [t]);
+  assert.equal(inp.state().right, false);
+  t = touch(4, 180, stick);
+  assert.equal(emit('touchstart', [t], [t]), true);
+  assert.ok(inp.state().str > 0, 'a touch on the joystick still steers');
+  emit('touchend', [], [t]);
+  assert.equal(inp.state().str, 0);
+  globalThis.document = savedDocument;
+  globalThis.window = savedWindow;
+}
+
 // D-pad selects GL camera modes and resets the active camera
 {
   const calls = [];

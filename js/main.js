@@ -299,9 +299,12 @@ function partyGameChanged() {
 // Saved choice wins; with none, full screen is on for touch devices (the default is not written to storage).
 const savedFs = localStorage.getItem('forklift-auto-fullscreen');
 let autoFs = savedFs === null ? matchMedia('(pointer: coarse)').matches : savedFs === '1';
+function enterFullscreen() {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+}
 function setFullscreen(on) {
   if (!autoFs) return;
-  if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+  if (on) enterFullscreen();
   else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
 }
 function toggleFullscreen() {
@@ -446,9 +449,9 @@ const input = createInput({
   },
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
-  menuToggle: () => { if (view.menuOpen) toggleMenu(false); else if (!splashOn && !recordOpen) toggleMenu(true); else if (splashOn) startBtn.click(); },
+  menuToggle: () => { if (view.menuOpen) toggleMenu(false); else if (!splashOn && !recordOpen) toggleMenu(true); else if (splashOn && !document.documentElement.classList.contains('autostart')) startBtn.click(); },
   menuNav: (dir) => padMenuNav(dir),
-  menuSelect: () => { if (!mp && view.vote?.status === 'active') return; if (splashOn) startBtn.click(); else if (view.menuOpen) document.activeElement?.click?.(); },
+  menuSelect: () => { if (!mp && view.vote?.status === 'active') return; if (splashOn && !document.documentElement.classList.contains('autostart')) startBtn.click(); else if (!splashOn && view.menuOpen) document.activeElement?.click?.(); },
   menuBack: () => { if (!mp && view.vote?.status === 'active') return; if (!view.menuOpen) return; if (menuEl.dataset.page !== 'main') showPage(parentPage()); else toggleMenu(false); },
   blocked: () => splashOn || recordOpen || !!view.menuOpen,
 });
@@ -607,7 +610,7 @@ function checkRecord() {
     const points = game.endless ? endlessScore(game.endless) : finalScore(score(game), game.time);
     const board = game.endless ? 0 : level;
     mp.host.startRound();
-    const submission = observerPartyScore(seed, board, players, mp.name, points, game.time, mp.code, mp.host.token);
+    const submission = observerPartyScore(seed, board, players, points, game.time, mp.code, mp.host.token);
     if (submission) {
       const roundId = mp.host.roundState().id;
       submitPartyScore(submission.board, submission.entry).then((rank) => {
@@ -808,6 +811,7 @@ hardOpt.addEventListener('change', () => {
 showTutorial();
 
 function startGame(endless = false) {
+  if (hostBtn.disabled && !mp) return;
   if (mp?.role === 'guest' && !mp.go) return; // waiting for the host
   if (mp?.role !== 'guest' && hardOpt.checked !== hard) {
     load(level);
@@ -844,6 +848,8 @@ document.getElementById('seedForm').addEventListener('submit', (e) => {
 window.addEventListener('keydown', (e) => {
   if (!splashOn || e.target === partyName || e.target === joinCode) return;
   e.stopImmediatePropagation();
+  if (document.documentElement.classList.contains('autostart')) { e.preventDefault(); return; }
+  if (e.target instanceof HTMLButtonElement) return;
   if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); startAudio(); startGame(); }
 }, true);
 
@@ -852,32 +858,36 @@ const partyName = document.getElementById('partyName');
 const joinCode = document.getElementById('joinCode');
 const menuLeave = document.getElementById('menuLeave');
 const hostBtn = document.getElementById('hostBtn');
+const observerStart = document.getElementById('observerStart');
 const joinBtn = document.getElementById('joinBtn');
 const partyBox = document.getElementById('partyBox');
 const partyList = document.getElementById('partyList');
 const partyMsg = document.getElementById('partyMsg');
 const partyErr = document.getElementById('partyErr');
 partyName.value = localStorage.getItem('forklift-player') || '';
-const observerOpt = document.getElementById('observerOpt');
 const mpObserverOpt = document.getElementById('mpObserverOpt');
 const partyNotice = sessionStorage.getItem('forklift-party-msg');
 if (partyNotice) { partyErr.textContent = partyNotice; sessionStorage.removeItem('forklift-party-msg'); }
 for (const el of [partyName, joinCode]) el.addEventListener('keydown', (e) => e.stopPropagation());
 partyName.addEventListener('keydown', (e) => { if (e.key === 'Enter' && joinCode.value.trim()) { e.preventDefault(); joinParty(); } });
 joinCode.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); joinParty(); } });
-hostBtn.addEventListener('click', () => { startAudio(); hostParty(partyName.value, observerOpt.checked); });
+hostBtn.addEventListener('click', () => { startAudio(); hostParty(partyName.value); });
+observerStart.addEventListener('click', () => { startAudio(); startObserver(); });
 joinBtn.addEventListener('click', () => { startAudio(); joinParty(); });
 const leaveParty = () => {
   mp?.host?.close(); mp?.guest?.close(); mp = null;
+  returnToSplash();
+};
+function returnToSplash() {
   const url = new URL(location.href);
-  url.searchParams.delete('observer'); url.searchParams.delete('multiplayer');
+  for (const param of ['observer', 'multiplayer', 'skip', 'endless']) url.searchParams.delete(param);
   history.replaceState(null, '', url);
   location.reload();
-};
+}
 document.getElementById('partyLeave').addEventListener('click', leaveParty);
 menuLeave.addEventListener('click', leaveParty);
 window.addEventListener('pagehide', () => { mp?.host?.close(); mp?.guest?.close(); });
-const busy = (on) => { hostBtn.disabled = joinBtn.disabled = on; };
+const busy = (on) => { hostBtn.disabled = observerStart.disabled = joinBtn.disabled = on; };
 function playerName() {
   const name = partyName.value.trim() || 'Player';
   savePlayerName(name);
@@ -887,7 +897,7 @@ function playerName() {
 function partyClosed(why) {
   if (why === 'left') return;
   sessionStorage.setItem('forklift-party-msg', why);
-  location.reload();
+  returnToSplash();
 }
 function showParty(msg) {
   partyBox.hidden = false;
@@ -1103,10 +1113,10 @@ function renderMpPage() {
   document.getElementById('mpVoteEndless').hidden = !!game.endless;
 }
 setInterval(() => { if (view.menuOpen && menuEl.dataset.page === 'party') renderMpPage(); }, 1000);
-async function hostParty(nameText = partyName.value, observer = observerOpt.checked) {
+async function hostParty(nameText = partyName.value, observer = false) {
   if (mp) return;
-  const name = (nameText.trim() || 'Player').slice(0, 24);
-  savePlayerName(name);
+  const name = observer ? 'Observer' : (nameText.trim() || 'Player').slice(0, 24);
+  if (!observer) savePlayerName(name);
   partyErr.textContent = '';
   busy(true);
   const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, meta: { observer }, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed, onRound: observerRoundChanged, onVote: renderVote, onVoteResult: applyPartyVote });
@@ -1132,6 +1142,12 @@ async function hostParty(nameText = partyName.value, observer = observerOpt.chec
   showParty('Press Start when everyone has joined (others can still join later).');
   refreshParty(game.trucks);
   renderMpPage();
+}
+async function startObserver() {
+  enterFullscreen();
+  await hostParty('', true);
+  if (mp?.observer && splashOn) startGame();
+  else document.documentElement.classList.remove('autostart');
 }
 async function joinParty() {
   if (mp) return;
@@ -1246,15 +1262,6 @@ document.getElementById('rumbleTest').addEventListener('click', () => {
   if (gp) sendRumble(gp, 0.8 * s, 0.6 * s, 250, rumble.effect);
   if (vibrateSupported() && vibrateOpt.checked) { try { navigator.vibrate(Math.round(250 * Math.max(0.2, s))); } catch { /* best effort */ } }
 });
-// Temporary, only with ?controller: V opens the menu on the Rumble page, for tuning the rumble while testing a pad.
-if (new URLSearchParams(location.search).has('controller')) {
-  window.addEventListener('keydown', (e) => {
-    if (e.code !== 'KeyV' || e.repeat || e.altKey || e.ctrlKey || e.metaKey || splashOn || recordOpen || view.menuOpen) return;
-    e.preventDefault();
-    toggleMenu(true);
-    showPage('rumble');
-  });
-}
 // What the first pad can play, shown under the effect drop-down while the menu is open.
 function showRumbleSupport() {
   const gp = standardPads()[0]?.gp;
@@ -1365,11 +1372,9 @@ function toggleMenu(open) {
     localOpt.disabled = !!mp;
     menuLevel.value = level;
     for (const el of menuEl.querySelectorAll('[data-hostonly]')) el.hidden = mp?.role === 'guest';
-    menuLeave.hidden = !mp;
-    menuLeave.textContent = mp?.observer ? 'End game' : 'Leave party';
     menuEndRun.hidden = !game.endless || game.status === 'over' || mp?.role === 'guest';
     mpName.value = localStorage.getItem('forklift-player') || '';
-    mpObserverOpt.checked = mp?.observer ?? observerOpt.checked;
+    mpObserverOpt.checked = mp?.observer ?? false;
     renderMpPage();
     updateTutorialBtn();
     showPage('main');
@@ -1571,7 +1576,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && menuEl.dataset.page !== 'main') { e.preventDefault(); showPage(parentPage()); return; }
   if (e.code === 'Escape' || (e.code === 'KeyP' && !typing)) { e.preventDefault(); toggleMenu(false); return; }
   if (e.code === 'Enter' && e.target.closest?.('#mpVote, #mpList, #mpVotingSetting')) return;
-  if (e.code === 'Enter' && e.target !== menuLevel && e.target !== pullName) { e.preventDefault(); toggleMenu(false); return; }
+  if (e.code === 'Enter' && e.target !== menuLevel && e.target !== pullName && e.target !== menuLeave) { e.preventDefault(); toggleMenu(false); return; }
   if (e.target === trackSel || e.target === themeSel) return;
   if (typing || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
   if (mp?.observer && e.code === 'KeyM') return;
@@ -1668,8 +1673,7 @@ if (multiplayerParam) {
   partyName.focus();
 }
 if (new URLSearchParams(location.search).has('observer') && !multiplayerParam) {
-  observerOpt.checked = true;
-  hostParty(partyName.value, true).then(() => { if (mp?.observer) startGame(); });
+  startObserver();
 }
 const START_BOARD_SECS = 10;
 let lastDraw = -Infinity;

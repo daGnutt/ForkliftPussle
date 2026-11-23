@@ -131,8 +131,10 @@ export function createInput(handlers) {
     // Two fingers resting on the canvas (not on the pad) hold the horn; one finger still orbits/taps.
     twoFingerHorn = [...live.values()].filter((t) => t.target?.id === 'game').length >= 2;
     for (const t of e.changedTouches) {
-      if (e.type === 'touchstart' && stickId === null && inStick(t.clientX, t.clientY)) { stickId = t.identifier; stickByTouch = true; handlers.anyKey?.(); }
-      if (e.type === 'touchstart' && buttonAt(t.clientX, t.clientY)) padTouches.add(t.identifier);
+      if (e.type !== 'touchstart') continue;
+      if (stickId === null && stickEl?.contains(t.target) && inStick(t.clientX, t.clientY)) { stickId = t.identifier; stickByTouch = true; handlers.anyKey?.(); }
+      const b = buttonAt(t.clientX, t.clientY);
+      if (b?.contains(t.target)) padTouches.add(t.identifier);
     }
     if (stickByTouch) {
       const st = live.get(stickId);
@@ -148,7 +150,7 @@ export function createInput(handlers) {
     for (const b of buttons) b.classList.toggle('on', keys.has(b.dataset.key));
     for (const c of [...touchKeys]) if (!keys.has(c)) { touchKeys.delete(c); if (![...held.values()].includes(c)) down.delete(c); }
     for (const c of keys) if (!touchKeys.has(c)) { touchKeys.add(c); press(c); }
-    if (e.cancelable && [...e.changedTouches].some((t) => padTouches.has(t.identifier) || (stickByTouch && t.identifier === stickId) || e.type === 'touchstart' && inStick(t.clientX, t.clientY) || e.type === 'touchstart' && buttonAt(t.clientX, t.clientY))) e.preventDefault();
+    if (e.cancelable && [...e.changedTouches].some((t) => padTouches.has(t.identifier) || (stickByTouch && t.identifier === stickId))) e.preventDefault();
   };
   for (const type of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) window.addEventListener(type, syncTouches, { passive: false, capture: true });
   window.addEventListener('keydown', (e) => {

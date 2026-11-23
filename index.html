@@ -10,6 +10,11 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script id="autostartSplash">
+    const params = new URLSearchParams(location.search);
+    if ((params.has('skip') && !params.has('observer') && !params.has('multiplayer')) ||
+        (params.has('observer') && !params.get('multiplayer'))) document.documentElement.classList.add('autostart');
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -38,7 +43,7 @@
       <h2>Menu</h2>
       <div class="page" data-page="main">
         <button type="button" id="menuResume" class="primary" data-observer>Resume</button>
-        <button type="button" id="menuLeave" class="sec" data-observer hidden>Leave party</button>
+        <button type="button" id="menuLeave" class="sec" data-observer>End game</button>
         <label class="item"><input type="checkbox" id="muteOpt"> <u>M</u>ute all sounds</label>
         <button type="button" id="menuRestart" class="sec" data-hostonly data-observer>Restart level</button>
         <hr>
@@ -245,9 +250,13 @@
       <div class="row">
         <input id="partyName" type="text" maxlength="24" placeholder="Your name" spellcheck="false" aria-label="Your name">
         <button type="button" id="hostBtn" title="Host a co-op game for up to 4 players">Host game</button>
-        <label class="opt" title="The host does not receive a truck and always shows the full play field"><input type="checkbox" id="observerOpt"> Observer</label>
+      </div>
+      <div class="row">
         <input id="joinCode" type="text" maxlength="5" placeholder="Party code" spellcheck="false" autocapitalize="characters" aria-label="Party code">
         <button type="button" id="joinBtn">Join game</button>
+      </div>
+      <div class="row">
+        <button type="button" id="observerStart" title="Host and watch the full play field without a truck">Start observer mode</button>
       </div>
       <div id="partyBox" hidden>
         <div class="code">Party code <b id="partyCode"></b></div>

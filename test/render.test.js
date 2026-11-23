@@ -15,7 +15,7 @@ import { popupScale, placePhoto, drawPhoto, boxStatus, issues, stripHeight, scor
 import { projectPoint } from '../js/gl/mat.js';
 import { oilDropMark } from '../js/decals.js';
 import { setThemeMode } from '../js/theme.js';
-import { draw, drawForkGauge, observerLayout } from '../js/render.js';
+import { draw, drawForkGauge, observerLayout, placeObserverCard, observerObstacles } from '../js/render.js';
 import { drawHintArrow, repairHintOn, setRepairHint } from '../js/repairhint.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
@@ -187,19 +187,64 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.deepEqual(visibleDecalEdges(12, Math.PI), [1], 'the front entry face has its decal');
 }
 
-// The observer reserves room for the join card on the side that gives the largest full-map view.
+// The observer join card floats over the full-size map without sacrificing readability.
 {
   for (const [width, height] of [[1200, 800], [390, 844], [844, 390]]) {
     const withCard = observerLayout(width, height, 30, 20, true);
     const without = observerLayout(width, height, 30, 20, false);
     const a = withCard.area, c = withCard.card;
-    assert.ok(a.x + a.w <= c.x || c.x + c.w <= a.x || a.y + a.h <= c.y || c.y + c.h <= a.y, 'card does not overlap the map');
-    assert.ok(Math.min(without.area.w / 30, without.area.h / 20) >= Math.min(a.w / 30, a.h / 20), 'removing the card never reduces map size');
+    assert.deepEqual(a, without.area, 'the card never reserves space or shrinks the map');
+    assert.ok(c.w >= 180 && c.angle !== 0, 'card has a readable minimum width and photo tilt');
+    const p = placeObserverCard(a, c, [[], [], [], []]);
+    assert.ok(p.x >= a.x && p.y >= a.y && p.x + p.bw <= a.x + a.w && p.y + p.bh <= a.y + a.h, 'rotated corners fit inside the viewport');
   }
+  assert.equal(observerLayout(240, 240, 30, 20, true).card.w, 180, 'even a tiny screen does not reduce the minimum size');
   const g = newGame(1);
   const withTruck = dynamicMeshes(g, 'ov', [0, 0]).opaque.count;
   removeTruck(g, 0);
   assert.ok(dynamicMeshes(g, 'ov', [0, 0]).opaque.count < withTruck, 'a removed host truck is not drawn in WebGL');
+}
+
+// Join cards can choose interior spots and dodge in forklift, box, drop-zone, bot order.
+{
+  const area = { x: 0, y: 0, w: 400, h: 100 }, card = { w: 100, h: 100, bw: 100, bh: 100 };
+  const left = { left: 0, top: 0, right: 200, bottom: 100 }, right = { ...left, left: 200, right: 400 };
+  for (let priority = 0; priority < 3; priority++) {
+    const groups = [[], [], [], []];
+    groups[priority] = [left]; groups[priority + 1] = [right];
+    const p = placeObserverCard(area, card, groups);
+    assert.ok(p.x >= 200, `priority ${priority} stays clear even when the next class must be covered`);
+  }
+  const crowded = [[{ ...left, right: 120 }, { ...right, left: 280 }], [], [], []];
+  const p = placeObserverCard(area, card, crowded);
+  assert.ok(p.x >= 120 && p.x + p.bw <= 280, 'not limited to screen corners');
+  assert.deepEqual(placeObserverCard(area, card, crowded, p), p, 'a free position stays put instead of jittering');
+  const moved = placeObserverCard(area, card, [[{ left: p.x, right: p.x + 100, top: 0, bottom: 100 }], [], [], []], p);
+  assert.ok(moved.x + moved.bw <= p.x || moved.x >= p.x + 100, 'moving forklifts make the card relocate');
+  const filled = placeObserverCard(area, card, [[{ ...left, right: 400 }], [], [], []], p);
+  assert.equal(filled.w, card.w, 'a crowded map does not shrink the card');
+}
+
+// Observer obstacle bounds use every live forklift, individual boxes, wide zones and visible bots.
+{
+  const g = newGame(1);
+  removeTruck(g, 0);
+  addTruck(g, 'Guest', 1);
+  g.stacks = [wonkyStack({ x: 5, y: 6, layers: [0], wide: true })];
+  g.zones = [{ x: 10, y: 10, color: 5, count: 1, wide: true, hx: 0.6, hy: 1.1, a: Math.PI / 2 }];
+  g.bot = { x: 14, y: 12, a: 0, show: 1 };
+  g.inspector = { x: 16, y: 12, a: 0, show: 0 };
+  const project = (x, y, z) => [x * 20 + z * 2, y * 20 - z * 3];
+  const groups = observerObstacles(g, project);
+  assert.deepEqual(groups.map((r) => r.length), [1, 1, 1, 1], 'gone host and hidden inspector do not obstruct placement');
+  assert.ok(groups[1][0].bottom - groups[1][0].top > 50, 'wide box footprint is respected');
+  assert.ok(groups[2][0].bottom - groups[2][0].top > 50, 'wide drop zone footprint is respected');
+  assert.ok(groups[2][0].right - groups[2][0].left < 50, 'zone extents are already world-aligned, not rotated twice');
+  const t = truckView(g, 1);
+  t.carried = [0]; t.carriedRots = [0]; t.carriedOffs = [{ x: 0, y: 0 }]; t.carriedPen = [{}];
+  assert.equal(observerObstacles(g, project)[1].length, 2, 'carried boxes are also protected');
+  removeTruck(g, 1);
+  assert.equal(observerObstacles(g, project)[0].length, 0, 'departed forklifts stop influencing the card');
 }
 
 // Observer score bar stays visible in fullscreen without changing the driving HUD.
@@ -221,6 +266,16 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
       draw(ctx, g, { width, height, touch, dpr: 1, fullMap: true, fullscreen: true });
       assert.ok(texts.some(({ text, y }) => text.includes('Zones ') && text.includes('Score ') && y === 23), 'observer score bar appears at the top');
     }
+    texts.length = 0;
+    const joinView = { width: 1200, height: 800, dpr: 1, fullMap: true, partyJoin: { code: 'ABCDE', url: 'https://example.org/?multiplayer=ABCDE' } };
+    draw(ctx, g, joinView);
+    assert.ok(joinView.observerCard && texts.some(({ text }) => text === 'JOIN THE PARTY'), 'observer draws the floating photo caption');
+    joinView.height = 390;
+    draw(ctx, g, joinView);
+    assert.ok(joinView.observerCard.y + joinView.observerCard.bh <= 382, 'resizing never leaves the card offscreen during its slide');
+    joinView.partyJoin = null;
+    draw(ctx, g, joinView);
+    assert.equal(joinView.observerCard, null, 'removing join information clears the floating card');
     texts.length = 0;
     const endless = newEndless(0, false);
     draw(ctx, endless, { width: 1200, height: 800, dpr: 1, fullMap: true, fullscreen: true });

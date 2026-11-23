@@ -33,11 +33,11 @@ async function submitScore(board, { name, points, time, level, party }) {
 // Co-op score of a party; the board id carries the player count so solo and co-op rankings stay apart.
 export const partyBoard = (seed, level, players) => `${seed || 0}:${level}:p${players}`;
 export const submitPartyScore = (board, entry) => submitScore(board, entry);
-export function observerPartyScore(seed, level, players, name, points, time, partyCode, hostToken) {
+export function observerPartyScore(seed, level, players, points, time, partyCode, hostToken) {
   if (!players.length) return null;
   return {
     board: partyBoard(seed, level, players.length),
-    entry: { name, points, time, level, party: { players: [...players], partyCode, hostToken } },
+    entry: { name: players[0], points, time, level, party: { players: [...players], partyCode, hostToken } },
   };
 }
 
