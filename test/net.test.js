@@ -325,6 +325,27 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('multiplayer trucks ok');
 }
 
+// Closing a host waits for the relay and does not send duplicate end requests.
+{
+  let finish, calls = 0;
+  const relay = {
+    createParty: async () => ({ code: 'ABCDE', hostToken: 'tok' }),
+    events: () => ({ close() {} }),
+    end: () => { calls++; return new Promise((resolve) => { finish = resolve; }); },
+  };
+  const host = createHost({ relay, getGame: () => newGame(1), name: 'Observer', meta: { observer: true } });
+  await host.start();
+  let finished = false;
+  const closing = host.close().then(() => { finished = true; });
+  host.close();
+  await Promise.resolve();
+  assert.equal(finished, false);
+  assert.equal(calls, 1);
+  finish();
+  await closing;
+  assert.equal(finished, true);
+}
+
 // Party networking with an in-memory relay and loopback links.
 {
   const tick = () => new Promise((r) => setTimeout(r, 0));

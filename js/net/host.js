@@ -21,7 +21,7 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
   const round = createRound();
   const vote = createVote();
   let votingEnabled = true;
-  let code = null, token = null, stream = null, lastSent = -Infinity, lastPing = -Infinity, closed = false;
+  let code = null, token = null, stream = null, lastSent = -Infinity, lastPing = -Infinity, closed = false, closePromise = null;
   let lastVoteSent = -Infinity;
   let lastVoteResolved = 0;
 
@@ -259,12 +259,13 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
       for (const m of ready) m.link.sendFast(text);
     },
     close() {
-      if (closed && !code) return;
+      if (closePromise) return closePromise;
       closed = true;
       for (const m of members.values()) { m.link.sendReliable({ t: 'bye', reason: 'closed' }); m.link.close(); }
       members.clear();
       stream?.close();
-      if (code) relay.end(code, token).catch(() => {});
+      closePromise = code ? relay.end(code, token).catch(() => {}) : Promise.resolve();
+      return closePromise;
     },
   };
 }

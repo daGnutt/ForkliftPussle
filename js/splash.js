@@ -1,6 +1,7 @@
 // Splash animation: a forklift drives a figure eight and drifts through the two end turns,
 // leaving skidmarks and tyre smoke. Purely decorative; independent of the game state.
 import { startVisibleLoop } from './visible-loop.js';
+import { roundRect } from './canvas.js';
 
 const W = 440, H = 190;
 const A = 165, B = 90; // x = A sin t, y = B sin t cos t (Gerono lemniscate)
@@ -56,7 +57,7 @@ function drawForklift(ctx, f) {
   ctx.fillStyle = '#555'; // mast
   ctx.fillRect(14, -11, 4, 22);
   ctx.fillStyle = '#f9a825'; // body
-  ctx.beginPath(); ctx.roundRect(-19, -10, 33, 20, 4); ctx.fill();
+  ctx.beginPath(); roundRect(ctx, -19, -10, 33, 20, 4); ctx.fill();
   ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,.65)'; ctx.stroke();
   ctx.fillStyle = '#6d4c00'; // counterweight
   ctx.fillRect(-19, -10, 6, 20);

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pallet Polka Cast receiver</title>
+  <style>
+    html, body, iframe { width: 100%; height: 100%; margin: 0; border: 0; overflow: hidden; background: #111; }
+    #receiverError { display: grid; position: fixed; inset: 0; place-items: center; padding: 8vw; box-sizing: border-box; color: white; font: 24px sans-serif; text-align: center; }
+    #receiverError[hidden] { display: none; }
+  </style>
+  <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+</head>
+<body>
+  <iframe id="game" title="Pallet Polka Observer"></iframe>
+  <div id="receiverError" role="alert" hidden></div>
+  <script type="module" src="js/cast-receiver.js"></script>
+</body>
+</html>

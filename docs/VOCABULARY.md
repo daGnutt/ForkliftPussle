@@ -195,6 +195,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Observer host** | Party host without a truck, forced to the full-map overview with a limited menu | `Observer`, `?observer`, `view.fullMap` |
 | **Round countdown / Ready** | Observer-hosted round ends with a 10-second countdown; eligible guests may press Ready to shorten it to at most three seconds | `roundReady`, `createRound` |
 | **Party join card** | Polaroid-style QR and party code placed outside the observer's field while guest slots remain | `drawPartyJoinCard`, `observerLayout`, `js/qr.js` |
+| **Cast party** | Observer-hosted party on a Custom Web Receiver; players join using the TV's QR or party code | `cast-receiver.html`, `createCastSender` |
 
 ## Audio
 

@@ -1,12 +1,12 @@
 // Bump CACHE when shipping changes so clients drop stale files.
-const CACHE = 'forklift-v37';
+const CACHE = 'forklift-v44';
 const CORE = [
-  './', 'index.html', 'style.css', 'favicon.svg', 'manifest.webmanifest',
+  './', 'index.html', 'cast-receiver.html', 'style.css', 'favicon.svg', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png',
-  ...['audio', 'bot', 'debug', 'decals', 'demo', 'dents', 'disco', 'endless', 'firstplay', 'forklift', 'game', 'gamepad', 'geom',
+  ...['audio', 'bot', 'canvas', 'debug', 'decals', 'demo', 'dents', 'disco', 'endless', 'firstplay', 'forklift', 'game', 'gamepad', 'geom',
     'globalscores', 'hard-physics', 'highscores', 'input', 'level', 'local', 'main', 'midi', 'photo', 'pov', 'power', 'qr', 'render', 'repair', 'repairhint',
     'rumble',
-    'revlight', 'savestate', 'state-history', 'schemepicker', 'splash', 'splash3d', 'testing', 'theme', 'visible-loop',
+    'revlight', 'savestate', 'state-history', 'schemepicker', 'splash', 'splash3d', 'testing', 'theme', 'visible-loop', 'cast', 'cast-receiver',
     'pov/camera', 'pov/scene', 'pov/face', 'pov/floor', 'pov/overlay',
     'gl/camera', 'gl/mat', 'gl/mesh', 'gl/models', 'gl/particles', 'gl/renderer', 'gl/scene', 'gl/views',
     'net/guest', 'net/host', 'net/peer', 'net/predict', 'net/protocol', 'net/relay', 'net/round', 'net/vote'].map(m => `js/${m}.js`),

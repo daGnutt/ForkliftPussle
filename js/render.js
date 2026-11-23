@@ -1,4 +1,5 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from './level.js';
+import { roundRect } from './canvas.js';
 import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, dockWaits, dockNumber, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
 import { scanBeam, botDrawPos, WHEEL_R } from './bot.js';
@@ -602,8 +603,8 @@ function drawInspector(ctx, g, vis) {
   ctx.beginPath(); ctx.rect(0, 0, g.w, g.h); ctx.clip(); // the walls hide a bot that is still inside one
   ctx.translate(p.x, p.y); ctx.rotate(b.a);
   ctx.fillStyle = '#1d2024';
-  ctx.beginPath(); ctx.roundRect(-0.16, -0.3, 0.32, 0.1, 0.04); ctx.fill();
-  ctx.beginPath(); ctx.roundRect(-0.16, 0.2, 0.32, 0.1, 0.04); ctx.fill();
+  ctx.beginPath(); roundRect(ctx, -0.16, -0.3, 0.32, 0.1, 0.04); ctx.fill();
+  ctx.beginPath(); roundRect(ctx, -0.16, 0.2, 0.32, 0.1, 0.04); ctx.fill();
   // Tread ribs slide along the wheels as it drives.
   ctx.strokeStyle = '#5a6068'; ctx.lineWidth = 0.014;
   ctx.beginPath();
@@ -653,7 +654,7 @@ function drawBot(ctx, g, vis) {
   ctx.fillStyle = '#4a4d52';
   ctx.fillRect(-0.2, -0.3, 0.4, 0.1); ctx.fillRect(-0.2, 0.2, 0.4, 0.1);
   ctx.fillStyle = '#f2f2ee';
-  ctx.beginPath(); ctx.roundRect(-0.22, -0.2, 0.44, 0.4, 0.1); ctx.fill();
+  ctx.beginPath(); roundRect(ctx, -0.22, -0.2, 0.44, 0.4, 0.1); ctx.fill();
   ctx.fillStyle = '#c93a2b'; ctx.fillRect(-0.2, -0.04, 0.12, 0.08);
   ctx.fillStyle = '#20262c';
   ctx.beginPath(); ctx.ellipse(0.1, 0, 0.1, 0.15, 0, 0, Math.PI * 2); ctx.fill();
@@ -1166,7 +1167,7 @@ function drawPartyJoinCard(ctx, party, rect) {
   ctx.shadowBlur = 12;
   ctx.shadowOffsetY = 4;
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, 4);
+  roundRect(ctx, x, y, w, h, 4);
   ctx.fill();
   ctx.shadowColor = 'transparent';
   let matrix = partyQrCache.get(party.url);
@@ -1214,7 +1215,7 @@ function drawPartyBadge(ctx, g, party, width) {
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   ctx.beginPath();
   addHudRect(x - 6, 8, x + w + 6, 34);
-  ctx.roundRect(x - 6, 8, w + 12, 26, 6);
+  roundRect(ctx, x - 6, 8, w + 12, 26, 6);
   ctx.fill();
   ctx.fillStyle = '#eee';
   ctx.fillText(label, x, 21);
@@ -1294,7 +1295,7 @@ export function drawForkGauge(ctx, g, gx, gy) {
   ctx.strokeStyle = 'rgba(255,255,255,0.25)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.roundRect(gx - 28, gy - 26, 82, top * cell + cell + 34, 6);
+  roundRect(ctx, gx - 28, gy - 26, 82, top * cell + cell + 34, 6);
   ctx.fill();
   ctx.stroke();
   ctx.font = '12px sans-serif';

@@ -9,6 +9,7 @@ import { createHost } from './net/host.js';
 import { createGuest, withoutJoinParam } from './net/guest.js';
 import { createVote } from './net/vote.js';
 import { applySnapshot } from './net/protocol.js';
+import { createCastSender, createEmptyPartyTimer, requestCastFrame } from './cast.js';
 import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
 import { serializeGame, deserializeGame, serializeEndless, deserializeEndless, encodeState, decodeState, HardPhysicsVersionError } from './savestate.js';
@@ -35,17 +36,29 @@ import { batterySaverOption, canvasDpr, shouldDraw } from './power.js';
 import { startAudio, playDroid as droid, playFork, playBlocked, playBreak, playPop, playBonk, setScrape, setSqueal, playSuccess, playWonky, setEngine, setCrashAlert, setHorns, playTruckHonk, playImpatientHonk, setSilenced, setPageHidden, getVolume, setVolume, isMusicMuted, setMusicMuted, isMusicRandom, setMusicRandom, setTrackListener, MUSIC_TRACKS, getMusicTrack, setMusicTrack, isAllMuted, setAllMuted } from './audio.js';
 
 const canvas = document.getElementById('game');
+const castReceiverMode = new URLSearchParams(location.search).has('castReceiver');
 const resultsCanvas = document.getElementById('results'); // end-of-level panel, stacked above the gallery photos
 const resultsCtx = resultsCanvas.getContext('2d');
 const ctx = canvas.getContext('2d');
 attachGlCanvas(document.getElementById('gameGl'), ctx);
 const isTouch = matchMedia('(pointer: coarse)').matches;
-let lowerResolutionOn = batterySaverOption(localStorage, 'resolution', isTouch);
-let limitFrameRateOn = batterySaverOption(localStorage, 'frame-rate', isTouch);
-let reduceEffectsOn = batterySaverOption(localStorage, 'effects', isTouch);
+let lowerResolutionOn = castReceiverMode || batterySaverOption(localStorage, 'resolution', isTouch);
+let limitFrameRateOn = castReceiverMode || batterySaverOption(localStorage, 'frame-rate', isTouch);
+let reduceEffectsOn = castReceiverMode || batterySaverOption(localStorage, 'effects', isTouch);
 let rafPending = false;
 function scheduleFrame() {
-  if (!rafPending && !view.paused) { rafPending = true; requestAnimationFrame(frame); }
+  if (rafPending || view.paused) return;
+  rafPending = true;
+  if (castReceiverMode) {
+    requestCastFrame((now) => {
+      try { frame(now); }
+      catch (e) {
+        rafPending = false;
+        castReceiverMessage({ type: 'error', message: `TV game stopped: ${e.message || e}` });
+        console.error(e);
+      }
+    });
+  } else requestAnimationFrame(frame);
 }
 const view = { width: 0, height: 0, dpr: 1, povBig: !isTouch && localStorage.getItem('forklift-cab-view') === '1', chase: localStorage.getItem('forklift-chase-cam') === '1', chaseZoom: localStorage.getItem('forklift-chase-zoom') === null ? null : Number(localStorage.getItem('forklift-chase-zoom')), zoom: localStorage.getItem('forklift-ov-zoom') === null ? null : Number(localStorage.getItem('forklift-ov-zoom')), touch: isTouch };
 
@@ -101,6 +114,7 @@ function refreshBest() {
 }
 // Party state: null when playing alone, else { role: 'host' | 'guest', code, name, host | guest, go }. A guest mirrors the host's game and never steps it.
 let mp = null;
+let castSender = null;
 const stateHistory = isTesting() ? createStateHistory() : null;
 const roundPanel = document.getElementById('roundReady');
 const roundCountdown = document.getElementById('roundCountdown');
@@ -862,15 +876,55 @@ const observerOpt = document.getElementById('observerOpt');
 const mpObserverOpt = document.getElementById('mpObserverOpt');
 const partyNotice = sessionStorage.getItem('forklift-party-msg');
 if (partyNotice) { partyErr.textContent = partyNotice; sessionStorage.removeItem('forklift-party-msg'); }
+const castBtn = document.getElementById('castBtn');
+const castStatus = document.getElementById('castStatus');
+const castSetup = document.getElementById('castSetup');
+function castAvailability(available) {
+  if (new URLSearchParams(location.search).has('castReceiver')) {
+    castSetup.hidden = true;
+    return;
+  }
+  if (!available) {
+    castStatus.textContent = 'Google Cast is unavailable in this browser.';
+    castBtn.hidden = true;
+    return;
+  }
+  try {
+    castSender = createCastSender({ cast: window.cast, chromeApi: window.chrome });
+    castBtn.hidden = false;
+    castStatus.textContent = '';
+  } catch (e) {
+    castStatus.textContent = e.message;
+    castBtn.hidden = true;
+  }
+}
+window.addEventListener('cast-api-available', () => castAvailability(window.castApiAvailable === true));
+if (window.castApiAvailable !== null) castAvailability(window.castApiAvailable === true);
+else setTimeout(() => { if (window.castApiAvailable === null) castAvailability(false); }, 8000);
+async function startCastParty() {
+  if (!castSender || mp) return;
+  castBtn.disabled = true;
+  castStatus.textContent = 'Connecting to the TV…';
+  try {
+    await castSender.start();
+    castStatus.textContent = 'Join using the QR code or party code on the TV.';
+  } catch (e) {
+    castStatus.textContent = e.message;
+  } finally {
+    castBtn.disabled = false;
+  }
+}
+castBtn.addEventListener('click', startCastParty);
 for (const el of [partyName, joinCode]) el.addEventListener('keydown', (e) => e.stopPropagation());
 partyName.addEventListener('keydown', (e) => { if (e.key === 'Enter' && joinCode.value.trim()) { e.preventDefault(); joinParty(); } });
 joinCode.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); joinParty(); } });
 hostBtn.addEventListener('click', () => { startAudio(); hostParty(partyName.value, observerOpt.checked); });
 joinBtn.addEventListener('click', () => { startAudio(); joinParty(); });
 const leaveParty = () => {
+  if (castReceiverMode) { void endCastParty(); return; }
   mp?.host?.close(); mp?.guest?.close(); mp = null;
   const url = new URL(location.href);
-  url.searchParams.delete('observer'); url.searchParams.delete('multiplayer');
+  url.searchParams.delete('observer'); url.searchParams.delete('multiplayer'); url.searchParams.delete('castReceiver');
   history.replaceState(null, '', url);
   location.reload();
 };
@@ -878,14 +932,16 @@ document.getElementById('partyLeave').addEventListener('click', leaveParty);
 menuLeave.addEventListener('click', leaveParty);
 window.addEventListener('pagehide', () => { mp?.host?.close(); mp?.guest?.close(); });
 const busy = (on) => { hostBtn.disabled = joinBtn.disabled = on; };
-function playerName() {
-  const name = partyName.value.trim() || 'Player';
-  savePlayerName(name);
-  return name;
-}
 // The party ended or the connection dropped: back to a clean splash with a note.
 function partyClosed(why) {
   if (why === 'left') return;
+  if (castReceiverMode) {
+    castIdleTimer.cancel();
+    mp?.host?.close();
+    mp = null;
+    castReceiverMessage({ type: 'error', message: why });
+    return;
+  }
   sessionStorage.setItem('forklift-party-msg', why);
   location.reload();
 }
@@ -1109,7 +1165,7 @@ async function hostParty(nameText = partyName.value, observer = observerOpt.chec
   savePlayerName(name);
   partyErr.textContent = '';
   busy(true);
-  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, meta: { observer }, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed, onRound: observerRoundChanged, onVote: renderVote, onVoteResult: applyPartyVote });
+  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, meta: { observer }, onChange: () => { refreshParty(game.trucks); renderMpPage(); updateCastIdleTimer(); }, onClosed: partyClosed, onRound: observerRoundChanged, onVote: renderVote, onVoteResult: applyPartyVote });
   try { await host.start(); } catch (e) { busy(false); partyErr.textContent = mpErr.textContent = e.message; return; }
   stateHistory?.clear();
   mpErr.textContent = '';
@@ -1132,12 +1188,14 @@ async function hostParty(nameText = partyName.value, observer = observerOpt.chec
   showParty('Press Start when everyone has joined (others can still join later).');
   refreshParty(game.trucks);
   renderMpPage();
+  updateCastIdleTimer();
 }
-async function joinParty() {
+async function joinParty(codeText = joinCode.value, nameText = partyName.value) {
   if (mp) return;
-  const code = joinCode.value.trim().toUpperCase();
+  const code = codeText.trim().toUpperCase();
   if (code.length < 4) { partyErr.textContent = 'Enter the party code you were given'; return; }
-  const name = playerName();
+  const name = (nameText.trim() || 'Player').slice(0, 24);
+  savePlayerName(name);
   partyErr.textContent = '';
   busy(true);
   let playerId = sessionStorage.getItem('forklift-party-player-id');
@@ -1152,6 +1210,22 @@ async function joinParty() {
   try { await guest.join(); } catch (e) { mp = null; busy(false); partyErr.textContent = e.message; return; }
   showParty('Connecting…');
   mp.timer = setTimeout(() => { if (mp && !mp.connected) partyClosed('Could not connect to the host (a firewall may be blocking the connection)'); }, 20000);
+}
+function castReceiverMessage(message) {
+  if (castReceiverMode && window.parent !== window) window.parent.postMessage(message, location.origin);
+}
+const castIdleTimer = createEmptyPartyTimer(() => {
+  if (mp?.role === 'host' && mp.observer && mp.host.guests === 0) void endCastParty();
+});
+function updateCastIdleTimer() {
+  if (castReceiverMode && mp?.role === 'host' && mp.observer) castIdleTimer.update(mp.host.guests);
+}
+async function endCastParty() {
+  castIdleTimer.cancel();
+  const host = mp?.host;
+  mp = null;
+  await Promise.race([host?.close(), new Promise((resolve) => setTimeout(resolve, 5000))]);
+  castReceiverMessage({ type: 'ended' });
 }
 // The host's level (welcome, and again on every level change): build it and mirror the host's state.
 function onGuestGame(m) {
@@ -1197,8 +1271,8 @@ const batteryFrameRateOpt = document.getElementById('batteryFrameRateOpt');
 const batteryEffectsOpt = document.getElementById('batteryEffectsOpt');
 const glOpt = document.getElementById('glOpt');
 const glParam = new URLSearchParams(location.search).get('gl');
-setGlEnabled(glParam ? glParam !== '0' : localStorage.getItem('forklift-gl-off') !== '1');
-if (!startSplash3d(document.getElementById('splashGl'), () => splashOn, () => lowerResolutionOn, () => limitFrameRateOn)) startSplashAnimation(document.getElementById('splashAnim'), () => splashOn, () => lowerResolutionOn, () => limitFrameRateOn);
+setGlEnabled(castReceiverMode || (glParam ? glParam !== '0' : localStorage.getItem('forklift-gl-off') !== '1'));
+if (!castReceiverMode && !startSplash3d(document.getElementById('splashGl'), () => splashOn, () => lowerResolutionOn, () => limitFrameRateOn)) startSplashAnimation(document.getElementById('splashAnim'), () => splashOn, () => lowerResolutionOn, () => limitFrameRateOn);
 let decalsPreference = localStorage.getItem('forklift-decals-off') !== '1';
 setDecalsEnabled(decalsPreference && !reduceEffectsOn);
 const themeSel = document.getElementById('themeSel');
@@ -1486,7 +1560,7 @@ touchMap.addEventListener('click', (e) => {
 });
 markTouch();
 // First run on the splash: nothing saved yet, so ask which control scheme to use.
-if (!localStorage.getItem(isTouch ? 'forklift-touch-scheme' : 'forklift-keys') && !new URLSearchParams(location.search).has('skip') && !new URLSearchParams(location.search).has('observer')) {
+if (!localStorage.getItem(isTouch ? 'forklift-touch-scheme' : 'forklift-keys') && !new URLSearchParams(location.search).has('skip') && !new URLSearchParams(location.search).has('observer') && !new URLSearchParams(location.search).has('castReceiver')) {
   pickScheme(isTouch ? 'touch' : 'keyboard').then((name) => {
     if (isTouch) { touchSel.value = name; applyTouch(); } else { keySel.value = name; localStorage.setItem('forklift-keys', name); applyKeys(); }
   });
@@ -1669,7 +1743,13 @@ if (multiplayerParam) {
 }
 if (new URLSearchParams(location.search).has('observer') && !multiplayerParam) {
   observerOpt.checked = true;
-  hostParty(partyName.value, true).then(() => { if (mp?.observer) startGame(); });
+  hostParty(partyName.value, true).then(() => {
+    if (mp?.observer) startGame();
+    else if (castReceiverMode) castReceiverMessage({ type: 'error', message: partyErr.textContent || 'Could not create the TV party' });
+  }).catch((e) => {
+    if (castReceiverMode) castReceiverMessage({ type: 'error', message: e.message });
+    else console.error(e);
+  });
 }
 const START_BOARD_SECS = 10;
 let lastDraw = -Infinity;

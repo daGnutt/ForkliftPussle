@@ -234,6 +234,35 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   }
 }
 
+// Older Cast browsers without Canvas roundRect still draw the Observer join card and software trucks.
+{
+  const g = newGame(1);
+  const texts = [];
+  let arcs = 0;
+  const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
+    get: (t, k) => k in t ? t[k] : k === 'roundRect' ? undefined
+      : k === 'arcTo' ? () => { arcs++; }
+        : k === 'fillText' ? (text) => texts.push(text)
+          : k === 'measureText' ? (text) => ({ width: text.length * 7 })
+            : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
+    set: (t, k, v) => { t[k] = v; return true; },
+  });
+  const previous = globalThis.OffscreenCanvas;
+  globalThis.OffscreenCanvas = class { getContext() { return ctx; } };
+  try {
+    removeTruck(g, 0);
+    draw(ctx, g, { width: 1200, height: 800, dpr: 1, fullMap: true, partyJoin: { code: 'ABCDE', url: 'https://example.test/?multiplayer=ABCDE' } });
+    assert.ok(texts.includes('PARTY ABCDE'), 'join code is drawn without roundRect');
+    assert.ok(arcs >= 4, 'rounded join card uses the fallback path');
+    addTruck(g, 'Guest', 0);
+    draw(ctx, g, { width: 1200, height: 800, dpr: 1 });
+    assert.ok(arcs > 4, 'software truck and HUD use the fallback as well');
+  } finally {
+    if (previous === undefined) delete globalThis.OffscreenCanvas;
+    else globalThis.OffscreenCanvas = previous;
+  }
+}
+
 // The desktop overview and touch-landscape strip separate both kinds of damage from placement.
 {
   const g = newGame(1);
