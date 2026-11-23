@@ -13,7 +13,7 @@ import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
 import { qrMatrix, QR_SIZE } from '../js/qr.js';
 import { createHost } from '../js/net/host.js';
-import { createGuest } from '../js/net/guest.js';
+import { createGuest, withoutJoinParam } from '../js/net/guest.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat, FORK_CLEARANCE } from '../js/geom.js';
@@ -21,6 +21,11 @@ import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecal
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView, POP_DELAY, truckPopScale, otherTrucksShown, truckPopChanges } from '../js/game.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
+
+// Successful link joins remove only the join parameter.
+{
+  assert.equal(withoutJoinParam('https://example.test/?seed=x&multiplayer=ABCDE&testing#map'), 'https://example.test/?seed=x&testing=#map');
+}
 
 // Multiplayer trucks: ghosts at spawn, collisions once separated, stack handoff on the tines, leaving players
 {
@@ -288,8 +293,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
   let host = newGame(7, 3, false);
   const info = () => ({ level: host.level, seed: host.seed, hard: host.hard, seedText: '' });
-  let changes = 0, started = false;
-  const h = createHost({ relay, getGame: () => host, levelInfo: info, isStarted: () => started, name: 'Anna', onChange: () => changes++, linkFactory });
+  let changes = 0, started = false, hostClock = 0;
+  const h = createHost({ relay, getGame: () => host, levelInfo: info, isStarted: () => started, name: 'Anna', onChange: () => changes++, linkFactory, clock: () => hostClock });
   assert.equal(await h.start(), 'ABCDE');
 
   let guestGame = null, welcomes = 0, closedWith = null;
@@ -530,6 +535,22 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   for (let i = 0; i < 6; i++) await tick();
   assert.match(cyClosed, /banned/);
   assert.equal(host.trucks.filter((t) => !t.gone).length, 1, 'a banned name gets no truck');
+  let dan = joinCy('Dan');
+  await dan.join();
+  for (let i = 0; i < 6; i++) await tick();
+  assert.equal(h.kick(dan.slot), true);
+  cyClosed = null;
+  dan = joinCy('dan');
+  await dan.join();
+  for (let i = 0; i < 6; i++) await tick();
+  assert.match(cyClosed, /wait 60 seconds/i, 'a kicked name cannot immediately rejoin');
+  hostClock = 60;
+  cyClosed = null;
+  dan = joinCy('Dan');
+  await dan.join();
+  for (let i = 0; i < 6; i++) await tick();
+  assert.ok(dan.slot > 0, 'a kicked player can rejoin when the cooldown expires');
+  dan.close();
   h.close();
   assert.equal(ended, 'tok', 'party ended at the relay');
   host = newGame(1);

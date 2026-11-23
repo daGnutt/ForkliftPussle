@@ -5,6 +5,7 @@ import { createSnapshotter, snapshot, encode, SNAPSHOT_HZ } from './protocol.js'
 import { HARD_PHYSICS_VERSION } from '../hard-physics.js';
 
 const STALE = 3; // seconds without any message before a guest counts as gone when its name is taken again
+const KICK_COOLDOWN = 60;
 const DEFAULT_ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 // `getGame()` returns the current game (it is replaced on every level load); `levelInfo()` its { level, seed, hard, seedText, endless };
@@ -13,6 +14,7 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
   const members = new Map(); // peer id -> { name, slot, link }
   const snapper = createSnapshotter();
   const banned = new Set(); // lower-case names; relay peer ids change on every join, so names are all there is to go on
+  const kicked = new Map();
   const observer = meta?.observer === true;
   let code = null, token = null, stream = null, lastSent = -Infinity, lastPing = -Infinity, closed = false;
 
@@ -32,14 +34,18 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
     m.lastRx = clock();
     const g = getGame();
     if (msg.t === 'hello' && m.slot < 0) {
-      m.name = String(msg.name || 'Player').slice(0, 24);
+      m.name = String(msg.name || 'Player').trim().slice(0, 24) || 'Player';
       m.hardPhysicsVersion = msg.hardPhysicsVersion;
       if (g.hard && m.hardPhysicsVersion !== HARD_PHYSICS_VERSION) {
         m.link.sendReliable({ t: 'bye', reason: 'physics' });
         setTimeout(() => drop(peer), 300);
         return;
       }
-      if (banned.has(m.name.toLowerCase())) { m.link.sendReliable({ t: 'bye', reason: 'banned' }); drop(peer); return; }
+      const key = m.name.toLowerCase();
+      const until = kicked.get(key);
+      if (until !== undefined && until <= clock()) kicked.delete(key);
+      const reason = banned.has(key) ? 'banned' : kicked.has(key) ? 'cooldown' : null;
+      if (reason) { m.link.sendReliable({ t: 'bye', reason }); setTimeout(() => drop(peer), 300); return; }
       // a reloaded page rejoins before the host notices the old connection is dead: the stale one is replaced
       // (only silent ones: guests send inputs/pings at least every second, and two live players may share a name)
       for (const [p, o] of members) if (p !== peer && o.slot >= 0 && o.name?.toLowerCase() === m.name.toLowerCase() && clock() - o.lastRx > STALE) drop(p);
@@ -99,6 +105,7 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
       for (const [peer, m] of members) {
         if (m.slot !== slot || (!observer && slot <= 0)) continue;
         if (ban) banned.add(m.name.toLowerCase());
+        else kicked.set(m.name.toLowerCase(), clock() + KICK_COOLDOWN);
         members.delete(peer);
         removeTruck(getGame(), slot);
         m.link.sendReliable({ t: 'bye', reason: ban ? 'banned' : 'kicked' });

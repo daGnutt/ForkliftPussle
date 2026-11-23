@@ -8,7 +8,12 @@ const INPUT_REFRESH = 0.25; // seconds; inputs are also resent while unchanged, 
 
 // Events: onGame({ slot, started, level, seed, hard, seedText, endless, snap }) for the welcome and every level change,
 // onClosed(reason) when the party ends or the connection drops.
-const BYE = { full: 'The party is full', kicked: 'The host removed you from the party', banned: 'You are banned from this party', physics: 'Hard-mode physics differs from the host; reload the game' };
+const BYE = { full: 'The party is full', kicked: 'The host removed you from the party; wait 60 seconds before rejoining', cooldown: 'Please wait 60 seconds after being kicked before rejoining', banned: 'You are banned from this party', physics: 'Hard-mode physics differs from the host; reload the game' };
+export function withoutJoinParam(href) {
+  const url = new URL(href);
+  url.searchParams.delete('multiplayer');
+  return url.href;
+}
 const analog = (v) => Math.round(Math.max(-1, Math.min(1, +v || 0)) * 20) / 20;
 
 export function createGuest({ relay, code, name, onGame, onClosed, linkFactory = createLink, clock = () => performance.now() / 1000 }) {

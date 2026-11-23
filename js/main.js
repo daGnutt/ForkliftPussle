@@ -6,7 +6,7 @@ import { createLocal } from './local.js';
 import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
 import { createRelay } from './net/relay.js';
 import { createHost } from './net/host.js';
-import { createGuest } from './net/guest.js';
+import { createGuest, withoutJoinParam } from './net/guest.js';
 import { applySnapshot } from './net/protocol.js';
 import { truckColor } from './forklift.js';
 import { getBest, getTop, addTop, lowestUnscored, beats, saveBest, finalScore, timePenalty, formatTime } from './highscores.js';
@@ -802,6 +802,7 @@ const mpObserverOpt = document.getElementById('mpObserverOpt');
 const partyNotice = sessionStorage.getItem('forklift-party-msg');
 if (partyNotice) { partyErr.textContent = partyNotice; sessionStorage.removeItem('forklift-party-msg'); }
 for (const el of [partyName, joinCode]) el.addEventListener('keydown', (e) => e.stopPropagation());
+partyName.addEventListener('keydown', (e) => { if (e.key === 'Enter' && joinCode.value.trim()) { e.preventDefault(); joinParty(); } });
 joinCode.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); joinParty(); } });
 hostBtn.addEventListener('click', () => { startAudio(); hostParty(partyName.value, observerOpt.checked); });
 joinBtn.addEventListener('click', () => { startAudio(); joinParty(); });
@@ -879,7 +880,7 @@ function renderMpPage() {
       ping.className = 'ping';
       ping.textContent = (!mp.observer && p.slot === 0) ? '' : p.ping == null ? '… ms' : `${p.ping} ms`;
       li.append(ping);
-      if (mp.observer || p.slot !== 0) for (const [label, ban] of (mp.observer ? [['Kick', false]] : [['Kick', false], ['Ban', true]])) {
+      if (mp.observer || p.slot !== 0) for (const [label, ban] of [['Kick', false], ['Ban', true]]) {
         const b = document.createElement('button');
         b.type = 'button'; b.className = 'sec'; b.textContent = label;
         b.addEventListener('click', () => mp.host.kick(p.slot, ban));
@@ -938,6 +939,7 @@ async function joinParty() {
 // The host's level (welcome, and again on every level change): build it and mirror the host's state.
 function onGuestGame(m) {
   if (mp?.role !== 'guest') return;
+  if (m.t === 'welcome') history.replaceState(null, '', withoutJoinParam(location.href));
   mp.connected = true;
   clearTimeout(mp.timer);
   level = m.level; seed = m.seed; seedText = m.seedText || ''; hard = m.hard;
@@ -1420,7 +1422,7 @@ const STEP = 1 / 120;
 let acc = 0, last = performance.now();
 if (new URLSearchParams(location.search).has('endless')) loadEndless();
 // ?skip in the URL bypasses the splash (on touch it opens the main menu; keeps saved settings; no audio until a key/click starts it)
-if (new URLSearchParams(location.search).has('skip') && !new URLSearchParams(location.search).has('observer')) {
+if (new URLSearchParams(location.search).has('skip') && !new URLSearchParams(location.search).has('observer') && !new URLSearchParams(location.search).has('multiplayer')) {
   startGame();
   // On touch, start in the main menu: leaving it is the user gesture that lets full-screen kick in (auto full-screen on for this visit only; not saved)
   if (isTouch) { autoFs = true; autoFsOpt.checked = true; toggleMenu(true); }
@@ -1428,7 +1430,8 @@ if (new URLSearchParams(location.search).has('skip') && !new URLSearchParams(loc
 const multiplayerParam = new URLSearchParams(location.search).get('multiplayer');
 if (multiplayerParam) {
   joinCode.value = multiplayerParam.trim().toUpperCase();
-  setTimeout(() => { if (!mp) joinParty(); }, 0);
+  partyErr.textContent = 'Confirm your name and select Join game.';
+  partyName.focus();
 }
 if (new URLSearchParams(location.search).has('observer') && !multiplayerParam) {
   observerOpt.checked = true;
