@@ -3,7 +3,7 @@ import { newGame, update, endPhotos, forkUp, forkDown, zoneDone, zoneWonky, scor
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput, createCameraPointerInput, inTouchControlZone } from './input.js';
 import { createLocal } from './local.js';
-import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard } from './globalscores.js';
+import { syncScores, fetchTopList, pullScores, submitPartyScore, partyBoard, observerPartyScore } from './globalscores.js';
 import { createRelay } from './net/relay.js';
 import { createHost } from './net/host.js';
 import { createGuest, withoutJoinParam } from './net/guest.js';
@@ -101,6 +101,48 @@ function refreshBest() {
 // Party state: null when playing alone, else { role: 'host' | 'guest', code, name, host | guest, go }. A guest mirrors the host's game and never steps it.
 let mp = null;
 const stateHistory = isTesting() ? createStateHistory() : null;
+const roundPanel = document.getElementById('roundReady');
+const roundCountdown = document.getElementById('roundCountdown');
+const roundReadyButton = document.getElementById('roundReadyButton');
+const roundScoreMessage = document.getElementById('roundScoreMessage');
+let roundTimer = null, roundDisplay = null;
+function showRound(state) {
+  roundDisplay = state ? { ...state, deadline: performance.now() / 1000 + state.remaining } : null;
+  view.round = !!state;
+  roundPanel.hidden = !state;
+  roundReadyButton.hidden = !state?.eligible;
+  roundReadyButton.disabled = !!state?.ready;
+  if (!state) roundScoreMessage.textContent = '';
+  updateRoundDisplay();
+}
+function updateRoundDisplay() {
+  if (!roundDisplay) return;
+  const seconds = Math.ceil(Math.max(0, roundDisplay.deadline - performance.now() / 1000));
+  roundCountdown.textContent = `${game.endless ? 'Restarting' : 'Next level'} in ${seconds} seconds`;
+}
+function observerRoundChanged(state) {
+  clearTimeout(roundTimer);
+  showRound(state);
+  const blocked = !!state;
+  document.getElementById('menuRestart').disabled = blocked;
+  document.querySelector('#menuGoto button').disabled = blocked;
+  if (!state) return;
+  roundTimer = setTimeout(() => {
+    if (!mp?.observer || mp.role !== 'host') return;
+    const current = mp.host.roundState();
+    if (!current) return;
+    if (current.remaining > 0) { observerRoundChanged(current); return; }
+    showRound(null);
+    document.getElementById('menuRestart').disabled = false;
+    document.querySelector('#menuGoto button').disabled = false;
+    if (game.endless) loadEndless(true); else load(level + 1);
+  }, Math.max(0, state.remaining * 1000));
+}
+roundReadyButton.addEventListener('click', () => {
+  if (mp?.role !== 'guest' || !roundDisplay?.eligible || roundDisplay.ready) return;
+  mp.guest.ready(roundDisplay.id);
+  roundReadyButton.disabled = true;
+});
 const ENDLESS_KEY = 'forklift-endless-state';
 function saveState() {
   if (mp) return;
@@ -276,6 +318,7 @@ canvas.addEventListener('mousemove', wakeCursor);
 document.addEventListener('fullscreenchange', wakeCursor);
 
 function nextLevel() {
+  if (mp?.observer && mp.host.roundState()) return;
   if (game.status === 'won') load(level + 1);
   else if (game.endless && game.status === 'over') loadEndless(true);
 }
@@ -396,7 +439,10 @@ const input = createInput({
     noteForkResult('down', res);
     if (res !== 'blocked' && game.H !== h) playFork(false);
   },
-  next: () => nextLevel(),
+  next: () => {
+    if (mp?.role === 'guest' && roundDisplay?.eligible) roundReadyButton.click();
+    else nextLevel();
+  },
   menu: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   pause: () => { if (!splashOn && !recordOpen) toggleMenu(true); },
   menuToggle: () => { if (view.menuOpen) toggleMenu(false); else if (!splashOn && !recordOpen) toggleMenu(true); else if (splashOn) startBtn.click(); },
@@ -555,6 +601,22 @@ function checkRecord() {
   if ((game.status !== 'won' && !(game.endless && game.status === 'over')) || recorded) return;
   recorded = true;
   if (mp?.role === 'guest') return; // the host submits the shared score
+  if (mp?.observer) {
+    const players = mp.host.roundPlayers();
+    const points = game.endless ? endlessScore(game.endless) : finalScore(score(game), game.time);
+    const board = game.endless ? 0 : level;
+    mp.host.startRound();
+    const submission = observerPartyScore(seed, board, players, mp.name, points, game.time, mp.code, mp.host.token);
+    if (players.length > 4) {
+      roundScoreMessage.textContent = 'Score not submitted: the server supports at most four players.';
+    } else if (submission) {
+      const roundId = mp.host.roundState().id;
+      submitPartyScore(submission.board, submission.entry).then((rank) => {
+        if (rank == null && !isTesting() && mp?.observer && mp.host.roundState()?.id === roundId) roundScoreMessage.textContent = 'Could not submit the party score.';
+      });
+    }
+    return;
+  }
   if (game.endless) { recordEndless(manualEnd); manualEnd = false; return; }
   if (mp && liveTrucks(game).length > 1) {
     const players = game.trucks.filter((t) => !t.gone).map((t) => t.name || 'Player');
@@ -897,7 +959,7 @@ async function hostParty(nameText = partyName.value, observer = observerOpt.chec
   savePlayerName(name);
   partyErr.textContent = '';
   busy(true);
-  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, meta: { observer }, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed });
+  const host = createHost({ relay: createRelay(), getGame: () => game, levelInfo: () => ({ level, seed, hard, seedText, endless: !!game.endless }), isStarted: () => !splashOn, name, meta: { observer }, onChange: () => { refreshParty(game.trucks); renderMpPage(); }, onClosed: partyClosed, onRound: observerRoundChanged });
   try { await host.start(); } catch (e) { busy(false); partyErr.textContent = mpErr.textContent = e.message; return; }
   stateHistory?.clear();
   mpErr.textContent = '';
@@ -928,7 +990,12 @@ async function joinParty() {
   const name = playerName();
   partyErr.textContent = '';
   busy(true);
-  const guest = createGuest({ relay: createRelay(), code, name, onGame: onGuestGame, onClosed: partyClosed });
+  let playerId = sessionStorage.getItem('forklift-party-player-id');
+  if (!playerId) {
+    playerId = Array.from(crypto.getRandomValues(new Uint8Array(16)), (n) => n.toString(16).padStart(2, '0')).join('');
+    sessionStorage.setItem('forklift-party-player-id', playerId);
+  }
+  const guest = createGuest({ relay: createRelay(), code, name, playerId, onGame: onGuestGame, onClosed: partyClosed, onRound: showRound });
   stateHistory?.clear();
   stopLocal();
   mp = { role: 'guest', code, name, guest, go: false, connected: false, lastH: null };
@@ -939,6 +1006,7 @@ async function joinParty() {
 // The host's level (welcome, and again on every level change): build it and mirror the host's state.
 function onGuestGame(m) {
   if (mp?.role !== 'guest') return;
+  showRound(null);
   if (m.t === 'welcome') history.replaceState(null, '', withoutJoinParam(location.href));
   mp.connected = true;
   clearTimeout(mp.timer);
@@ -1116,7 +1184,7 @@ function toggleMenu(open) {
   setFullscreen(!open);
   menuEl.classList.toggle('hide', !open);
   if (open) {
-    if (stateHistory && !stateHistory.earlier()) stateMsg.textContent = 'Five seconds of gameplay history are not yet available.';
+    if (stateHistory) stateMsg.textContent = stateHistory.earlier() ? '' : 'Five seconds of gameplay history are not yet available.';
     muteOpt.checked = isAllMuted();
     for (const el of volSliders) el.value = Math.round(getVolume(el.dataset.vol) * 100);
     musicOpt.checked = !isMusicMuted();
@@ -1263,6 +1331,7 @@ if (!localStorage.getItem(isTouch ? 'forklift-touch-scheme' : 'forklift-keys') &
 musicOpt.addEventListener('change', () => setMusicMuted(!musicOpt.checked));
 document.getElementById('menuGoto').addEventListener('submit', (e) => {
   e.preventDefault();
+  if (mp?.observer && mp.host.roundState()) return;
   const n = parseInt(menuLevel.value, 10);
   if (n >= 1) { load(n); toggleMenu(false); }
 });
@@ -1316,6 +1385,7 @@ menuTutorial.addEventListener('click', () => {
 document.getElementById('menuFullscreen').addEventListener('click', toggleFullscreen);
 document.getElementById('menuResume').addEventListener('click', () => toggleMenu(false));
 document.getElementById('menuRestart').addEventListener('click', () => {
+  if (mp?.observer && mp.host.roundState()) return;
   if (game.endless) loadEndless(true); else load(level);
   toggleMenu(false);
 });
@@ -1430,7 +1500,7 @@ if (new URLSearchParams(location.search).has('skip') && !new URLSearchParams(loc
 const multiplayerParam = new URLSearchParams(location.search).get('multiplayer');
 if (multiplayerParam) {
   joinCode.value = multiplayerParam.trim().toUpperCase();
-  partyErr.textContent = 'Confirm your name and select Join game.';
+  partyErr.textContent = `${partyNotice ? partyNotice + ' ' : ''}Confirm your name and select Join game.`;
   partyName.focus();
 }
 if (new URLSearchParams(location.search).has('observer') && !multiplayerParam) {
@@ -1507,7 +1577,7 @@ function frame(now) {
     if (!mp?.observer) cameraStep(inp, STEP);
     update(game, mp?.observer ? null : inp, STEP);
     stepEndless(game, STEP);
-    if (game.status === 'play') stateHistory?.step(STEP, stateSnapshot);
+    if (game.status === 'play' && !view.menuOpen) stateHistory?.step(STEP, stateSnapshot);
     followStep(STEP);
     acc -= STEP;
     steps++;
@@ -1516,6 +1586,7 @@ function frame(now) {
   const t1 = performance.now();
   checkTutorial();
   checkRecord();
+  updateRoundDisplay();
   const st = input.state();
   const won = game.status === 'won'; // end-of-level screen: continuous sfx are cut (jingle and music go on)
   setCrashAlert(!mp?.observer && crashAlert(game) && !splashOn && !view.paused && !won);

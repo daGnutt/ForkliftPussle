@@ -14,6 +14,7 @@ import { createDemo } from '../js/demo.js';
 import { qrMatrix, QR_SIZE } from '../js/qr.js';
 import { createHost } from '../js/net/host.js';
 import { createGuest, withoutJoinParam } from '../js/net/guest.js';
+import { createRound } from '../js/net/round.js';
 import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat, FORK_CLEARANCE } from '../js/geom.js';
@@ -25,6 +26,48 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 // Successful link joins remove only the join parameter.
 {
   assert.equal(withoutJoinParam('https://example.test/?seed=x&multiplayer=ABCDE&testing#map'), 'https://example.test/?seed=x&testing=#map');
+}
+
+// Observer readiness uses the round-end roster and never extends a deadline.
+{
+  const round = createRound();
+  round.join('a', 'Anna');
+  round.join('b', 'Bob');
+  round.leave('b', 1);
+  round.join('c', 'Cy');
+  round.start(10);
+  assert.deepEqual(round.players(), ['Anna', 'Bob', 'Cy'], 'score includes players who left');
+  assert.equal(round.state('a', 10).remaining, 10);
+  round.join('d', 'Dee');
+  assert.equal(round.state('d', 10).eligible, false, 'late joiners do not block readiness');
+  assert.equal(round.ready('a', 99, 11), false, 'stale round messages are ignored');
+  assert.equal(round.ready('a', 1, 11), true);
+  assert.equal(round.ready('a', 1, 11), false, 'duplicate readiness is ignored');
+  assert.equal(round.state('c', 11).remaining, 9);
+  round.leave('c', 12);
+  assert.equal(round.state('a', 12).remaining, 3, 'disconnecting the last unready player shortens the timer');
+  round.leave('a', 14);
+  assert.equal(round.state('d', 14).remaining, 1, 'readiness never extends a shorter timer');
+  round.reset([['d', 'Dee']]);
+  assert.deepEqual(round.players(), ['Dee']);
+  round.start(20);
+  assert.equal(round.ready('d', 1, 20), false, 'previous round IDs cannot confirm the new round');
+  assert.equal(round.ready('d', 2, 20), true);
+  assert.equal(round.state('d', 20).remaining, 3);
+  const empty = createRound();
+  empty.start(0);
+  assert.equal(empty.state(null, 0).remaining, 3, 'an empty eligible roster shortens the timer');
+  const lobby = createRound();
+  lobby.join('a', 'Left early', false);
+  lobby.leave('a', 0);
+  lobby.join('b', 'Player', false);
+  lobby.begin();
+  assert.deepEqual(lobby.players(), ['Player'], 'players who leave before the round starts are not scored');
+  lobby.leave('b', 1);
+  lobby.join('c', 'Player', true, 'session');
+  lobby.leave('c', 2);
+  lobby.join('d', 'Player', true, 'session');
+  assert.deepEqual(lobby.players(), ['Player', 'Player'], 'a reconnect with the same session ID is counted only once');
 }
 
 // Multiplayer trucks: ghosts at spawn, collisions once separated, stack handoff on the tines, leaving players
@@ -555,7 +598,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(ended, 'tok', 'party ended at the relay');
   host = newGame(1);
   removeTruck(host, 0);
-  const observerHost = createHost({ relay, getGame: () => host, levelInfo: info, isStarted: () => true, name: 'Observer', meta: { observer: true }, linkFactory });
+  let observerClock = 0;
+  const observerHost = createHost({ relay, getGame: () => host, levelInfo: info, isStarted: () => true, name: 'Observer', meta: { observer: true }, linkFactory, clock: () => observerClock });
   await observerHost.start();
   for (let i = 0; i < 120; i++) update(host, null, 1 / 120);
   assert.equal(host.trucks.filter((t) => !t.gone).length, 0, 'starting an observer game does not create a truck');
@@ -564,8 +608,9 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   observerHost.levelLoaded(host);
   assert.equal(host.trucks.filter((t) => !t.gone).length, 0, 'changing levels with no guests does not spawn a truck');
   const observerGuests = [];
+  const roundStates = [];
   for (let i = 0; i < 4; i++) {
-    const player = createGuest({ relay, code: 'ABCDE', name: `Guest ${i + 1}`, linkFactory, onGame: () => {} });
+    const player = createGuest({ relay, code: 'ABCDE', name: `Guest ${i + 1}`, linkFactory, onGame: () => {}, onRound: (state) => { roundStates[i] = state; } });
     observerGuests.push(player);
     await player.join();
     for (let j = 0; j < 6; j++) await tick();
@@ -581,8 +626,18 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   for (let i = 0; i < 120; i++) update(host, null, 1 / 120);
   assert.ok(Math.hypot(host.trucks[0].fl.x - before.x, host.trucks[0].fl.y - before.y) > 0.1, 'slot 0 follows guest input on an observer host');
   assert.equal(host.trucks[0].horn, true, 'slot 0 retains the guest horn input');
+  observerHost.startRound();
+  for (let i = 0; i < 3; i++) await tick();
+  assert.ok(roundStates.every((state) => state.eligible && state.remaining === 10), 'all guests receive the countdown');
+  for (let i = 1; i < 4; i++) observerGuests[i].ready(roundStates[i].id);
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(observerHost.roundState().remaining, 10, 'an unready guest keeps the original timer');
+  observerClock = 2;
   assert.equal(observerHost.kick(0), true, 'observer can kick the first guest');
   assert.equal(host.trucks[0].gone, true);
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(observerHost.roundState().remaining, 3, 'kicking the unready player shortens the timer');
+  assert.deepEqual(observerHost.roundPlayers(), ['Guest 1', 'Guest 2', 'Guest 3', 'Guest 4'], 'the kicked participant remains on the round score');
   observerHost.close();
   for (const player of observerGuests) player.close();
   console.log('party networking ok');

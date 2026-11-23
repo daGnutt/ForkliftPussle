@@ -55,6 +55,9 @@ footer b { color: var(--accent); }
 
 #record { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); color: var(--fg); z-index: 20; }
 #record.hide { display: none; }
+#roundReady { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 19; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; background: rgba(0,0,0,.85); color: white; }
+#roundReady[hidden] { display: none; }
+#roundReady button { cursor: pointer; }
 #record form { background: var(--splash1); padding: 20px 28px; border-radius: 8px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
 #record h2 { margin: 0; color: var(--accent); }
 #record p { margin: 0; }

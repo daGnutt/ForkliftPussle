@@ -189,9 +189,10 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Ghost** | Translucent truck that overlaps another truck (or a stack, `s.ghost`) at spawn; not solid until separated | `isGhost`, `ghostBetween` |
 | **Handoff** | Taking or giving a carried stack via tines | `transferCarried` |
 | **Multiplayer page** | Menu page for hosting, roster, ping, kick/ban | `#mpList`, `renderMpPage` |
-| **Kick / ban** | Host removes a guest; a ban refuses that name for the party | `host.kick` |
+| **Kick / ban** | Host removes a guest; a kick blocks that name for 60 seconds, a ban for the party | `host.kick` |
 | **Party badge** | Top-right party code and player list | `drawPartyBadge` |
 | **Observer host** | Party host without a truck, forced to the full-map overview with a limited menu | `Observer`, `?observer`, `view.fullMap` |
+| **Round countdown / Ready** | Observer-hosted round ends with a 10-second countdown; eligible guests may press Ready to shorten it to at most three seconds | `roundReady`, `createRound` |
 | **Party join card** | Polaroid-style QR and party code placed outside the observer's field while guest slots remain | `drawPartyJoinCard`, `observerLayout`, `js/qr.js` |
 
 ## Audio

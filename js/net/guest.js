@@ -16,7 +16,7 @@ export function withoutJoinParam(href) {
 }
 const analog = (v) => Math.round(Math.max(-1, Math.min(1, +v || 0)) * 20) / 20;
 
-export function createGuest({ relay, code, name, onGame, onClosed, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
+export function createGuest({ relay, code, name, playerId, onGame, onClosed, onRound, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
   const interp = createInterpolator();
   const predictor = createPredictor();
   let link = null, stream = null, peer = null, slot = -1, closed = false, lastIn = '', lastInAt = -Infinity, rtt = 0.1, lastGping = -Infinity;
@@ -37,7 +37,7 @@ export function createGuest({ relay, code, name, onGame, onClosed, linkFactory =
         initiator: false,
         iceServers: r.iceServers,
         sendSignal: (s) => relay.signal(code, { from: peer, to: 'host', ...s }).catch(() => end('Could not reach the host')),
-        onOpen: () => link.sendReliable({ t: 'hello', name, hardPhysicsVersion: HARD_PHYSICS_VERSION }),
+        onOpen: () => link.sendReliable({ t: 'hello', name, ...(playerId && { playerId }), hardPhysicsVersion: HARD_PHYSICS_VERSION }),
         onMessage: (msg) => {
           if (msg.t === 'snap') { interp.push(msg, clock()); predictor.onSnapshot(msg, clock(), rtt); }
           else if (msg.t === 'gpong') rtt += (Math.max(0, clock() - msg.n) - rtt) * 0.3;
@@ -48,6 +48,7 @@ export function createGuest({ relay, code, name, onGame, onClosed, linkFactory =
             if (msg.t === 'welcome') lastGping = -Infinity;
             onGame({ slot, started: true, ...msg }); // a level message means the host is playing
           } else if (msg.t === 'ping') link.sendReliable({ t: 'pong', n: msg.n });
+          else if (msg.t === 'round') onRound?.(msg);
           else if (msg.t === 'bye') end(BYE[msg.reason] || 'The host closed the party');
         },
         onClose: () => end('Lost the connection to the host'),
@@ -66,6 +67,7 @@ export function createGuest({ relay, code, name, onGame, onClosed, linkFactory =
       link?.sendReliable(text);
     },
     sendFork(dir) { link?.sendReliable({ t: 'fork', dir }); },
+    ready(id) { link?.sendReliable({ t: 'ready', id }); },
     close() { end('left'); },
   };
 }

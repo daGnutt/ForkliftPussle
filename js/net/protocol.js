@@ -1,7 +1,7 @@
 // Wire format and state sync of a party. The host runs the simulation and sends snapshots; guests send their inputs.
 //
-//   guest -> host (reliable): { t: 'hello', name } | { t: 'in', up, down, left, right, horn, fu, fd (held fork keys, hard mode) } | { t: 'fork', dir: 'up' | 'down' } (easy mode) | { t: 'gping', n } (answered with { t: 'gpong', n }; the guest's round-trip measurement)
-//   host -> guest (reliable): { t: 'welcome', slot, started, ...level } | { t: 'level', ...level } | { t: 'bye' }
+//   guest -> host (reliable): { t: 'hello', name, playerId? } | { t: 'in', up, down, left, right, horn, fu, fd (held fork keys, hard mode) } | { t: 'fork', dir: 'up' | 'down' } (easy mode) | { t: 'gping', n } | { t: 'ready', id }
+//   host -> guest (reliable): { t: 'welcome', slot, started, ...level } | { t: 'level', ...level } | { t: 'bye' } | { t: 'round', id, remaining, eligible, ready }
 //     where level = { level, seed, hard, seedText, endless, snap } (snap is a full snapshot)
 //   host -> guest (fast):     { t: 'snap', ...snapshot }
 import { makeTruck } from '../game.js';

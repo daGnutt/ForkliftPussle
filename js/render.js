@@ -1589,7 +1589,7 @@ export function draw(ctx, g, view) {
     ctx.fillText('Game over!', width / 2, height / 2 - 40);
     ctx.font = '20px sans-serif';
     ctx.fillText(`${E.delivered} trucks delivered, ${E.boxes} boxes, ${endlessScore(E)} points, ${formatTime(g.time)}`, width / 2, height / 2);
-    ctx.fillText(view.touch ? 'Tap to play again' : 'Press Enter to play again', width / 2, height / 2 + 40);
+    ctx.fillText(view.round ? 'Waiting for the next round' : view.touch ? 'Tap to play again' : 'Press Enter to play again', width / 2, height / 2 + 40);
     drawTopLists(ctx, view, width / 2, height / 2 + 70, width / 2);
   }
 }
@@ -1619,7 +1619,7 @@ export function drawResults(ctx, g, view) {
   add(`Boxes in zones: ${pts + lost.crash + lost.square} − crashes ${lost.crash} − ${g.hard ? 'wonkiness' : 'squareness'} ${lost.square} = ${pts}`, 18, false, 26);
   add(`Time ${formatTime(g.time)}: −${timePenalty(g.time)} (1 point per 10 s)`, 18, false, 32);
   add(`Final score: ${finalScore(pts, g.time)}`, 22, true, 34);
-  add(view.touch ? 'Tap to continue to the next level' : 'Press Enter for the next level', 20, false, 36);
+  add(view.round ? 'Waiting for the next round' : view.touch ? 'Tap to continue to the next level' : 'Press Enter for the next level', 20, false, 36);
   let y = top + 20;
   const ys = lines.map((l, i) => (y += (i ? lines[i - 1].gap * k : 36 * k)));
   const listY = y + 20 * k;
