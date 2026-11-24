@@ -1,6 +1,6 @@
 import { COLORS } from '../level.js';
 import { theme } from '../theme.js';
-import { FL, toWorld } from '../forklift.js';
+import { FL, toWorld, wheelPoints } from '../forklift.js';
 import { zoneDone, zoneExt, otherTrucks, isGhost } from '../game.js';
 import { parseColor } from './mesh.js';
 import { BOX_H, PAL } from './models.js';
@@ -40,11 +40,6 @@ const sparks = (s, x, y, z, nx, ny, n, speed) => {
 const puff = (s, x, y, z, o = {}) => {
   const a = rnd(0, Math.PI * 2), v = rnd(0.05, 0.3) * (o.spread ?? 1);
   emit(s, { kind: 'smoke', x, y, z, vx: Math.cos(a) * v + (o.vx || 0), vy: Math.sin(a) * v + (o.vy || 0), vz: rnd(0.2, 0.6), life: rnd(0.7, 1.2) * (o.life ?? 1), size: o.size ?? 0.12, grow: o.grow ?? 0.35, drag: 1.2, col: o.col || [0.86, 0.86, 0.88], a0: o.a0 ?? 0.55 });
-};
-
-const wheelPoints = (f) => {
-  const W = FL.halfW;
-  return [toWorld(f, -FL.L, -W + 0.08), toWorld(f, -FL.L, W - 0.08), toWorld(f, FL.frontWheelX, -W - 0.02), toWorld(f, FL.frontWheelX, W + 0.02)];
 };
 
 // Hit height: `z` of a popup is in box heights.

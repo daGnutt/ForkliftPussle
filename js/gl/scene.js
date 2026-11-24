@@ -4,7 +4,7 @@ import { theme } from '../theme.js';
 import { scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, BOT_BEACONS, botBeaconOn, beaconColor, proximityBeaconOn, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
 import { LEVEL_H } from '../geom.js';
 import { FL, toWorld } from '../forklift.js';
-import { decalsEnabled, floorDecals, overheadDecals, oilDropMark } from '../decals.js';
+import { decalsEnabled, floorDecals, overheadDecals, oilDropMark, skidMark } from '../decals.js';
 import { padPolys } from '../repair.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
@@ -557,6 +557,10 @@ function addBotBeacons(om, g) {
 // Per-frame meshes: { opaque, trans, lights } for the game state `g` seen from `eye` ([x, y]).
 export function dynamicMeshes(g, mode, eye) {
   const om = new Mesh(), tm = new Mesh();
+  for (const m of g.skidMarks || []) {
+    const d = skidMark(m);
+    tm.poly(d.pts, 0.006, d.fill);
+  }
   for (const oil of g.oil || []) {
     tm.disc(oil.x, oil.y, 0.008, oil.r, 'rgba(12,22,22,0.72)', 20);
     tm.disc(oil.x - oil.r * 0.22, oil.y - oil.r * 0.12, 0.009, oil.r * 0.38, 'rgba(180,205,190,0.22)', 12);

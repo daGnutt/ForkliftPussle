@@ -17,7 +17,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { qrMatrix } from './qr.js';
-import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark } from './decals.js';
+import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark, skidMark } from './decals.js';
 import { liftedHf, carriedDrawH, carriedWorldOffs, forkHeight, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
 import { BOX_SCALE, BOX_HALF_X, halfY, LEVEL_H } from './geom.js';
 
@@ -686,6 +686,13 @@ function drawBotBeacon(ctx, g, key) {
 // vis (optional world AABB {x0,y0,x1,y1}): only things touching it are drawn (partial render for the small windows).
 function drawWorld(ctx, g, vis, pxPerTile = 0) {
   drawFloor(ctx, g, vis, pxPerTile);
+  for (const m of g.skidMarks || []) {
+    if (!visSeen(vis, m.x - 0.2, m.y - 0.2, 0.4, 0.4)) continue;
+    const d = skidMark(m);
+    ctx.fillStyle = d.fill; ctx.beginPath();
+    d.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.fill();
+  }
   for (const oil of g.oil || []) {
     if (!visSeen(vis, oil.x - oil.r, oil.y - oil.r, oil.r * 2, oil.r * 2)) continue;
     ctx.fillStyle = 'rgba(12,22,22,0.72)';

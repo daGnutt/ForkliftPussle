@@ -34,6 +34,15 @@ function rect(x, y, w, h, fill) {
 const YELLOW = 'rgba(244,196,20,0.6)';
 const RUBBER = 'rgba(15,15,15,0.22)';
 
+export function skidMark(m) {
+  const c = Math.cos(m.a), s = Math.sin(m.a);
+  return {
+    pts: [[-0.16, -0.07], [0.16, -0.07], [0.16, 0.07], [-0.16, 0.07]]
+      .map(([x, y]) => [m.x + x * c - y * s, m.y + x * s + y * c]),
+    fill: `rgba(15,15,15,${Math.ceil(10 * m.left) / 20})`,
+  };
+}
+
 // Random filler per cell (oil stains, dashed lines, hazard patches).
 function cellDecals(cx, cy) {
   const r = hash(cx, cy, 1), out = [];

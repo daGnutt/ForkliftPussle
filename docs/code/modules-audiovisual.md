@@ -1,5 +1,7 @@
 # Modules: audio, decals, effects, 2D render
 
+Fresh wheel skid marks are dynamic game state, not the cached permanent `floorDecals`. `skidMark` supplies their shared geometry to the overview, software cabin and GL dynamic mesh, independently of the cosmetic decal switch.
+
 Part of the code guide (see `../CODE_GUIDE.md`).
 
 Battery saver suppresses decals, disco lights, GL particles, and photo popups while retaining each graphics option's saved preference. In `audio.js`, `setSilenced` keeps music running but stops continuous sound-effect voices; they are recreated if needed after unpausing. `setPageHidden` suspends Web Audio and clears MIDI scheduling while the page is hidden, then resumes previously started audio when visible without changing mute preferences; a blocked automatic resume is retried on the next user gesture.

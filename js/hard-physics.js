@@ -1,6 +1,6 @@
 import { overlapArea, sat } from './geom.js';
 
-export const HARD_PHYSICS_VERSION = 2;
+export const HARD_PHYSICS_VERSION = 3;
 const SUPPORT_EPS = 1e-8;
 const MIN_CONTACT_AREA = 0.01;
 const TINE_OVERLAP = 0.01;

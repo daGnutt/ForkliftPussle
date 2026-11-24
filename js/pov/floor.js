@@ -1,7 +1,7 @@
 import { BARREL_COLOR, ZONE_COLORS } from '../level.js';
 import { truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays } from '../endless.js';
 import { theme } from '../theme.js';
-import { decalsEnabled, floorDecals, oilDropMark } from '../decals.js';
+import { decalsEnabled, floorDecals, oilDropMark, skidMark } from '../decals.js';
 import { padPolys } from '../repair.js';
 import { FL } from '../forklift.js';
 import { reverseLight } from '../revlight.js';
@@ -89,6 +89,11 @@ export function drawFloorMarks(ctx, g, cam) {
     const arrow = [[hx - 0.15, 0], [hx - 0.75, -0.45], [hx - 0.75, 0.45]]
       .map(([u, v]) => [p.x + u * c - v * s, p.y + u * s + v * c]);
     floorPoly(ctx, cam, arrow, '#66bb6a', '#66bb6a');
+  }
+  for (const m of g.skidMarks || []) {
+    if (Math.hypot(m.x - cam.x, m.y - cam.y) > GRID_DECAL) continue;
+    const d = skidMark(m);
+    floorPoly(ctx, cam, d.pts, d.fill);
   }
 }
 

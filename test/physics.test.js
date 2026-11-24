@@ -222,6 +222,79 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('impact spin ok');
 }
 
+// Fast turns and angled wall impacts slide sideways and leave tyre marks in both physics modes.
+{
+  const setup = (hard, wall = false) => {
+    const g = newGame(1, 0, hard);
+    g.stacks = []; g.zones = []; g.bot = null; g.inspector = null; g.coneBot = null; g.tapeBot = null;
+    g.walls = wall ? [{ x: 10, y: -20, w: 1, h: 40, poly: rectPoly(10.5, 0, 0.5, 20) }] : [];
+    Object.assign(g.fl, { x: 6, y: 6, a: wall ? 0.4 : 0, speed: wall ? 3.5 : 0 });
+    return g;
+  };
+  for (const hard of [false, true]) {
+    for (const wall of [false, true]) {
+      const g = setup(hard, wall);
+      let sideways = 0, smoke = 0;
+      for (let i = 0; i < 300; i++) {
+        update(g, wall ? { up: true } : { up: true, right: true }, 1 / 120);
+        const f = g.fl;
+        sideways = Math.max(sideways, Math.abs(-(f.sx || 0) * Math.sin(f.a) + (f.sy || 0) * Math.cos(f.a)));
+        smoke = Math.max(smoke, g.slip);
+      }
+      assert.ok(sideways > (wall ? 0.6 : 0.3), `${hard ? 'hard' : 'easy'} ${wall ? 'wall impact' : 'turn'} slides sideways`);
+      assert.ok(smoke > 0.05 && g.skidMarks.length, 'sideways sliding produces smoke and marks');
+    }
+    const straight = setup(hard);
+    run(straight, { up: true }, 2);
+    assert.equal(straight.skidMarks.length, 0, 'ordinary straight driving does not skid');
+    const slow = setup(hard);
+    slow.fl.speed = 0.4;
+    run(slow, { right: true }, 0.5);
+    assert.equal(slow.skidMarks.length, 0, 'gentle low-speed steering does not skid');
+    const analog = setup(hard, true);
+    Object.assign(analog.fl, { x: 9.64, a: 0, speed: 0 });
+    run(analog, { thr: 1, str: 0 }, 0.5);
+    assert.ok(analog.skidMarks.length, 'analog throttle spins tyres against a wall');
+  }
+}
+
+// Ordinary steering only skids near the current speed cap with sustained speed-limited lock.
+{
+  const setup = (hard, speed, height = 0) => {
+    const g = newGame(1, 0, hard);
+    g.w = 100; g.h = 100; g.walls = []; g.stacks = []; g.zones = [];
+    g.bot = null; g.inspector = null; g.coneBot = null; g.tapeBot = null;
+    g.H = height; g.hy = height;
+    Object.assign(g.fl, { x: 50, y: 50, a: 0, speed, steer: 0 });
+    return g;
+  };
+  for (const hard of [false, true]) {
+    const moderate = setup(hard, 2.5);
+    run(moderate, { thr: 0.08, str: 1 }, 1.5);
+    assert.equal(moderate.skidMarks.length, 0, 'full steering below top speed leaves no marks');
+    const partial = setup(hard, 4);
+    run(partial, { thr: 1, str: 0.6 }, 1.5);
+    assert.equal(partial.skidMarks.length, 0, 'partial steering at top speed leaves no marks');
+    for (const [speed, height, throttle] of [[4, 0, 1], [-2.5, 0, -1], [1.8, 5, 1]]) {
+      const g = setup(hard, speed, height);
+      run(g, { thr: throttle, str: 1 }, 0.1);
+      assert.equal(g.skidMarks.length, 0, 'a brief turn does not immediately leave marks');
+      run(g, { thr: throttle, str: 1 }, 1.5);
+      assert.ok(g.skidMarks.length, 'holding speed-limited steering at top speed creates marks');
+      const count = g.skidMarks.length;
+      run(g, { thr: throttle, str: 0 }, 0.6);
+      assert.equal(g.skidMarks.length, count, 'ordinary skid marks stop when steering is released');
+    }
+    const slowing = setup(hard, 4);
+    run(slowing, { up: true, right: true }, 1.5);
+    assert.ok(slowing.skidMarks.length);
+    const count = slowing.skidMarks.length;
+    slowing.fl.speed = 2.5;
+    run(slowing, { thr: 0.08, str: 1 }, 0.6);
+    assert.equal(slowing.skidMarks.length, count, 'marks stop when speed drops below the cap');
+  }
+}
+
 // A stack hit off-centre by a fast truck, or by another stack, turns.
 {
   const g = newGame(1);

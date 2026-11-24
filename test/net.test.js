@@ -24,6 +24,17 @@ import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetwee
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
+// Fresh skid marks and their cleaning progress are authoritative multiplayer state.
+{
+  const host = newGame(1), guest = newGame(1);
+  host.skidMarks = [{ id: 'skid:test', x: 4, y: 5, a: 0.3, left: 0.4 }];
+  applySnapshot(guest, JSON.parse(JSON.stringify(snapshot(host))));
+  assert.deepEqual(guest.skidMarks, host.skidMarks);
+  host.skidMarks = [];
+  applySnapshot(guest, JSON.parse(JSON.stringify(snapshot(host))));
+  assert.deepEqual(guest.skidMarks, [], 'cleaned marks disappear on guests');
+}
+
 // Successful link joins remove only the join parameter.
 {
   assert.equal(withoutJoinParam('https://example.test/?seed=x&multiplayer=ABCDE&testing#map'), 'https://example.test/?seed=x&testing=#map');

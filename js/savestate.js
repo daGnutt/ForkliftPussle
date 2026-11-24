@@ -2,7 +2,7 @@ import { newGame, forkHeight } from './game.js';
 import { newEndless, endlessSnapshot, restoreEndless } from './endless.js';
 import { MAX_H, MAX_LAYERS } from './forklift.js';
 import { FORK_CLEARANCE } from './geom.js';
-import { stackSig } from './bot.js';
+import { makeBot, stackSig } from './bot.js';
 import { HARD_PHYSICS_VERSION } from './hard-physics.js';
 
 const SAVE_VERSION = 1;
@@ -22,7 +22,7 @@ const okPen = (p) => !!p && num(p.crash) && num(p.sq) &&
   (p.inspected === undefined || typeof p.inspected === 'boolean') &&
   (p.oilDropped === undefined || Number.isInteger(p.oilDropped) && p.oilDropped >= 0 && p.oilDropped <= 50) &&
   (p.oilFraction === undefined || num(p.oilFraction) && p.oilFraction >= 0 && p.oilFraction < 1);
-const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'oil', 'cones', 'tapes', 'repair', 'bot', 'inspector', 'coneBot', 'tapeBot', 'photo', 'bonks', 'H', 'hy', 'hf', 'status', 'time', 'started', 'clock'];
+const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'oil', 'skidMarks', 'cones', 'tapes', 'repair', 'bot', 'inspector', 'coneBot', 'tapeBot', 'photo', 'bonks', 'H', 'hy', 'hf', 'status', 'time', 'started', 'clock'];
 
 // Plain-JSON snapshot of a level in progress; the static layout is regenerated from (level, seed, hard).
 export function serializeGame(g, seedText = '') {
@@ -65,6 +65,8 @@ function checkState(s) {
     (o.barrelId === undefined || typeof o.barrelId === 'string') && (o.seq === undefined || Number.isInteger(o.seq) && o.seq >= 0) &&
     (o.anchorX === undefined || num(o.anchorX)) && (o.anchorY === undefined || num(o.anchorY)) &&
     (o.leaking === undefined || typeof o.leaking === 'boolean')));
+  const okSkids = s.skidMarks === undefined || (Array.isArray(s.skidMarks) && s.skidMarks.every((m) =>
+    m && typeof m.id === 'string' && num(m.x) && num(m.y) && num(m.a) && num(m.left) && m.left > 0 && m.left <= 1));
   const okCones = s.cones === undefined || (Array.isArray(s.cones) && s.cones.every((c) => c && typeof c.id === 'string' && typeof c.goalId === 'string'
     && num(c.x) && num(c.y) && num(c.a) && typeof c.tipped === 'boolean' && typeof c.squished === 'boolean'));
   const okTapes = s.tapes === undefined || (Array.isArray(s.tapes) && s.tapes.every((t) => t && typeof t.key === 'string' && Number.isInteger(t.color)
@@ -72,12 +74,12 @@ function checkState(s) {
     && (t.posts === undefined || arr(t.posts, 4, (v) => typeof v === 'boolean'))
     && (t.edges === undefined || arr(t.edges, 4, (v) => typeof v === 'boolean'))
     && (t.wallSides === undefined || arr(t.wallSides, 4, (v) => v === null || num(v)))));
-  if (!okFl || !okStacks || !okCarried || !okOil || !okCones || !okTapes || !Number.isInteger(s.H) || s.H < 0 || s.H > MAX_H) throw new Error('Corrupt state');
+  if (!okFl || !okStacks || !okCarried || !okOil || !okSkids || !okCones || !okTapes || !Number.isInteger(s.H) || s.H < 0 || s.H > MAX_H) throw new Error('Corrupt state');
   if (s.status !== 'play' && s.status !== 'won') throw new Error('Corrupt state');
 }
 
 function restoreForkHeight(g, version) {
-  if (g.hard && version !== HARD_PHYSICS_VERSION && g.carried && num(g.hy)) g.hy += FORK_CLEARANCE;
+  if (g.hard && (version === undefined || version === 1) && g.carried && num(g.hy)) g.hy += FORK_CLEARANCE;
   const height = forkHeight(g);
   if (!num(height) || height < g.H - 1e-6 || height >= g.H + 1) g.hy = g.H + (g.hard && g.carried ? FORK_CLEARANCE : 0);
   if (!num(g.hf)) g.hf = g.hy;
@@ -87,7 +89,7 @@ function restoreForkHeight(g, version) {
 export function deserializeGame(data) {
   if (!data || data.version !== SAVE_VERSION || !data.state) throw new Error('Unknown save format');
   const { level, seed, hard, state: s } = data;
-  if (hard && data.hardPhysicsVersion !== undefined && data.hardPhysicsVersion !== 1 && data.hardPhysicsVersion !== HARD_PHYSICS_VERSION) throw new HardPhysicsVersionError();
+  if (hard && data.hardPhysicsVersion !== undefined && ![1, 2, HARD_PHYSICS_VERSION].includes(data.hardPhysicsVersion)) throw new HardPhysicsVersionError();
   if (!Number.isInteger(level) || level < 1 || !num(seed)) throw new Error('Bad level or seed');
   if (data.layoutVersion !== LEVEL_LAYOUT_VERSION) {
     throw new Error('Saved level layout is no longer compatible');
@@ -97,6 +99,7 @@ export function deserializeGame(data) {
   const boxes = (stacks, carried) => stacks.reduce((n, st) => n + st.layers.length, 0) + (carried ? carried.length : 0);
   if (boxes(s.stacks, s.carried) !== boxes(g.stacks, null)) throw new Error('State does not match level');
   Object.assign(g, clone(s));
+  if (!g.bot) g.bot = makeBot(g);
   restoreInspections(g, data);
   const ph = g.photo; // the observer's last picture; a malformed one is dropped rather than failing the load
   if (ph != null && !(Array.isArray(ph.layers) && Array.isArray(ph.pens) && Array.isArray(ph.rots) && Array.isArray(ph.offs) && num(ph.at?.x) && num(ph.at?.y))) g.photo = null;
@@ -143,12 +146,13 @@ export function serializeEndless(g) {
 // Returns the resumed endless game, or throws if the data is not a valid snapshot.
 export function deserializeEndless(data) {
   if (!data || data.version !== ENDLESS_VERSION || !data.state || !data.endless || !num(data.seed)) throw new Error('Unknown save format');
-  if (data.hard && data.hardPhysicsVersion !== undefined && data.hardPhysicsVersion !== 1 && data.hardPhysicsVersion !== HARD_PHYSICS_VERSION) throw new HardPhysicsVersionError();
+  if (data.hard && data.hardPhysicsVersion !== undefined && ![1, 2, HARD_PHYSICS_VERSION].includes(data.hardPhysicsVersion)) throw new HardPhysicsVersionError();
   const s = data.state;
   checkState(s);
   if (s.status !== 'play') throw new Error('Corrupt state');
   const g = newEndless(data.seed, !!data.hard);
   Object.assign(g, clone(s));
+  if (!g.bot) g.bot = makeBot(g);
   restoreForkHeight(g, data.hardPhysicsVersion);
   if (!num(g.time)) g.time = 0;
   if (!num(g.bonks)) g.bonks = 0;

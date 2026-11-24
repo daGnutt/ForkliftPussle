@@ -23,6 +23,7 @@ export function snapshot(g, withStacks = true) {
     ghostPairs: r.ghostPairs,
     hits: r.hits.map(({ owner, ...h }) => h),
     oil: r.oil,
+    skidMarks: r.skidMarks,
     cones: r.cones,
     tapes: r.tapes,
     bot: r.bot,
@@ -63,6 +64,7 @@ export function applySnapshot(g, s) {
   g.trucks.length = s.trucks.length;
   if (s.stacks) g.stacks = s.stacks;
   if (s.oil) g.oil = s.oil;
+  if (s.skidMarks) g.skidMarks = s.skidMarks;
   if (s.cones) g.cones = s.cones;
   if (s.tapes) g.tapes = s.tapes;
   if (s.bot !== undefined) g.bot = s.bot;

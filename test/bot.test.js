@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { newGame, update, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
+import { newGame, update, addTruck, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
 import { issues } from '../js/photo.js';
 import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, areaSignature, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
 import { run, NONE, flatWorld } from './common.js';
+import { floorDecals } from '../js/decals.js';
 
 const hasBarrel = (g) => g.stacks.some((s) => s.layers.includes(6));
 const botGame = () => {
@@ -23,14 +24,88 @@ const idleStep = (g, kind, dt) => {
   else stepTapeBot(g, dt, [], () => null, () => false);
 };
 
-assert.ok(newGame(1, 0).hatch && !newGame(1, 0).bot && newGame(1, 0).inspector, 'levels without barrels have no cleaning bot, but an inspector');
+assert.ok(newGame(1, 0).hatch && newGame(1, 0).bot && newGame(1, 0).inspector, 'levels without barrels also have a cleaning bot');
 assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is deterministic');
+
+// Wheel smoke leaves fresh marks, which the cleaner removes without touching permanent decals.
+{
+  const g = newGame(1, 0);
+  const oldDecals = structuredClone(floorDecals(g));
+  flatWorld(g); g.stacks = []; g.inspector = null; g.coneBot = null; g.tapeBot = null; g.repair = null;
+  Object.assign(g.fl, { x: 2.5, y: g.h / 2, a: Math.PI, speed: 0 });
+  let slipped = false;
+  for (let i = 0; i < 360; i++) { update(g, { up: true }, 1 / 120); slipped ||= g.slip > 0.05; }
+  assert.ok(slipped && g.skidMarks.length, 'wheel slip produces fresh marks even without barrels');
+  const marks = g.skidMarks.map((m) => ({ ...m }));
+  assert.ok(marks.every((m) => m.left === 1), 'new marks begin uncleaned');
+  Object.assign(g.fl, { x: g.w - 2, y: 1, speed: 0 });
+  g.slip = 0;
+  let seen = false, fading = false;
+  for (let i = 0; g.skidMarks.length && i < 120 * 120; i++) {
+    update(g, NONE, 1 / 120);
+    seen ||= g.bot.show > 0;
+    fading ||= g.skidMarks.some((m) => m.left < 1);
+  }
+  assert.ok(seen && fading && !g.skidMarks.length, 'cleaner emerges and scrubs the marks away');
+  assert.deepEqual(floorDecals(g), oldDecals, 'old factory decals are unchanged');
+}
 
 // The bot stays hidden while there is no oil.
 {
   const g = botGame();
   run(g, NONE, 2);
   assert.equal(g.bot.show, 0);
+  assert.equal(g.skidMarks.length, 0, 'stationary wheels leave no marks');
+}
+
+// Oil takes priority over fresh skid marks; marks are not safety-cone spill targets.
+{
+  const g = botGame();
+  flatWorld(g); g.stacks = [];
+  g.oil = [{ id: 'oil', x: 8, y: 6, r: 0.163, drops: 1 }];
+  g.skidMarks = [{ id: 'skid:test', x: 6, y: 6, a: 0, left: 1 }];
+  stepBot(g, 1 / 120, 1.15 ** 2 / 50);
+  assert.ok(g.bot.debugTask.startsWith('spill oil'));
+  const withMarks = coneTargets(g, []);
+  g.skidMarks = [];
+  assert.deepEqual(coneTargets(g, []), withMarks, 'skid marks do not create cone jobs');
+}
+
+// Other players leave marks too, while stationary wheelspin does not create unlimited duplicates.
+{
+  const g = newGame(1);
+  flatWorld(g); g.stacks = []; g.bot = null; g.inspector = null; g.coneBot = null; g.tapeBot = null;
+  const other = g.trucks[addTruck(g, 'Other', 1)];
+  Object.assign(g.fl, { x: 2, y: 2 });
+  Object.assign(other.fl, { x: 8, y: 7, a: 0, speed: 0 });
+  other.slip = 1;
+  update(g, NONE, 1 / 120);
+  assert.equal(g.skidMarks.length, 4, 'the remote truck leaves marks at its wheels');
+  for (let i = 0; i < 120; i++) { other.slip = 1; update(g, NONE, 1 / 120); }
+  assert.equal(g.skidMarks.length, 4, 'repeated wheelspin at the same spot does not pile up marks');
+}
+
+// New oil interrupts skid cleaning; the mark is scrubbed quickly once the oil is gone.
+{
+  const g = newGame(1);
+  flatWorld(g); g.stacks = []; g.inspector = null; g.coneBot = null; g.tapeBot = null;
+  const spot = mid(g);
+  clearOf(g, spot);
+  Object.assign(g.bot, { x: spot.x, y: spot.y, show: 1, mode: 'out' });
+  g.skidMarks = [{ id: 'skid:test', x: spot.x, y: spot.y, a: 0, left: 1 }];
+  run(g, NONE, 0.1);
+  const remaining = g.skidMarks[0].left;
+  assert.ok(remaining < 1 && remaining > 0, 'skid cleaning has started');
+  g.oil = [{ id: 'new-oil', x: spot.x, y: spot.y, r: 0.163, drops: 1 }];
+  let elapsed = 0;
+  while (g.oil.length && elapsed < 10) {
+    update(g, NONE, 1 / 120); elapsed += 1 / 120;
+    assert.equal(g.skidMarks[0].left, remaining, 'oil interrupts skid cleaning');
+  }
+  assert.ok(!g.oil.length && elapsed >= CLEAN_SECS - 0.1, 'oil is cleaned first at its normal rate');
+  elapsed = 0;
+  while (g.skidMarks.length && elapsed < 1) { update(g, NONE, 1 / 120); elapsed += 1 / 120; }
+  assert.ok(!g.skidMarks.length && elapsed < 0.3, 'partly cleaned mark is finished quickly');
 }
 
 // It drives out, mops one drop in about CLEAN_SECS and eventually goes home.

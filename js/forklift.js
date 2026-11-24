@@ -35,6 +35,10 @@ function heightSpeedFactor(h) {
   return 1 - (1 - MIN_SPEED_FACTOR) * Math.max(0, Math.min(1, h / MAX_H));
 }
 
+export function topSpeed(h, reverse = false) {
+  return (reverse ? MAX_REV : MAX_FWD) * heightSpeedFactor(h);
+}
+
 // Steering lock tapers off with road speed only (not fork height): the full,
 // near-pivot lock is only available standing still; at top speed it's clamped
 // to a much shallower angle, like a real forklift's speed-sensitive steering.
@@ -73,6 +77,11 @@ export function toWorld(f, lx, ly) {
   return { x: f.x + lx * c - ly * s, y: f.y + lx * s + ly * c };
 }
 
+export function wheelPoints(f) {
+  const W = FL.halfW;
+  return [toWorld(f, -FL.L, -W + 0.08), toWorld(f, -FL.L, W - 0.08), toWorld(f, FL.frontWheelX, -W - 0.02), toWorld(f, FL.frontWheelX, W + 0.02)];
+}
+
 export function toLocal(f, wx, wy) {
   const c = Math.cos(f.a), s = Math.sin(f.a);
   const dx = wx - f.x, dy = wy - f.y;
@@ -85,7 +94,7 @@ function approachZero(v, d) {
 
 export function drive(f, inp, dt, h = 0) {
   const hsf = heightSpeedFactor(h);
-  const capFwd = MAX_FWD * hsf, capRev = MAX_REV * hsf;
+  const capFwd = topSpeed(h), capRev = topSpeed(h, true);
   const th = inp.thr ?? (inp.up ? 1 : 0) - (inp.down ? 1 : 0); // inp.thr/inp.str: optional analog -1..1 (gamepad)
   f.brake = th * f.speed < 0; // throttle opposing the motion: brake lights
   const overCap = f.speed > capFwd || f.speed < -capRev;

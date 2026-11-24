@@ -1,5 +1,5 @@
-// Cleaning bot (inspired by M-O): lives behind a hatch in a wall on levels with oil barrels. Once there is oil it drives out,
-// paths to the nearest spill on a coarse grid (avoiding walls, stacks and forklifts), mops it up (one drop per CLEAN_SECS) and
+// Cleaning bot (inspired by M-O): lives behind a hatch and drives out for oil or fresh skid marks,
+// paths on a coarse grid (avoiding walls, stacks and forklifts), mops oil (one drop per CLEAN_SECS) and
 // runs away whenever a forklift comes close. With nothing left to clean it watches forklifts before returning to its hatch.
 // Pure data + DOM-free; `g.hatch` is static (regenerated per level), `g.bot` is dynamic (saved and synced).
 import { repairable } from './repair.js';
@@ -9,6 +9,7 @@ import { BOX_HALF_X, halfY, zoneExt, rectPoly, sat } from './geom.js';
 
 export const BOT_R = 0.3; // about a quarter of a forklift's footprint
 export const CLEAN_SECS = 5; // seconds per oil drop
+const SKID_CLEAN_SECS = 0.3;
 const CELL = 0.25, SPEED = 1.8, FLEE_SPEED = 3.2, SCARE = 1.3, CALM = 2.0, SHOW_SECS = 0.6;
 export const TURN_RATE = 5, TURN_FIRST = 0.6; // max turning speed (rad/s; a tracked bot spins on the spot) and the heading error above which it turns before driving on
 const FLEE_TURN_RATE = 16;
@@ -98,7 +99,7 @@ function retract(g, bot, dt) {
 }
 
 export function makeBot(g) {
-  if (!g.hatch || !g.stacks.some((s) => s.layers.includes(BARREL_COLOR))) return null;
+  if (!g.hatch) return null;
   const home = botHome(g.hatch);
   return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', cleaning: false, scared: false, path: [], repath: 0, clean: 0 };
 }
@@ -775,14 +776,17 @@ export function stepBot(g, dt, dropArea) {
   if (!bot || !g.hatch) return;
   const home = botLane(g.hatch);
   const spill = pickSpill(g, bot, dropArea);
-  bot.debugTask = spill ? `spill ${spill.id} at ${spill.x.toFixed(1)},${spill.y.toFixed(1)}` : null;
+  const mark = !spill && preferLive(g, bot, g.skidMarks || [], (m) => m.id)
+    .reduce((best, m) => !best || Math.hypot(m.x - bot.x, m.y - bot.y) < Math.hypot(best.x - bot.x, best.y - bot.y) ? m : best, null);
+  const target = spill || mark;
+  bot.debugTask = target ? `${spill ? 'spill' : 'skid'} ${target.id} at ${target.x.toFixed(1)},${target.y.toFixed(1)}` : null;
   const gap = truckGap(g, bot, true);
 
   if (bot.mode === 'hidden') {
-    if (!spill) return;
+    if (!target) return;
     bot.mode = 'out';
   }
-  const current = activity(bot, !!spill, dt);
+  const current = activity(bot, !!target, dt);
   if (bot.show < 1) { if (bot.leaving) retract(g, bot, dt); else emerge(g, bot, dt); return; }
   bot.scared = gap < (bot.scared ? CALM : SCARE);
   if (bot.scared) bot.spookedUntil = g.clock + SPOOK_SECS;
@@ -808,14 +812,15 @@ export function stepBot(g, dt, dropArea) {
       pushOut(g, bot);
       return;
     }
-    const key = spill?.id ?? 'home';
+    const key = target?.id ?? 'home';
     if (bot.planKey !== key) { bot.planKey = key; bot.repath = 0; }
-    goal = spill ? { x: spill.x, y: spill.y, r: Math.max(0.08, Math.sqrt(spillDrops(spill, dropArea) * dropArea) * 0.5) } : { ...home, r: 0.08 };
+    goal = spill ? { x: spill.x, y: spill.y, r: Math.max(0.08, Math.sqrt(spillDrops(spill, dropArea) * dropArea) * 0.5) }
+      : mark ? { x: mark.x, y: mark.y, r: 0.35 } : { ...home, r: 0.08 };
     bot.goal = { x: goal.x, y: goal.y }; // shown by the debug overlay
     if (routeObstructed(g, bot)) bot.repath = 0;
     if (bot.repath <= 0) {
-      const covered = spill && underStack(g, spill);
-      bot.path = goalPlan(g, bot, spill?.id, (x, y) => Math.max(0, Math.hypot(x - goal.x, y - goal.y) - goal.r) * 10,
+      const covered = target && underStack(g, target);
+      bot.path = goalPlan(g, bot, target?.id, (x, y) => Math.max(0, Math.hypot(x - goal.x, y - goal.y) - goal.r) * 10,
         (e) => { const d = Math.hypot(e.x - goal.x, e.y - goal.y); return covered ? d <= REACH - 0.05 : d < goal.r + 0.5; });
       bot.repath = bot.waiting || !bot.path.length ? REPLAN : KEEP_ROUTE; // a route is kept until something disturbs it
     }
@@ -835,14 +840,19 @@ export function stepBot(g, dt, dropArea) {
 
   if (!bot.scared && goal) {
     const d = Math.hypot(goal.x - bot.x, goal.y - bot.y);
-    const reaching = spill && !bot.path.length && d <= REACH && underStack(g, spill);
-    if (spill && (d <= goal.r + 0.12 || reaching)) {
+    const reaching = target && !bot.path.length && d <= REACH && underStack(g, target);
+    if (target && (d <= goal.r + 0.12 || reaching)) {
       bot.cleaning = true;
       if (reaching) turnTo(bot, Math.atan2(goal.y - bot.y, goal.x - bot.x), dt);
-      const drops = spillDrops(spill, dropArea) - dt / CLEAN_SECS;
-      if (drops <= 1e-9) g.oil.splice(g.oil.indexOf(spill), 1);
-      else { spill.drops = drops; spill.r = Math.sqrt(drops * dropArea); }
-    } else if (!spill && Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
+      if (spill) {
+        const drops = spillDrops(spill, dropArea) - dt / CLEAN_SECS;
+        if (drops <= 1e-9) g.oil.splice(g.oil.indexOf(spill), 1);
+        else { spill.drops = drops; spill.r = Math.sqrt(drops * dropArea); }
+      } else {
+        for (const m of g.skidMarks) if (Math.hypot(m.x - mark.x, m.y - mark.y) < 0.5) m.left -= dt / SKID_CLEAN_SECS;
+        g.skidMarks = g.skidMarks.filter((m) => m.left > 1e-9);
+      }
+    } else if (!target && Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
       retract(g, bot, dt);
       return;
     }

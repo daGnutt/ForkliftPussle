@@ -882,6 +882,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const leak = (damage) => {
     const h = newGame(1);
     flatWorld(h);
+    h.bot = null;
     h.fl.x = 2; h.fl.y = 2; h.fl.speed = 0;
     h.stacks = [wonkyStack({ x: 10, y: 5, layers: [BARREL_COLOR, BARREL_COLOR], barrelAt: 0 })];
     h.stacks[0].pen[0].crash = damage;

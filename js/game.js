@@ -1,7 +1,7 @@
 import { boxDecalKind } from './decals.js';
 import { rectPoly, sat, overlapArea, intersectionCenter, BOX_HALF_X, halfY, palletRunnerDims, zoneExt, FORK_CLEARANCE, TINE_H, LEVEL_H } from './geom.js';
 export { zoneExt } from './geom.js';
-import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal } from './forklift.js';
+import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal, wheelPoints, maxSteerFor, topSpeed } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
 import { makeStation, stepRepair, repairable, recordDropAngle } from './repair.js';
@@ -691,6 +691,7 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
     start: { x: lvl.start.x, y: lvl.start.y, a: lvl.start.a },
     trucks: [makeTruck(lvl.start)],
     oil: [],
+    skidMarks: [],
     cones: [],
     tapes: [],
     self: 0, // index of the local player's truck
@@ -1285,7 +1286,7 @@ function resolveHard(g, motion) {
       if (c.layer != null) forgetInspection(o.carriedPen);
       const d = m.depth * 0.5005;
       moveF(m.x * d, m.y * d); o.fl.x -= m.x * d; o.fl.y -= m.y * d;
-      o.slip = 1;
+      o.slip = 1; o.fl.steerDrift = false;
       const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
       wp.x += m.x * d; wp.y += m.y * d;
       if (sh.carried) {
@@ -1402,7 +1403,7 @@ function resolve(g, motion) {
           const d = m.depth * 0.5005;
           moveF(m.x * d, m.y * d);
           o.fl.x -= m.x * d; o.fl.y -= m.y * d;
-          o.slip = 1;
+          o.slip = 1; o.fl.steerDrift = false;
           shiftPoly(q, -m.x * d, -m.y * d);
           const wp = g.wallPush || (g.wallPush = { x: 0, y: 0 });
           wp.x += m.x * d; wp.y += m.y * d;
@@ -1518,20 +1519,19 @@ function wallContact(g, speed, kept) {
 
 const SLIP_DECAY = 2.5; // per second
 const SLIP_MIN_PUSH = 0.15; // tiles/s a wall must shove a driven truck back for its tyres to spin
-const SLIP_MAX_SPEED = 1.2; // faster than this it is a scrape along the wall, not wheelspin
-
-// Tyre spin (0..1) this step: the driver is on the throttle or steering, yet a wall (or truck) keeps pushing the
-// truck back, so the truck crawls instead of moving as driven (stuck against a wall, tail swinging into one).
+// Tyre spin (0..1) when a wall or truck pushes back against the driver's throttle or steering.
 function tireSlip(g, input, dt) {
   const wp = g.wallPush;
-  if (!wp || !(input.up || input.down || input.left || input.right) || Math.abs(g.fl.speed) > SLIP_MAX_SPEED) return 0;
+  const throttle = input.thr ?? (input.up ? 1 : 0) - (input.down ? 1 : 0);
+  const steering = input.str ?? (input.right ? 1 : 0) - (input.left ? 1 : 0);
+  if (!wp || (!throttle && !steering)) return 0;
   const push = Math.hypot(wp.x, wp.y) / dt;
   return push < SLIP_MIN_PUSH ? 0 : Math.min(1, 0.4 + push / 1.5);
 }
 
 const SPIN_K = 3; // yaw kick per unit of off-centre impact
-const SKID_K = 1.5; // sideways bounce kick away from the obstacle
-const SPIN_DECAY = 3.5, SKID_DECAY = 3; // per second (tyre grip bleeds the motion off)
+const SKID_K = 2.7; // bounce kick away from the obstacle
+const SPIN_DECAY = 3.5, SKID_DECAY = 2.2; // per second (tyre grip bleeds the motion off)
 const MAX_SPIN = 2.5, MAX_SKID = 2;
 const IMPACT_MIN_SPEED = 0.3;
 const CENTRE_X = -0.7; // local x of the truck's centre of mass
@@ -1552,15 +1552,34 @@ function impactKick(g, speed, dt) {
   }
 }
 
-function skidStep(f, dt) {
+function skidStep(f, dt, steering) {
   if (!f.spin && !f.sx && !f.sy) return;
   f.a += (f.spin || 0) * dt;
   f.x += (f.sx || 0) * dt;
   f.y += (f.sy || 0) * dt;
-  f.spin *= Math.exp(-SPIN_DECAY * dt); f.sx *= Math.exp(-SKID_DECAY * dt); f.sy *= Math.exp(-SKID_DECAY * dt);
+  f.spin = (f.spin || 0) * Math.exp(-SPIN_DECAY * dt);
+  f.sx = (f.sx || 0) * Math.exp(-SKID_DECAY * dt); f.sy = (f.sy || 0) * Math.exp(-SKID_DECAY * dt);
   // keeps saved states compact; small values snap to 0 (rounding alone would freeze them, as one step's decay is below the rounding)
-  const q = (v) => (Math.abs(v) < 0.03 ? 0 : Math.round(v * 1e3) / 1e3);
-  f.spin = q(f.spin); f.sx = q(f.sx); f.sy = q(f.sy);
+  const q = (v, min = 0.03) => (Math.abs(v) < min ? 0 : Math.round(v * 1e3) / 1e3);
+  f.spin = q(f.spin); f.sx = q(f.sx, steering ? 0.0005 : 0.03); f.sy = q(f.sy, steering ? 0.0005 : 0.03);
+}
+
+function steeringSkid(f, steerInput, height, dt) {
+  const limit = topSpeed(height, f.speed < 0);
+  if (Math.abs(f.speed) < limit * 0.98 || Math.abs(steerInput) < 0.95
+    || Math.abs(f.steer) < maxSteerFor(f.speed) * 0.95 || f.steer * steerInput <= 0) return false;
+  const speed = Math.abs(f.speed) / limit * topSpeed(0);
+  const force = speed * speed * Math.tan(f.steer) / FL.L;
+  const side = -Math.sign(force) * Math.max(0, Math.abs(force) - 1.4) * 0.4 * dt;
+  if (!side) return;
+  f.sx = clamp((f.sx || 0) - Math.sin(f.a) * side, -MAX_SKID, MAX_SKID);
+  f.sy = clamp((f.sy || 0) + Math.cos(f.a) * side, -MAX_SKID, MAX_SKID);
+  return true;
+}
+
+function sidewaysSlip(f) {
+  const sideways = Math.abs(-(f.sx || 0) * Math.sin(f.a) + (f.sy || 0) * Math.cos(f.a));
+  return clamp((sideways - 0.15) / 0.9, 0, 1);
 }
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -1598,6 +1617,7 @@ function updateStep(g, input, dt) {
   if (root.trucks.length > 1) root.trucks.forEach((t, i) => {
     if (!t.gone && t.liftedBy < 0) clearWallOverlaps(truckView(root, i));
   });
+  stepSkidMarks(root);
   stepConeCollisions(root);
   stepOil(root, dt);
   if (!root.truck.gone) watchForkedStack(root);
@@ -1630,6 +1650,19 @@ function updateStep(g, input, dt) {
   if (root.status === 'play' && root.started) root.time += dt; // the level timer runs from the first move until solved
   scorePopups(root);
   if (root.status === 'play' && !root.endless && isFinished(root)) root.status = 'won';
+}
+
+function stepSkidMarks(g) {
+  for (const t of g.trucks) {
+    if (t.gone || t.liftedBy >= 0 || t.perchZ > 0 || t.slip <= 0.05) continue;
+    if (g.clock - (t.skidAt ?? -Infinity) < 0.12) continue;
+    t.skidAt = g.clock;
+    wheelPoints(t.fl).forEach((p, i) => {
+      if (p.x < 0 || p.y < 0 || p.x > g.w || p.y > g.h) return;
+      if (g.skidMarks.some((m) => Math.hypot(m.x - p.x, m.y - p.y) < 0.2)) return;
+      g.skidMarks.push({ id: `skid:${t.id}:${i}:${g.clock}`, x: p.x, y: p.y, a: t.fl.a, left: 1 });
+    });
+  }
 }
 
 // Honking sends out a shockwave from the truck's nose: every stack within WAVE_RADIUS (including the ones on any
@@ -1814,8 +1847,9 @@ function stepTruck(g, input, dt) {
   drive(f, affected
     ? { ...input, thr: th * (0.35 + frontGrip.grip * 0.65), str: str * rearGrip.grip }
     : input, dt, forkHeight(g));
+  const steering = steeringSkid(f, str, forkHeight(g), dt);
   oilDrift(f, rearGrip, dt);
-  skidStep(f, dt);
+  skidStep(f, dt, steering);
   if (f.speed !== 0) g.started = true; // the level timer starts when a truck first moves
   const driven = { x: f.x, y: f.y };
   const intended = f.speed * dt;
@@ -1845,7 +1879,14 @@ function stepTruck(g, input, dt) {
     g.scrape = 0;
   }
 
-  g.slip = Math.max(tireSlip(g, input, dt), 1 - frontGrip.grip, 1 - rearGrip.grip, (g.slip || 0) - SLIP_DECAY * dt);
+  const sideways = sidewaysSlip(f);
+  const resistance = Math.max(tireSlip(g, input, dt), 1 - frontGrip.grip, 1 - rearGrip.grip);
+  // Keep the tail's physical momentum after steering is released, but stop its tyre smoke unless a collision or oil caused it.
+  if (g.wallPush || g.impacts.length || affected) f.steerDrift = false;
+  else if (steering && sideways >= (g.slip || 0)) f.steerDrift = true;
+  const stoppedTurning = f.steerDrift && !steering;
+  g.slip = Math.max(resistance, stoppedTurning ? 0 : sideways, stoppedTurning ? 0 : (g.slip || 0) - SLIP_DECAY * dt);
+  if (stoppedTurning && !sideways) f.steerDrift = false;
   if (g.lifting >= 0) syncLifted(g.root, g.truck);
 
   stepDrawForks(g, dt);

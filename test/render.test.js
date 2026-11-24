@@ -14,7 +14,8 @@ import { makeCamera } from '../js/pov/camera.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
 import { popupScale, placePhoto, drawPhoto, boxStatus, issues, stripHeight, scoreText } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
-import { oilDropMark } from '../js/decals.js';
+import { oilDropMark, setDecalsEnabled } from '../js/decals.js';
+import { drawFloorMarks } from '../js/pov/floor.js';
 import { setThemeMode } from '../js/theme.js';
 import { draw, drawForkGauge, observerLayout, placeObserverCard, observerObstacles } from '../js/render.js';
 import { drawHintArrow, repairHintOn, setRepairHint } from '../js/repairhint.js';
@@ -32,6 +33,35 @@ import { Mesh, parseColor } from '../js/gl/mesh.js';
 import { areaMarkKey, BOT_BEACONS, tapeCorners } from '../js/bot.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
+
+// Fresh skid marks are dynamic in all views, even when cosmetic decals are disabled.
+{
+  const g = newGame(1), fills = [];
+  g.skidMarks = [{ id: 'skid:test', x: 7, y: 5, a: 0, left: 0.5 }];
+  const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
+    get: (t, k) => k in t ? t[k] : k === 'fill' ? () => fills.push(t.fillStyle)
+      : k === 'measureText' ? (text) => ({ width: text.length * 7 })
+        : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
+  });
+  const previous = globalThis.OffscreenCanvas;
+  globalThis.OffscreenCanvas = class { getContext() { return ctx; } };
+  setDecalsEnabled(false);
+  try {
+    const withMark = dynamicMeshes(g, 'ov', [10, 5]).trans.count;
+    const camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
+    drawFloorMarks(ctx, g, camera);
+    assert.ok(fills.includes('rgba(15,15,15,0.25)'), 'software cabin draws the mark');
+    fills.length = 0;
+    draw(ctx, g, { width: 1200, height: 800, dpr: 1 });
+    assert.ok(fills.includes('rgba(15,15,15,0.25)'), 'overview draws the mark outside its floor cache');
+    g.skidMarks = [];
+    assert.equal(withMark - dynamicMeshes(g, 'ov', [10, 5]).trans.count, 6, 'GL emits a fresh quad only while the mark exists');
+  } finally {
+    setDecalsEnabled(true);
+    if (previous === undefined) delete globalThis.OffscreenCanvas;
+    else globalThis.OffscreenCanvas = previous;
+  }
+}
 
 // Visible working bots have beacons but cast no headlights in either theme or GL view.
 {
