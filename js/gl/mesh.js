@@ -90,15 +90,15 @@ export class Mesh {
     }
   }
 
-  cylinder(x, y, z0, z1, r, color, n = 16, rot = 0) {
+  cylinder(x, y, z0, z1, r, color, n = 16, rot = 0, { emissive = false } = {}) {
     const c = parseColor(color), points = Array.from({ length: n }, (_, i) => {
       const a = rot + (i * Math.PI * 2) / n;
       return [x + Math.cos(a) * r, y + Math.sin(a) * r];
     });
     for (let i = 0; i < n; i++) {
       const a = points[i], b = points[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
-      this.quad([a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1], [a[0], a[1], z1], [dy / len, -dx / len, 0], c);
-      this.tri([x, y, z1], [a[0], a[1], z1], [b[0], b[1], z1], [0, 0, 1], c);
+      this.quad([a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1], [a[0], a[1], z1], emissive ? [0, 0, 0] : [dy / len, -dx / len, 0], c);
+      this.tri([x, y, z1], [a[0], a[1], z1], [b[0], b[1], z1], emissive ? [0, 0, 0] : [0, 0, 1], c);
     }
   }
 

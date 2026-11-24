@@ -20,3 +20,5 @@ The GL cabin camera enables steering-linked head yaw after keyboard driving/stee
 On touch, a drag in the GL cabin holds the manual look and suppresses steering-linked head yaw until the camera is reset. A single tap on the game area resets the active GL camera using the gamepad reset; double-tap still switches overview/chase. Touch controls, the minimap, level completion and the two-finger horn do not trigger this reset.
 
 The GL cabin forklift's overhead guard has a shaded interior roof panel, visible from underneath.
+
+In dark mode only, `scene.js`'s `botHeadlights` gives each visible bot two small forward/downward spotlights (5-tile range, narrower and dimmer than the forklift's). Their visible lamp prisms and light origins follow `botDrawPos`, including hatch movement. They share the nearest-first `LIGHT_MAX` budget with forklift lamps in every GL view; light mode and software rendering have no bot headlights. Bot work beacons and proximity-triggered tape-post beacons use the shared helpers in `bot.js` (see `modules-modes.md`); `mesh.js`'s `cylinder` accepts an optional emissive flag for flashing post lamps without changing their shape.

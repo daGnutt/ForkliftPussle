@@ -134,11 +134,21 @@ export const CONE_BOT_PARTS = [
   [0.350, 0.075, 0.003, 0.021, 0.37, 0.425, '#252322'],
   [0.354, -0.08, 0.002, 0.007, 0.402, 0.417, '#fff3d4', true],
   [0.354, 0.07, 0.002, 0.007, 0.402, 0.417, '#fff3d4', true],
-  [0.345, -0.12, 0.008, 0.03, 0.215, 0.245, '#fff3d4', true],
-  [0.345, 0.12, 0.008, 0.03, 0.215, 0.245, '#fff3d4', true],
-  [0.13, 0, 0.06, 0.145, 0.60, 0.65, '#ef941f', true],
 ];
 export const CONE_BOT_WHEELS = [[-0.20, -0.22], [-0.20, 0.22], [0.22, 0]];
+
+// Beacon prisms use the same local dimensions as the shared bot parts.
+export const BOT_BEACONS = {
+  bot: [-0.08, 0, 0.045, 0.06, 0.40, 0.46, '#ef941f'],
+  inspector: [-0.08, 0, 0.045, 0.06, 0.45, 0.51, '#ef941f'],
+  coneBot: [0.13, 0, 0.06, 0.145, 0.60, 0.65, '#ef941f'],
+  tapeBot: [0, 0, 0.055, 0.08, 1.35, 1.43, '#78e5f4'],
+};
+const beaconPulse = (g) => Math.floor((g.clock || 0) * 4) % 2 === 0;
+export const botBeaconOn = (g, b) => b?.show > 0 && b.activity === 'work' && !b.scared && beaconPulse(g);
+export const beaconColor = (color, on) => on ? color === '#ef941f' ? '#ffc45a' : '#c7fbff' : color;
+export const tapeBeaconOn = (g, p) => beaconPulse(g)
+  && truckCircles(g).some((c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r + 3);
 
 export const TAPE_BOT_PARTS = [
   [0, -0.16, 0.28, 0.04, 0.03, 0.18, '#303538'],

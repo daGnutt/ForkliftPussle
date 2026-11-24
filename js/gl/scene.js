@@ -1,7 +1,7 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from '../level.js';
 import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
-import { scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
+import { scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, BOT_BEACONS, botBeaconOn, beaconColor, tapeBeaconOn, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
 import { LEVEL_H } from '../geom.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals, oilDropMark } from '../decals.js';
@@ -396,8 +396,27 @@ function discoLights(g, eye) {
 
 // Dark mode: headlights, reverse and brake lights; the ceiling fixtures are only decals, the room's glow is ambient (`DARK_LIGHT`).
 const HEAD_I = 1.5, WARM = [1, 0.95, 0.8];
-function darkLights(g, eye) {
+const BOT_HEADLIGHTS = {
+  bot: [0.25, 0.12, 0.22],
+  inspector: [0.26, 0.13, 0.19],
+  coneBot: [0.345, 0.12, 0.23],
+  tapeBot: [0.22, 0.09, 1.18],
+};
+function botHeadlights(g) {
   const out = [];
+  for (const [key, [u, v, z]] of Object.entries(BOT_HEADLIGHTS)) {
+    const b = g[key];
+    if (!b || b.show <= 0) continue;
+    const p = botDrawPos(b, g.hatch), c = Math.cos(b.a), s = Math.sin(b.a);
+    for (const side of [-1, 1]) out.push({
+      x: p.x + u * c - side * v * s, y: p.y + u * s + side * v * c,
+      z, r: 5, col: [0.85, 0.81, 0.68], dir: [c * 0.9, s * 0.9, -0.44], cone: 0.75, a: b.a,
+    });
+  }
+  return out;
+}
+function darkLights(g, eye) {
+  const out = botHeadlights(g);
   const trucks = [...(!g.truck.gone ? [g] : []), ...otherTrucksShown(g).filter((t) => !isGhost(g, t.truck.id))];
   for (const t of trucks) truckLights(t, out);
   for (const l of out) l.d = Math.hypot(l.x - eye[0], l.y - eye[1]);
@@ -507,7 +526,8 @@ function addSafetyMarks(om, tm, g) {
       const p = corners[i];
       om.cylinder(p.x, p.y, 0, 0.04, 0.12, '#525b5e', 8);
       om.cylinder(p.x, p.y, 0.04, 1.5 * LEVEL_H, 0.035, '#737e80', 8);
-      om.cylinder(p.x, p.y, 1.5 * LEVEL_H - 0.08, 1.5 * LEVEL_H + 0.04, 0.065, '#78e5f4', 8);
+      const on = tapeBeaconOn(g, p);
+      om.cylinder(p.x, p.y, 1.5 * LEVEL_H - 0.08, 1.5 * LEVEL_H + 0.04, 0.065, beaconColor('#78e5f4', on), 8, 0, { emissive: on });
     }
   }
   for (const c of g.cones || []) {
@@ -540,6 +560,18 @@ function addSafetyMarks(om, tm, g) {
   }
 }
 
+function addBotLamps(om, g) {
+  for (const [key, [u, v, hl, hw, z0, z1, color]] of Object.entries(BOT_BEACONS)) {
+    const b = g[key];
+    if (!b || b.show <= 0) continue;
+    const p = botDrawPos(b, g.hatch), c = Math.cos(b.a), s = Math.sin(b.a), on = botBeaconOn(g, b);
+    om.cuboid(p.x + u * c - v * s, p.y + u * s + v * c, b.a, hl, hw, z0, z1, beaconColor(color, on), { emissive: on });
+  }
+  if (theme().dark) for (const l of botHeadlights(g)) {
+    om.cuboid(l.x, l.y, l.a, 0.008, 0.025, l.z - 0.015, l.z + 0.015, '#fff3d4', { emissive: true });
+  }
+}
+
 // Per-frame meshes: { opaque, trans, lights } for the game state `g` seen from `eye` ([x, y]).
 export function dynamicMeshes(g, mode, eye) {
   const om = new Mesh(), tm = new Mesh();
@@ -549,6 +581,7 @@ export function dynamicMeshes(g, mode, eye) {
   }
   addSafetyMarks(om, tm, g);
   addBot(om, tm, g);
+  addBotLamps(om, g);
   for (const st0 of g.stacks) {
     const st = fallView(g, st0);
     const ghost = !g.truck.gone && st.ghost?.includes(g.truck.id);

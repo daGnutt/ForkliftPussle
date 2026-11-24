@@ -1,7 +1,7 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from './level.js';
 import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, dockWaits, dockNumber, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
-import { scanBeam, botDrawPos, WHEEL_R, tapeCorners, trailingTape, tapeDeploying } from './bot.js';
+import { scanBeam, botDrawPos, WHEEL_R, BOT_BEACONS, botBeaconOn, beaconColor, tapeBeaconOn, tapeCorners, trailingTape, tapeDeploying } from './bot.js';
 import { drawBotDebugWorld } from './debug.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { padPolys, tapeShapes, TAPE_FILL } from './repair.js';
@@ -627,6 +627,7 @@ function drawInspector(ctx, g, vis) {
   if (sc) { ctx.fillStyle = 'rgba(255,60,60,0.35)'; ctx.beginPath(); ctx.arc(0.2, 0, 0.06, 0, Math.PI * 2); ctx.fill(); }
   ctx.fillStyle = b.scared ? '#ff6a4a' : '#7fe8ff';
   ctx.beginPath(); ctx.arc(0.1, -0.15, 0.012, 0, Math.PI * 2); ctx.fill();
+  drawBotBeacon(ctx, g, 'inspector');
   if (b.flash > 0) {
     ctx.fillStyle = `rgba(255,255,255,${b.flash})`;
     ctx.beginPath(); ctx.arc(0.2, 0, 0.1 + 0.4 * (1 - b.flash), 0, Math.PI * 2); ctx.fill();
@@ -672,7 +673,14 @@ function drawBot(ctx, g, vis) {
     ctx.moveTo(x, -0.16); ctx.lineTo(x, 0.16);
   }
   ctx.stroke();
+  drawBotBeacon(ctx, g, 'bot');
   ctx.restore();
+}
+
+function drawBotBeacon(ctx, g, key) {
+  const [u, v, hl, hw, , , color] = BOT_BEACONS[key];
+  ctx.fillStyle = beaconColor(color, botBeaconOn(g, g[key]));
+  ctx.fillRect(u - hl, v - hw, hl * 2, hw * 2);
 }
 
 // vis (optional world AABB {x0,y0,x1,y1}): only things touching it are drawn (partial render for the small windows).
@@ -714,7 +722,7 @@ function drawSafetyTape(ctx, g, vis) {
       const p = corners[i];
       ctx.strokeStyle = '#636d70'; ctx.lineWidth = 0.065; ctx.beginPath();
       ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + 1.5 * PX, p.y + 1.5 * PY); ctx.stroke();
-      ctx.fillStyle = '#81eaff'; ctx.beginPath(); ctx.arc(p.x + 1.5 * PX, p.y + 1.5 * PY, 0.07, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = beaconColor('#78e5f4', tapeBeaconOn(g, p)); ctx.beginPath(); ctx.arc(p.x + 1.5 * PX, p.y + 1.5 * PY, 0.07, 0, Math.PI * 2); ctx.fill();
     }
   }
   const trailing = trailingTape(g);
@@ -754,7 +762,6 @@ function drawSafetyObjects(ctx, g, vis) {
       for (const y of [-0.075, 0.075]) { ctx.beginPath(); ctx.arc(0.27, y, 0.035, 0, Math.PI * 2); ctx.fill(); }
       ctx.fillStyle = '#252322';
       for (const y of [-0.075, 0.075]) { ctx.beginPath(); ctx.arc(0.275, y, 0.02, 0, Math.PI * 2); ctx.fill(); }
-      ctx.fillStyle = '#ef941f'; ctx.fillRect(0.07, -0.145, 0.12, 0.29);
     } else {
       ctx.fillStyle = '#303538'; ctx.fillRect(-0.28, -0.2, 0.56, 0.08); ctx.fillRect(-0.28, 0.12, 0.56, 0.08);
       ctx.fillStyle = '#e8eae6'; ctx.fillRect(-0.21, -0.15, 0.42, 0.3);
@@ -767,6 +774,7 @@ function drawSafetyObjects(ctx, g, vis) {
         ctx.fillStyle = '#d6d9d5'; ctx.fillRect(-0.25, -0.13, 0.04, 0.26);
       }
     }
+    drawBotBeacon(ctx, g, b === g.coneBot ? 'coneBot' : 'tapeBot');
     ctx.restore();
   }
 }

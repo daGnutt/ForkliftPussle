@@ -29,9 +29,114 @@ import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecal
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, carriedDrawH, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 import { addParticles, setParticlesEnabled, shouldSpawnSetdownDust } from '../js/gl/particles.js';
 import { Mesh, parseColor } from '../js/gl/mesh.js';
-import { areaMarkKey } from '../js/bot.js';
+import { areaMarkKey, BOT_BEACONS, botDrawPos, tapeCorners } from '../js/bot.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
+
+// Every visible bot has small forward spotlights only in dark-mode GL.
+{
+  const g = newGame(1, 0), keys = Object.keys(BOT_BEACONS);
+  g.truck.gone = true; g.stacks = []; g.tapes = []; g.cones = [];
+  for (const [i, key] of keys.entries()) g[key] = { x: 7 + i, y: 5, a: Math.PI / 2, show: 1 };
+  setDiscoEnabled(false);
+  try {
+    setThemeMode('light');
+    for (const mode of ['pov', 'ov']) assert.equal(dynamicMeshes(g, mode, [7, 5]).lights.length, 0);
+    setThemeMode('dark');
+    for (const key of keys) {
+      for (const k of keys) g[k].show = k === key ? 1 : 0;
+      const b = g[key];
+      for (const mode of ['pov', 'ov']) {
+        const ls = dynamicMeshes(g, mode, [7, 5]).lights;
+        assert.equal(ls.length, 2, `${key} has two headlights in ${mode}`);
+        assert.ok(ls.every((l) => l.y > b.y && Math.abs(l.dir[0]) < 1e-9 && l.dir[1] > 0 && l.dir[2] < 0), 'beams follow the heading and aim down');
+        assert.ok(ls.every((l) => l.r <= 5 && l.z < 1.3 && l.cone > 0.62), 'lights are lower, narrower and shorter than forklift lights');
+        assert.ok(Math.abs((ls[0].x + ls[1].x) / 2 - b.x) < 1e-9, 'lamps straddle the centreline');
+      }
+      b.a = 0;
+      assert.ok(dynamicMeshes(g, 'ov', [7, 5]).lights.every((l) => l.x > b.x && l.dir[0] > 0 && l.dir[1] === 0), 'lights turn with the bot');
+      b.show = 0.5;
+      const p = botDrawPos(b, g.hatch);
+      assert.ok(dynamicMeshes(g, 'ov', [7, 5]).lights.every((l) => Math.hypot(l.x - p.x, l.y - p.y) < 0.5), 'lights slide with an emerging bot');
+      b.show = 0;
+      assert.equal(dynamicMeshes(g, 'ov', [7, 5]).lights.length, 0, 'hidden bots cast no light');
+    }
+    for (const key of keys) g[key].show = 1;
+    for (let i = 1; i <= 3; i++) {
+      const t = truckView(g, addTruck(g, 'Other', i));
+      Object.assign(t.fl, { x: 30 + i, y: 30, gear: 'R', brake: true });
+    }
+    g.ghostPairs = [];
+    const ls = dynamicMeshes(g, 'pov', [7, 5]).lights;
+    assert.equal(ls.length, 24, 'bot headlights share the existing light budget');
+    assert.equal(ls.filter((l) => l.cone === 0.75).length, 8, 'nearest bot lights are kept');
+  } finally {
+    setThemeMode('light'); setDiscoEnabled(true);
+  }
+}
+
+// Bot beacons flash during travel to work and active work, not curiosity, returning or fleeing.
+{
+  const g = newGame(1, 0), keys = Object.keys(BOT_BEACONS);
+  g.stacks = []; g.tapes = []; g.cones = [];
+  const camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
+  for (const key of keys) {
+    for (const k of keys) g[k] = null;
+    const b = g[key] = { x: 7, y: 5, a: 0, show: 1, path: [{ x: 8, y: 5 }] };
+    const bright = key === 'tapeBot' ? '#c7fbff' : '#ffc45a', rgb = parseColor(bright);
+    for (const [activity, scared, clock, on] of [
+      ['work', false, 0, true], ['work', false, 0.25, false],
+      ['follow', false, 0, false], ['home', false, 0, false], ['work', true, 0, false],
+    ]) {
+      Object.assign(b, { activity, scared }); g.clock = clock;
+      const mesh = dynamicMeshes(g, 'ov', [10, 5]).opaque;
+      let glowing = false;
+      for (let i = 0; i < mesh.n; i += 10) if (rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)
+        && mesh.a[i + 3] === 0 && mesh.a[i + 4] === 0 && mesh.a[i + 5] === 0) glowing = true;
+      assert.equal(glowing, on, `${key} GL beacon: ${activity}, scared=${scared}, clock=${clock}`);
+      assert.equal(buildPovFaces(g, camera).some((f) => f.color === bright && f.glow), on, `${key} software beacon follows the same state`);
+    }
+    Object.assign(b, { activity: 'work', scared: false, path: [], cleaning: true, shooting: 1 }); g.clock = 0;
+    assert.ok(buildPovFaces(g, camera).some((f) => f.color === bright && f.glow), 'stationary work keeps flashing');
+    b.show = 0;
+    assert.ok(!buildPovFaces(g, camera).some((f) => f.color === bright), 'hidden bot has no beacon');
+  }
+}
+
+// Tape-post beacons blink only close to live forklifts, including other players and parked trucks.
+{
+  const g = newGame(1, 0);
+  g.stacks = []; g.cones = [];
+  for (const key of Object.keys(BOT_BEACONS)) g[key] = null;
+  const tape = { x: 7, y: 5, w: 2, h: 2, posts: [true, false, false, false], edges: [false, false, false, false] };
+  g.tapes = [tape];
+  const p = tapeCorners(tape)[0], camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
+  const flashing = () => {
+    const rgb = parseColor('#c7fbff'), mesh = dynamicMeshes(g, 'ov', [10, 5]).opaque;
+    let gl = false;
+    for (let i = 0; i < mesh.n; i += 10) if (rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)
+      && mesh.a[i + 3] === 0 && mesh.a[i + 4] === 0 && mesh.a[i + 5] === 0) gl = true;
+    assert.equal(buildPovFaces(g, camera).some((f) => f.color === '#c7fbff' && f.glow), gl, 'software and GL posts agree');
+    return gl;
+  };
+  Object.assign(g.fl, { x: p.x + 10, y: p.y, a: 0, speed: 0 }); g.clock = 0;
+  assert.equal(flashing(), false, 'distant truck does not activate a post');
+  g.fl.x = p.x + 2;
+  assert.equal(flashing(), true, 'nearby parked forklift activates the post');
+  g.clock = 0.25;
+  assert.equal(flashing(), false, 'nearby beacon has an off phase');
+  g.clock = 0.5;
+  assert.equal(flashing(), true, 'nearby beacon flashes again');
+  g.fl.x = p.x + 10;
+  assert.equal(flashing(), false, 'beacon stops when the truck leaves');
+  const t = g.trucks[addTruck(g, 'Other', 1)];
+  Object.assign(t.fl, { x: p.x + 2, y: p.y, a: 0, speed: 0 });
+  assert.equal(flashing(), true, 'other players activate posts too');
+  t.gone = true;
+  assert.equal(flashing(), false, 'departed trucks do not activate posts');
+  g.fl.x = p.x + 2; tape.posts[0] = false;
+  assert.equal(flashing(), false, 'broken posts have no beacon');
+}
 
 // Cone/tape markings and their bots render in WebGL and software cabin views.
 {
