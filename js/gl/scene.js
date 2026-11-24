@@ -396,27 +396,8 @@ function discoLights(g, eye) {
 
 // Dark mode: headlights, reverse and brake lights; the ceiling fixtures are only decals, the room's glow is ambient (`DARK_LIGHT`).
 const HEAD_I = 1.5, WARM = [1, 0.95, 0.8];
-const BOT_HEADLIGHTS = {
-  bot: [0.25, 0.12, 0.22],
-  inspector: [0.26, 0.13, 0.19],
-  coneBot: [0.345, 0.12, 0.23],
-  tapeBot: [0.22, 0.09, 1.18],
-};
-function botHeadlights(g) {
-  const out = [];
-  for (const [key, [u, v, z]] of Object.entries(BOT_HEADLIGHTS)) {
-    const b = g[key];
-    if (!b || b.show <= 0) continue;
-    const p = botDrawPos(b, g.hatch), c = Math.cos(b.a), s = Math.sin(b.a);
-    for (const side of [-1, 1]) out.push({
-      x: p.x + u * c - side * v * s, y: p.y + u * s + side * v * c,
-      z, r: 5, col: [0.85, 0.81, 0.68], dir: [c * 0.9, s * 0.9, -0.44], cone: 0.75, a: b.a,
-    });
-  }
-  return out;
-}
 function darkLights(g, eye) {
-  const out = botHeadlights(g);
+  const out = [];
   const trucks = [...(!g.truck.gone ? [g] : []), ...otherTrucksShown(g).filter((t) => !isGhost(g, t.truck.id))];
   for (const t of trucks) truckLights(t, out);
   for (const l of out) l.d = Math.hypot(l.x - eye[0], l.y - eye[1]);
@@ -560,15 +541,12 @@ function addSafetyMarks(om, tm, g) {
   }
 }
 
-function addBotLamps(om, g) {
+function addBotBeacons(om, g) {
   for (const [key, [u, v, hl, hw, z0, z1, color]] of Object.entries(BOT_BEACONS)) {
     const b = g[key];
     if (!b || b.show <= 0) continue;
     const p = botDrawPos(b, g.hatch), c = Math.cos(b.a), s = Math.sin(b.a), on = botBeaconOn(g, b);
     om.cuboid(p.x + u * c - v * s, p.y + u * s + v * c, b.a, hl, hw, z0, z1, beaconColor(color, on), { emissive: on });
-  }
-  if (theme().dark) for (const l of botHeadlights(g)) {
-    om.cuboid(l.x, l.y, l.a, 0.008, 0.025, l.z - 0.015, l.z + 0.015, '#fff3d4', { emissive: true });
   }
 }
 
@@ -581,7 +559,7 @@ export function dynamicMeshes(g, mode, eye) {
   }
   addSafetyMarks(om, tm, g);
   addBot(om, tm, g);
-  addBotLamps(om, g);
+  addBotBeacons(om, g);
   for (const st0 of g.stacks) {
     const st = fallView(g, st0);
     const ghost = !g.truck.gone && st.ghost?.includes(g.truck.id);

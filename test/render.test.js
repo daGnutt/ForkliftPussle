@@ -29,47 +29,23 @@ import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecal
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, carriedDrawH, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 import { addParticles, setParticlesEnabled, shouldSpawnSetdownDust } from '../js/gl/particles.js';
 import { Mesh, parseColor } from '../js/gl/mesh.js';
-import { areaMarkKey, BOT_BEACONS, botDrawPos, tapeCorners } from '../js/bot.js';
+import { areaMarkKey, BOT_BEACONS, tapeCorners } from '../js/bot.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
-// Every visible bot has small forward spotlights only in dark-mode GL.
+// Visible working bots have beacons but cast no headlights in either theme or GL view.
 {
   const g = newGame(1, 0), keys = Object.keys(BOT_BEACONS);
   g.truck.gone = true; g.stacks = []; g.tapes = []; g.cones = [];
-  for (const [i, key] of keys.entries()) g[key] = { x: 7 + i, y: 5, a: Math.PI / 2, show: 1 };
+  for (const [i, key] of keys.entries()) g[key] = { x: 7 + i, y: 5, a: Math.PI / 2, show: 1, activity: 'work' };
   setDiscoEnabled(false);
   try {
-    setThemeMode('light');
-    for (const mode of ['pov', 'ov']) assert.equal(dynamicMeshes(g, mode, [7, 5]).lights.length, 0);
-    setThemeMode('dark');
-    for (const key of keys) {
-      for (const k of keys) g[k].show = k === key ? 1 : 0;
-      const b = g[key];
+    for (const theme of ['light', 'dark']) {
+      setThemeMode(theme);
       for (const mode of ['pov', 'ov']) {
-        const ls = dynamicMeshes(g, mode, [7, 5]).lights;
-        assert.equal(ls.length, 2, `${key} has two headlights in ${mode}`);
-        assert.ok(ls.every((l) => l.y > b.y && Math.abs(l.dir[0]) < 1e-9 && l.dir[1] > 0 && l.dir[2] < 0), 'beams follow the heading and aim down');
-        assert.ok(ls.every((l) => l.r <= 5 && l.z < 1.3 && l.cone > 0.62), 'lights are lower, narrower and shorter than forklift lights');
-        assert.ok(Math.abs((ls[0].x + ls[1].x) / 2 - b.x) < 1e-9, 'lamps straddle the centreline');
+        assert.equal(dynamicMeshes(g, mode, [7, 5]).lights.length, 0, `${theme} ${mode}: bots cast no light`);
       }
-      b.a = 0;
-      assert.ok(dynamicMeshes(g, 'ov', [7, 5]).lights.every((l) => l.x > b.x && l.dir[0] > 0 && l.dir[1] === 0), 'lights turn with the bot');
-      b.show = 0.5;
-      const p = botDrawPos(b, g.hatch);
-      assert.ok(dynamicMeshes(g, 'ov', [7, 5]).lights.every((l) => Math.hypot(l.x - p.x, l.y - p.y) < 0.5), 'lights slide with an emerging bot');
-      b.show = 0;
-      assert.equal(dynamicMeshes(g, 'ov', [7, 5]).lights.length, 0, 'hidden bots cast no light');
     }
-    for (const key of keys) g[key].show = 1;
-    for (let i = 1; i <= 3; i++) {
-      const t = truckView(g, addTruck(g, 'Other', i));
-      Object.assign(t.fl, { x: 30 + i, y: 30, gear: 'R', brake: true });
-    }
-    g.ghostPairs = [];
-    const ls = dynamicMeshes(g, 'pov', [7, 5]).lights;
-    assert.equal(ls.length, 24, 'bot headlights share the existing light budget');
-    assert.equal(ls.filter((l) => l.cone === 0.75).length, 8, 'nearest bot lights are kept');
   } finally {
     setThemeMode('light'); setDiscoEnabled(true);
   }
