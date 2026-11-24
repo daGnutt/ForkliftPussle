@@ -1,7 +1,7 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from './level.js';
 import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, dockWaits, dockNumber, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
-import { scanBeam, botDrawPos, WHEEL_R, tapeCorners, trailingTape } from './bot.js';
+import { scanBeam, botDrawPos, WHEEL_R, tapeCorners, trailingTape, tapeDeploying } from './bot.js';
 import { drawBotDebugWorld } from './debug.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { padPolys, tapeShapes, TAPE_FILL } from './repair.js';
@@ -755,17 +755,16 @@ function drawSafetyObjects(ctx, g, vis) {
       ctx.fillStyle = '#252322';
       for (const y of [-0.075, 0.075]) { ctx.beginPath(); ctx.arc(0.275, y, 0.02, 0, Math.PI * 2); ctx.fill(); }
       ctx.fillStyle = '#ef941f'; ctx.fillRect(0.07, -0.145, 0.12, 0.29);
-      if (b.carried) {
-        ctx.fillStyle = '#f07822'; ctx.beginPath(); ctx.moveTo(-0.49, 0); ctx.lineTo(-0.36, -0.09); ctx.lineTo(-0.36, 0.09); ctx.fill();
-      }
     } else {
       ctx.fillStyle = '#303538'; ctx.fillRect(-0.28, -0.2, 0.56, 0.08); ctx.fillRect(-0.28, 0.12, 0.56, 0.08);
       ctx.fillStyle = '#e8eae6'; ctx.fillRect(-0.21, -0.15, 0.42, 0.3);
       ctx.fillStyle = '#e3b82a'; ctx.fillRect(-0.2, -0.15, 0.4, 0.025); ctx.fillRect(-0.2, 0.125, 0.4, 0.025);
       ctx.fillStyle = '#172126'; ctx.fillRect(0.12, -0.13, 0.1, 0.26);
       ctx.fillStyle = '#42d8f4'; ctx.fillRect(0.19, -0.06, 0.03, 0.12);
-      if (b.tapeJob) {
+      if (tapeDeploying(b)) {
         ctx.fillStyle = '#d6d9d5'; ctx.fillRect(-0.34, -0.3, 0.08, 0.15); ctx.fillRect(-0.34, 0.15, 0.08, 0.15);
+      } else {
+        ctx.fillStyle = '#d6d9d5'; ctx.fillRect(-0.25, -0.13, 0.04, 0.26);
       }
     }
     ctx.restore();

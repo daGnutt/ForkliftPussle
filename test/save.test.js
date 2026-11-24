@@ -69,7 +69,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.deepEqual(r.cones, g.cones, 'cone condition and targets survive saves');
   assert.deepEqual(r.tapes, g.tapes, 'tape condition and geometry survive saves');
   assert.deepEqual(r.inspector.checkedAreas, g.inspector.checkedAreas, 'inspection-gated area state survives saves');
-  assert.deepEqual(r.coneBot.carried, g.coneBot.carried, 'a cone being carried home survives saves');
+  assert.deepEqual(r.coneBot.carried, g.coneBot.carried, 'legacy carried-cone state survives loading');
   const legacyHard = JSON.parse(json);
   delete legacyHard.hardPhysicsVersion;
   assert.deepEqual(deserializeGame(legacyHard).stacks, g.stacks, 'legacy hard-mode geometry converts without discarding cargo');

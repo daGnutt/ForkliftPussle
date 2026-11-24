@@ -1,7 +1,7 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from '../level.js';
 import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
-import { scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, tapeCorners, tapeLines } from '../bot.js';
+import { scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
 import { LEVEL_H } from '../geom.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals, oilDropMark } from '../decals.js';
@@ -528,17 +528,13 @@ function addSafetyMarks(om, tm, g) {
       for (const [u, v, hl, hw, z0, z1, color, emissive] of CONE_BOT_PARTS) {
         om.cuboid(...at(u, v), b.a, hl, hw, z0, z1, color, { emissive });
       }
-      if (b.carried) {
-        om.cuboid(...at(-0.4, 0), b.a, 0.09, 0.09, 0.13, 0.16, '#b24b20');
-        om.cylinder(...at(-0.4, 0), 0.16, 0.34, 0.065, '#f07822', 8);
-        om.cylinder(...at(-0.4, 0), 0.26, 0.29, 0.068, '#fff0d0', 8);
-      }
     } else {
       for (const [u, v, hl, hw, z0, z1, color, emissive] of TAPE_BOT_PARTS) {
         om.cuboid(...at(u, v), b.a, hl, hw, z0, z1, color, { emissive });
       }
-      if (b.tapeJob) for (const side of [-1, 1]) {
-        om.cuboid(...at(-0.3, side * 0.18), b.a + side * 0.6, 0.025, 0.12, 0.17, 1.0, '#d6d9d5');
+      for (const side of [-1, 1]) {
+        const open = tapeDeploying(b);
+        om.cuboid(...at(open ? -0.3 : -0.23, side * (open ? 0.18 : 0.065)), b.a + (open ? side * 0.6 : 0), 0.025, open ? 0.12 : 0.065, 0.17, 1.0, '#d6d9d5');
       }
     }
   }

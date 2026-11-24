@@ -77,7 +77,7 @@ function hatchBusy(g, bot) {
 function place(g, bot, a) { const p = laneAt(g.hatch, bot.show); bot.x = p.x; bot.y = p.y; bot.a = a; }
 function emerge(g, bot, dt) {
   if (hatchBusy(g, bot)) return;
-  bot.show = Math.min(1, bot.show + dt / SHOW_SECS);
+  bot.show = Math.min(1, bot.show + dt / SHOW_SECS * (bot === g.tapeBot ? 2 : 1));
   place(g, bot, g.hatch.a);
 }
 function retract(g, bot, dt) {
@@ -89,7 +89,7 @@ function retract(g, bot, dt) {
     if (Math.abs(turnTo(bot, g.hatch.a + Math.PI, dt)) > 0.05) return;
     bot.leaving = true;
   }
-  bot.show = Math.max(0, bot.show - dt / SHOW_SECS);
+  bot.show = Math.max(0, bot.show - dt / SHOW_SECS * (bot === g.tapeBot ? 2 : 1));
   place(g, bot, g.hatch.a + Math.PI);
   if (bot.show === 0) { bot.mode = 'hidden'; bot.leaving = false; }
 }
@@ -110,7 +110,7 @@ export function makeInspector(g) {
 export function makeConeBot(g) {
   if (!g.hatch) return null;
   const home = botHome(g.hatch);
-  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', scared: false, path: [], repath: 0, carried: null };
+  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', scared: false, path: [], repath: 0 };
 }
 
 // Shared cone-bot prisms: local centre, half sizes, height range, colour and optional emissive flag.
@@ -156,6 +156,8 @@ export function makeTapeBot(g) {
   const home = botHome(g.hatch);
   return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', scared: false, path: [], repath: 0 };
 }
+
+export const tapeDeploying = (bot) => bot?.tapeJob?.phase === 'draw' && !bot.scared;
 
 function rectDist(x, y, w) {
   const dx = Math.max(w.x - x, 0, x - (w.x + w.w)), dy = Math.max(w.y - y, 0, y - (w.y + w.h));
@@ -678,6 +680,7 @@ export function stepBot(g, dt, dropArea) {
   if (!bot || !g.hatch) return;
   const home = botLane(g.hatch);
   const spill = pickSpill(g, bot, dropArea);
+  bot.debugTask = spill ? `spill ${spill.id} at ${spill.x.toFixed(1)},${spill.y.toFixed(1)}` : null;
   const gap = truckGap(g, bot, true);
 
   if (bot.mode === 'hidden') {
@@ -802,6 +805,11 @@ export function coneTargets(g, doneZones, stackAt = (z) => g.stacks.find((s) => 
   return unique;
 }
 
+function coneWorkKey(target) {
+  const i = target.id.lastIndexOf(':');
+  return i < 0 ? target.id : target.id.slice(0, i);
+}
+
 export function areaSignature(g, area, stackAt, doneZones, wonky) {
   const done = new Set(doneZones.map(zoneMarkKey));
   return zonesInArea(g, area).map((z) => {
@@ -824,6 +832,7 @@ export function areaComplete(g, area, stackAt, doneZones, wonky) {
 
 function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.2) {
   if (!bot || !g.hatch) return;
+  bot.goal = null;
   if (bot.mode === 'hidden') {
     if (!hasWork) return;
     bot.mode = 'out';
@@ -839,11 +848,12 @@ function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.2) {
     if (bot.repath <= 0 || !bot.fleePath) {
       bot.path = fleePlan(g, bot); bot.fleePath = true; bot.repath = 0.25;
     }
-    followPath(g, bot, FLEE_SPEED * dt, dt);
+    followPath(g, bot, FLEE_SPEED * (bot === g.tapeBot ? 2 : 1) * dt, dt);
     pushOut(g, bot);
     return;
   }
   if (wasScared || bot.fleePath) { bot.path = []; bot.repath = 0; bot.fleePath = false; }
+  if (bot === g.tapeBot && !tapeDeploying(bot)) speed *= 2;
   if (current === 'follow') {
     followTruck(g, bot, dt, speed);
     pushOut(g, bot);
@@ -852,6 +862,7 @@ function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.2) {
   const destination = current === 'home' ? botLane(g.hatch) : goal;
   const key = current === 'home' ? 'home' : goalKey;
   if (!destination) return;
+  bot.goal = { x: destination.x, y: destination.y };
   if (bot.planKey !== key) { bot.planKey = key; bot.repath = 0; }
   if (routeObstructed(g, bot)) bot.repath = 0;
   if (bot.repath <= 0) {
@@ -873,6 +884,7 @@ function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.2) {
 export function stepConeBot(g, dt, doneZones, stackAt) {
   const bot = g.coneBot;
   if (!bot) return;
+  if (bot.carried) bot.carried = null;
   g.cones ||= [];
   const seen = new Set(g.inspector?.seen || []);
   const targets = coneTargets(g, doneZones, stackAt, doneZones.filter((z) => seen.has(zoneMarkKey(z))));
@@ -884,52 +896,57 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
     const r = STACK_R + BOT_R + 0.5;
     return { x: t.stackCenter.x + dx / d * r, y: t.stackCenter.y + dy / d * r };
   };
+  const closest = (items, point) => items.reduce((best, item) => {
+    const p = point(item), d = Math.hypot(p.x - bot.x, p.y - bot.y);
+    return !best || d < best.d ? { item, d } : best;
+  }, null)?.item;
+  const retrieve = (cone) => {
+    const target = byId.get(cone.goalId), goal = target ? approach(target, cone) : cone;
+    bot.workKey = coneWorkKey({ id: cone.goalId });
+    bot.debugTask = 'retrieving cone';
+    stepWorker(g, bot, dt, true, goal, `pickup:${cone.goalId}`);
+    if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < (target ? 0.7 : 0.4) && !bot.path.length && !bot.scared) {
+      const i = g.cones.indexOf(cone);
+      if (i >= 0) g.cones.splice(i, 1);
+    }
+  };
+  const place = (target) => {
+    bot.workKey = coneWorkKey(target);
+    bot.debugTask = 'placing cone';
+    const goal = approach(target);
+    stepWorker(g, bot, dt, true, goal, `place:${target.id}`);
+    if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < 0.7 && !bot.path.length && !bot.scared) {
+      bot.coneSeq = (bot.coneSeq || 0) + 1;
+      g.cones.push({ id: `cone:${target.id}:${bot.coneSeq}`, goalId: target.id, x: target.x, y: target.y, a: 0, tipped: false, squished: false });
+    }
+  };
   const good = new Set();
   for (const c of g.cones) {
     const t = byId.get(c.goalId);
     if (t && !c.tipped && !c.squished && Math.hypot(c.x - t.x, c.y - t.y) < 0.22 && !good.has(c.goalId)) good.add(c.goalId);
   }
-  if (bot.carried) {
-    const t = byId.get(bot.carried.goalId) || targets.find((q) => !good.has(q.id));
-    if (t) bot.carried.goalId = t.id;
-    const home = !t;
-    const goal = t ? approach(t) : botLane(g.hatch);
-    stepWorker(g, bot, dt, true, goal, t?.id || 'return');
-    if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < (t ? 0.7 : 0.35) && !bot.path.length && !bot.scared) {
-      if (t) {
-        Object.assign(bot.carried, { x: t.x, y: t.y, tipped: false, squished: false, goalId: t.id });
-        g.cones.push(bot.carried); good.add(t.id); bot.carried = null;
-      } else {
-        bot.carried = null;
-      }
-    }
-    return;
-  }
-  const invalid = g.cones.find((c) => {
+  const invalid = g.cones.filter((c) => {
     const t = byId.get(c.goalId);
     return !t || c.tipped || c.squished || Math.hypot(c.x - t.x, c.y - t.y) >= 0.22 || !good.has(c.goalId);
   });
-  if (invalid) {
-    const target = byId.get(invalid.goalId), goal = target ? approach(target, invalid) : invalid;
-    stepWorker(g, bot, dt, true, goal, `pickup:${invalid.goalId}`);
-    if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < (target ? 0.7 : 0.4) && !bot.path.length && !bot.scared) {
-      const i = g.cones.indexOf(invalid);
-      if (i >= 0) {
-        g.cones.splice(i, 1);
-        bot.carried = { ...invalid, id: invalid.squished ? `replacement:${invalid.id}:${Math.round(g.clock * 1000)}` : invalid.id, tipped: false, squished: false };
-      }
-    }
+  const missing = targets.filter((t) => !good.has(t.id));
+  const jobs = [
+    ...invalid.map((cone) => {
+      const target = byId.get(cone.goalId);
+      return { type: 'retrieve', item: cone, key: coneWorkKey({ id: cone.goalId }), point: target ? approach(target, cone) : cone };
+    }),
+    ...missing.map((target) => ({ type: 'place', item: target, key: coneWorkKey(target), point: approach(target) })),
+  ];
+  const currentJobs = jobs.filter((job) => job.key === bot.workKey);
+  const selected = closest(currentJobs.length ? currentJobs : jobs, (job) => job.point);
+  if (selected) {
+    bot.workKey = selected.key;
+    if (selected.type === 'retrieve') retrieve(selected.item);
+    else place(selected.item);
     return;
   }
-  const missing = targets.find((t) => !good.has(t.id));
-  if (missing) {
-    const goal = approach(missing);
-    stepWorker(g, bot, dt, true, goal, `place:${missing.id}`);
-    if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < 0.7 && !bot.path.length && !bot.scared) {
-      g.cones.push({ id: `cone:${missing.id}`, goalId: missing.id, x: missing.x, y: missing.y, a: 0, tipped: false, squished: false });
-    }
-    return;
-  }
+  bot.workKey = null;
+  bot.debugTask = null;
   stepWorker(g, bot, dt, false, null, null);
 }
 
@@ -1004,8 +1021,8 @@ export function stepTapeCollisions(g, shapes) {
 
 export function trailingTape(g) {
   const b = g.tapeBot, job = b?.tapeJob;
-  const t = job?.phase === 'draw' && (g.tapes || []).find((q) => q.key === job.key);
-  return t && t.posts?.[job.from] && !b.scared ? [tapeCorners(t)[job.from], toWorld(b, -0.25, 0)] : null;
+  const t = tapeDeploying(b) && (g.tapes || []).find((q) => q.key === job.key);
+  return t && t.posts?.[job.from] ? [tapeCorners(t)[job.from], toWorld(b, -0.25, 0)] : null;
 }
 
 export function tapeLines(g) {
@@ -1035,16 +1052,36 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
     const verified = g.inspector?.checkedAreas?.find((v) => v.key === key && v.sig === sig);
     if (tape && verified && !verified.complete) jobs.push({ key, area, action: 'remove' });
     else if (tape?.broken) jobs.push({ key, area, action: 'repair' });
-    else if (!tape && areaComplete(g, area, stackAt, doneZones, wonky)) jobs.push({ key, area, action: 'install' });
+    else if (!tape && verified?.complete && areaComplete(g, area, stackAt, doneZones, wonky)) jobs.push({ key, area, action: 'install' });
   }
-  const job = jobs.find((j) => j.key === bot.tapeJob?.key) || jobs[0];
-  if (!job) { bot.tapeJob = null; stepWorker(g, bot, dt, false, null, null); return; }
+  const currentKey = bot.workKey || bot.tapeJob?.key;
+  const job = jobs.find((j) => j.key === currentKey) || jobs.reduce((best, j) => {
+    const d = Math.hypot(j.area.x + j.area.w / 2 - bot.x, j.area.y + j.area.h / 2 - bot.y);
+    return !best || d < best.d ? { job: j, d } : best;
+  }, null)?.job;
+  if (!job) { bot.tapeJob = null; bot.workKey = null; bot.debugTask = null; stepWorker(g, bot, dt, false, null, null); return; }
+  bot.workKey = job.key;
+  bot.debugTask = `${job.action === 'remove' ? 'removing tape from' : 'taping'} zone ${g.areas.indexOf(job.area) + 1}`;
   let tape = g.tapes.find((t) => t.key === job.key);
   if (job.action === 'remove') {
+    const task = bot.tapeJob;
+    let post = task?.phase === 'remove' && task.key === job.key && tape.posts[task.from] ? task.from : tape.posts.findIndex(Boolean);
+    if (post < 0) { g.tapes = g.tapes.filter((t) => t !== tape); bot.tapeJob = null; return; }
+    bot.tapeJob = { key: job.key, edge: null, from: post, to: post, phase: 'remove' };
+    const corners = tapeCorners(tape), corner = corners[post];
+    const dx = corner.x - (tape.x + tape.w / 2), dy = corner.y - (tape.y + tape.h / 2), dist = Math.hypot(dx, dy) || 1;
+    const goal = {
+      x: Math.max(BOT_R + 0.1, Math.min(g.w - BOT_R - 0.1, corner.x + dx / dist * 0.55)),
+      y: Math.max(BOT_R + 0.1, Math.min(g.h - BOT_R - 0.1, corner.y + dy / dist * 0.55)),
+    };
+    stepWorker(g, bot, dt, true, goal, `remove:${job.key}:${post}`, 1);
+    if (bot.scared || Math.hypot(bot.x - goal.x, bot.y - goal.y) >= 0.35 || bot.path.length) return;
+    tape.posts[post] = false;
+    tape.edges[post] = false;
+    tape.edges[(post + 3) % 4] = false;
+    tape.broken = !tapeComplete(tape);
     bot.tapeJob = null;
-    const goal = tapeCorners(tape)[0];
-    stepWorker(g, bot, dt, true, goal, `remove:${job.key}`, 1);
-    if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < 0.8 && !bot.path.length && !bot.scared) g.tapes = g.tapes.filter((t) => t !== tape);
+    if (!tape.posts.some(Boolean)) g.tapes = g.tapes.filter((t) => t !== tape);
     return;
   }
   if (!tape) {
@@ -1182,10 +1219,10 @@ function inspectorStep(g, dt, done, stackAt, wonky) {
   bot.areaJobs ||= [];
   bot.checkedAreas = (bot.checkedAreas || []).filter((v) => g.areas.some((a) => areaMarkKey(a) === v.key));
   bot.areaJobs = bot.areaJobs.filter((j) => g.areas.some((a) => areaMarkKey(a) === j.key));
-  for (const tape of g.tapes || []) {
-    const area = g.areas.find((a) => areaMarkKey(a) === tape.key);
-    if (!area) continue;
-    const key = tape.key, sig = areaSignature(g, area, stackAt, done, wonky);
+  for (const area of g.areas) {
+    const key = areaMarkKey(area), sig = areaSignature(g, area, stackAt, done, wonky);
+    const tape = (g.tapes || []).find((t) => t.key === key);
+    if (!tape && !areaComplete(g, area, stackAt, done, wonky)) continue;
     if (bot.checkedAreas?.some((v) => v.key === key && v.sig === sig)) {
       bot.areaJobs = bot.areaJobs.filter((j) => j.key !== key);
       continue;

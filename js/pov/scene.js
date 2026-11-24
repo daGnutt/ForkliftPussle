@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, tapeCorners, tapeLines } from '../bot.js';
+import { botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
 import { truckPaint, TRUCK_H, truckRoofs, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, overheadDecals, boxDeco, OPEN_BOX_DECAL_EDGES } from '../decals.js';
@@ -200,15 +200,11 @@ function addSafetyMarks(faces, cam, g) {
           if (faces[i].edge === 1) faces[i].coneFace = true;
         }
       }
-      if (b.carried) {
-        addPrism(faces, cam, ...at(-0.4, 0), b.a, 0.09, 0.09, 0.13, 0.16, '#b24b20');
-        addPrism(faces, cam, ...at(-0.4, 0), b.a, 0.065, 0.065, 0.16, 0.34, '#f07822');
-        addPrism(faces, cam, ...at(-0.4, 0), b.a, 0.067, 0.067, 0.26, 0.29, '#fff0d0');
-      }
     } else {
       for (const [u, v, hl, hw, z0, z1, color] of TAPE_BOT_PARTS) addPrism(faces, cam, ...at(u, v), b.a, hl, hw, z0, z1, color);
-      if (b.tapeJob) for (const side of [-1, 1]) {
-        addPrism(faces, cam, ...at(-0.3, side * 0.18), b.a + side * 0.6, 0.025, 0.12, 0.17, 1.0, '#d6d9d5');
+      for (const side of [-1, 1]) {
+        const open = tapeDeploying(b);
+        addPrism(faces, cam, ...at(open ? -0.3 : -0.23, side * (open ? 0.18 : 0.065)), b.a + (open ? side * 0.6 : 0), 0.025, open ? 0.12 : 0.065, 0.17, 1.0, '#d6d9d5');
       }
     }
   }
