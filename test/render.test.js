@@ -9,6 +9,7 @@ import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTile
 import { staticMeshes, dynamicMeshes, ceilingClip, renderMode, CEILING_HIDE_Z } from '../js/gl/scene.js';
 import { addStack as addGLStack, addForks as addGLForks, PAL, PALLET_COLOR } from '../js/gl/models.js';
 import { buildFaces as buildPovFaces } from '../js/pov/scene.js';
+import { drawFace } from '../js/pov/face.js';
 import { makeCamera } from '../js/pov/camera.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
 import { popupScale, placePhoto, drawPhoto, boxStatus, issues, stripHeight, scoreText } from '../js/photo.js';
@@ -28,8 +29,114 @@ import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecal
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, carriedDrawH, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 import { addParticles, setParticlesEnabled, shouldSpawnSetdownDust } from '../js/gl/particles.js';
 import { Mesh, parseColor } from '../js/gl/mesh.js';
+import { areaMarkKey } from '../js/bot.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
+
+// Cone/tape markings and their bots render in WebGL and software cabin views.
+{
+  const g = newGame(1, 0), area = g.areas[0], center = { x: area.x + area.w / 2, y: area.y + area.h / 2 };
+  const camera = makeCamera(center, 2, 0, Math.PI / 2, 0, 0, 800, 400);
+  g.tapes = [{ key: areaMarkKey(area), color: area.color, x: area.x, y: area.y, w: area.w, h: area.h, sig: '', broken: true,
+    posts: [true, true, true, true], edges: [true, false, true, true] }];
+  g.cones = [{ id: 'render-cone', goalId: 'render-target', x: center.x, y: center.y, a: 0, tipped: false, squished: false }];
+  g.coneBot.show = 1; g.tapeBot.show = 1;
+  for (const mode of ['ov', 'pov']) {
+    const meshes = dynamicMeshes(g, mode, [center.x, center.y]);
+    assert.ok(meshes.opaque.count > 0 && meshes.trans.count > 0, `${mode} mesh includes bots, cone and tape`);
+  }
+  const faces = buildPovFaces(g, camera);
+  assert.ok(faces.some((f) => f.color === '#f07822'), 'software cabin includes safety cones');
+  assert.ok(faces.some((f) => f.color === '#e8be26'), 'software cabin includes remaining elevated tape');
+}
+
+// The new tall tracked bot, beacon posts and elevated tape are visible in both 3D paths.
+{
+  const g = newGame(1, 0), b = g.tapeBot;
+  g.stacks = []; g.cones = []; g.bot = null; g.inspector = null; g.coneBot = null;
+  Object.assign(b, { x: 7, y: 5, a: 0, show: 1 });
+  g.tapes = [{ key: 'render', color: 0, x: 7, y: 4, w: 2, h: 2, sig: '', broken: true,
+    posts: [true, true, true, true], edges: [true, false, false, false] }];
+  const camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
+  const faces = buildPovFaces(g, camera);
+  assert.ok(faces.some((f) => f.color === '#e8eae6' && f.mz > 1), 'software cabin shows the tall white bot');
+  assert.ok(faces.some((f) => f.color === '#78e5f4' && f.mz > 0.8), 'software cabin shows the elevated beacon');
+  assert.ok(faces.some((f) => f.color === '#e8be26' && Math.abs(f.mz - LEVEL_H) < 0.1), 'software cabin places tape at one box height');
+  const mesh = dynamicMeshes(g, 'pov', [10, 5]).opaque;
+  for (const color of ['#e8eae6', '#78e5f4', '#e8be26', '#202327']) {
+    const rgb = parseColor(color);
+    let found = false;
+    for (let i = 0; i < mesh.n; i += 10) if (rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)) { found = true; break; }
+    assert.ok(found, `WebGL draws tape-bot or safety-marking colour ${color}`);
+  }
+}
+
+// The tape bot's doors open only while it is drawing, in all three views.
+{
+  const g = newGame(1, 0), b = g.tapeBot;
+  g.stacks = []; g.cones = []; g.tapes = []; g.bot = null; g.inspector = null; g.coneBot = null;
+  Object.assign(b, { x: 7, y: 5, a: 0, show: 1 });
+  const camera = makeCamera({ x: 4, y: 5 }, 1, 0, Math.PI / 2, 0, 0, 800, 400);
+  const rects = [];
+  const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
+    get: (t, k) => k in t ? t[k] : k === 'fillRect' ? (...args) => { if (t.fillStyle === '#d6d9d5') rects.push(args); }
+      : k === 'measureText' ? (text) => ({ width: text.length * 7 })
+        : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
+    set: (t, k, v) => { t[k] = v; return true; },
+  });
+  const oldOffscreen = globalThis.OffscreenCanvas;
+  globalThis.OffscreenCanvas = class { getContext() { return ctx; } };
+  try {
+    for (const [phase, scared, open] of [[null, false, false], ['start', false, false], ['post', false, false], ['draw', false, true], ['draw', true, false]]) {
+      b.tapeJob = phase ? { phase } : null; b.scared = scared;
+      rects.length = 0;
+      draw(ctx, g, { width: 1200, height: 800, dpr: 1, fullMap: true });
+      assert.equal(rects.some(([x, y]) => x === -0.34 && y === -0.3), open, `overview doors: ${phase}, scared=${scared}`);
+      assert.equal(rects.some(([x, y]) => x === -0.25 && y === -0.13), !open, 'overview closed doors');
+      const faces = buildPovFaces(g, camera).filter((f) => f.color === '#d6d9d5');
+      assert.ok(faces.length, 'software cabin draws doors');
+      assert.equal(faces.some((f) => Math.abs(f.my - b.y) > 0.16), open, `software doors: ${phase}, scared=${scared}`);
+      const mesh = dynamicMeshes(g, 'pov', [4, 5]).opaque, rgb = parseColor('#d6d9d5');
+      let widest = 0, found = false;
+      for (let i = 0; i < mesh.n; i += 10) if (rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)) {
+        found = true; widest = Math.max(widest, Math.abs(mesh.a[i + 1] - b.y));
+      }
+      assert.ok(found, 'WebGL draws doors');
+      assert.equal(widest > 0.16, open, `WebGL doors: ${phase}, scared=${scared}`);
+    }
+  } finally { globalThis.OffscreenCanvas = oldOffscreen; }
+}
+
+// Cone bot's delivery-vehicle model appears in both 3D renderers.
+{
+  const g = newGame(1, 0), b = g.coneBot;
+  g.stacks = []; g.cones = []; g.tapes = []; g.bot = null; g.inspector = null; g.tapeBot = null;
+  Object.assign(b, { x: 7, y: 5, a: 0, show: 1 });
+  const camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
+  const faces = buildPovFaces(g, camera);
+  for (const color of ['#e3e5e2', '#b53630', '#172125', '#ef941f']) {
+    assert.ok(faces.some((f) => f.color === color && Math.abs(f.mx - b.x) < 1 && Math.abs(f.my - b.y) < 1), `software cabin draws cone bot part ${color}`);
+  }
+  const visor = faces.find((f) => f.coneFace);
+  assert.ok(visor, 'software cabin exposes the visor face');
+  const fills = [];
+  const ctx = new Proxy({}, {
+    get: (t, k) => k === 'fill' ? () => fills.push(t.fillStyle) : k in t ? t[k] : () => {},
+    set: (t, k, v) => { t[k] = v; return true; },
+  });
+  drawFace(ctx, camera, g, visor);
+  assert.equal(fills.length, 7, 'software visor paints two eyes, pupils and highlights with the face');
+  const mesh = dynamicMeshes(g, 'pov', [10, 5]).opaque;
+  for (const color of ['#e3e5e2', '#b53630', '#172125', '#ffb768', '#ef941f']) {
+    const rgb = parseColor(color);
+    let found = false;
+    for (let i = 0; i < mesh.n; i += 10) {
+      if (Math.abs(mesh.a[i] - b.x) < 1 && Math.abs(mesh.a[i + 1] - b.y) < 1 &&
+          rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)) { found = true; break; }
+    }
+    assert.ok(found, `WebGL draws cone bot part ${color}`);
+  }
+}
 
 // Toppled boxes keep their drawing-only fall height in both 3D renderers.
 {
@@ -515,6 +622,58 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(lines[1].includes('debug 0.50 ms'), lines[1]);
   assert.ok(lines[2].includes('update   3%') && lines[2].includes('draw   6%') && lines[2].includes('debug   3%') && lines[2].includes('idle  88%'), lines[2]);
   assert.ok(lines[4].includes('boxes in place 0/'), lines[4]);
+}
+
+// All active bots show their route, goal and state in the shared debug overlay.
+{
+  const { drawBotDebug } = await import('../js/debug.js');
+  const g = newGame(4, 0), labels = [], arcs = [];
+  for (const [i, b] of [g.bot, g.inspector, g.coneBot, g.tapeBot].entries()) {
+    Object.assign(b, { mode: 'out', x: 2 + i * 3, y: 3, path: [{ x: 3 + i * 3, y: 3 }],
+      goal: { x: 4 + i * 3, y: 4 }, scared: i === 3, activity: 'work' });
+  }
+  g.bot.debugTask = 'spill oil1 at 5.0,6.0';
+  g.inspector.target = '8,9,0';
+  g.coneBot.debugTask = 'placing cone';
+  g.tapeBot.debugTask = 'taping zone 2';
+  const ctx = new Proxy({}, {
+    get: (t, k) => k === 'fillText' ? (text) => labels.push({ text, color: t.fillStyle })
+      : k === 'arc' ? (x, y) => arcs.push([x, y]) : k in t ? t[k] : () => {},
+    set: (t, k, v) => { t[k] = v; return true; },
+  });
+  drawBotDebug(ctx, g, (x, y) => [x * 10, y * 10]);
+  assert.deepEqual(labels.map((l) => l.text), [
+    'cleaner: driving · path 1 · task: going to clean spill oil1 at 5.0,6.0',
+    'inspector: driving · path 1 · task: going to inspect drop point 8,9,0',
+    'cone: driving · path 1 · task: placing cone',
+    'tape: FLEEING · path 1 · task: taping zone 2']);
+  assert.equal(labels[2].color, '#ff785a', 'cone bot gets its own colour');
+  assert.equal(labels[3].color, '#ff4a4a', 'fleeing tape bot uses the alert colour');
+  for (const x of [40, 70, 100, 130]) assert.ok(arcs.some(([ax, ay]) => ax === x && ay === 40), 'each goal has a ring');
+  labels.length = 0;
+  Object.assign(g.bot, { cleaning: true, path: [] });
+  Object.assign(g.inspector, { shooting: 1, path: [] });
+  Object.assign(g.coneBot, { activity: 'follow', curiosity: { truck: 0 }, observing: true });
+  Object.assign(g.tapeBot, { scared: false, tapeJob: { phase: 'draw' } });
+  drawBotDebug(ctx, g, (x, y) => [x * 10, y * 10]);
+  assert.ok(labels[0].text.includes('task: cleaning spill oil1'));
+  assert.ok(labels[1].text.includes('task: inspecting drop point 8,9,0'));
+  assert.ok(labels[2].text.includes('task: watching player #0'));
+  assert.ok(labels[3].text.endsWith('task: taping zone 2'));
+  labels.length = 0;
+  Object.assign(g.bot, { activity: 'follow', curiosity: { truck: 0 }, observing: false });
+  Object.assign(g.inspector, { activity: 'follow', curiosity: null });
+  Object.assign(g.coneBot, { activity: 'home' });
+  g.tapeBot.debugTask = 'removing tape from zone 2'; g.tapeBot.tapeJob = { phase: 'remove' };
+  drawBotDebug(ctx, g, (x, y) => [x * 10, y * 10]);
+  assert.ok(labels[0].text.includes('task: going to watch player #0'));
+  assert.ok(labels[1].text.includes('task: finding a player to watch'));
+  assert.ok(labels[2].text.includes('task: returning to hatch'));
+  assert.ok(labels[3].text.includes('task: removing tape from zone 2'));
+  labels.length = 0;
+  g.coneBot.mode = 'hidden'; g.tapeBot = null;
+  drawBotDebug(ctx, g, (x, y) => [x * 10, y * 10]);
+  assert.deepEqual(labels.map((l) => l.text.split(':')[0]), ['cleaner', 'inspector'], 'hidden and missing bots are omitted');
 }
 
 // Reversing light: only when reversing, and never reaches past a wall.

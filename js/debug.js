@@ -3,12 +3,27 @@ import { unloadRate, interval, DOCKS } from './endless.js';
 
 import { truckCircles, BOT_R } from './bot.js';
 
+function botTask(b, name) {
+  if (b.activity === 'home') return 'returning to hatch';
+  if (b.activity === 'follow') {
+    const player = b.curiosity?.truck;
+    return player == null ? 'finding a player to watch'
+      : `${b.observing ? 'watching' : 'going to watch'} player #${player}`;
+  }
+  if (name === 'inspector') {
+    return b.target ? `${b.shooting > 0 ? 'inspecting' : 'going to inspect'} drop point ${b.target}` : 'selecting drop point to inspect';
+  }
+  if (name === 'cleaner' && b.debugTask) return `${b.cleaning && !b.scared ? 'cleaning' : 'going to clean'} ${b.debugTask}`;
+  return b.debugTask || 'selecting work';
+}
+
 // Debug overlay of the maintenance bots' intentions: the planned route (line + waypoint dots, red while fleeing), the goal, the bot's mode and
 // the forklift circles it steers around. `proj(x, y)` maps floor coordinates to the current canvas units ([sx, sy], or null when not visible); `unit` scales sizes.
 export function drawBotDebug(ctx, g, proj, unit = 1) {
   drawAlertProbes(ctx, g, proj, unit);
   drawAlertMarks(ctx, g, proj, unit);
-  const bots = [[g.bot, '#ffb84a', 'cleaner'], [g.inspector, '#4ad8ff', 'inspector']].filter(([b]) => b && b.mode === 'out');
+  const bots = [[g.bot, '#ffb84a', 'cleaner'], [g.inspector, '#4ad8ff', 'inspector'],
+    [g.coneBot, '#ff785a', 'cone'], [g.tapeBot, '#e8be26', 'tape']].filter(([b]) => b && b.mode === 'out');
   if (!bots.length) return;
   ctx.save();
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -43,7 +58,7 @@ export function drawBotDebug(ctx, g, proj, unit = 1) {
     if (at) {
       const state = [fleeing ? 'FLEEING' : b.waiting ? `WAITING ${(b.waitT || 0).toFixed(1)}s` : b.path.length ? 'driving' : 'at goal', `path ${b.path.length}`,
         ...(b.skip && Object.values(b.skip).some((t) => t > g.clock) ? ['skipping'] : [])].join(' · ');
-      const text = `${name}: ${state}`, x = at[0] + 12 * unit, y = at[1] - 10 * unit;
+      const text = `${name}: ${state} · task: ${botTask(b, name)}`, x = at[0] + 12 * unit, y = at[1] - 10 * unit;
       ctx.lineWidth = 3 * unit; ctx.strokeStyle = '#000'; ctx.strokeText(text, x, y);
       ctx.fillStyle = col; ctx.fillText(text, x, y);
     }

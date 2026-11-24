@@ -1,7 +1,8 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from '../level.js';
 import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
-import { scanBeam, botDrawPos } from '../bot.js';
+import { scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
+import { LEVEL_H } from '../geom.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals, oilDropMark } from '../decals.js';
 import { padPolys } from '../repair.js';
@@ -492,6 +493,53 @@ function addBot(om, tm, g) {
   om.wheel(...at(0.36, 0), 0.12, b.a, 0.05, 0.17, '#e8c52e', 4, b.cleaning ? (g.clock || 0) * 18 : 0);
 }
 
+function addSafetyMarks(om, tm, g) {
+  for (const [a, b] of tapeLines(g)) {
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy), n = Math.ceil(len / 0.22);
+    for (let i = 0; i < n; i++) {
+      const u = (i + 0.5) / n;
+      om.cuboid(a.x + dx * u, a.y + dy * u, Math.atan2(dy, dx), len / n / 2, 0.015, LEVEL_H - 0.05, LEVEL_H + 0.05, i % 2 ? '#202327' : '#e8be26');
+    }
+  }
+  for (const t of g.tapes || []) {
+    const corners = tapeCorners(t);
+    for (let i = 0; i < 4; i++) if (!t.posts || t.posts[i]) {
+      const p = corners[i];
+      om.cylinder(p.x, p.y, 0, 0.04, 0.12, '#525b5e', 8);
+      om.cylinder(p.x, p.y, 0.04, 1.5 * LEVEL_H, 0.035, '#737e80', 8);
+      om.cylinder(p.x, p.y, 1.5 * LEVEL_H - 0.08, 1.5 * LEVEL_H + 0.04, 0.065, '#78e5f4', 8);
+    }
+  }
+  for (const c of g.cones || []) {
+    if (c.squished) om.cuboid(c.x, c.y, c.a || 0, 0.15, 0.1, 0.01, 0.04, '#874a27');
+    else if (c.tipped) om.cuboid(c.x, c.y, c.a || 0, 0.16, 0.06, 0.02, 0.12, '#f07822');
+    else om.cylinder(c.x, c.y, 0.01, 0.27, 0.12, '#f07822', 8);
+    om.cylinder(c.x, c.y, c.tipped || c.squished ? 0.11 : 0.25, c.tipped || c.squished ? 0.13 : 0.27, 0.06, '#fff0d0', 8);
+  }
+  for (const b of [g.coneBot, g.tapeBot]) {
+    if (!b || b.show <= 0) continue;
+    const { x, y } = botDrawPos(b, g.hatch);
+    const at = (u, v) => [x + u * Math.cos(b.a) - v * Math.sin(b.a), y + u * Math.sin(b.a) + v * Math.cos(b.a)];
+    if (b === g.coneBot) {
+      for (const [u, v] of CONE_BOT_WHEELS) {
+        om.wheel(...at(u, v), 0.1, b.a, 0.1, 0.045, '#24292c');
+        om.wheel(...at(u, v), 0.1, b.a, 0.045, 0.047, '#a63b34');
+      }
+      for (const [u, v, hl, hw, z0, z1, color, emissive] of CONE_BOT_PARTS) {
+        om.cuboid(...at(u, v), b.a, hl, hw, z0, z1, color, { emissive });
+      }
+    } else {
+      for (const [u, v, hl, hw, z0, z1, color, emissive] of TAPE_BOT_PARTS) {
+        om.cuboid(...at(u, v), b.a, hl, hw, z0, z1, color, { emissive });
+      }
+      for (const side of [-1, 1]) {
+        const open = tapeDeploying(b);
+        om.cuboid(...at(open ? -0.3 : -0.23, side * (open ? 0.18 : 0.065)), b.a + (open ? side * 0.6 : 0), 0.025, open ? 0.12 : 0.065, 0.17, 1.0, '#d6d9d5');
+      }
+    }
+  }
+}
+
 // Per-frame meshes: { opaque, trans, lights } for the game state `g` seen from `eye` ([x, y]).
 export function dynamicMeshes(g, mode, eye) {
   const om = new Mesh(), tm = new Mesh();
@@ -499,6 +547,7 @@ export function dynamicMeshes(g, mode, eye) {
     tm.disc(oil.x, oil.y, 0.008, oil.r, 'rgba(12,22,22,0.72)', 20);
     tm.disc(oil.x - oil.r * 0.22, oil.y - oil.r * 0.12, 0.009, oil.r * 0.38, 'rgba(180,205,190,0.22)', 12);
   }
+  addSafetyMarks(om, tm, g);
   addBot(om, tm, g);
   for (const st0 of g.stacks) {
     const st = fallView(g, st0);
