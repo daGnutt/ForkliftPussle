@@ -60,7 +60,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Drop point / drop-off** | Target spot for one stack of an exact colour and box count; standard marking is 1.38×1.38 tiles, with sideways wonkiness forgiven while each box stays inside | `g.zones`, `zoneExt` |
 | **Zone label** | Floating `×count` marker on a drop point | `zoneLabelItems` |
 | **Drop-off area** | Tinted region holding all drop points of one colour | `g.areas` |
-| **Safety tape** | Breakable outline around a whole drop-off area; only installed for complete, square stacks with no repairable damage, and removed after the inspector verifies the current area | `g.tapes`, `areaComplete` |
+| **Safety tape** | Breakable outline around a whole drop-off area; installed or repaired after all valid stacks pass current scans; removed for invalid points or inspected wonkiness or repairable damage | `g.tapes`, `areaComplete` |
 | **Done zone** | Drop point holding exactly `count` items of its colour (barrels count as one item despite being two heights) | `zoneDone` |
 | **Parking spot** | Where the forklift starts and must finish; turns green when ready, shows heading arrow | `g.parking`, `isParked` |
 | **Repair station** | Pallet turntable wrapping machine against a wall (mast on the wall side), at the free spot nearest the parking spot: a round turntable (hazard rim, turning spokes) with a film mast post beside it. It holds one single box: the box spins and is repaired 1 damage point per second, getting more **tape** (stretch-film strips across its lid, also visible in the inspection photo) the more is repaired. A truck close to the turntable pauses the spin and the repair. |

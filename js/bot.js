@@ -10,7 +10,7 @@ import { BOX_HALF_X, halfY, zoneExt, rectPoly, sat } from './geom.js';
 export const BOT_R = 0.3; // about a quarter of a forklift's footprint
 export const CLEAN_SECS = 5; // seconds per oil drop
 const SKID_CLEAN_SECS = 0.3;
-const CELL = 0.25, SPEED = 1.8, FLEE_SPEED = 3.2, SCARE = 1.3, CALM = 2.0, SHOW_SECS = 0.6;
+const CELL = 0.25, SPEED = 2.25, FLEE_SPEED = 3.2, SCARE = 1.3, CALM = 2.0, SHOW_SECS = 0.6;
 export const TURN_RATE = 5, TURN_FIRST = 0.6; // max turning speed (rad/s; a tracked bot spins on the spot) and the heading error above which it turns before driving on
 const FLEE_TURN_RATE = 16;
 const angDiff = (a, b) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
@@ -108,7 +108,7 @@ export function makeBot(g) {
 export function makeInspector(g) {
   if (!g.hatch) return null;
   const home = botHome(g.hatch);
-  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', shooting: 0, flash: 0, roll: 0, scared: false, path: [], repath: 0, seen: [], checkedAreas: [] };
+  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', shooting: 0, flash: 0, roll: 0, scared: false, path: [], repath: 0, seen: [] };
 }
 
 export function makeConeBot(g) {
@@ -387,20 +387,25 @@ function preferLive(g, bot, items, keyOf) {
   return live.length ? live : items;
 }
 
-// True if one of the next waypoints now lies inside a parked forklift or a stack (something settled on the route).
-// Moving forklifts are ignored until they scare the bot.
-function routeObstructed(g, bot) {
+// Check only the next half tile of the route, so distant obstacles are dealt with when reached.
+function blockedAhead(g, bot) {
   if (!bot.path.length) return false;
-  const moving = new Set(truckCircles(g, true).map((c) => `${c.x},${c.y}`));
-  const trucks = truckCircles(g).filter((c) => !moving.has(`${c.x},${c.y}`));
-  for (const w of bot.path.slice(0, 8)) {
-    if (g.walls.some((wall) => rectDist(w.x, w.y, wall) < BOT_R)) return true;
-    for (const c of trucks) if (Math.hypot(w.x - c.x, w.y - c.y) < c.r + BOT_R + 0.1) return true;
-    for (const s of g.stacks) {
-      if (bot === g.tapeBot ? nearBox(s, w.x, w.y, 0.2) : Math.hypot(w.x - s.x, w.y - s.y) < STACK_R + BOT_R) return true;
-    }
+  const pts = [], limit = 0.5;
+  let from = bot, left = limit;
+  for (const w of bot.path) {
+    const d = Math.hypot(w.x - from.x, w.y - from.y);
+    if (d < 1e-8) continue;
+    const length = Math.min(d, left), steps = Math.ceil(length / 0.1);
+    for (let i = 1; i <= steps; i++) pts.push({ x: from.x + (w.x - from.x) * length * i / steps / d, y: from.y + (w.y - from.y) * length * i / steps / d });
+    left -= length;
+    if (left <= 1e-8) break;
+    from = w;
   }
-  return false;
+  const trucks = truckCircles(g);
+  return pts.some((p) => g.walls.some((w) => rectDist(p.x, p.y, w) < (bot === g.tapeBot ? 0.25 : BOT_R))
+    || trucks.some((c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r + BOT_R * 0.9)
+    || (!bot.passing && !bot.yieldPath?.length && bots(g).some((b) => b !== bot && b.show > 0 && !canYield(g, bot, b) && Math.hypot(p.x - b.x, p.y - b.y) < BOT_SPACE))
+    || g.stacks.some((s) => bot === g.tapeBot ? nearBox(s, p.x, p.y, 0.2) : Math.hypot(p.x - s.x, p.y - s.y) < STACK_R + BOT_R * 0.9));
 }
 
 // Where to wait while the way is blocked: a nearby free cell with room around it (away from forklifts, walls and boxes), so the bot
@@ -675,7 +680,7 @@ function makeWay(g, bot, dt, speed) {
     bot.yieldFor = null; bot.yieldPath = []; bot.repath = 0;
     return false;
   }
-  bot.curiosity = null; bot.observing = false; bot.path = []; bot.passing = null;
+  bot.observing = false; bot.path = []; bot.passing = null;
   const inWay = pathDistance(bot, worker, worker.path) < BOT_SPACE + 0.3;
   if (!bot.yieldPath?.length && inWay && bot.repath <= 0) {
     bot.yieldPath = plan(buildGrid(g, 0.1, bot === g.tapeBot, bot), bot, 12, (x, y, cost) => {
@@ -714,9 +719,7 @@ function followTruck(g, bot, dt, speed) {
   const trucks = g.trucks.filter((t) => !t.gone);
   let q = bot.curiosity, truck = q && trucks.find((t) => t.id === q.truck);
   bot.observing = false;
-  if (q && (!truck || !viewingSpot(g, bot, q, truck) || routeObstructed(g, bot))) {
-    bot.curiosity = null; bot.path = []; bot.repath = 0; q = null;
-  }
+  if (q && blockedAhead(g, bot)) bot.repath = 0;
   if (!q && bot.repath <= 0) {
     const grid = buildGrid(g, 0.45, bot === g.tapeBot, bot);
     const cover = viewCover(g);
@@ -751,16 +754,16 @@ function followTruck(g, bot, dt, speed) {
   if (!q) return;
   if (bot.repath <= 0 && !bot.passing) {
     bot.path = plan(buildGrid(g, 0.45, bot === g.tapeBot, bot), bot, 80, (x, y, cost) => Math.hypot(x - q.x, y - q.y) * 10 + cost * 0.02);
-    bot.repath = KEEP_ROUTE;
+    bot.repath = bot.path.length ? KEEP_ROUTE : REPLAN;
   }
   bot.goal = { x: q.x, y: q.y };
   followPath(g, bot, speed * dt, dt);
   if (bot.path.length || bot.passing || bot.yieldPath?.length) return;
   if (Math.hypot(bot.x - q.x, bot.y - q.y) > 0.15) {
-    bot.curiosity = null; bot.repath = REPLAN;
+    if (bot.repath > REPLAN) bot.repath = REPLAN;
     return;
   }
-  if (!viewingSpot(g, bot, bot, truck)) { bot.curiosity = null; bot.repath = 0; return; }
+  if (!truck || !viewingSpot(g, bot, bot, truck)) { bot.curiosity = null; bot.repath = 0; return; }
   const aim = toWorld(truck.fl, -0.7, 0);
   if (Math.abs(turnTo(bot, Math.atan2(aim.y - bot.y, aim.x - bot.x), dt)) > 0.15) return;
   bot.observing = true;
@@ -817,7 +820,7 @@ export function stepBot(g, dt, dropArea) {
     goal = spill ? { x: spill.x, y: spill.y, r: Math.max(0.08, Math.sqrt(spillDrops(spill, dropArea) * dropArea) * 0.5) }
       : mark ? { x: mark.x, y: mark.y, r: 0.35 } : { ...home, r: 0.08 };
     bot.goal = { x: goal.x, y: goal.y }; // shown by the debug overlay
-    if (routeObstructed(g, bot)) bot.repath = 0;
+    if (blockedAhead(g, bot)) bot.repath = 0;
     if (bot.repath <= 0) {
       const covered = target && underStack(g, target);
       bot.path = goalPlan(g, bot, target?.id, (x, y) => Math.max(0, Math.hypot(x - goal.x, y - goal.y) - goal.r) * 10,
@@ -916,16 +919,6 @@ function coneWorkKey(target) {
   return i < 0 ? target.id : target.id.slice(0, i);
 }
 
-export function areaSignature(g, area, stackAt, doneZones, wonky) {
-  const done = new Set(doneZones.map(zoneMarkKey));
-  return zonesInArea(g, area).map((z) => {
-    const s = stackAt(z) || g.stacks.filter((q) => Math.hypot(q.x - z.x, q.y - z.y) < 1.2)
-      .sort((a, b) => Math.hypot(a.x - z.x, a.y - z.y) - Math.hypot(b.x - z.x, b.y - z.y))[0];
-    const damage = (s?.pen || []).map((p) => Math.round(p.crash || 0)).join('.');
-    return `${zoneMarkKey(z)}=${done.has(zoneMarkKey(z)) ? 1 : 0}:${stackSig(s)}:${damage}:${s ? +!!s.touched : 0}:${s && done.has(zoneMarkKey(z)) ? +wonky(s, z) : 0}`;
-  }).join('|');
-}
-
 export function areaComplete(g, area, stackAt, doneZones, wonky) {
   const done = new Set(doneZones.map(zoneMarkKey));
   const zones = zonesInArea(g, area);
@@ -936,7 +929,7 @@ export function areaComplete(g, area, stackAt, doneZones, wonky) {
   });
 }
 
-function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.2) {
+function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.5) {
   if (!bot || !g.hatch) return;
   bot.goal = null;
   if (bot.mode === 'hidden') {
@@ -960,7 +953,7 @@ function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.2) {
     return;
   }
   if (wasScared || bot.fleePath) { bot.path = []; bot.repath = 0; bot.fleePath = false; }
-  if (bot === g.tapeBot && !tapeDeploying(bot)) speed *= 2;
+  if (bot === g.tapeBot && current === 'work' && !tapeDeploying(bot)) speed *= 2;
   if (current === 'follow') {
     followTruck(g, bot, dt, speed);
     pushOut(g, bot);
@@ -971,10 +964,10 @@ function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.2) {
   if (!destination) return;
   bot.goal = { x: destination.x, y: destination.y };
   if (bot.planKey !== key) { bot.planKey = key; bot.repath = 0; }
-  if (routeObstructed(g, bot)) bot.repath = 0;
+  if (blockedAhead(g, bot)) bot.repath = 0;
   if (bot.repath <= 0) {
     bot.path = plan(buildGrid(g, 0.45, bot === g.tapeBot, bot), bot, 80, (x, y, c) => Math.hypot(x - destination.x, y - destination.y) * 10 + c * 0.02);
-    bot.repath = REPLAN;
+    bot.repath = bot.path.length ? KEEP_ROUTE : REPLAN;
   }
   const left = followPath(g, bot, speed * dt, dt);
   if (!bot.path.length && left > 0) {
@@ -982,7 +975,7 @@ function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.2) {
     if (d > 1e-6 && d < 0.5) {
       const step = Math.min(left, d), a = Math.atan2(dy, dx);
       if (Math.abs(turnTo(bot, a, dt)) < TURN_FIRST) moveBot(g, bot, bot.x + dx / d * step, bot.y + dy / d * step);
-    }
+    } else if (d >= 0.5 && bot.repath > REPLAN) bot.repath = REPLAN;
   }
   pushOut(g, bot);
   if (current === 'home' && Math.hypot(bot.x - destination.x, bot.y - destination.y) < 0.2 && !bot.path.length) retract(g, bot, dt);
@@ -1152,14 +1145,16 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
   for (const tape of g.tapes) {
     initTape(tape, g);
   }
-  const jobs = [];
+  const jobs = [], done = new Set(doneZones.map(zoneMarkKey));
   for (const [key, area] of liveAreas) {
-    const tape = g.tapes.find((t) => t.key === key);
-    const sig = areaSignature(g, area, stackAt, doneZones, wonky);
-    const verified = g.inspector?.checkedAreas?.find((v) => v.key === key && v.sig === sig);
-    if (tape && verified && !verified.complete) jobs.push({ key, area, action: 'remove' });
-    else if (tape?.broken) jobs.push({ key, area, action: 'repair' });
-    else if (!tape && verified?.complete && areaComplete(g, area, stackAt, doneZones, wonky)) jobs.push({ key, area, action: 'install' });
+    const tape = g.tapes.find((t) => t.key === key), zones = zonesInArea(g, area);
+    const valid = zones.length > 0 && zones.every((z) => done.has(zoneMarkKey(z)) && stackAt(z));
+    const reports = valid ? zones.map((z) => currentInspection(g, z, stackAt(z))) : [];
+    if (tape && (!valid || reports.some((p) => p?.ok === false))) jobs.push({ key, area, action: 'remove' });
+    else if (valid && reports.every((p) => p?.ok === true)) {
+      if (tape?.broken) jobs.push({ key, area, action: 'repair' });
+      else if (!tape) jobs.push({ key, area, action: 'install' });
+    }
   }
   const currentKey = bot.workKey || bot.tapeJob?.key;
   const job = jobs.find((j) => j.key === currentKey) || jobs.reduce((best, j) => {
@@ -1193,7 +1188,7 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
   }
   if (!tape) {
     tape = { key: job.key, color: job.area.color, x: job.area.x, y: job.area.y, w: job.area.w, h: job.area.h,
-      sig: areaSignature(g, job.area, stackAt, doneZones, wonky), broken: true, posts: [false, false, false, false], edges: [false, false, false, false] };
+      sig: '', broken: true, posts: [false, false, false, false], edges: [false, false, false, false] }; // sig is retained for save compatibility
     initTape(tape, g);
     g.tapes.push(tape);
     stepWorker(g, bot, dt, true, tapeCorners(tape)[0], `${job.key}:start:0`, 1);
@@ -1236,13 +1231,12 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
     tape.posts[task.to] = true;
     tape.edges[task.edge] = true;
     tape.broken = !tapeComplete(tape);
-    tape.sig = areaSignature(g, job.area, stackAt, doneZones, wonky);
     bot.tapeJob = null;
   }
 }
 
 // ---- Inspection bot ----
-const CORNER_WEIGHT = 12, PHOTO_DIST = 1.4, BOX_SECS = 1.2, INSPECT_SPEED = 1.0, FLASH_SECS = 0.35;
+const CORNER_WEIGHT = 12, PHOTO_DIST = 1.4, BOX_SECS = 1.2, INSPECT_SPEED = 1.25, FLASH_SECS = 0.35;
 // Laser scan of the stack being inspected, or null: `lens` the beam's origin (in front of the bot), `aim` the stack, `h` its height in boxes,
 // `u` scan progress 0..1, `sx, sy` the beam's current target on the floor, `z` its height in boxes (0..h) and `sheet` the offset of the scan sheet.
 export function scanBeam(b) {
@@ -1262,6 +1256,13 @@ export const stackSig = (s) => (s ? [s.x, s.y, ...s.layers, ...(s.rots || []), .
 
 const zoneKey = (z) => `${z.x},${z.y},${z.color}`;
 
+function currentInspection(g, z, stack) {
+  const bot = g.inspector, key = zoneKey(z), photo = bot?.photos?.[key];
+  if (!stack || stack.touched || !bot?.seen?.includes(key) || bot.sigs?.[key] !== stackSig(stack)
+      || typeof photo?.ok !== 'boolean' || (g.hard && photo.pens?.[0]?.shift === undefined)) return null;
+  return photo;
+}
+
 // Completed drop points that have not been photographed yet.
 export function pendingZones(g, done, stackAt = (z) => g.stacks.find((s) => Math.hypot(s.x - z.x, s.y - z.y) < 0.5)) {
   const insp = g.inspector;
@@ -1270,9 +1271,10 @@ export function pendingZones(g, done, stackAt = (z) => g.stacks.find((s) => Math
   // a stack that was touched since its photo (nudged, straightened, re-placed) is inspected again
   const changed = new Set(done.filter((z) => {
     const key = zoneKey(z), q = stackAt(z);
-    const outdated = g.hard && insp.seen.includes(key) && insp.photos?.[key]?.pens?.[0]?.shift === undefined;
+    const photo = insp.photos?.[key];
+    const outdated = insp.seen.includes(key) && (typeof photo?.ok !== 'boolean' || (g.hard && photo.pens?.[0]?.shift === undefined));
     if (outdated) for (const p of q?.pen || []) delete p.inspected;
-    return outdated || q?.touched || (insp.sigs?.[key] !== undefined && insp.sigs[key] !== stackSig(q));
+    return outdated || q?.touched || insp.sigs?.[key] !== stackSig(q);
   }).map(zoneKey));
   insp.seen = insp.seen.filter((k) => doneKeys.has(k) && !changed.has(k)); // a drop point that was undone is inspected again once it is completed anew
   if (insp.photos) for (const k of Object.keys(insp.photos)) if (!insp.seen.includes(k)) delete insp.photos[k];
@@ -1304,45 +1306,13 @@ export function stepInspector(g, dt, done, stackAt, wonky) {
 
 const pathLength = (from, path) => path.reduce((n, w, i) => n + Math.hypot(w.x - (i ? path[i - 1].x : from.x), w.y - (i ? path[i - 1].y : from.y)), 0);
 
-// True when the bot is about to run into something on its way (it only notices an obstacle once it is right in front of it).
-function blockedAhead(g, bot) {
-  if (!bot.path.length) return false;
-  const pts = [], w0 = bot.path[0], w1 = bot.path[1];
-  for (let k = 1; k <= 3; k++) pts.push({ x: bot.x + (w0.x - bot.x) * k / 3, y: bot.y + (w0.y - bot.y) * k / 3 });
-  if (w1) pts.push(w1);
-  const trucks = truckCircles(g);
-  return pts.some((q) => trucks.some((c) => Math.hypot(q.x - c.x, q.y - c.y) < c.r + BOT_R * 0.9)
-    || bots(g).some((b) => b !== bot && b.show > 0 && !canYield(g, bot, b) && Math.hypot(q.x - b.x, q.y - b.y) < BOT_SPACE)
-    || g.stacks.some((st) => Math.hypot(q.x - st.x, q.y - st.y) < STACK_R + BOT_R * 0.9));
-}
-
 // Inspector targeting: pick the nearest reachable pending drop point, pathfind to it and go. Obstacles that appear on the route are ignored until
 // the bot actually meets one (then it picks a target afresh); a forklift driving towards it makes it run away first, then it picks afresh.
 function inspectorStep(g, dt, done, stackAt, wonky) {
   const bot = g.inspector;
   if (!bot || !g.hatch) return;
   const home = botLane(g.hatch);
-  const areaTodo = [];
-  bot.areaJobs ||= [];
-  bot.checkedAreas = (bot.checkedAreas || []).filter((v) => g.areas.some((a) => areaMarkKey(a) === v.key));
-  bot.areaJobs = bot.areaJobs.filter((j) => g.areas.some((a) => areaMarkKey(a) === j.key));
-  for (const area of g.areas) {
-    const key = areaMarkKey(area), sig = areaSignature(g, area, stackAt, done, wonky);
-    const tape = (g.tapes || []).find((t) => t.key === key);
-    if (!tape && !areaComplete(g, area, stackAt, done, wonky)) continue;
-    if (bot.checkedAreas?.some((v) => v.key === key && v.sig === sig)) {
-      bot.areaJobs = bot.areaJobs.filter((j) => j.key !== key);
-      continue;
-    }
-    let job = bot.areaJobs.find((j) => j.key === key);
-    if (!job || job.sig !== sig) {
-      job = { key, sig, pending: zonesInArea(g, area).map(zoneMarkKey) };
-      bot.areaJobs = bot.areaJobs.filter((j) => j.key !== key);
-      bot.areaJobs.push(job);
-    }
-    for (const z of zonesInArea(g, area)) if (job.pending.includes(zoneMarkKey(z))) areaTodo.push(z);
-  }
-  const todo = [...new Map([...pendingZones(g, done, stackAt), ...areaTodo].map((z) => [zoneMarkKey(z), z])).values()];
+  const todo = pendingZones(g, done, stackAt);
   bot.flash = Math.max(0, bot.flash - dt / FLASH_SECS);
   if (bot.target && !todo.some((z) => zoneKey(z) === bot.target)) { bot.target = null; bot.shooting = 0; bot.path = []; }
   if (bot.mode === 'hidden') {
@@ -1407,9 +1377,7 @@ function inspectorStep(g, dt, done, stackAt, wonky) {
       const d = Math.hypot(target.x - bot.x, target.y - bot.y);
       if (!bot.path.length && d >= PHOTO_DIST + 0.5) { bot.target = null; bot.shooting = 0; bot.repath = 0; } // route ended short of the drop point: pick again
       else if (!bot.path.length) {
-        const key = zoneKey(target), checkingArea = bot.areaJobs.some((j) => j.pending.includes(key));
-        const st = stackAt(target) || (checkingArea ? g.stacks.filter((q) => Math.hypot(q.x - target.x, q.y - target.y) < 1.2)
-          .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))[0] : null);
+        const key = zoneKey(target), st = stackAt(target);
         const complete = done.some((z) => zoneKey(z) === key);
         bot.aim = { x: target.x, y: target.y, h: st ? st.layers.length : 1 };
         if (Math.abs(turnTo(bot, Math.atan2(target.y - bot.y, target.x - bot.x), dt)) < 0.15) bot.shooting += dt;
@@ -1423,19 +1391,6 @@ function inspectorStep(g, dt, done, stackAt, wonky) {
             st.touched = false; g.photo.at = { x: st.x, y: st.y }; g.photo.sig = stackSig(st);
             (bot.photos ||= {})[key] = g.photo;
             bot.seen.push(key);
-          }
-          const checkJob = bot.areaJobs.find((j) => j.pending.includes(key));
-          if (checkJob) {
-            checkJob.pending = checkJob.pending.filter((k) => k !== key);
-            if (!checkJob.pending.length) {
-              const area = g.areas.find((a) => areaMarkKey(a) === checkJob.key);
-              if (area) {
-                const sig = areaSignature(g, area, stackAt, done, wonky);
-                bot.checkedAreas = (bot.checkedAreas || []).filter((v) => v.key !== checkJob.key);
-                bot.checkedAreas.push({ key: checkJob.key, sig, complete: areaComplete(g, area, stackAt, done, wonky) });
-              }
-              bot.areaJobs = bot.areaJobs.filter((j) => j !== checkJob);
-            }
           }
           bot.shooting = 0; bot.flash = 1; bot.target = null; bot.repath = 0;
           if (photo) (g.hits ||= []).push({ x: bot.x, y: bot.y, z: 0.5, t: g.clock, owner: null, check: !photo.ok ? 'warn' : 'perfect' });

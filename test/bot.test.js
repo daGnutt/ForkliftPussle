@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { newGame, update, addTruck, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
 import { issues } from '../js/photo.js';
-import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, areaSignature, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape } from '../js/bot.js';
+import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
 import { run, NONE, flatWorld } from './common.js';
@@ -17,6 +17,17 @@ const botGame = () => {
 const mid = (g) => ({ x: g.w / 2, y: g.h / 2 });
 const clearOf = (g, p) => { g.fl.x = p.x < g.w / 2 ? g.w - 1 : 1; g.fl.y = p.y < g.h / 2 ? g.h - 1 : 1; };
 const botKinds = ['bot', 'inspector', 'coneBot', 'tapeBot'];
+const fillTapeAreas = (g, areas) => {
+  g.zones = areas.map((a) => ({ x: a.x + a.w / 2, y: a.y + a.h / 2, color: a.color, count: 1 }));
+  g.stacks = g.zones.map((z) => ({ x: z.x, y: z.y, layers: [z.color], rots: [0], pen: [{ crash: 0, sq: 0 }] }));
+  return (z) => g.stacks.find((s) => s.x === z.x && s.y === z.y);
+};
+const scanTapeZone = (g, z, stack, ok = true) => {
+  const bot = g.inspector ||= { show: 0, seen: [] }, key = `${z.x},${z.y},${z.color}`;
+  if (!bot.seen.includes(key)) bot.seen.push(key);
+  (bot.sigs ||= {})[key] = stackSig(stack);
+  (bot.photos ||= {})[key] = { ok, pens: [{ shift: 0 }] };
+};
 const idleStep = (g, kind, dt) => {
   if (kind === 'bot') stepBot(g, dt, 1.15 ** 2 / 50);
   else if (kind === 'inspector') stepInspector(g, dt, [], () => null, () => false);
@@ -208,6 +219,46 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(g2.bot.x, g.bot.x);
 }
 
+// Curious travel is faster for the other bots, while the tape bot travels more slowly off duty.
+{
+  for (const [kind, speed] of [['bot', 2.25], ['inspector', 1.25], ['coneBot', 1.5], ['tapeBot', 1.5]]) {
+    const g = botGame();
+    g.stacks = []; flatWorld(g); g.areas = [];
+    for (const other of botKinds) if (other !== kind) g[other] = null;
+    const b = g[kind];
+    Object.assign(b, { mode: 'out', show: 1, activity: 'follow', x: 5, y: 6, a: 0,
+      curiosity: { x: 8, y: 6, truck: g.trucks[0].id, left: null }, path: [{ x: 8, y: 6 }], repath: 1e9 });
+    Object.assign(g.fl, { x: 15, y: 10, a: 0, speed: 0 });
+    idleStep(g, kind, 0.05);
+    assert.ok(Math.abs(b.x - 5 - speed * 0.05) < 1e-8, `${kind} travels at its curious speed`);
+    if (kind === 'tapeBot') {
+      Object.assign(b, { activity: 'home', idle: 600, x: 5, y: 6, a: 0, path: [{ x: 8, y: 6 }], repath: 1e9, planKey: 'home' });
+      idleStep(g, kind, 0.05);
+      assert.ok(Math.abs(b.x - 5 - speed * 0.05) < 1e-8, 'the tape bot also returns home at its off-duty speed');
+    }
+  }
+}
+
+// The cleaner, inspector and cone bot also use their faster speed while travelling for work.
+{
+  for (const [kind, speed] of [['bot', 2.25], ['inspector', 1.25], ['coneBot', 1.5]]) {
+    const g = botGame();
+    g.stacks = []; flatWorld(g); g.areas = [];
+    for (const other of botKinds) if (other !== kind) g[other] = null;
+    const b = g[kind], z = { x: 12, y: 6, color: 0, count: 1 };
+    if (kind === 'inspector') g.stacks = [{ x: z.x, y: z.y, layers: [0], pen: [{}], rots: [0] }];
+    else g.oil = [{ id: 'speed', x: z.x, y: z.y, r: 0.2, drops: 1 }];
+    Object.assign(b, { mode: 'out', show: 1, x: 5, y: 6, a: 0 });
+    Object.assign(g.fl, { x: 17, y: 12, a: 0, speed: 0 });
+    const step = () => kind === 'inspector' ? stepInspector(g, 0.05, [z], () => g.stacks[0], () => false) : idleStep(g, kind, 0.05);
+    step();
+    assert.equal(b.activity, 'work', `${kind} has work`);
+    Object.assign(b, { x: 5, y: 6, a: 0, path: [{ x: 8, y: 6 }], repath: 1e9 });
+    step();
+    assert.ok(Math.abs(b.x - 5 - speed * 0.05) < 1e-8, `${kind} travels at its work speed`);
+  }
+}
+
 // Curious bots watch from a distance for 5-15 seconds, relocate even for a parked truck, and prioritise work.
 {
   for (const kind of ['bot', 'inspector', 'coneBot', 'tapeBot']) {
@@ -252,9 +303,10 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
       done = [z];
       if (kind === 'tapeBot') {
         g.zones = done;
-        const area = { x: 4, y: 8, w: 2, h: 2, color: 0 }, stackAt = (q) => g.stacks.find((s) => s.x === q.x && s.y === q.y);
+        const area = { x: 4, y: 8, w: 2, h: 2, color: 0 };
         g.areas = [area];
-        g.inspector = { checkedAreas: [{ key: areaMarkKey(area), sig: areaSignature(g, area, stackAt, done, () => false), complete: true }] };
+        const key = `${z.x},${z.y},${z.color}`;
+        g.inspector = { seen: [key], sigs: { [key]: stackSig(g.stacks[0]) }, photos: { [key]: { ok: true } } };
       }
     }
     step(0.01, done);
@@ -366,9 +418,55 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   g.trucks.push(other);
   idleStep(g, 'bot', 0.05);
   assert.equal(g.bot.curiosity?.truck, 1, 'a visible, reachable forklift wins over an inaccessible one');
+  const destination = g.bot.curiosity;
   other.gone = true;
-  idleStep(g, 'bot', 0.05);
-  assert.ok(!g.bot.curiosity && !g.bot.observing && !g.bot.path.length, 'a gone forklift is not watched through walls');
+  for (let i = 0; i < 800 && g.bot.curiosity === destination; i++) idleStep(g, 'bot', 0.05);
+  assert.ok(g.bot.curiosity !== destination && !g.bot.observing, 'a gone forklift is discarded after reaching the destination');
+}
+
+// All curious bots keep their destination as the truck moves, and detour only when a blockage is close.
+{
+  for (const kind of botKinds) {
+    const g = botGame();
+    g.stacks = []; flatWorld(g); g.areas = [];
+    for (const other of botKinds) if (other !== kind) g[other] = null;
+    const b = g[kind], q = { x: 10.125, y: 6.125, truck: g.trucks[0].id, left: null };
+    const path = Array.from({ length: 24 }, (_, i) => ({ x: 4.375 + i * 0.25, y: 6.125 }));
+    Object.assign(b, { mode: 'out', show: 1, activity: 'follow', x: 4.125, y: 6.125, a: 0, curiosity: q, path, repath: 1e9 });
+    Object.assign(g.fl, { x: 17, y: 12, a: 0, speed: 0 });
+    assert.ok(Math.hypot(q.x - g.fl.x, q.y - g.fl.y) > 8, 'the truck has moved out of viewing range');
+    g.walls.push({ x: 7, y: 5.8, w: 0.4, h: 0.6 });
+    idleStep(g, kind, 0.05);
+    assert.equal(b.curiosity, q, `${kind} keeps the destination when the truck is no longer visible`);
+    assert.equal(b.path, path, `${kind} ignores a distant blockage`);
+    b.x = 6.4;
+    while (path[0].x < b.x) path.shift();
+    idleStep(g, kind, 0.05);
+    assert.equal(b.curiosity, q, `${kind} keeps the destination when detouring`);
+    assert.notEqual(b.path, path, `${kind} replans when approaching the blockage`);
+    for (let i = 0; i < 800 && b.curiosity === q; i++) idleStep(g, kind, 0.05);
+    assert.notEqual(b.curiosity, q, `${kind} reconsiders the truck after reaching the destination`);
+    assert.ok(Math.hypot(b.x - q.x, b.y - q.y) < 0.2, `${kind} reached the original destination`);
+  }
+}
+
+// A temporarily unreachable viewing destination is retried rather than replaced.
+{
+  const g = botGame();
+  g.stacks = []; flatWorld(g); g.areas = [];
+  g.inspector = null; g.coneBot = null; g.tapeBot = null;
+  const b = g.bot, q = { x: 10.125, y: 6.125, truck: g.trucks[0].id, left: null };
+  Object.assign(b, { mode: 'out', show: 1, activity: 'follow', x: 6, y: 6.125, a: 0,
+    curiosity: q, path: [{ x: 6.875, y: 6.125 }, { x: q.x, y: q.y }], repath: 1e9 });
+  Object.assign(g.fl, { x: 17, y: 12, a: 0, speed: 0 });
+  const wall = { x: 7, y: 0, w: 0.4, h: g.h };
+  g.walls.push(wall);
+  for (let i = 0; i < 120; i++) idleStep(g, 'bot', 0.05);
+  assert.equal(b.curiosity, q, 'the bot retains an unreachable destination');
+  g.walls = g.walls.filter((w) => w !== wall);
+  for (let i = 0; i < 800 && b.curiosity === q; i++) idleStep(g, 'bot', 0.05);
+  assert.notEqual(b.curiosity, q, 'the bot reconsiders its view after the route opens');
+  assert.ok(Math.hypot(b.x - q.x, b.y - q.y) < 0.2, 'the bot reaches its original destination');
 }
 
 // An idle bot uses its current good vantage point and only moves a short distance when switching.
@@ -515,10 +613,9 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   const area = { color: 0, x: 4, y: 5, w: 2, h: 2 }, key = areaMarkKey(area);
   g.areas = [area];
   g.tapes = [{ ...area, key, sig: '', posts: [true, true, true, true], edges: [true, true, true, true] }];
-  g.inspector = { show: 0, seen: [], checkedAreas: [{ key, sig: '', complete: false }] };
+  g.inspector = null;
   // Keep the tape bot's job on the west side of the gap.
   const stackAt = () => null;
-  g.inspector.checkedAreas[0].sig = areaSignature(g, area, stackAt, [], () => false);
   let backedUp = false;
   for (let n = 0; n < 1200 && east.x < 12.5; n++) {
     stepConeBot(g, 0.05, []); stepTapeBot(g, 0.05, [], stackAt, () => false);
@@ -567,6 +664,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
     update(g, NONE, 1 / 120); t += 1 / 120;
     if (g.inspector.flash > prev) {
       flashes++;
+      assert.ok(g.hits.some((h) => h.check === 'perfect' || h.check === 'warn'), 'each photo produces a verdict label');
       const dv = Math.atan2(Math.sin(2 * (g.photo.view - (g.photo.rots[0] ?? 0) - Math.PI / 4)), Math.cos(2 * (g.photo.view - (g.photo.rots[0] ?? 0) - Math.PI / 4))) / 2;
       assert.ok(Math.abs(dv) < 0.5, 'photographed from a corner, so two sides of the stack show');
     }
@@ -579,7 +677,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(flaggedStacks(g).length, done.filter((z) => zoneWonky(g, z)).length, 'every inspected crooked stack is flagged with a "!"');
   if (g.stacks.length) { // touching a photographed stack clears its flag and sends the inspector back
     const st = g.stacks[0];
-    Object.assign(g.fl, { x: st.x - 2, y: st.y, a: 0, speed: 0 });
+    Object.assign(g.fl, { x: st.x, y: st.y - 2, a: Math.PI / 2, speed: 0 });
     update(g, { horn: true }, 1 / 120);
     Object.assign(g.fl, spots[0]);
     assert.ok(g.inspector.seen.length < done.length, 'a nudged stack is inspected again');
@@ -587,7 +685,6 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
     assert.ok(st.pen.every((p) => !p.inspected), 'a nudge hides every box badge until reinspection');
   }
   assert.ok(g.inspector.roll !== 0, 'the wheels turned while driving');
-  assert.ok(g.hits.length === 0 || g.hits.every((h) => h.check === 'perfect' || h.check === 'warn'), 'verdict labels');
   run(g, NONE, 60);
   assert.ok(g.stacks.every((s) => s.pen.every((p) => p.inspected === true)), 'reinspection reveals the box badges again');
   g.inspector.idle = 600;
@@ -958,7 +1055,6 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
     pen: [{ crash: 2, barrelPart: 'base' }, { crash: 2, barrelPart: 'top' }] };
   g.stacks = [barrel]; g.areas = [{ color: 6, x: 4, y: 4, w: 2, h: 2 }];
   assert.equal(areaComplete(g, g.areas[0], () => barrel, [z], clean), true, 'permanent barrel damage does not block tape');
-  assert.ok(areaSignature(g, g.areas[0], () => barrel, [z], clean).includes('5,5,6'));
 }
 
 // The cone bot physically places cones, retrieves them when their reason disappears, and restores tipped cones.
@@ -1045,24 +1141,26 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
 {
   const setup = () => {
     const g = newGame(1, 0), far = { color: 0, x: 12, y: 12, w: 2, h: 2 }, near = { color: 0, x: 5, y: 5, w: 2, h: 2 };
-    flatWorld(g); g.stacks = []; g.zones = []; g.areas = [far, near]; g.bot = null; g.inspector = null; g.coneBot = null;
+    flatWorld(g); g.areas = [far, near]; g.bot = null; g.inspector = null; g.coneBot = null;
+    const stackAt = fillTapeAreas(g, g.areas);
+    for (const z of g.zones) scanTapeZone(g, z, stackAt(z));
     g.tapes = [far, near].map((area) => ({ ...area, key: areaMarkKey(area), broken: true,
       posts: [false, false, false, false], edges: [false, false, false, false] }));
     Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
     Object.assign(g.tapeBot, { x: 7, y: 7, a: 0, mode: 'out', show: 1, path: [], repath: 0 });
-    return { g, farKey: areaMarkKey(far), nearKey: areaMarkKey(near) };
+    return { g, stackAt, farKey: areaMarkKey(far), nearKey: areaMarkKey(near) };
   };
   {
-    const { g, farKey } = setup();
+    const { g, stackAt, farKey } = setup();
     g.tapeBot.workKey = farKey;
     g.tapeBot.tapeJob = { key: farKey, edge: 0, from: 0, to: 1, phase: 'start' };
-    stepTapeBot(g, 0.05, [], () => null, () => false);
+    stepTapeBot(g, 0.05, g.zones, stackAt, () => false);
     assert.equal(g.tapeBot.workKey, farKey, 'the active area remains the priority over a closer area');
     assert.equal(g.tapeBot.debugTask, 'taping zone 1');
   }
   {
-    const { g, nearKey } = setup();
-    stepTapeBot(g, 0.05, [], () => null, () => false);
+    const { g, stackAt, nearKey } = setup();
+    stepTapeBot(g, 0.05, g.zones, stackAt, () => false);
     assert.equal(g.tapeBot.workKey, nearKey, 'without active work, the tape bot selects the nearest area');
     assert.equal(g.tapeBot.debugTask, 'taping zone 2', 'tape task uses the selected area\'s one-based number');
   }
@@ -1089,6 +1187,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
     const g = newGame(1, 0), b = g[kind];
     flatWorld(g); g.stacks = []; g.zones = [];
     g.bot = null; g.inspector = null;
+    let stackAt = () => null;
     if (kind === 'coneBot') {
       g.tapeBot = null; g.areas = [];
       g.oil = [{ id: 'debug', x: 8, y: 8, r: 0.3, drops: 1 }];
@@ -1096,13 +1195,19 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
       g.coneBot = null;
       const area = { x: 7, y: 7, w: 2, h: 2, color: 0 }, key = areaMarkKey(area);
       g.areas = [area];
+      stackAt = fillTapeAreas(g, g.areas);
+      scanTapeZone(g, g.zones[0], stackAt(g.zones[0]));
       g.tapes = [{ ...area, key, sig: '', broken: true, posts: [true, false, false, false], edges: [false, false, false, false] }];
     }
     Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
     Object.assign(b, { x: 5, y: 5, a: 0, mode: 'out', show: 1, path: [], repath: 0 });
-    const step = () => kind === 'coneBot' ? stepConeBot(g, 0.05, []) : stepTapeBot(g, 0.05, [], () => null, () => false);
+    const step = () => kind === 'coneBot' ? stepConeBot(g, 0.05, []) : stepTapeBot(g, 0.05, g.zones, stackAt, () => false);
     step();
     assert.ok(b.goal && Number.isFinite(b.goal.x) && Number.isFinite(b.goal.y), `${kind} exposes its work goal`);
+    const route = b.path;
+    assert.ok(route.length, `${kind} has a route to its work`);
+    for (let i = 0; i < 12; i++) step();
+    assert.equal(b.path, route, `${kind} keeps an unobstructed route instead of replanning periodically`);
     Object.assign(g.fl, { x: b.x - 2.5, y: b.y, a: 0, speed: 1 });
     step();
     assert.ok(b.scared, `${kind} is fleeing`);
@@ -1110,27 +1215,24 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   }
 }
 
-// Tape damage is repaired, but removal waits for a matching, current inspector result.
+// Inspected valid tape is repaired; an incomplete area is dismantled without inspection.
 {
   const g = newGame(1, 0);
   const z = { x: 5, y: 5, color: 0, count: 1 }, area = { color: 0, x: 4, y: 4, w: 2, h: 2 };
   const stack = { x: 5, y: 5, layers: [0], rots: [0], offs: [{ x: 0, y: 0 }], pen: [{ crash: 0, sq: 0 }] };
-  g.zones = [z]; g.areas = [area]; g.stacks = [];
-  const key = areaMarkKey(area), stackAt = () => null, wonky = () => false;
-  const sig = areaSignature(g, area, stackAt, [], wonky);
+  g.zones = [z]; g.areas = [area]; g.stacks = [stack]; g.inspector = null;
+  scanTapeZone(g, z, stack);
+  const key = areaMarkKey(area), stackAt = () => g.stacks[0], wonky = () => false;
   g.tapes = [{ key, color: 0, x: area.x, y: area.y, w: area.w, h: area.h, sig: 'old', broken: true,
     posts: [true, true, true, true], edges: [true, false, true, true] }];
   clearOf(g, area);
   Object.assign(g.tapeBot, { x: 5, y: 5, show: 1, mode: 'out', path: [], repath: 0 });
-  for (let i = 0; i < 1200 && g.tapes[0].broken; i++) stepTapeBot(g, 0.05, [], stackAt, wonky);
-  assert.equal(g.tapes.length, 1, 'an outdated but unverified tape is not removed');
-  assert.equal(g.tapes[0].broken, false, 'the tape bot repairs the broken segment');
-  g.inspector.checkedAreas = [{ key, sig: 'stale', complete: false }];
+  for (let i = 0; i < 1200 && g.tapes[0].broken; i++) stepTapeBot(g, 0.05, [z], stackAt, wonky);
+  assert.equal(g.tapes[0].broken, false, 'the tape bot repairs after a successful scan');
+  g.inspector = null;
+  g.stacks = [];
   stepTapeBot(g, 0.05, [], stackAt, wonky);
-  assert.equal(g.tapes.length, 1, 'a stale inspection cannot remove tape');
-  g.inspector.checkedAreas = [{ key, sig, complete: false }];
-  stepTapeBot(g, 0.05, [], stackAt, wonky);
-  assert.equal(g.tapeBot.debugTask, 'removing tape from zone 1', 'obsolete tape is identified as removal work');
+  assert.equal(g.tapeBot.debugTask, 'removing tape from zone 1', 'an incomplete area immediately starts removal');
   let sawPartialRemoval = false;
   for (let i = 0; i < 1200 && g.tapes.length; i++) {
     stepTapeBot(g, 0.05, [], stackAt, wonky);
@@ -1143,7 +1245,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
     }
   }
   assert.ok(sawPartialRemoval, 'the bot dismantles the outline one pole at a time');
-  assert.equal(g.tapes.length, 0, 'current inspector confirmation removes tape from an incomplete area');
+  assert.equal(g.tapes.length, 0, 'the incomplete area is dismantled without an inspector');
   g.stacks = [stack];
   assert.ok(areaComplete(g, area, () => stack, [z], wonky));
 }
@@ -1186,7 +1288,9 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   const move = (phase) => {
     const g = newGame(1, 0), area = { x: 7, y: 7, w: 2, h: 2, color: 0 };
     flatWorld(g); g.stacks = []; g.zones = []; g.areas = [area];
+    const stackAt = fillTapeAreas(g, g.areas);
     g.bot = null; g.inspector = null; g.coneBot = null;
+    scanTapeZone(g, g.zones[0], stackAt(g.zones[0]));
     Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
     const key = areaMarkKey(area);
     g.tapes = [{ ...area, key, sig: '', broken: true, posts: [true, false, false, false], edges: [false, false, false, false] }];
@@ -1194,7 +1298,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
     Object.assign(b, { x: 5, y: 5, a: 0, show: 1, mode: 'out', activity: 'work', scared: false,
       tapeJob: { key, edge: 0, from: 0, to: 1, phase },
       planKey: `${key}:${phase}:${phase === 'start' ? 0 : 1}`, path: [{ x: 6, y: 5 }], repath: 10 });
-    stepTapeBot(g, 0.05, [], () => null, () => false);
+    stepTapeBot(g, 0.05, g.zones, stackAt, () => false);
     return b.x - 5;
   };
   assert.ok(Math.abs(move('draw') - 0.05) < 1e-8, 'drawing retains its 1 tile/s speed');
@@ -1205,19 +1309,21 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
 {
   const g = newGame(1, 0), area = { x: 7, y: 7, w: 2, h: 2, color: 0 };
   flatWorld(g); g.stacks = []; g.zones = []; g.areas = [area];
+  const stackAt = fillTapeAreas(g, g.areas);
   g.bot = null; g.inspector = null; g.coneBot = null;
+  scanTapeZone(g, g.zones[0], stackAt(g.zones[0]));
   const key = areaMarkKey(area);
   g.tapes = [{ ...area, key, sig: '', broken: true, posts: [true, false, false, false], edges: [false, false, false, false] }];
   const b = g.tapeBot;
   Object.assign(g.fl, { x: 2.5, y: 5, a: 0, speed: 1 });
   Object.assign(b, { x: 5, y: 5, a: 0, show: 1, mode: 'out', activity: 'work', scared: true, fleePath: true,
     tapeJob: { key, edge: 0, from: 0, to: 1, phase: 'draw' }, path: [{ x: 7, y: 5 }], repath: 10 });
-  stepTapeBot(g, 0.05, [], () => null, () => false);
+  stepTapeBot(g, 0.05, g.zones, stackAt, () => false);
   assert.ok(b.scared && Math.abs(b.x - 5.32) < 1e-8, 'fleeing interrupts deployment and runs at 6.4 tiles/s');
   assert.equal(b.tapeJob.phase, 'start');
   Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
   Object.assign(b, { show: 0, leaving: false, mode: 'hidden', path: [] });
-  stepTapeBot(g, 0.1, [], () => null, () => false);
+  stepTapeBot(g, 0.1, g.zones, stackAt, () => false);
   assert.ok(Math.abs(b.show - 1 / 3) < 1e-8, 'the tape bot emerges in half the usual time');
   g.areas = [];
   Object.assign(b, { show: 0.8, leaving: true, mode: 'out' });
@@ -1318,39 +1424,193 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.deepEqual(g.tapes[0].edges, [true, true, true, true], 'legacy intact outlines restore their four segments');
 }
 
-// A changed taped area sends the inspector to emptied points and records their live status.
+// Incomplete areas and inspected problems trigger removal even when tape is broken.
 {
-  const g = newGame(1, 0), b = g.inspector;
-  const z = { x: b.x + 1.4, y: b.y, color: 0, count: 1 }, area = { color: 0, x: z.x - 1, y: z.y - 1, w: 2, h: 2 };
-  g.zones = [z]; g.areas = [area]; g.stacks = [];
-  g.tapes = [{ key: areaMarkKey(area), color: 0, x: area.x, y: area.y, w: area.w, h: area.h, sig: 'before', broken: true }];
-  for (let i = 0; i < 200; i++) {
-    g.clock += 0.05;
-    stepInspector(g, 0.05, [], () => null, () => false);
-    if (b.checkedAreas.length) break;
+  for (const reason of ['missing', 'wonky', 'damaged']) {
+    const g = newGame(1, 0), area = { color: 0, x: 7, y: 7, w: 2, h: 2 };
+    flatWorld(g); g.areas = [area];
+    const stackAt = fillTapeAreas(g, g.areas), z = g.zones[0];
+    if (reason === 'missing') g.stacks = [];
+    if (reason === 'damaged') g.stacks[0].pen[0].crash = 1;
+    g.inspector = null;
+    if (reason !== 'missing') scanTapeZone(g, z, stackAt(z), false);
+    g.tapes = [{ ...area, key: areaMarkKey(area), sig: 'old', broken: true, posts: [true, true, true, true], edges: [false, true, true, true] }];
+    Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
+    Object.assign(g.tapeBot, { mode: 'out', show: 1, x: 5, y: 5, a: 0 });
+    stepTapeBot(g, 0.05, reason === 'missing' ? [] : [z], stackAt, () => reason === 'wonky');
+    assert.equal(g.tapeBot.debugTask, 'removing tape from zone 1', `${reason} starts removal`);
   }
-  assert.deepEqual(b.checkedAreas, [{ key: areaMarkKey(area), sig: areaSignature(g, area, () => null, [], () => false), complete: false }]);
 }
 
-// The inspector verifies a complete drop-off area before the tape bot gets its installation job.
+// Legacy area jobs do not send the inspector to empty drop points.
 {
   const g = newGame(1, 0), b = g.inspector;
-  const z = { x: b.x + 1.4, y: b.y, color: 0, count: 1 }, area = { color: 0, x: z.x - 1, y: z.y - 1, w: 2, h: 2 };
-  const stack = { x: z.x, y: z.y, layers: [0], rots: [0], offs: [{ x: 0, y: 0 }], pen: [{ crash: 0, sq: 0 }] };
-  const stackAt = (q) => g.stacks.find((s) => s.x === q.x && s.y === q.y), wonky = () => false, done = [z];
-  g.zones = [z]; g.areas = [area]; g.stacks = [stack]; g.tapes = [];
-  clearOf(g, z);
-  let verified = false;
-  for (let i = 0; i < 6000 && !verified; i++) {
-    g.clock += 0.05;
-    stepInspector(g, 0.05, done, stackAt, wonky);
-    verified = b.checkedAreas.some((v) => v.key === areaMarkKey(area) && v.complete
-      && v.sig === areaSignature(g, area, stackAt, done, wonky));
-    if (!verified) assert.equal(g.tapes.length, 0, 'the tape bot has no work before inspector verification');
-    stepTapeBot(g, 0.05, done, stackAt, wonky);
+  const z = { x: 8, y: 8, color: 0, count: 1 }, area = { color: 0, x: 7, y: 7, w: 2, h: 2 }, key = areaMarkKey(area);
+  flatWorld(g); g.zones = [z]; g.areas = [area]; g.stacks = [];
+  g.tapes = [{ ...area, key, sig: 'old', broken: false }];
+  Object.assign(b, { mode: 'hidden', show: 0, target: '8,8,0', areaJobs: [{ key, sig: 'old', pending: ['8,8,0'] }] });
+  stepInspector(g, 0.05, [], () => null, () => false);
+  assert.equal(b.mode, 'hidden', 'an empty taped area no longer creates an inspection job');
+  assert.equal(b.target, null, 'a legacy area target is discarded');
+}
+
+// A nudge keeps tape in place until the inspector confirms whether the stack is still suitable.
+{
+  for (const reason of ['clean', 'wonky', 'damaged']) {
+    const g = newGame(1, 0), area = { color: 0, x: 7, y: 7, w: 2, h: 2 };
+    flatWorld(g); g.areas = [area]; g.bot = null; g.coneBot = null;
+    const stackAt = fillTapeAreas(g, g.areas), z = g.zones[0], stack = stackAt(z);
+    const wonky = () => reason === 'wonky';
+    scanTapeZone(g, z, stack);
+    Object.assign(g.inspector, { mode: 'out', show: 1, x: 6.5, y: 8, a: 0 });
+    Object.assign(g.tapeBot, { mode: 'out', show: 1, x: 4, y: 5, a: 0 });
+    Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
+    const tape = { ...area, key: areaMarkKey(area), sig: '', broken: true,
+      posts: [true, true, true, true], edges: [false, true, true, true] };
+    g.tapes = [tape];
+    stack.touched = true;
+    if (reason === 'damaged') stack.pen[0].crash = 1;
+    stepTapeBot(g, 0.05, [z], stackAt, wonky);
+    assert.equal(g.tapeBot.debugTask, null, `${reason}: no removal or repair while the scan is stale`);
+    assert.deepEqual(tape.posts, [true, true, true, true], 'the existing posts stay up');
+    assert.equal(tape.edges[0], false, 'broken tape is not repaired before the scan');
+    for (let i = 0; i < 1000 && stack.touched; i++) {
+      g.clock += 0.05;
+      stepInspector(g, 0.05, [z], stackAt, wonky);
+    }
+    assert.equal(stack.touched, false, `${reason}: the inspector rescans the stack`);
+    stepTapeBot(g, 0.05, [z], stackAt, wonky);
+    assert.equal(g.tapeBot.debugTask, reason === 'clean' ? 'taping zone 1' : 'removing tape from zone 1',
+      `${reason}: the tape bot follows the new verdict`);
   }
-  assert.ok(verified, 'the inspector verifies the complete area without an existing tape');
-  assert.equal(g.tapes.length, 1, 'the tape bot is dispatched after verification');
+}
+
+// A real horn nudge inside the drop point leaves the existing tape up while inspection is pending.
+{
+  const g = newGame(1, 0), area = { color: 0, x: 7, y: 7, w: 2, h: 2 };
+  flatWorld(g); g.areas = [area]; g.bot = null; g.coneBot = null;
+  const stackAt = fillTapeAreas(g, g.areas), z = g.zones[0], stack = stackAt(z);
+  scanTapeZone(g, z, stack);
+  Object.assign(g.fl, { x: 4.8, y: 8, a: 0, speed: 0 });
+  Object.assign(g.tapeBot, { mode: 'out', show: 1, x: 3, y: 5, a: 0 });
+  const tape = { ...area, key: areaMarkKey(area), sig: '', broken: false,
+    posts: [true, true, true, true], edges: [true, true, true, true] };
+  g.tapes = [tape];
+  run(g, { horn: true }, 1 / 120);
+  assert.ok(stack.touched && zoneDone(g, z), 'the horn nudges the stack without invalidating the drop point');
+  assert.deepEqual(tape.posts, [true, true, true, true], 'the tape stays up');
+  assert.notEqual(g.tapeBot.debugTask, 'removing tape from zone 1', 'the nudge does not dispatch removal');
+}
+
+// Replacing a stack cancels removal and delays repairs until its new inspection.
+{
+  const g = newGame(1, 0), area = { color: 0, x: 7, y: 7, w: 2, h: 2 };
+  flatWorld(g); g.areas = [area]; g.bot = null; g.coneBot = null;
+  const stackAt = fillTapeAreas(g, g.areas), z = g.zones[0], stack = stackAt(z);
+  scanTapeZone(g, z, stack);
+  Object.assign(g.inspector, { mode: 'out', show: 1, x: 6.5, y: 8, a: 0 });
+  Object.assign(g.tapeBot, { mode: 'out', show: 1, x: 3, y: 4, a: 0 });
+  Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
+  const tape = { ...area, key: areaMarkKey(area), sig: '', broken: true,
+    posts: [true, true, true, true], edges: [false, true, true, true] };
+  g.tapes = [tape]; g.stacks = [];
+  stepTapeBot(g, 0.05, [], stackAt, () => false);
+  assert.equal(g.tapeBot.debugTask, 'removing tape from zone 1', 'a missing stack dispatches removal');
+  g.stacks = [stack]; stack.touched = true;
+  for (let i = 0; i < 10; i++) stepTapeBot(g, 0.05, [z], stackAt, () => false);
+  assert.equal(g.tapeBot.debugTask, null, 'restoring the stack cancels removal');
+  assert.deepEqual(tape.posts, [true, true, true, true], 'no posts are removed');
+  assert.equal(tape.edges[0], false, 'repair waits for inspection');
+  for (let i = 0; i < 1000 && stack.touched; i++) {
+    g.clock += 0.05;
+    stepInspector(g, 0.05, [z], stackAt, () => false);
+  }
+  assert.equal(stack.touched, false, 'the replacement stack is inspected');
+  stepTapeBot(g, 0.05, [z], stackAt, () => false);
+  assert.equal(g.tapeBot.debugTask, 'taping zone 1', 'a successful inspection permits repair');
+}
+
+// A confirmed bad stack is enough to remove tape even if another stack still needs inspection.
+{
+  const g = newGame(1, 0), area = { color: 0, x: 7, y: 7, w: 4, h: 2 };
+  flatWorld(g); g.areas = [area]; g.bot = null; g.coneBot = null;
+  g.zones = [{ x: 8, y: 8, color: 0, count: 1 }, { x: 10, y: 8, color: 0, count: 1 }];
+  g.stacks = g.zones.map((z) => ({ x: z.x, y: z.y, layers: [0], rots: [0], pen: [{ crash: 0, sq: 0 }] }));
+  const stackAt = (z) => g.stacks.find((s) => s.x === z.x && s.y === z.y);
+  g.stacks[0].pen[0].crash = 1;
+  scanTapeZone(g, g.zones[0], g.stacks[0], false);
+  g.stacks[1].touched = true;
+  g.tapes = [{ ...area, key: areaMarkKey(area), sig: '', broken: false, posts: [true, true, true, true], edges: [true, true, true, true] }];
+  Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
+  Object.assign(g.tapeBot, { mode: 'out', show: 1, x: 4, y: 5, a: 0 });
+  stepTapeBot(g, 0.05, g.zones, stackAt, () => false);
+  assert.equal(g.tapeBot.debugTask, 'removing tape from zone 1', 'a confirmed failure does not wait for other scans');
+}
+
+// Installation waits for every current individual scan, without a second area-wide inspection.
+{
+  const g = newGame(1, 0), b = g.inspector;
+  const first = { x: 6, y: 6, color: 0, count: 1 }, second = { x: 9, y: 6, color: 0, count: 1 };
+  const area = { color: 0, x: 5, y: 5, w: 5, h: 2 };
+  flatWorld(g); g.zones = [first, second]; g.areas = [area];
+  g.stacks = g.zones.map((z) => ({ x: z.x, y: z.y, layers: [0], rots: [0], offs: [{ x: 0, y: 0 }], pen: [{ crash: 0, sq: 0 }] }));
+  g.tapes = [];
+  const stackAt = (z) => g.stacks.find((s) => s.x === z.x && s.y === z.y), wonky = () => false;
+  const firstKey = '6,6,0', secondKey = '9,6,0';
+  Object.assign(b, { mode: 'out', show: 1, x: 3, y: 6, a: 0, seen: [firstKey], sigs: { [firstKey]: stackSig(g.stacks[0]) } });
+  b.photos = { [firstKey]: { ok: true } };
+  g.stacks[0].pen[0].inspected = true;
+  Object.assign(g.fl, { x: 16, y: 11, a: 0, speed: 0 });
+  for (let i = 0; i < 6000 && !g.tapes.length; i++) {
+    g.clock += 0.05;
+    stepInspector(g, 0.05, g.zones, stackAt, wonky);
+    if (!b.seen.includes(secondKey)) assert.equal(g.tapes.length, 0, 'the unscanned stack blocks installation');
+    stepTapeBot(g, 0.05, g.zones, stackAt, wonky);
+  }
+  assert.ok(b.seen.includes(secondKey), 'the inspector scans the remaining stack');
+  assert.equal(b.photos[secondKey].n, 1, 'the already scanned stack is not rescanned');
+  assert.equal(g.tapes.length, 1, 'the tape bot is dispatched immediately after the final stack scan');
+}
+
+// Old scan records cannot approve a touched or changed stack, and unsuitable stacks cannot be taped.
+{
+  const g = newGame(1, 0), area = { color: 0, x: 7, y: 7, w: 2, h: 2 };
+  flatWorld(g); g.areas = [area]; g.tapes = [];
+  const stackAt = fillTapeAreas(g, g.areas), z = g.zones[0], stack = g.stacks[0], key = `${z.x},${z.y},${z.color}`;
+  Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
+  Object.assign(g.inspector, { seen: [key], sigs: { [key]: stackSig(stack) }, photos: { [key]: { ok: true } } });
+  const step = (wonky = () => false) => stepTapeBot(g, 0.05, [z], stackAt, wonky);
+  delete g.inspector.sigs[key]; step();
+  assert.equal(g.tapes.length, 0, 'a legacy scan without a fingerprint needs a fresh scan');
+  stepInspector(g, 0.05, [z], stackAt, () => false);
+  assert.ok(!g.inspector.seen.includes(key), 'the inspector rechecks an unverifiable legacy scan');
+  g.inspector.seen = [key];
+  g.inspector.sigs[key] = stackSig(stack);
+  delete g.inspector.photos[key]; step();
+  assert.equal(g.tapes.length, 0, 'a legacy scan without a verdict cannot approve tape');
+  stepInspector(g, 0.05, [z], stackAt, () => false);
+  assert.ok(!g.inspector.seen.includes(key), 'the inspector rechecks a scan without a verdict');
+  g.inspector.seen = [key];
+  g.inspector.photos = { [key]: { ok: true } };
+  stack.touched = true; step();
+  assert.equal(g.tapes.length, 0, 'a touched stack needs a fresh scan');
+  stack.touched = false; stack.rots[0] = 0.2; step();
+  assert.equal(g.tapes.length, 0, 'a changed stack needs a fresh scan');
+  g.inspector.sigs[key] = stackSig(stack);
+  g.inspector.photos[key].ok = false;
+  stack.pen[0].crash = 1; step();
+  assert.equal(g.tapes.length, 0, 'repairable damage prevents installation');
+  stack.pen[0].crash = 0; step(() => true);
+  assert.equal(g.tapes.length, 0, 'wonkiness prevents installation');
+  g.inspector.photos[key].ok = true;
+  step();
+  assert.equal(g.tapes.length, 1, 'a current scan and suitable stack allow installation');
+  g.tapes = []; g.hard = true;
+  step();
+  assert.equal(g.tapes.length, 0, 'an old hard-mode scan without placement information is not current');
+  g.inspector.photos = { [key]: { ok: true, pens: [{ shift: 0 }] } };
+  step();
+  assert.equal(g.tapes.length, 1, 'a current hard-mode scan permits installation');
 }
 
 console.log('bot tests passed');
