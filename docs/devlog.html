@@ -27,9 +27,9 @@
 <body>
 <header>
   <h1>Pallet Polka – Devlog</h1>
-  <p>57 milestones from the first prototype to today, newest features last. Bug fixes, refactors and tooling are skipped; each entry names the commit it was captured from. Screenshots and animations are taken from the actual game at that commit (see <code>docs/PRESENTATION_GUIDE.md</code>). The shorter slide deck is <a href="presentation.html" style="color:#6fb1ff">presentation.html</a>.</p>
+  <p>61 milestones from the first prototype to today, newest features last. Bug fixes, refactors and tooling are skipped; each entry names the commit it was captured from. Screenshots and animations are taken from the actual game at that commit (see <code>docs/PRESENTATION_GUIDE.md</code>). The shorter slide deck is <a href="presentation.html" style="color:#6fb1ff">presentation.html</a>.</p>
 </header>
-<nav><a href="#d2026-10-21">10-21</a><a href="#d2026-10-23">10-23</a><a href="#d2026-10-24">10-24</a><a href="#d2026-10-25">10-25</a><a href="#d2026-10-28">10-28</a><a href="#d2026-10-29">10-29</a><a href="#d2026-11-01">11-01</a><a href="#d2026-11-04">11-04</a><a href="#d2026-11-07">11-07</a><a href="#d2026-11-08">11-08</a><a href="#d2026-11-09">11-09</a><a href="#d2026-11-10">11-10</a><a href="#d2026-11-12">11-12</a><a href="#d2026-11-14">11-14</a><a href="#d2026-11-15">11-15</a><a href="#d2026-11-21">11-21</a><a href="#d2026-11-22">11-22</a><a href="#d2026-11-23">11-23</a></nav>
+<nav><a href="#d2026-10-21">10-21</a><a href="#d2026-10-23">10-23</a><a href="#d2026-10-24">10-24</a><a href="#d2026-10-25">10-25</a><a href="#d2026-10-28">10-28</a><a href="#d2026-10-29">10-29</a><a href="#d2026-11-01">11-01</a><a href="#d2026-11-04">11-04</a><a href="#d2026-11-07">11-07</a><a href="#d2026-11-08">11-08</a><a href="#d2026-11-09">11-09</a><a href="#d2026-11-10">11-10</a><a href="#d2026-11-12">11-12</a><a href="#d2026-11-14">11-14</a><a href="#d2026-11-15">11-15</a><a href="#d2026-11-21">11-21</a><a href="#d2026-11-22">11-22</a><a href="#d2026-11-23">11-23</a><a href="#d2026-11-24">11-24</a></nav>
 <main>
 <section class="day" id="d2026-10-21"><h2><span>2026-10-21</span> The prototype</h2>
 <article><div class="shots"><img src="devlog/01-prototype-anim.webp" loading="lazy" alt="First prototype"></div><div class="txt"><h3>First prototype</h3><p>Top-down forklift on a tiled floor. A rear-wheel-steering bicycle model makes the tail swing out; push coloured boxes onto matching zones.</p><code>6974f64</code></div></article>
@@ -123,6 +123,12 @@
 </section>
 <section class="day" id="d2026-11-23"><h2><span>2026-11-23</span> Deciding together</h2>
 <article><div class="shots"><img src="devlog/57-multiplayer-vote.webp" loading="lazy" alt="A local multiplayer vote to switch to hard mode"></div><div class="txt"><h3>Multiplayer votes and observer rounds</h3><p>Players can vote anonymously on modes, levels and removing a player in online or local games. Observer rounds now have a ready-up countdown and shared scores that include everyone who participated.</p><code>c8e8844</code></div></article>
+</section>
+<section class="day" id="d2026-11-24"><h2><span>2026-11-24</span> Warehouse helpers</h2>
+<article><div class="shots"><img src="devlog/58-bots-and-skids.webp" loading="lazy" alt="Warehouse bots working near drop zones"></div><div class="txt"><h3>Curious bots and safety work</h3><p>Warehouse bots watch nearby forklifts and make way for colleagues on a job. Safety helpers put out cones and tape to mark hazards and completed areas.</p><code>11d2c78</code></div></article>
+<article><div class="shots"><img src="devlog/59-cabin-roof.webp" loading="lazy" alt="Cabin view with a roof panel"></div><div class="txt"><h3>A roof over the cab</h3><p>The 3D forklift cabin gains a roof panel above the driver.</p><code>11d2c78</code></div></article>
+<article><div class="shots"><img src="devlog/58-bots-and-skids.webp" loading="lazy" alt="Warehouse with safety helpers"></div><div class="txt"><h3>Safety beacons</h3><p>Working bots flash their beacons, and nearby forklifts trigger lights on safety cones.</p><code>11d2c78</code></div></article>
+<article><div class="shots"><img src="devlog/58-bots-and-skids.webp" loading="lazy" alt="A cleaner working near fresh wheel marks"></div><div class="txt"><h3>Fresh skid marks</h3><p>Fast sustained turns and wall impacts can leave wheel marks. The cleaning bot clears fresh marks quickly, prioritises oil spills, and leaves the old floor decals alone.</p><code>11d2c78</code></div></article>
 </section>
 </main>
 </body>
