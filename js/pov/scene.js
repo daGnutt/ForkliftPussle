@@ -1,12 +1,12 @@
 import { COLORS } from '../level.js';
-import { botDrawPos } from '../bot.js';
+import { botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, tapeCorners, tapeLines } from '../bot.js';
 import { truckPaint, TRUCK_H, truckRoofs, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, overheadDecals, boxDeco, OPEN_BOX_DECAL_EDGES } from '../decals.js';
 import { FL, toWorld, truckColor } from '../forklift.js';
 import { carriedDrawH, carriedWorldOffs, carriedJoltZ, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf } from '../game.js';
 import { BOX_H, PAL, WALL_H, CHARGER_H, PALLET_COLOR, MAX_DIST, offscreen, toCam } from './camera.js';
-import { BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims, TINE_H, PALLET_DECK_H } from '../geom.js';
+import { BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims, TINE_H, PALLET_DECK_H, LEVEL_H } from '../geom.js';
 
 // Scene geometry: everything is a prism (walls, pallets, boxes, tines, fixtures) split into
 // faces, back-face culled and sorted far to near (painter's algorithm).
@@ -161,6 +161,59 @@ function addOil(faces, cam, g) {
   }
 }
 
+function addSafetyMarks(faces, cam, g) {
+  for (const [a, b] of tapeLines(g)) {
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy), n = Math.ceil(len / 0.22);
+    for (let i = 0; i < n; i++) {
+      const u = (i + 0.5) / n;
+      addPrism(faces, cam, a.x + dx * u, a.y + dy * u, Math.atan2(dy, dx), len / n / 2, 0.015, LEVEL_H - 0.05, LEVEL_H + 0.05, i % 2 ? '#202327' : '#e8be26');
+    }
+  }
+  for (const t of g.tapes || []) {
+    const corners = tapeCorners(t);
+    for (let i = 0; i < 4; i++) if (!t.posts || t.posts[i]) {
+      const p = corners[i];
+      addPrism(faces, cam, p.x, p.y, 0, 0.12, 0.12, 0, 0.04, '#525b5e');
+      addPrism(faces, cam, p.x, p.y, 0, 0.035, 0.035, 0.04, 1.5 * LEVEL_H, '#737e80');
+      addPrism(faces, cam, p.x, p.y, 0, 0.065, 0.065, 1.5 * LEVEL_H - 0.08, 1.5 * LEVEL_H + 0.04, '#78e5f4');
+    }
+  }
+  for (const c of g.cones || []) {
+    const h = c.squished ? 0.035 : c.tipped ? 0.1 : 0.27;
+    addPrism(faces, cam, c.x, c.y, c.a || 0, c.tipped ? 0.16 : 0.11, c.tipped ? 0.06 : 0.11, 0.01, h, c.squished ? '#874a27' : '#f07822');
+    if (!c.squished) addPrism(faces, cam, c.x, c.y, c.a || 0, 0.105, 0.115, h * 0.55, h * 0.68, '#fff0d0');
+  }
+  for (const b of [g.coneBot, g.tapeBot]) {
+    if (!b || b.show <= 0) continue;
+    const { x, y } = botDrawPos(b, g.hatch);
+    const at = (u, v) => [x + u * Math.cos(b.a) - v * Math.sin(b.a), y + u * Math.sin(b.a) + v * Math.cos(b.a)];
+    if (b === g.coneBot) {
+      for (const [u, v] of CONE_BOT_WHEELS) {
+        addPrism(faces, cam, ...at(u, v), b.a, 0.1, 0.045, 0, 0.2, '#24292c');
+        addPrism(faces, cam, ...at(u, v), b.a, 0.045, 0.047, 0.055, 0.145, '#a63b34');
+      }
+      for (const [u, v, hl, hw, z0, z1, color] of CONE_BOT_PARTS) {
+        if (color === '#ffb768' || color === '#252322' || (color === '#fff3d4' && u > 0.35)) continue;
+        const start = faces.length;
+        addPrism(faces, cam, ...at(u, v), b.a, hl, hw, z0, z1, color);
+        if (color === '#172125') for (let i = start; i < faces.length; i++) {
+          if (faces[i].edge === 1) faces[i].coneFace = true;
+        }
+      }
+      if (b.carried) {
+        addPrism(faces, cam, ...at(-0.4, 0), b.a, 0.09, 0.09, 0.13, 0.16, '#b24b20');
+        addPrism(faces, cam, ...at(-0.4, 0), b.a, 0.065, 0.065, 0.16, 0.34, '#f07822');
+        addPrism(faces, cam, ...at(-0.4, 0), b.a, 0.067, 0.067, 0.26, 0.29, '#fff0d0');
+      }
+    } else {
+      for (const [u, v, hl, hw, z0, z1, color] of TAPE_BOT_PARTS) addPrism(faces, cam, ...at(u, v), b.a, hl, hw, z0, z1, color);
+      if (b.tapeJob) for (const side of [-1, 1]) {
+        addPrism(faces, cam, ...at(-0.3, side * 0.18), b.a + side * 0.6, 0.025, 0.12, 0.17, 1.0, '#d6d9d5');
+      }
+    }
+  }
+}
+
 // Ceiling fixtures as prisms so walls and boxes occlude them correctly.
 function addOverhead(faces, cam, g) {
   if (!decalsEnabled()) return;
@@ -309,6 +362,7 @@ export function buildFaces(g, cam) {
   }
   for (const r of truckRoofs(g)) addPrism(faces, cam, (r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, 0, (r.x1 - r.x0) / 2, (r.y1 - r.y0) / 2, TRUCK_H - 0.03, TRUCK_H, truckPaint(r.color), false, 1);
   addOil(faces, cam, g);
+  addSafetyMarks(faces, cam, g);
   addBot(faces, cam, g);
   for (const st0 of g.stacks) { const st = fallView(g, st0); addStack(faces, cam, st.x, st.y, st.rots || [], st.layers, stackZ(st), st.offs, st.dropFrom ?? 0,
       dropLift(g, st), st.pen); }

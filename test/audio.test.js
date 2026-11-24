@@ -8,6 +8,14 @@ globalThis.localStorage = {
 
 const contexts = [];
 let oscillatorCount = 0;
+const oscillators = [];
+const audioParam = () => ({
+  value: 0, events: [],
+  setValueAtTime(value, t) { this.events.push(['set', value, t]); },
+  linearRampToValueAtTime(value, t) { this.events.push(['linear', value, t]); },
+  exponentialRampToValueAtTime(value, t) { this.events.push(['exponential', value, t]); },
+  setTargetAtTime() {}, cancelScheduledValues() {},
+});
 class MockAudioContext {
   constructor() {
     this.state = 'running';
@@ -17,9 +25,9 @@ class MockAudioContext {
     this.resumeCount = 0;
     contexts.push(this);
   }
-  createGain() { return { gain: { value: 0, setTargetAtTime() {} }, connect() {}, disconnect() {} }; }
+  createGain() { return { gain: audioParam(), connect() {}, disconnect() {} }; }
   createBiquadFilter() {
-    return { type: '', frequency: { value: 0 }, Q: { value: 0 }, gain: { value: 0 }, connect() {} };
+    return { type: '', frequency: audioParam(), Q: { value: 0 }, gain: { value: 0 }, connect() {} };
   }
   createDynamicsCompressor() {
     return { threshold: {}, ratio: {}, attack: {}, release: {}, connect() {} };
@@ -27,8 +35,9 @@ class MockAudioContext {
   createDelay() { return { delayTime: { value: 0 }, connect() {} }; }
   createOscillator() {
     oscillatorCount++;
-    const param = { setValueAtTime() {}, linearRampToValueAtTime() {}, cancelScheduledValues() {} };
-    return { type: '', frequency: param, detune: { value: 0 }, connect() {}, start() {}, stop() {} };
+    const o = { type: '', frequency: audioParam(), detune: { value: 0 }, connect() {}, start(t) { this.at = t; }, stop(t) { this.end = t; } };
+    oscillators.push(o);
+    return o;
   }
   suspend() { this.suspendCount++; this.state = 'suspended'; return Promise.resolve(); }
   resume() {
@@ -46,7 +55,7 @@ const intervals = [], cleared = [];
 globalThis.setInterval = (fn) => { intervals.push(fn); return intervals.length; };
 globalThis.clearInterval = (id) => cleared.push(id);
 
-const { startAudio, setSilenced, setPageHidden, isMusicMuted } = await import('../js/audio.js');
+const { startAudio, setSilenced, setPageHidden, isMusicMuted, playDroid } = await import('../js/audio.js');
 
 // A visible pause silences only effects; hiding suspends audio and clears its MIDI scheduler.
 {
@@ -93,6 +102,39 @@ const { startAudio, setSilenced, setPageHidden, isMusicMuted } = await import('.
   startAudio();
   await Promise.resolve();
   assert.equal(intervals.length, 3, 'repeated hide/show cycles restart one scheduler each time');
+}
+
+// Each bot has a recognisable timbre and dialect, independent of random phrasing and mood.
+{
+  setSilenced(false);
+  const random = Math.random;
+  const samples = [];
+  try {
+    Math.random = () => 0.5;
+    for (const voice of ['cleaner', 'inspector', 'cone', 'tape']) {
+      const start = oscillators.length;
+      playDroid('curious', 0.5, voice);
+      const notes = oscillators.slice(start).filter((_, i) => i % 2 === 0);
+      assert.ok(notes.length >= 3, `${voice} speaks a phrase`);
+      samples.push({
+        type: notes[0].type,
+        rhythm: notes.map((n) => n.at),
+        intervals: notes.map((n) => n.frequency.events.at(-1)[1] / n.frequency.events[0][1]),
+      });
+      for (const mood of ['hello', 'bye', 'scan', 'perfect', 'warn', 'alarm', 'mumble']) playDroid(mood, 1, voice);
+    }
+  } finally { Math.random = random; }
+  assert.equal(new Set(samples.map((s) => s.type)).size, 4, 'voices have distinct timbres');
+  assert.equal(new Set(samples.map((s) => JSON.stringify(s.rhythm))).size, 4, 'dialects have distinct rhythms');
+  assert.equal(new Set(samples.map((s) => JSON.stringify(s.intervals))).size, 4, 'dialects have distinct pitch vocabulary, not just transposition');
+  const before = oscillators.length;
+  setSilenced(true);
+  playDroid('hello', 1, 'cone');
+  setSilenced(false);
+  playDroid('hello', 0, 'tape');
+  setPageHidden(true);
+  playDroid('hello', 1, 'cleaner');
+  assert.equal(oscillators.length, before, 'muted, inaudible and hidden bots do not schedule speech');
 }
 
 console.log('audio tests passed');

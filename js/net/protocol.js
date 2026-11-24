@@ -23,8 +23,12 @@ export function snapshot(g, withStacks = true) {
     ghostPairs: r.ghostPairs,
     hits: r.hits.map(({ owner, ...h }) => h),
     oil: r.oil,
+    cones: r.cones,
+    tapes: r.tapes,
     bot: r.bot,
     inspector: r.inspector,
+    coneBot: r.coneBot,
+    tapeBot: r.tapeBot,
     hitCount: r.hitCount,
     status: r.status, time: r.time, started: r.started, clock: r.clock,
   };
@@ -59,8 +63,12 @@ export function applySnapshot(g, s) {
   g.trucks.length = s.trucks.length;
   if (s.stacks) g.stacks = s.stacks;
   if (s.oil) g.oil = s.oil;
+  if (s.cones) g.cones = s.cones;
+  if (s.tapes) g.tapes = s.tapes;
   if (s.bot !== undefined) g.bot = s.bot;
   if (s.inspector !== undefined) g.inspector = s.inspector;
+  if (s.coneBot !== undefined) g.coneBot = s.coneBot;
+  if (s.tapeBot !== undefined) g.tapeBot = s.tapeBot;
   if (s.endless && g.endless && g.endlessSrc !== s.endless) { restoreEndless(g, s.endless); g.endlessSrc = s.endless; }
   Object.assign(g, { ghostPairs: s.ghostPairs, hits: s.hits, hitCount: s.hitCount, status: s.status, time: s.time, started: s.started, clock: s.clock });
 }

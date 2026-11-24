@@ -1,7 +1,7 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from './level.js';
 import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, dockWaits, dockNumber, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
-import { scanBeam, botDrawPos, WHEEL_R } from './bot.js';
+import { scanBeam, botDrawPos, WHEEL_R, tapeCorners, trailingTape } from './bot.js';
 import { drawBotDebugWorld } from './debug.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { padPolys, tapeShapes, TAPE_FILL } from './repair.js';
@@ -685,15 +685,91 @@ function drawWorld(ctx, g, vis, pxPerTile = 0) {
     ctx.fillStyle = 'rgba(180,205,190,0.22)';
     ctx.beginPath(); ctx.ellipse(oil.x - oil.r * 0.22, oil.y - oil.r * 0.12, oil.r * 0.38, oil.r * 0.09, -0.3, 0, Math.PI * 2); ctx.fill();
   }
+  drawSafetyTape(ctx, g, vis);
   drawBot(ctx, g, vis);
   if (discoOn()) drawDiscoSpots(ctx, g, vis);
   drawWorldObjects(ctx, g, vis);
+  drawSafetyObjects(ctx, g, vis);
   if (repairHintOn() && g.repair) {
     drawHintGlow(ctx, g.repair.x, g.repair.y, 2, g.clock);
     const a = Math.atan2(g.repair.y - g.fl.y, g.repair.x - g.fl.x);
     drawHintArrow(ctx, g.fl.x + Math.cos(a) * 2.2, g.fl.y + Math.sin(a) * 2.2, a, 0.5, g.clock);
   }
   for (const f of flaggedStacks(g)) drawFlag(ctx, f, f.x + (f.h + 0.6) * PX, f.y + (f.h + 0.6) * PY - 0.3, 0.9, g.clock, 0.03); // the inspector's hovering "!"
+}
+
+function drawSafetyTape(ctx, g, vis) {
+  const drawLine = (a, b) => {
+    ctx.strokeStyle = '#e8be26'; ctx.lineWidth = 0.09;
+    ctx.beginPath(); ctx.moveTo(a.x + PX, a.y + PY); ctx.lineTo(b.x + PX, b.y + PY); ctx.stroke();
+    ctx.strokeStyle = '#202327'; ctx.setLineDash([0.16, 0.16]);
+    ctx.stroke(); ctx.setLineDash([]);
+  };
+  ctx.save();
+  for (const t of g.tapes || []) {
+    if (!visSeen(vis, t.x - 0.35, t.y - 0.35, t.w + 0.7, t.h + 0.7)) continue;
+    const corners = tapeCorners(t);
+    for (let i = 0; i < 4; i++) if (t.edges ? t.edges[i] : !t.broken) drawLine(corners[i], corners[(i + 1) % 4]);
+    for (let i = 0; i < 4; i++) if (!t.posts || t.posts[i]) {
+      const p = corners[i];
+      ctx.strokeStyle = '#636d70'; ctx.lineWidth = 0.065; ctx.beginPath();
+      ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + 1.5 * PX, p.y + 1.5 * PY); ctx.stroke();
+      ctx.fillStyle = '#81eaff'; ctx.beginPath(); ctx.arc(p.x + 1.5 * PX, p.y + 1.5 * PY, 0.07, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  const trailing = trailingTape(g);
+  if (trailing) drawLine(...trailing);
+  ctx.restore();
+}
+
+function drawSafetyObjects(ctx, g, vis) {
+  for (const c of g.cones || []) {
+    if (!visSeen(vis, c.x - 0.2, c.y - 0.2, 0.4, 0.4)) continue;
+    ctx.save();
+    ctx.translate(c.x, c.y); ctx.rotate(c.a || 0);
+    ctx.fillStyle = c.squished ? '#874a27' : '#f07822';
+    ctx.strokeStyle = '#fff0d0'; ctx.lineWidth = 0.025;
+    ctx.beginPath();
+    if (c.squished) ctx.ellipse(0, 0, 0.16, 0.08, 0, 0, Math.PI * 2);
+    else if (c.tipped) { ctx.moveTo(-0.15, -0.07); ctx.lineTo(0.15, -0.07); ctx.lineTo(0.04, 0.07); ctx.closePath(); }
+    else { ctx.moveTo(0, -0.17); ctx.lineTo(0.13, 0.12); ctx.lineTo(-0.13, 0.12); ctx.closePath(); }
+    ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+  for (const b of [g.coneBot, g.tapeBot]) {
+    if (!b || b.show <= 0 || !visSeen(vis, b.x - 0.4, b.y - 0.4, 0.8, 0.8)) continue;
+    const p = botDrawPos(b, g.hatch);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, g.w, g.h); ctx.clip();
+    ctx.translate(p.x, p.y); ctx.rotate(b.a);
+    if (b === g.coneBot) {
+      ctx.fillStyle = '#24292c';
+      for (const [x, y] of [[-0.2, -0.22], [-0.2, 0.22], [0.22, 0]]) ctx.fillRect(x - 0.1, y - 0.045, 0.2, 0.09);
+      ctx.fillStyle = '#ad3431'; ctx.fillRect(-0.34, -0.21, 0.68, 0.42);
+      ctx.fillStyle = '#e3e5e2'; ctx.fillRect(-0.34, -0.2, 0.34, 0.4);
+      ctx.fillStyle = '#c6cbca'; ctx.fillRect(-0.32, -0.17, 0.3, 0.34);
+      ctx.fillStyle = '#b33832'; ctx.fillRect(-0.33, -0.2, 0.3, 0.025); ctx.fillRect(-0.33, 0.175, 0.3, 0.025);
+      ctx.fillStyle = '#e4e6e2'; ctx.fillRect(0.01, -0.2, 0.29, 0.4);
+      ctx.fillStyle = '#172125';
+      ctx.beginPath(); ctx.roundRect(0.19, -0.16, 0.15, 0.32, 0.04); ctx.fill();
+      ctx.fillStyle = '#ffb768';
+      for (const y of [-0.075, 0.075]) { ctx.beginPath(); ctx.arc(0.27, y, 0.035, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = '#252322';
+      for (const y of [-0.075, 0.075]) { ctx.beginPath(); ctx.arc(0.275, y, 0.02, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = '#ef941f'; ctx.fillRect(0.07, -0.145, 0.12, 0.29);
+      if (b.carried) {
+        ctx.fillStyle = '#f07822'; ctx.beginPath(); ctx.moveTo(-0.49, 0); ctx.lineTo(-0.36, -0.09); ctx.lineTo(-0.36, 0.09); ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = '#303538'; ctx.fillRect(-0.28, -0.2, 0.56, 0.08); ctx.fillRect(-0.28, 0.12, 0.56, 0.08);
+      ctx.fillStyle = '#e8eae6'; ctx.fillRect(-0.21, -0.15, 0.42, 0.3);
+      ctx.fillStyle = '#e3b82a'; ctx.fillRect(-0.2, -0.15, 0.4, 0.025); ctx.fillRect(-0.2, 0.125, 0.4, 0.025);
+      ctx.fillStyle = '#172126'; ctx.fillRect(0.12, -0.13, 0.1, 0.26);
+      ctx.fillStyle = '#42d8f4'; ctx.fillRect(0.19, -0.06, 0.03, 0.12);
+      if (b.tapeJob) {
+        ctx.fillStyle = '#d6d9d5'; ctx.fillRect(-0.34, -0.3, 0.08, 0.15); ctx.fillRect(-0.34, 0.15, 0.08, 0.15);
+      }
+    }
+    ctx.restore();
+  }
 }
 
 const visSeen = (vis, x, y, w, h) => !vis || (x + w >= vis.x0 && x <= vis.x1 && y + h >= vis.y0 && y <= vis.y1);

@@ -22,7 +22,7 @@ const okPen = (p) => !!p && num(p.crash) && num(p.sq) &&
   (p.inspected === undefined || typeof p.inspected === 'boolean') &&
   (p.oilDropped === undefined || Number.isInteger(p.oilDropped) && p.oilDropped >= 0 && p.oilDropped <= 50) &&
   (p.oilFraction === undefined || num(p.oilFraction) && p.oilFraction >= 0 && p.oilFraction < 1);
-const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'oil', 'repair', 'bot', 'inspector', 'photo', 'bonks', 'H', 'hy', 'hf', 'status', 'time', 'started', 'clock'];
+const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'oil', 'cones', 'tapes', 'repair', 'bot', 'inspector', 'coneBot', 'tapeBot', 'photo', 'bonks', 'H', 'hy', 'hf', 'status', 'time', 'started', 'clock'];
 
 // Plain-JSON snapshot of a level in progress; the static layout is regenerated from (level, seed, hard).
 export function serializeGame(g, seedText = '') {
@@ -65,7 +65,14 @@ function checkState(s) {
     (o.barrelId === undefined || typeof o.barrelId === 'string') && (o.seq === undefined || Number.isInteger(o.seq) && o.seq >= 0) &&
     (o.anchorX === undefined || num(o.anchorX)) && (o.anchorY === undefined || num(o.anchorY)) &&
     (o.leaking === undefined || typeof o.leaking === 'boolean')));
-  if (!okFl || !okStacks || !okCarried || !okOil || !Number.isInteger(s.H) || s.H < 0 || s.H > MAX_H) throw new Error('Corrupt state');
+  const okCones = s.cones === undefined || (Array.isArray(s.cones) && s.cones.every((c) => c && typeof c.id === 'string' && typeof c.goalId === 'string'
+    && num(c.x) && num(c.y) && num(c.a) && typeof c.tipped === 'boolean' && typeof c.squished === 'boolean'));
+  const okTapes = s.tapes === undefined || (Array.isArray(s.tapes) && s.tapes.every((t) => t && typeof t.key === 'string' && Number.isInteger(t.color)
+    && num(t.x) && num(t.y) && num(t.w) && num(t.h) && typeof t.sig === 'string' && typeof t.broken === 'boolean'
+    && (t.posts === undefined || arr(t.posts, 4, (v) => typeof v === 'boolean'))
+    && (t.edges === undefined || arr(t.edges, 4, (v) => typeof v === 'boolean'))
+    && (t.wallSides === undefined || arr(t.wallSides, 4, (v) => v === null || num(v)))));
+  if (!okFl || !okStacks || !okCarried || !okOil || !okCones || !okTapes || !Number.isInteger(s.H) || s.H < 0 || s.H > MAX_H) throw new Error('Corrupt state');
   if (s.status !== 'play' && s.status !== 'won') throw new Error('Corrupt state');
 }
 

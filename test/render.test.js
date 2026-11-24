@@ -9,6 +9,7 @@ import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTile
 import { staticMeshes, dynamicMeshes, ceilingClip, renderMode, CEILING_HIDE_Z } from '../js/gl/scene.js';
 import { addStack as addGLStack, addForks as addGLForks, PAL, PALLET_COLOR } from '../js/gl/models.js';
 import { buildFaces as buildPovFaces } from '../js/pov/scene.js';
+import { drawFace } from '../js/pov/face.js';
 import { makeCamera } from '../js/pov/camera.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
 import { popupScale, placePhoto, drawPhoto, boxStatus, issues, stripHeight, scoreText } from '../js/photo.js';
@@ -28,8 +29,78 @@ import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecal
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, carriedDrawH, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 import { addParticles, setParticlesEnabled, shouldSpawnSetdownDust } from '../js/gl/particles.js';
 import { Mesh, parseColor } from '../js/gl/mesh.js';
+import { areaMarkKey } from '../js/bot.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
+
+// Cone/tape markings and their bots render in WebGL and software cabin views.
+{
+  const g = newGame(1, 0), area = g.areas[0], center = { x: area.x + area.w / 2, y: area.y + area.h / 2 };
+  const camera = makeCamera(center, 2, 0, Math.PI / 2, 0, 0, 800, 400);
+  g.tapes = [{ key: areaMarkKey(area), color: area.color, x: area.x, y: area.y, w: area.w, h: area.h, sig: '', broken: true,
+    posts: [true, true, true, true], edges: [true, false, true, true] }];
+  g.cones = [{ id: 'render-cone', goalId: 'render-target', x: center.x, y: center.y, a: 0, tipped: false, squished: false }];
+  g.coneBot.show = 1; g.tapeBot.show = 1;
+  for (const mode of ['ov', 'pov']) {
+    const meshes = dynamicMeshes(g, mode, [center.x, center.y]);
+    assert.ok(meshes.opaque.count > 0 && meshes.trans.count > 0, `${mode} mesh includes bots, cone and tape`);
+  }
+  const faces = buildPovFaces(g, camera);
+  assert.ok(faces.some((f) => f.color === '#f07822'), 'software cabin includes safety cones');
+  assert.ok(faces.some((f) => f.color === '#e8be26'), 'software cabin includes remaining elevated tape');
+}
+
+// The new tall tracked bot, beacon posts and elevated tape are visible in both 3D paths.
+{
+  const g = newGame(1, 0), b = g.tapeBot;
+  g.stacks = []; g.cones = []; g.bot = null; g.inspector = null; g.coneBot = null;
+  Object.assign(b, { x: 7, y: 5, a: 0, show: 1 });
+  g.tapes = [{ key: 'render', color: 0, x: 7, y: 4, w: 2, h: 2, sig: '', broken: true,
+    posts: [true, true, true, true], edges: [true, false, false, false] }];
+  const camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
+  const faces = buildPovFaces(g, camera);
+  assert.ok(faces.some((f) => f.color === '#e8eae6' && f.mz > 1), 'software cabin shows the tall white bot');
+  assert.ok(faces.some((f) => f.color === '#78e5f4' && f.mz > 0.8), 'software cabin shows the elevated beacon');
+  assert.ok(faces.some((f) => f.color === '#e8be26' && Math.abs(f.mz - LEVEL_H) < 0.1), 'software cabin places tape at one box height');
+  const mesh = dynamicMeshes(g, 'pov', [10, 5]).opaque;
+  for (const color of ['#e8eae6', '#78e5f4', '#e8be26', '#202327']) {
+    const rgb = parseColor(color);
+    let found = false;
+    for (let i = 0; i < mesh.n; i += 10) if (rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)) { found = true; break; }
+    assert.ok(found, `WebGL draws tape-bot or safety-marking colour ${color}`);
+  }
+}
+
+// Cone bot's delivery-vehicle model appears in both 3D renderers, including its carried cone.
+{
+  const g = newGame(1, 0), b = g.coneBot;
+  g.stacks = []; g.cones = []; g.tapes = []; g.bot = null; g.inspector = null; g.tapeBot = null;
+  Object.assign(b, { x: 7, y: 5, a: 0, show: 1, carried: { id: 'carried' } });
+  const camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
+  const faces = buildPovFaces(g, camera);
+  for (const color of ['#e3e5e2', '#b53630', '#172125', '#ef941f', '#f07822']) {
+    assert.ok(faces.some((f) => f.color === color && Math.abs(f.mx - b.x) < 1 && Math.abs(f.my - b.y) < 1), `software cabin draws cone bot part ${color}`);
+  }
+  const visor = faces.find((f) => f.coneFace);
+  assert.ok(visor, 'software cabin exposes the visor face');
+  const fills = [];
+  const ctx = new Proxy({}, {
+    get: (t, k) => k === 'fill' ? () => fills.push(t.fillStyle) : k in t ? t[k] : () => {},
+    set: (t, k, v) => { t[k] = v; return true; },
+  });
+  drawFace(ctx, camera, g, visor);
+  assert.equal(fills.length, 7, 'software visor paints two eyes, pupils and highlights with the face');
+  const mesh = dynamicMeshes(g, 'pov', [10, 5]).opaque;
+  for (const color of ['#e3e5e2', '#b53630', '#172125', '#ffb768', '#ef941f', '#f07822']) {
+    const rgb = parseColor(color);
+    let found = false;
+    for (let i = 0; i < mesh.n; i += 10) {
+      if (Math.abs(mesh.a[i] - b.x) < 1 && Math.abs(mesh.a[i + 1] - b.y) < 1 &&
+          rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)) { found = true; break; }
+    }
+    assert.ok(found, `WebGL draws cone bot part ${color}`);
+  }
+}
 
 // Toppled boxes keep their drawing-only fall height in both 3D renderers.
 {

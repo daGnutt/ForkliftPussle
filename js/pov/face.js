@@ -458,6 +458,18 @@ export function drawFace(ctx, cam, g, f) {
     if (f.lit) { ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fill(); }
   }
   if (f.charger && f.side) drawChargerDecal(ctx, cam, f, d);
+  if (f.coneFace && f.side) {
+    const { shape } = faceShapes(ctx, cam, ...f.side.slice(0, 2), d * 0.3);
+    const ellipse = (u, v, rx, ry, color) => shape(Array.from({ length: 12 }, (_, i) => {
+      const a = i * Math.PI / 6;
+      return [u + Math.cos(a) * rx, v + Math.sin(a) * ry];
+    }), color);
+    for (const u of [0.26, 0.74]) {
+      ellipse(u, 0.395, 0.12, 0.045, '#ffb768');
+      ellipse(u, 0.395, 0.068, 0.028, '#252322');
+      ellipse(u - 0.02, 0.407, 0.022, 0.008, '#fff3d4');
+    }
+  }
   if (f.deco && f.d < DECAL_MAX_DIST) drawBoxDecal(ctx, cam, f, d);
   if (f.pen && f.d < DECAL_MAX_DIST) drawDents(ctx, cam, f, d);
   if (f.tile != null && f.side) drawWallDecals(ctx, cam, g, f, d);

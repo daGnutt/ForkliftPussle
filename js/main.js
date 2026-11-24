@@ -188,23 +188,30 @@ function watchBots() {
   const playDroid = (...a) => { if (game.status !== 'won') droid(...a); }; // silent on the end-of-level screen
   const loaded = botGame !== game; // first look at this game (new level, or restored from a save): its existing photo is not news
   if (loaded) { botGame = game; botPrev = new Map(); botSaid = new WeakSet(); }
-  const first = (b, key) => { const p = botPrev.get(key); botPrev.set(key, { show: b.show > 0, scared: !!b.scared, shoot: (b.shooting || 0) > 0, clean: !!b.cleaning }); return p; };
-  for (const [key, b, pitch] of [['clean', game.bot, 0.8], ['insp', game.inspector, 1.25]]) {
+  for (const [key, b] of [['cleaner', game.bot], ['inspector', game.inspector], ['cone', game.coneBot], ['tape', game.tapeBot]]) {
     if (!b) continue;
-    const p = first(b, key), vol = hearVol(b.x, b.y);
+    const p = botPrev.get(key), vol = hearVol(b.x, b.y);
+    const now = { show: b.show > 0, scared: !!b.scared, shoot: (b.shooting || 0) > 0, clean: !!b.cleaning,
+      observing: !!b.observing, nextTalk: p?.nextTalk ?? game.clock + 3 };
+    botPrev.set(key, now);
     if (!p) continue;
-    if (b.show > 0 && !p.show) playDroid('hello', vol, pitch);
-    else if (b.show <= 0 && p.show) playDroid('bye', vol, pitch);
-    if (b.scared && !p.scared) playDroid('alarm', vol, pitch);
-    if ((b.shooting || 0) > 0 && !p.shoot) playDroid('scan', vol, pitch);
-    if (b.cleaning && !p.clean) playDroid('mumble', vol, pitch);
+    const say = (mood) => { playDroid(mood, vol, key); now.nextTalk = game.clock + 4 + Math.random() * 4; };
+    if (now.scared && !p.scared) say('alarm');
+    else if (now.show && !p.show) say('hello');
+    else if (!now.show && p.show) say('bye');
+    else if (now.shoot && !p.shoot) say('scan');
+    else if (now.clean && !p.clean) say('mumble');
+    else if (now.show && !now.scared && !now.shoot && game.clock >= now.nextTalk) {
+      if (now.observing && !p.observing) say('curious');
+      else if (b.activity === 'work') say('mumble');
+    }
   }
   if (game.photo && !botSaid.has(game.photo)) { botSaid.add(game.photo); if (!reduceEffectsOn && !loaded && game.status !== 'won') showPhoto(game.photo); } // after the level the gallery shows them
   if (game.forkPhoto && !botSaid.has(game.forkPhoto)) { botSaid.add(game.forkPhoto); if (!reduceEffectsOn) showPhoto(game.forkPhoto.photo, undefined, true); } // tines in a damaged stack: show the observer's last picture of it again
   for (const h of game.hits || []) {
     if (!h.check || botSaid.has(h)) continue;
     botSaid.add(h);
-    playDroid(h.check === 'warn' ? 'warn' : 'perfect', hearVol(h.x, h.y), 1.25);
+    playDroid(h.check === 'warn' ? 'warn' : 'perfect', hearVol(h.x, h.y), 'inspector');
   }
 }
 // Delivery trucks honk (see `lorryHonks`): once before an incoming truck opens its gate, twice before a full one closes its gate (heard by distance).

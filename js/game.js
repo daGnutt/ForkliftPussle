@@ -5,7 +5,7 @@ import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLoc
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, generateLevel } from './level.js';
 import { makeStation, stepRepair, repairable, recordDropAngle } from './repair.js';
-import { makeHatch, makeBot, makeInspector, stepBot, stepInspector, stackSig, makePhoto } from './bot.js';
+import { makeHatch, makeBot, makeInspector, makeConeBot, makeTapeBot, stepBot, stepInspector, stepConeBot, stepTapeBot, stepConeCollisions, stepTapeCollisions, stackSig, makePhoto } from './bot.js';
 import { closingSpeed, contactCorrection, palletSupported, solveContacts, supported } from './hard-physics.js';
 
 const FORKLIFT_MASS = 6;
@@ -691,6 +691,8 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
     start: { x: lvl.start.x, y: lvl.start.y, a: lvl.start.a },
     trucks: [makeTruck(lvl.start)],
     oil: [],
+    cones: [],
+    tapes: [],
     self: 0, // index of the local player's truck
     ghostPairs: [], // [i, j] truck pairs that spawned inside each other and pass through each other until they separate
     hits: [],
@@ -705,6 +707,8 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
   g.hatch = makeHatch(g);
   g.bot = makeBot(g);
   g.inspector = makeInspector(g);
+  g.coneBot = makeConeBot(g);
+  g.tapeBot = makeTapeBot(g);
   bindTrucks(g);
   markSpawnStacks(g, 0);
   return g;
@@ -1594,14 +1598,34 @@ function updateStep(g, input, dt) {
   if (root.trucks.length > 1) root.trucks.forEach((t, i) => {
     if (!t.gone && t.liftedBy < 0) clearWallOverlaps(truckView(root, i));
   });
+  stepConeCollisions(root);
   stepOil(root, dt);
   if (!root.truck.gone) watchForkedStack(root);
   stepRepair(root, dt, root.trucks.flatMap((t, i) => (t.gone ? [] : [truckView(root, i).fl])));
   stepBot(root, dt, OIL_DROP_AREA);
-  stepInspector(root, dt, root.zones.filter((z) => zoneDone(root, z)), (z) => stackForZone(root, z), (s, z) => {
+  const doneZones = root.zones.filter((z) => zoneDone(root, z));
+  const stackAt = (z) => stackForZone(root, z);
+  const wonky = (s, z) => {
     refreshPlacement(root, s, z);
     return s.pen.some((p) => placementLoss(root, p) > 0);
-  });
+  };
+  const tapeShapes = [];
+  if (root.tapes?.length) {
+    for (const [i, t] of root.trucks.entries()) {
+      if (t.gone) continue;
+      const v = truckView(root, i);
+      tapeShapes.push(...forkShapes(v).map((s) => s.poly));
+      for (let j = 0; j < (t.carried?.length || 0); j++) tapeShapes.push(carriedPoly(t, j));
+    }
+    for (const s of root.stacks) for (let i = 0; i < s.layers.length; i++) {
+      const p = boxPos(s, i);
+      tapeShapes.push(boxPoly(p.x, p.y, s.rots[i], s.pen[i]));
+    }
+  }
+  stepTapeCollisions(root, tapeShapes);
+  stepInspector(root, dt, doneZones, stackAt, wonky);
+  stepConeBot(root, dt, doneZones, stackAt);
+  stepTapeBot(root, dt, doneZones, stackAt, wonky, tapeShapes);
   updateGhosts(root);
   if (root.status === 'play' && root.started) root.time += dt; // the level timer runs from the first move until solved
   scorePopups(root);
