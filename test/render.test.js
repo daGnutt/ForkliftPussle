@@ -7,7 +7,7 @@ import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndl
 import { chaseOrbit, lookYawDelta } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, blendCameras, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes, ceilingClip, renderMode, CEILING_HIDE_Z } from '../js/gl/scene.js';
-import { addStack as addGLStack, addForks as addGLForks, PAL, PALLET_COLOR } from '../js/gl/models.js';
+import { addStack as addGLStack, addForks as addGLForks, addForklift as addGLForklift, PAL, PALLET_COLOR } from '../js/gl/models.js';
 import { buildFaces as buildPovFaces } from '../js/pov/scene.js';
 import { drawFace } from '../js/pov/face.js';
 import { makeCamera } from '../js/pov/camera.js';
@@ -828,6 +828,26 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     assert.ok(d.opaque.count > 0 && d.opaque.floats().length === d.opaque.count * 10, 'dynamic mesh floats match the vertex stride');
   }
   console.log('gl scene ok');
+}
+
+// GL cabin forklift roof has a visible underside panel
+{
+  const g = newGame(1);
+  g.fl.x = 0; g.fl.y = 0; g.fl.a = 0;
+  const m = new Mesh();
+  addGLForklift(m, g, false);
+  const v = m.floats();
+  let hasInnerRoof = false;
+  for (let i = 0; i < v.length; i += 30) {
+    const xs = [v[i], v[i + 10], v[i + 20]], ys = [v[i + 1], v[i + 11], v[i + 21]];
+    if ([0, 10, 20].every((o) => Math.abs(v[i + o + 2] - 1.14) < 1e-5 && v[i + o + 5] === -1)
+      && Math.min(...xs) < -1.1 && Math.max(...xs) > -0.05
+      && Math.min(...ys) < -0.4 && Math.max(...ys) > 0.4) {
+      hasInnerRoof = true;
+      break;
+    }
+  }
+  assert.ok(hasInnerRoof, 'the cab has a broad downward-facing ceiling panel');
 }
 
 // Dark mode: headlights, reverse/brake lights; ceiling fixtures give no point light

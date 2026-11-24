@@ -77,7 +77,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Forklift / truck** | The player vehicle | `g.fl` |
 | **Body / chassis** | The truck minus forks; collides with everything | `forklift.js` |
 | **Counterweight / tail** | Rear end; swings out when steering | `FL` |
-| **Overhead guard / cage / roof** | Frame over the driver | `models.js` |
+| **Overhead guard / cage / roof** | Frame over the driver; its GL cabin view has a shaded interior roof panel | `models.js` |
 | **Front axle / rear wheels** | Origin of the local frame / the steering wheels | `FL` |
 | **Mast / carriage** | Upright and plate the tines hang from | `addForks` |
 | **Bare forks** | Menu option (key B): in the GL cabin view hides the whole forklift body and the mast, leaving carriage and tines | `bareForksEnabled`, `addForks` |

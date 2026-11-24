@@ -18,3 +18,5 @@ Right-stick Y adds GL vertical look (cabin pitch or overview/chase tilt); right-
 The GL cabin camera enables steering-linked head yaw after keyboard driving/steering and disables it after controller driving/steering, regardless of controller connection. In local multiplayer this is tracked for the keyboard truck; gamepad trucks do not auto-yaw.
 
 On touch, a drag in the GL cabin holds the manual look and suppresses steering-linked head yaw until the camera is reset. A single tap on the game area resets the active GL camera using the gamepad reset; double-tap still switches overview/chase. Touch controls, the minimap, level completion and the two-finger horn do not trigger this reset.
+
+The GL cabin forklift's overhead guard has a shaded interior roof panel, visible from underneath.

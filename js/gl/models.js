@@ -150,6 +150,7 @@ export function addForklift(m, g, solidRoof) {
     box(-1.2, 0.46, 0.05, 0.5, 1.15, 1.2, pal.roof);
     box(0.01, -0.5, 0.05, 0.5, 1.15, 1.2, pal.roof);
     box(-1.2, -0.5, -1.16, 0.5, 1.15, 1.2, pal.roof);
+    box(-1.16, -0.46, 0.01, 0.46, 1.14, 1.17, shade(parseColor(pal.roof), 0.72));
   }
 }
 
