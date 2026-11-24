@@ -1,7 +1,7 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from './level.js';
 import { BOGIE, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, dockWaits, dockNumber, yardRects, truckBays, DOCKS, endlessScore } from './endless.js';
 import { FL, toWorld, truckColor } from './forklift.js';
-import { scanBeam, botDrawPos, WHEEL_R, BOT_BEACONS, botBeaconOn, beaconColor, tapeBeaconOn, tapeCorners, trailingTape, tapeDeploying } from './bot.js';
+import { scanBeam, botDrawPos, WHEEL_R, BOT_BEACONS, botBeaconOn, beaconColor, proximityBeaconOn, tapeCorners, trailingTape, tapeDeploying } from './bot.js';
 import { drawBotDebugWorld } from './debug.js';
 import { topShapes, DENT_FILL, DENT_LINE } from './dents.js';
 import { padPolys, tapeShapes, TAPE_FILL } from './repair.js';
@@ -722,7 +722,7 @@ function drawSafetyTape(ctx, g, vis) {
       const p = corners[i];
       ctx.strokeStyle = '#636d70'; ctx.lineWidth = 0.065; ctx.beginPath();
       ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + 1.5 * PX, p.y + 1.5 * PY); ctx.stroke();
-      ctx.fillStyle = beaconColor('#78e5f4', tapeBeaconOn(g, p)); ctx.beginPath(); ctx.arc(p.x + 1.5 * PX, p.y + 1.5 * PY, 0.07, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = beaconColor('#78e5f4', proximityBeaconOn(g, p)); ctx.beginPath(); ctx.arc(p.x + 1.5 * PX, p.y + 1.5 * PY, 0.07, 0, Math.PI * 2); ctx.fill();
     }
   }
   const trailing = trailingTape(g);
@@ -741,7 +741,12 @@ function drawSafetyObjects(ctx, g, vis) {
     if (c.squished) ctx.ellipse(0, 0, 0.16, 0.08, 0, 0, Math.PI * 2);
     else if (c.tipped) { ctx.moveTo(-0.15, -0.07); ctx.lineTo(0.15, -0.07); ctx.lineTo(0.04, 0.07); ctx.closePath(); }
     else { ctx.moveTo(0, -0.17); ctx.lineTo(0.13, 0.12); ctx.lineTo(-0.13, 0.12); ctx.closePath(); }
-    ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.fill(); ctx.stroke();
+    if (!c.tipped && !c.squished) {
+      ctx.fillStyle = beaconColor('#ef941f', proximityBeaconOn(g, c));
+      ctx.beginPath(); ctx.arc(0, -0.17, 0.035, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
   }
   for (const b of [g.coneBot, g.tapeBot]) {
     if (!b || b.show <= 0 || !visSeen(vis, b.x - 0.4, b.y - 0.4, 0.8, 0.8)) continue;

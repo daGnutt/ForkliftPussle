@@ -1,7 +1,7 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from '../level.js';
 import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
-import { scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, BOT_BEACONS, botBeaconOn, beaconColor, tapeBeaconOn, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
+import { scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, BOT_BEACONS, botBeaconOn, beaconColor, proximityBeaconOn, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
 import { LEVEL_H } from '../geom.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals, oilDropMark } from '../decals.js';
@@ -507,7 +507,7 @@ function addSafetyMarks(om, tm, g) {
       const p = corners[i];
       om.cylinder(p.x, p.y, 0, 0.04, 0.12, '#525b5e', 8);
       om.cylinder(p.x, p.y, 0.04, 1.5 * LEVEL_H, 0.035, '#737e80', 8);
-      const on = tapeBeaconOn(g, p);
+      const on = proximityBeaconOn(g, p);
       om.cylinder(p.x, p.y, 1.5 * LEVEL_H - 0.08, 1.5 * LEVEL_H + 0.04, 0.065, beaconColor('#78e5f4', on), 8, 0, { emissive: on });
     }
   }
@@ -516,6 +516,10 @@ function addSafetyMarks(om, tm, g) {
     else if (c.tipped) om.cuboid(c.x, c.y, c.a || 0, 0.16, 0.06, 0.02, 0.12, '#f07822');
     else om.cylinder(c.x, c.y, 0.01, 0.27, 0.12, '#f07822', 8);
     om.cylinder(c.x, c.y, c.tipped || c.squished ? 0.11 : 0.25, c.tipped || c.squished ? 0.13 : 0.27, 0.06, '#fff0d0', 8);
+    if (!c.tipped && !c.squished) {
+      const on = proximityBeaconOn(g, c);
+      om.cylinder(c.x, c.y, 0.27, 0.33, 0.035, beaconColor('#ef941f', on), 8, 0, { emissive: on });
+    }
   }
   for (const b of [g.coneBot, g.tapeBot]) {
     if (!b || b.show <= 0) continue;

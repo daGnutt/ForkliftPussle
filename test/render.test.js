@@ -114,6 +114,68 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(flashing(), false, 'broken posts have no beacon');
 }
 
+// Upright cone beacons share the posts' proximity trigger in all views and both themes.
+{
+  const g = newGame(1, 0), c = { x: 7, y: 5, a: 0, tipped: false, squished: false };
+  g.walls = []; g.pillars = []; g.stacks = []; g.tapes = []; g.cones = [c];
+  for (const key of Object.keys(BOT_BEACONS)) g[key] = null;
+  const camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
+  const fills = [], bright = parseColor('#ffc45a'), dim = parseColor('#ef941f');
+  const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
+    get: (t, k) => k in t ? t[k] : k === 'fill' ? () => fills.push(t.fillStyle)
+      : k === 'measureText' ? (text) => ({ width: text.length * 7 })
+        : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
+    set: (t, k, v) => { t[k] = v; return true; },
+  });
+  const check = (on, present = true) => {
+    for (const mode of ['ov', 'pov']) {
+      const mesh = dynamicMeshes(g, mode, [10, 5]).opaque;
+      let glowing = false, lamp = false;
+      for (let i = 0; i < mesh.n; i += 10) {
+        if (Math.abs(mesh.a[i] - c.x) > 0.1 || Math.abs(mesh.a[i + 1] - c.y) > 0.1 || mesh.a[i + 2] < 0.27) continue;
+        const matches = (rgb) => rgb.slice(0, 3).every((v, j) => Math.abs(mesh.a[i + 6 + j] - v) < 1e-6);
+        if (matches(bright) || matches(dim)) lamp = true;
+        if (matches(bright) && mesh.a[i + 3] === 0 && mesh.a[i + 4] === 0 && mesh.a[i + 5] === 0) glowing = true;
+      }
+      assert.equal(lamp, present, `${mode} draws a cap only on an upright cone`);
+      assert.equal(glowing, on, `${mode} cone beacon follows proximity and blink phase`);
+    }
+    const faces = buildPovFaces(g, camera);
+    assert.equal(faces.some((f) => f.color === '#ffc45a' && f.glow), on, 'software cabin beacon matches GL');
+    assert.equal(faces.some((f) => f.color === '#ffc45a' || f.color === '#ef941f'), present, 'software cabin cap respects cone damage');
+    fills.length = 0;
+    draw(ctx, g, { width: 1200, height: 800, dpr: 1, fullMap: true });
+    assert.equal(fills.includes('#ffc45a'), on, '2D overview beacon matches GL');
+    assert.equal(fills.includes('#ffc45a') || fills.includes('#ef941f'), present, '2D cap respects cone damage');
+  };
+  const oldOffscreen = globalThis.OffscreenCanvas;
+  globalThis.OffscreenCanvas = class { getContext() { return ctx; } };
+  try {
+    for (const theme of ['light', 'dark']) {
+      setThemeMode(theme);
+      Object.assign(g.fl, { x: 17, y: 5, a: 0, speed: 0 }); g.clock = 0;
+      check(false);
+      g.fl.x = 9;
+      check(true);
+      g.clock = 0.25; check(false);
+      g.clock = 0.5; check(true);
+      c.tipped = true; check(false, false);
+      c.tipped = false; c.squished = true; check(false, false);
+      c.squished = false; check(true);
+      c.x = 2; check(false);
+      c.x = 7; g.fl.x = 17;
+      const t = g.trucks[addTruck(g, 'Other', 1)];
+      Object.assign(t.fl, { x: 9, y: 5, a: 0, speed: 0 });
+      check(true);
+      t.gone = true; check(false);
+      g.cones = []; check(false, false);
+      g.cones = [c];
+    }
+  } finally {
+    globalThis.OffscreenCanvas = oldOffscreen; setThemeMode('light');
+  }
+}
+
 // Cone/tape markings and their bots render in WebGL and software cabin views.
 {
   const g = newGame(1, 0), area = g.areas[0], center = { x: area.x + area.w / 2, y: area.y + area.h / 2 };

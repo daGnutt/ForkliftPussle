@@ -21,4 +21,4 @@ On touch, a drag in the GL cabin holds the manual look and suppresses steering-l
 
 The GL cabin forklift's overhead guard has a shaded interior roof panel, visible from underneath.
 
-Bots have no headlights. Bot work beacons and proximity-triggered tape-post beacons use the shared helpers in `bot.js` (see `modules-modes.md`); `mesh.js`'s `cylinder` accepts an optional emissive flag for flashing post lamps without changing their shape.
+Bots have no headlights. Bot work beacons and proximity-triggered tape-post and cone-top beacons use the shared helpers in `bot.js` (see `modules-modes.md`); `mesh.js`'s `cylinder` accepts an optional emissive flag for flashing post and cone lamps.

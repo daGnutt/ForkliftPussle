@@ -147,7 +147,7 @@ export const BOT_BEACONS = {
 const beaconPulse = (g) => Math.floor((g.clock || 0) * 4) % 2 === 0;
 export const botBeaconOn = (g, b) => b?.show > 0 && b.activity === 'work' && !b.scared && beaconPulse(g);
 export const beaconColor = (color, on) => on ? color === '#ef941f' ? '#ffc45a' : '#c7fbff' : color;
-export const tapeBeaconOn = (g, p) => beaconPulse(g)
+export const proximityBeaconOn = (g, p) => beaconPulse(g)
   && truckCircles(g).some((c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r + 3);
 
 export const TAPE_BOT_PARTS = [

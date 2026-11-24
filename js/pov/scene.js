@@ -1,5 +1,5 @@
 import { COLORS } from '../level.js';
-import { botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, BOT_BEACONS, botBeaconOn, beaconColor, tapeBeaconOn, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
+import { botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, BOT_BEACONS, botBeaconOn, beaconColor, proximityBeaconOn, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
 import { truckPaint, TRUCK_H, truckRoofs, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
 import { decalsEnabled, overheadDecals, boxDeco, OPEN_BOX_DECAL_EDGES } from '../decals.js';
@@ -175,7 +175,7 @@ function addSafetyMarks(faces, cam, g) {
       const p = corners[i];
       addPrism(faces, cam, p.x, p.y, 0, 0.12, 0.12, 0, 0.04, '#525b5e');
       addPrism(faces, cam, p.x, p.y, 0, 0.035, 0.035, 0.04, 1.5 * LEVEL_H, '#737e80');
-      const on = tapeBeaconOn(g, p), start = faces.length;
+      const on = proximityBeaconOn(g, p), start = faces.length;
       addPrism(faces, cam, p.x, p.y, 0, 0.065, 0.065, 1.5 * LEVEL_H - 0.08, 1.5 * LEVEL_H + 0.04, beaconColor('#78e5f4', on));
       if (on) for (let j = start; j < faces.length; j++) faces[j].glow = true;
     }
@@ -184,6 +184,11 @@ function addSafetyMarks(faces, cam, g) {
     const h = c.squished ? 0.035 : c.tipped ? 0.1 : 0.27;
     addPrism(faces, cam, c.x, c.y, c.a || 0, c.tipped ? 0.16 : 0.11, c.tipped ? 0.06 : 0.11, 0.01, h, c.squished ? '#874a27' : '#f07822');
     if (!c.squished) addPrism(faces, cam, c.x, c.y, c.a || 0, 0.105, 0.115, h * 0.55, h * 0.68, '#fff0d0');
+    if (!c.tipped && !c.squished) {
+      const on = proximityBeaconOn(g, c), start = faces.length;
+      addPrism(faces, cam, c.x, c.y, c.a || 0, 0.035, 0.035, 0.27, 0.33, beaconColor('#ef941f', on));
+      if (on) for (let i = start; i < faces.length; i++) faces[i].glow = true;
+    }
   }
   for (const b of [g.coneBot, g.tapeBot]) {
     if (!b || b.show <= 0) continue;
