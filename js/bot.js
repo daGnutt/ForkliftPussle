@@ -69,6 +69,9 @@ const laneAt = (h, show) => { const d = (LANE - (BOT_R + 0.1)) * show + BOT_R + 
 const botLane = (h) => laneAt(h, 1);
 const bots = (g) => [g.bot, g.inspector, g.coneBot, g.tapeBot].filter(Boolean);
 const BOT_SPACE = BOT_R * 2 + 0.04;
+const botKey = (g, bot) => ['bot', 'inspector', 'coneBot', 'tapeBot'].find((key) => g[key] === bot);
+const canYield = (g, worker, bot) => worker.activity === 'work' && bot.activity === 'follow'
+  && !bot.scared && bot.show === 1 && bot.yieldBlock?.worker !== botKey(g, worker);
 function hatchBusy(g, bot) {
   const lane = botLane(g.hatch);
   return bots(g).some((o) => o !== bot && o.show > 0
@@ -270,7 +273,9 @@ function buildGrid(g, margin, slim = false, avoidBots = null) {
   }
   const fixed = blocked.slice(); // cells blocked by walls and boxes only (forklifts move away on their own)
   for (const c of truckCircles(g)) circle(c, c.r + BOT_R + margin);
-  if (avoidBots) for (const b of bots(g)) if (b !== avoidBots && b.show > 0) circle(b, BOT_SPACE + 0.1);
+  if (avoidBots) for (const b of bots(g)) {
+    if (b !== avoidBots && b.show > 0 && !canYield(g, avoidBots, b)) circle(b, BOT_SPACE + 0.1);
+  }
   return { nx, ny, blocked, fixed };
 }
 
@@ -462,6 +467,12 @@ function passingPoint(g, bot, w) {
     return ox * ux + oy * uy > 0 && Math.hypot(ox, oy) < 1.4 && Math.abs(ox * uy - oy * ux) < BOT_SPACE;
   }).sort((a, b) => Math.hypot(a.x - bot.x, a.y - bot.y) - Math.hypot(b.x - bot.x, b.y - bot.y))[0];
   if (!other) return w;
+  if (canYield(g, bot, other)) {
+    if (pathDistance(other, bot, bot.path) >= BOT_SPACE + 0.3) return w;
+    const key = botKey(g, bot);
+    if (other.yieldFor !== key) { other.yieldFor = key; other.yieldPath = []; other.yieldWait = 0; other.repath = 0; }
+    return bot;
+  }
   const side = BOT_SPACE + 0.15;
   const p = { x: bot.x - uy * side, y: bot.y + ux * side,
     next: { x: other.x + ux * side - uy * side, y: other.y + uy * side + ux * side } };
@@ -572,7 +583,7 @@ function activity(bot, work, dt) {
     bot.activity = next; bot.path = []; bot.repath = 0; bot.planKey = null;
     bot.target = null; bot.shooting = 0; bot.idleEscape = false;
     bot.curiosity = null; bot.observing = false; bot.passing = null;
-    bot.yieldPath = [];
+    bot.yieldPath = []; bot.yieldFor = null; bot.yieldBlock = null;
   }
   if (work) bot.leaving = false;
   return next;
@@ -611,8 +622,72 @@ function viewingSpot(g, bot, p, truck) {
     && truckSight(g, p, truck);
 }
 
+// A peek is close to an obstacle corner, with the sightline grazing its edge rather than crossing it.
+function viewCover(g) {
+  const rects = g.walls.map((w) => ({ x: w.x + w.w / 2, y: w.y + w.h / 2, hx: w.w / 2, hy: w.h / 2, a: 0 }));
+  for (const s of g.stacks) for (let i = 0; i < s.layers.length; i++) {
+    const off = s.offs?.[i] || { x: 0, y: 0 };
+    rects.push({ x: s.x + off.x, y: s.y + off.y, hx: BOX_HALF_X, hy: halfY(s.pen?.[i]), a: s.rots?.[i] ?? s.a ?? 0 });
+  }
+  return rects.map((r) => ({ ...r, corners: rectPoly(r.x, r.y, r.hx, r.hy, r.a) }));
+}
+
+function peeking(p, aim, cover) {
+  return cover.some((r) => {
+    if (!r.corners.some((c) => Math.hypot(p.x - c.x, p.y - c.y) < 1.6)) return false;
+    const c = Math.cos(r.a), s = Math.sin(r.a), dx = p.x - r.x, dy = p.y - r.y;
+    const x = Math.max(-r.hx, Math.min(r.hx, dx * c + dy * s));
+    const y = Math.max(-r.hy, Math.min(r.hy, -dx * s + dy * c));
+    const near = { x: r.x + x * c - y * s, y: r.y + x * s + y * c };
+    return (near.x - p.x) * (aim.x - p.x) + (near.y - p.y) * (aim.y - p.y) > 0
+      && sightHits(p, aim, r.x, r.y, r.hx + 0.45, r.hy + 0.45, r.a);
+  });
+}
+
+function pathDistance(p, from, path) {
+  let best = Infinity, start = from, length = 0;
+  for (const end of path) {
+    const dx = end.x - start.x, dy = end.y - start.y, d2 = dx * dx + dy * dy;
+    const t = d2 ? Math.max(0, Math.min(1, ((p.x - start.x) * dx + (p.y - start.y) * dy) / d2)) : 0;
+    best = Math.min(best, Math.hypot(p.x - start.x - t * dx, p.y - start.y - t * dy));
+    length += Math.sqrt(d2);
+    if (length >= 5) break;
+    start = end;
+  }
+  return best;
+}
+
+function makeWay(g, bot, dt, speed) {
+  const worker = g[bot.yieldFor];
+  if (!worker || worker.show <= 0 || worker.activity !== 'work' || worker.scared || !worker.path.length
+      || (Math.hypot(bot.x - worker.x, bot.y - worker.y) > 2 && !bot.yieldPath?.length)) {
+    bot.yieldFor = null; bot.yieldPath = []; bot.repath = 0;
+    return false;
+  }
+  bot.curiosity = null; bot.observing = false; bot.path = []; bot.passing = null;
+  const inWay = pathDistance(bot, worker, worker.path) < BOT_SPACE + 0.3;
+  if (!bot.yieldPath?.length && inWay && bot.repath <= 0) {
+    bot.yieldPath = plan(buildGrid(g, 0.1, bot === g.tapeBot, bot), bot, 12, (x, y, cost) => {
+      const p = { x, y };
+      if (Math.hypot(x - worker.x, y - worker.y) < BOT_SPACE + 0.3
+          || pathDistance(p, worker, worker.path) < BOT_SPACE + 0.3) return Infinity;
+      return cost;
+    });
+    bot.repath = REPLAN;
+  }
+  if (bot.yieldPath?.length) { bot.yieldWait = 0; followPath(g, bot, speed * dt, dt); }
+  else if (inWay && (bot.yieldWait = (bot.yieldWait || 0) + dt) >= 2) {
+    bot.yieldBlock = { worker: bot.yieldFor, left: 3 };
+    bot.yieldFor = null; bot.repath = 0; worker.repath = 0;
+    return false;
+  }
+  return true;
+}
+
 // Curious bots travel to a visible vantage point, then watch for 5-15 simulated seconds.
 function followTruck(g, bot, dt, speed) {
+  if (bot.yieldBlock && (bot.yieldBlock.left -= dt) <= 0) bot.yieldBlock = null;
+  if (bot.yieldFor && makeWay(g, bot, dt, speed)) return;
   const wall = g.walls.find((w) => rectDist(bot.x, bot.y, w) < BOT_R * 1.05);
   if (wall || bot.idleEscape) {
     bot.observing = false;
@@ -633,18 +708,28 @@ function followTruck(g, bot, dt, speed) {
   }
   if (!q && bot.repath <= 0) {
     const grid = buildGrid(g, 0.45, bot === g.tapeBot, bot);
+    const cover = viewCover(g);
     for (truck of trucks.sort((a, b) => Math.hypot(bot.x - a.fl.x, bot.y - a.fl.y) - Math.hypot(bot.x - b.fl.x, bot.y - b.fl.y))) {
-      const circles = circlesOf(truck), angle = Math.random() * Math.PI * 2, centre = toWorld(truck.fl, -0.7, 0);
-      const preferred = { x: centre.x + Math.cos(angle) * 5, y: centre.y + Math.sin(angle) * 5 };
+      const circles = circlesOf(truck), centre = toWorld(truck.fl, -0.7, 0);
       const previous = bot.lastView;
-      bot.path = plan(grid, bot, 80, (x, y, cost) => {
+      const score = (x, y, cost) => {
+        const p = { x, y };
         if (previous && Math.hypot(x - previous.x, y - previous.y) < 1) return Infinity;
         const gap = Math.min(...circles.map((c) => Math.hypot(x - c.x, y - c.y) - c.r - BOT_R));
-        if (gap < 2.5 || gap > 5 || !viewingSpot(g, bot, { x, y }, truck)) return Infinity;
-        return Math.abs(gap - FOLLOW_GAP) * 3 + Math.hypot(x - preferred.x, y - preferred.y) + cost * 0.15;
-      });
-      const end = bot.path.at(-1) || bot;
-      if (viewingSpot(g, bot, end, truck) && (!previous || Math.hypot(end.x - previous.x, end.y - previous.y) >= 1)) {
+        if (gap < 2.5 || !viewingSpot(g, bot, p, truck)) return Infinity;
+        return (peeking(p, centre, cover) ? 0 : 1000)
+          + cost * 10 + Math.abs(gap - FOLLOW_GAP) * 0.05;
+      };
+      bot.path = plan(grid, bot, 80, score);
+      let end = bot.path.at(-1) || bot;
+      if (!bot.path.length) {
+        const { i, j } = cellOf(grid, bot), p = { x: (i + 0.5) * CELL, y: (j + 0.5) * CELL };
+        if (!grid.blocked[j * grid.nx + i] && Number.isFinite(score(p.x, p.y, 0))
+            && (!Number.isFinite(score(end.x, end.y, 0)) || (peeking(p, centre, cover) && !peeking(end, centre, cover)))) {
+          bot.path = [p]; end = p;
+        }
+      }
+      if (Number.isFinite(score(end.x, end.y, 0))) {
         q = bot.curiosity = { x: end.x, y: end.y, truck: truck.id, left: null };
         break;
       }
@@ -698,6 +783,7 @@ export function stepBot(g, dt, dropArea) {
   bot.repath -= dt;
   bot.goal = null;
   if (bot.scared) {
+    if (bot.yieldFor) { bot.yieldFor = null; bot.yieldPath = []; bot.repath = 0; }
     bot.curiosity = null; bot.observing = false;
     speed = FLEE_SPEED;
     if (bot.repath <= 0 || bot.fleePath !== true) {
@@ -844,6 +930,7 @@ function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.2) {
   if (bot.scared) bot.spookedUntil = g.clock + SPOOK_SECS;
   bot.repath -= dt;
   if (bot.scared) {
+    if (bot.yieldFor) { bot.yieldFor = null; bot.yieldPath = []; bot.repath = 0; }
     bot.curiosity = null; bot.observing = false;
     if (bot.repath <= 0 || !bot.fleePath) {
       bot.path = fleePlan(g, bot); bot.fleePath = true; bot.repath = 0.25;
@@ -1205,7 +1292,7 @@ function blockedAhead(g, bot) {
   if (w1) pts.push(w1);
   const trucks = truckCircles(g);
   return pts.some((q) => trucks.some((c) => Math.hypot(q.x - c.x, q.y - c.y) < c.r + BOT_R * 0.9)
-    || bots(g).some((b) => b !== bot && b.show > 0 && Math.hypot(q.x - b.x, q.y - b.y) < BOT_SPACE)
+    || bots(g).some((b) => b !== bot && b.show > 0 && !canYield(g, bot, b) && Math.hypot(q.x - b.x, q.y - b.y) < BOT_SPACE)
     || g.stacks.some((st) => Math.hypot(q.x - st.x, q.y - st.y) < STACK_R + BOT_R * 0.9));
 }
 
@@ -1251,6 +1338,7 @@ function inspectorStep(g, dt, done, stackAt, wonky) {
   bot.repath -= dt;
   bot.goal = null;
   if (bot.scared) {
+    if (bot.yieldFor) { bot.yieldFor = null; bot.yieldPath = []; bot.repath = 0; }
     bot.curiosity = null; bot.observing = false;
     speed = FLEE_SPEED; bot.shooting = 0;
     if (bot.repath <= 0 || bot.fleePath !== true) { bot.path = fleePlan(g, bot); bot.fleePath = true; bot.repath = 0.25; }

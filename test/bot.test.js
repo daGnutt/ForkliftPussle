@@ -235,6 +235,50 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   }
 }
 
+// Idle bots peek past wall corners and boxes, but still watch from the open when cover is unavailable.
+{
+  for (const kind of botKinds) for (const cover of ['wall', 'box', 'none']) {
+    const g = botGame();
+    g.stacks = []; flatWorld(g); g.areas = [];
+    for (const other of botKinds) if (other !== kind) g[other] = null;
+    const b = g[kind];
+    Object.assign(b, { mode: 'out', show: 1, x: 4, y: 6, a: 0 });
+    Object.assign(g.fl, { x: 13, y: 6, a: 0, speed: 0 });
+    let corners = [];
+    if (cover === 'wall') {
+      g.walls.push({ x: 8, y: 4, w: 0.4, h: 4 });
+      corners = rectPoly(8.2, 6, 0.2, 2);
+    } else if (cover === 'box') {
+      g.stacks.push({ x: 8, y: 6, layers: [0], rots: [Math.PI / 4], offs: [{ x: 0.2, y: 0 }], pen: [{}] });
+      corners = rectPoly(8.2, 6, BOX_HALF_X, halfY({}), Math.PI / 4);
+    }
+    for (let i = 0; i < 1600 && !b.observing; i++) idleStep(g, kind, 0.05);
+    assert.ok(b.observing, `${kind} reaches a ${cover} viewing spot`);
+    assert.ok(truckGap(g, b) >= 2.5, `${kind} stays out of the forklift's way`);
+    if (corners.length) {
+      assert.ok(corners.some((c) => Math.hypot(b.x - c.x, b.y - c.y) < 1.6), `${kind} peeks near ${cover} cover`);
+      const nearest = corners.map((a, i) => {
+        const z = corners[(i + 1) % corners.length], dx = z.x - a.x, dy = z.y - a.y;
+        const t = Math.max(0, Math.min(1, ((b.x - a.x) * dx + (b.y - a.y) * dy) / (dx * dx + dy * dy)));
+        return { x: a.x + dx * t, y: a.y + dy * t };
+      }).sort((a, z) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(z.x - b.x, z.y - b.y))[0];
+      assert.ok((nearest.x - b.x) * (g.fl.x - 0.7 - b.x) + (nearest.y - b.y) * (g.fl.y - b.y) > 0, 'cover is towards the forklift, not behind the bot');
+    }
+    for (let i = 1; i < 100; i++) {
+      const x = b.x + (g.fl.x - 0.7 - b.x) * i / 100, y = b.y + (g.fl.y - b.y) * i / 100;
+      assert.ok(!g.walls.some((w) => x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h), 'wall does not block the view');
+      if (cover === 'box') {
+        const dx = x - 8.2, dy = y - 6, c = Math.SQRT1_2;
+        assert.ok(Math.abs((dx + dy) * c) > BOX_HALF_X || Math.abs((dy - dx) * c) > halfY({}), 'rotated box does not block the view');
+      }
+    }
+    const first = { x: b.x, y: b.y };
+    for (let i = 0; i < 400 && b.observing; i++) idleStep(g, kind, 0.05);
+    for (let i = 0; i < 1600 && !b.observing; i++) idleStep(g, kind, 0.05);
+    assert.ok(b.observing && Math.hypot(b.x - first.x, b.y - first.y) >= 0.99, `${kind} switches ${cover} viewing spots`);
+  }
+}
+
 // Curiosity can choose another forklift when the nearest one is in an unreachable room.
 {
   const g = botGame();
@@ -250,6 +294,90 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   other.gone = true;
   idleStep(g, 'bot', 0.05);
   assert.ok(!g.bot.curiosity && !g.bot.observing && !g.bot.path.length, 'a gone forklift is not watched through walls');
+}
+
+// An idle bot uses its current good vantage point and only moves a short distance when switching.
+{
+  for (const kind of botKinds) {
+    const g = botGame();
+    g.stacks = []; flatWorld(g); g.areas = [];
+    for (const other of botKinds) if (other !== kind) g[other] = null;
+    const b = g[kind];
+    Object.assign(b, { mode: 'out', show: 1, x: 7.125, y: 6.125, a: 0 });
+    Object.assign(g.fl, { x: 13, y: 6, a: 0, speed: 0 });
+    for (let i = 0; i < 80 && !b.observing; i++) idleStep(g, kind, 0.05);
+    assert.ok(b.observing && Math.hypot(b.x - 7.125, b.y - 6.125) < 0.01, `${kind} stays at a suitable open vantage point`);
+    const first = { x: b.x, y: b.y };
+    for (let i = 0; i < 400 && b.observing; i++) idleStep(g, kind, 0.05);
+    for (let i = 0; i < 800 && !b.observing; i++) idleStep(g, kind, 0.05);
+    const distance = Math.hypot(b.x - first.x, b.y - first.y);
+    assert.ok(b.observing && distance >= 0.99 && distance < 1.5, `${kind} switches to a nearby spot`);
+  }
+}
+
+// An observer clears a working bot's route, including when it must leave a narrow corridor.
+{
+  for (const [workerKind, observerKind] of [
+    ['inspector', 'bot'], ['inspector', 'coneBot'], ['inspector', 'tapeBot'],
+    ['bot', 'inspector'], ['bot', 'tapeBot'], ['coneBot', 'inspector'],
+  ]) {
+    const g = botGame();
+    g.stacks = []; flatWorld(g); g.areas = [];
+    for (const other of botKinds) if (other !== workerKind && other !== observerKind) g[other] = null;
+    g.walls.push({ x: 7, y: 3, w: 5, h: 2.4 }, { x: 7, y: 6.6, w: 5, h: 2.4 });
+    Object.assign(g.fl, { x: 2, y: 6, a: 0, speed: 0 });
+    const worker = g[workerKind], observer = g[observerKind];
+    Object.assign(worker, { mode: 'out', show: 1, activity: 'work', x: 7.5, y: 6, a: 0 });
+    Object.assign(observer, { mode: 'out', show: 1, activity: 'follow', x: 9.5, y: 6, a: 0,
+      curiosity: { x: 9.5, y: 6, truck: g.trucks[0].id, left: 100 }, path: [], repath: 1e9 });
+    const z = { x: 15, y: 6, color: 0, count: 1 };
+    if (workerKind === 'inspector') g.stacks = [{ x: z.x, y: z.y, layers: [0], pen: [{}], rots: [0] }];
+    else g.oil = [{ id: 'corridor-work', x: 14, y: 6, r: 0.2, drops: 1 }];
+    const stepWorker = () => {
+      if (workerKind === 'inspector') stepInspector(g, 0.05, [z], () => g.stacks[0], () => false);
+      else if (workerKind === 'coneBot') stepConeBot(g, 0.05, []);
+      else stepBot(g, 0.05, 1.15 ** 2 / 50);
+    };
+    let yielded = false;
+    for (let i = 0; i < 1600 && worker.x < 12.5; i++) {
+      stepWorker(); idleStep(g, observerKind, 0.05);
+      yielded ||= !!observer.yieldFor;
+      assert.ok(Math.hypot(worker.x - observer.x, worker.y - observer.y) >= BOT_R * 2 - 1e-6, 'worker and observer do not overlap');
+    }
+    assert.ok(yielded && worker.x >= 12.5, `${observerKind} makes way for working ${workerKind} in a corridor`);
+  }
+}
+
+// If an observer is boxed in, the worker can try another route rather than waiting forever.
+{
+  const g = botGame();
+  g.stacks = []; flatWorld(g); g.areas = []; g.coneBot = null; g.tapeBot = null;
+  g.walls.push({ x: 9, y: 5, w: 2, h: 0.1 }, { x: 9, y: 6.9, w: 2, h: 0.1 },
+    { x: 9, y: 5, w: 0.1, h: 2 }, { x: 10.9, y: 5, w: 0.1, h: 2 });
+  Object.assign(g.fl, { x: 15, y: 11, a: 0, speed: 0 });
+  Object.assign(g.inspector, { x: 8.5, y: 6, show: 1, activity: 'work', path: [{ x: 12, y: 6 }], repath: 1e9 });
+  Object.assign(g.bot, { mode: 'out', show: 1, activity: 'follow', x: 10, y: 6, a: 0,
+    yieldFor: 'inspector', yieldPath: [], repath: 0 });
+  for (let i = 0; i < 50 && !g.bot.yieldBlock; i++) idleStep(g, 'bot', 0.05);
+  assert.equal(g.bot.yieldBlock?.worker, 'inspector', 'impossible yielding temporarily restores the observer as an obstacle');
+  assert.equal(g.inspector.repath, 0, 'the worker is prompted to find a detour');
+}
+
+// A yielding observer abandons its detour immediately when a forklift scares it.
+{
+  for (const kind of botKinds) {
+    const g = botGame();
+    g.stacks = []; flatWorld(g); g.areas = [];
+    for (const other of botKinds) if (other !== kind && other !== 'inspector') g[other] = null;
+    const b = g[kind];
+    if (kind === 'inspector') g.bot = { x: 6, y: 6, show: 1, activity: 'work', path: [{ x: 12, y: 6 }] };
+    else Object.assign(g.inspector, { x: 6, y: 6, show: 1, activity: 'work', path: [{ x: 12, y: 6 }] });
+    Object.assign(b, { mode: 'out', show: 1, activity: 'follow', x: 8, y: 6, a: 0,
+      yieldFor: kind === 'inspector' ? 'bot' : 'inspector', yieldPath: [{ x: 9, y: 6 }], repath: 1e9 });
+    Object.assign(g.fl, { x: 6, y: 6, a: 0, speed: 2 });
+    idleStep(g, kind, 0.05);
+    assert.ok(b.scared && b.fleePath && !b.yieldFor && !b.yieldPath.length, `${kind} flees instead of continuing to yield`);
+  }
 }
 
 // All bot pairs pass on their own right without overlapping, including the cone and tape bots.
