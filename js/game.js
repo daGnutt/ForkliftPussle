@@ -1450,7 +1450,37 @@ function resolveHard(g, motion) {
     { kind: loadImpact.kind, dx: loadImpact.dx, dy: loadImpact.dy, rots: carriedRotsWorld(g) }, loadImpact.speed);
 }
 
+// A loose pallet is shoved (and turned) by the truck body and low tines; walls stop it, and a jammed pallet then blocks the truck.
+function pushPallets(g) {
+  const pallets = g.stacks.filter((s) => s.pen?.[0]?.loose && !s.pen[0].loose.lift);
+  if (!pallets.length) return;
+  const shapes = forkShapes(g).filter((sh) => !sh.carried && !(sh.tine && g.hy > 0.2));
+  for (const s of pallets) {
+    for (let it = 0; it < 4; it++) {
+      const l = s.pen[0].loose, hy = halfY(s.pen[0]);
+      let poly = rectPoly(l.x, l.y, BOX_HALF_X, hy, l.a), moved = false;
+      for (const sh of shapes) {
+        const m = sat(sh.poly, poly);
+        if (!m) continue;
+        const at = intersectionCenter(sh.poly, poly) || l, turn = ((at.x - l.x) * -m.y - (at.y - l.y) * -m.x) * m.depth * 0.8;
+        const a = l.a + Math.max(-0.1, Math.min(0.1, turn)), x = l.x - m.x * (m.depth + WALL_GAP), y = l.y - m.y * (m.depth + WALL_GAP);
+        for (const q of s.pen) q.loose = { ...q.loose, x, y, a };
+        poly = rectPoly(x, y, BOX_HALF_X, hy, a); moved = true;
+      }
+      for (const w of g.walls) {
+        const m = sat(poly, w.poly);
+        if (!m) continue;
+        const x = s.pen[0].loose.x + m.x * (m.depth + WALL_GAP), y = s.pen[0].loose.y + m.y * (m.depth + WALL_GAP);
+        for (const q of s.pen) q.loose = { ...q.loose, x, y };
+        poly = rectPoly(x, y, BOX_HALF_X, hy, s.pen[0].loose.a);
+      }
+      if (!moved) break;
+    }
+  }
+}
+
 function resolve(g, motion) {
+  pushPallets(g);
   if (g.hard) return resolveHard(g, motion);
   const f = g.fl;
   g.wallPush = null;

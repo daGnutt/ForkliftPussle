@@ -554,7 +554,7 @@ function addFixBot(om, tm, g) {
   const on = botBeaconOn(g, b);
   om.cuboid(...at(0, 0), b.a, 0.04, 0.04, shape.h - 0.05, shape.h, beaconColor('#78e5f4', on), { emissive: on });
   if (b.carry) {
-    const k = b.carry, pens = k.pen.map((p) => ({ ...p, loose: undefined }));
+    const k = b.carry, pens = k.pen.map((p) => ({ ...p, loose: p.loose && { ...p.loose, bare: true } }));
     const l = k.pen[0].loose;
     if (l) addPallet(om, l.x, l.y, l.a, 0, k.pen[0], true);
     addStack(om, tm, k.x, k.y, k.rots || [], k.layers, (b.carryZ || 0) / (BOX_H + PAL), k.offs, 0, 0, pens);

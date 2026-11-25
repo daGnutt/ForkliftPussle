@@ -44,10 +44,10 @@ export function addPallet(m, x, y, r, z, pen, bottom) {
 }
 
 // A box that tumbled lies on its side or upside down (`pen.tip`, `tipShow` while it rolls over) and may have lost its pallet
-// (`pen.loose`, the pallet's own floor pose). A toppled box is built upright, rolled about its pallet axis (local x) and set on the floor again.
+// (`pen.loose`, the pallet's own floor pose; `loose.bare` draws only the box, e.g. while the righting bot carries it). A toppled box is built upright, rolled about its pallet axis (local x) and set on the floor again.
 function addBox(m, tm, x, y, r, z, col, pen, level) {
   const loose = pen?.loose, tilt = pen?.tipShow ?? [0, Math.PI / 2, Math.PI][pen?.tip || 0];
-  if (loose) addPallet(m, loose.x, loose.y, loose.a, loose.lift || 0, pen, true);
+  if (loose && !loose.bare) addPallet(m, loose.x, loose.y, loose.a, loose.lift || 0, pen, true);
   if (!tilt) { addParts(m, tm, x, y, r, z, col, pen, level, !loose); return; }
   const barrel = pen?.barrelPart === 'base', zb = z;
   const full = barrel ? 2 * (BOX_H + PAL) : BOX_H + PAL, ht = loose ? full - PAL : full, half = ht / 2;

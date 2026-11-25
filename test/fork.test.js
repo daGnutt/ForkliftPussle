@@ -842,17 +842,19 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('fork max height ok');
 }
 
-// A pallet a tumbled box lost lies on the floor and blocks forklifts.
-{
-  const g = newGame(1, 0, true);
+// A pallet a tumbled box lost lies on the floor: forklifts push it along, and a wall stops it.
+for (const hard of [false, true]) {
+  const g = newGame(1, 0, hard);
   flatWorld(g);
   g.stacks = [{ x: 3, y: 3, layers: [0], rots: [0], a: 0, pen: [{ tip: 1, loose: { x: 10, y: 5, a: 0 } }] }];
   Object.assign(g.fl, { x: 7, y: 5, a: 0, speed: 0 });
   run(g, { up: true }, 4);
-  assert.ok(g.fl.x + FL.front < 9.6, `the forklift stops at the loose pallet (x ${g.fl.x})`);
-  g.stacks[0].pen[0].loose.lift = true;
-  run(g, { up: true }, 2);
-  assert.ok(g.fl.x > 9.7, 'a pallet carried by a bot no longer blocks');
+  const l = g.stacks[0].pen[0].loose;
+  assert.ok(l.x > 10.5, `the pallet is pushed ahead (x ${l.x}, hard ${hard})`);
+  assert.ok(g.fl.x > 8.2, 'the forklift is not stopped by it');
+  run(g, { up: true }, 12);
+  assert.ok(g.stacks[0].pen[0].loose.x + 0.5 <= g.w + 1e-6, 'it never leaves the warehouse');
+  assert.ok(g.fl.x + FL.front <= g.w, 'the forklift stays inside too');
 }
 
 console.log('fork tests passed');
