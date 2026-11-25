@@ -909,6 +909,23 @@ export function coneTargets(g, doneZones, stackAt = (z) => g.stacks.find((s) => 
       if (!nearNeighbourCorner) add(`stack:${zoneMarkKey(z)}:${i}`, x, y);
     }
   }
+  // Toppled boxes and barrels, and the pallets they lost, are hazards on the floor: cone their corners until they are righted.
+  const hazard = (id, x, y, angle, pen, stack) => {
+    const hx = BOX_HALF_X + 0.18, hy = halfY(pen) + 0.18;
+    for (let i = 0; i < 4; i++) {
+      const sx = i & 1 ? 1 : -1, sy = i & 2 ? 1 : -1;
+      const cx = x + sx * hx * Math.cos(angle) - sy * hy * Math.sin(angle), cy = y + sx * hx * Math.sin(angle) + sy * hy * Math.cos(angle);
+      const d = Math.hypot(cx - x, cy - y) || 1, standR = STACK_R + BOT_R + 0.5;
+      targets.set(`${id}:${i}`, { id: `${id}:${i}`, x: cx, y: cy, stackCenter: { x, y }, approach: { x: x + (cx - x) / d * standR, y: y + (cy - y) / d * standR } });
+    }
+  };
+  for (const stack of g.stacks) {
+    const pen = stack.pen?.[0];
+    if (!pen || stack.roll || stack.fall) continue;
+    if (pen.tip) hazard(`tip:${stack.x.toFixed(1)},${stack.y.toFixed(1)}`, stack.x, stack.y, stack.rots?.[0] ?? stack.a ?? 0, pen);
+    const l = pen.loose;
+    if (l && !l.lift) hazard(`pallet:${l.x.toFixed(1)},${l.y.toFixed(1)}`, l.x, l.y, l.a, pen);
+  }
   const unique = [];
   for (const target of targets.values()) {
     if (tapedAreas.some((a) => target.x >= a.x0 && target.x <= a.x1 && target.y >= a.y0 && target.y <= a.y1)) continue;

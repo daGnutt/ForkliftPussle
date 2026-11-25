@@ -20,6 +20,11 @@ export function palletSupported(tines, box, runners) {
       runners.every((runner) => (sat(tine, runner)?.depth || 0) <= CONTACT_EPS));
 }
 
+// Which tines (by index) are in the pallet's slots: overlapping it without touching a runner.
+export function tinesInPallet(tines, box, runners) {
+  return tines.map((tine) => overlapArea(tine, box) >= TINE_OVERLAP && runners.every((runner) => (sat(tine, runner)?.depth || 0) <= CONTACT_EPS));
+}
+
 // Project all contacts together; opposing constraints cancel rather than pushing a pallet through one tine.
 export function contactCorrection(contacts) {
   let x = 0, y = 0;

@@ -1784,4 +1784,16 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.ok(!g.stacks[0].pen[0].tip, 'a box that kept its pallet is turned upright');
 }
 
+// Toppled boxes and their lost pallets get cones around them until righted.
+{
+  const g = newGame(1, 0, false);
+  g.stacks = [{ x: 8, y: 8, layers: [0], rots: [0], a: 0, pen: [{ tip: 1, loose: { x: 10, y: 8, a: 0 } }] }];
+  g.zones = [];
+  const ids = coneTargets(g, []).map((t) => t.id);
+  assert.equal(ids.filter((id) => id.startsWith('tip:')).length, 4, 'four cones around the toppled box');
+  assert.equal(ids.filter((id) => id.startsWith('pallet:')).length, 4, 'four cones around the loose pallet');
+  delete g.stacks[0].pen[0].tip; delete g.stacks[0].pen[0].loose;
+  assert.equal(coneTargets(g, []).length, 0, 'none once it is righted');
+}
+
 console.log('bot tests passed');

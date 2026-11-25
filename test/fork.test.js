@@ -548,9 +548,20 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     Object.assign(g.fl, { x: 9, y, a: 0, speed: 0 });
     return g;
   };
-  const oneTine = game(true, 5.4);
-  assert.equal(forkUp(oneTine), 'blocked');
+  const oneTine = game(true, 5.5);
+  assert.notEqual(forkUp(oneTine), 'blocked', 'lifting on one tine tips the box off instead');
   assert.equal(oneTine.carried, null);
+  assert.equal(oneTine.stacks.length, 1);
+  assert.ok(Math.hypot(oneTine.stacks[0].x - 10, oneTine.stacks[0].y - 5) > 0.9, 'the box fell off beside the pallet spot');
+  assert.ok(oneTine.stacks[0].pen[0].crash > 0, 'and was damaged');
+  const held = game(true, 5.5);
+  run(held, { forkUp: true }, TAP_S + 0.5);
+  assert.equal(held.carried, null, 'a held key topples it too');
+  assert.ok(Math.hypot(held.stacks[0].x - 10, held.stacks[0].y - 5) > 0.9);
+  const tower = game(true, 5.5);
+  tower.stacks[0].layers = [0, 1]; tower.stacks[0].rots = [0, 0];
+  forkUp(tower);
+  assert.equal(tower.stacks.length, 2, 'the whole stack tumbles off the floor');
   const both = game(true, 5);
   forkUp(both);
   assert.deepEqual(both.carried, [0]);
@@ -829,6 +840,19 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(forkUp(g), 'blocked', 'a full-height stack cannot go up into the ceiling');
   assert.equal(g.H, 1, 'it stays lifted at level 1 (full stack plus H < ceiling)');
   console.log('fork max height ok');
+}
+
+// A pallet a tumbled box lost lies on the floor and blocks forklifts.
+{
+  const g = newGame(1, 0, true);
+  flatWorld(g);
+  g.stacks = [{ x: 3, y: 3, layers: [0], rots: [0], a: 0, pen: [{ tip: 1, loose: { x: 10, y: 5, a: 0 } }] }];
+  Object.assign(g.fl, { x: 7, y: 5, a: 0, speed: 0 });
+  run(g, { up: true }, 4);
+  assert.ok(g.fl.x + FL.front < 9.6, `the forklift stops at the loose pallet (x ${g.fl.x})`);
+  g.stacks[0].pen[0].loose.lift = true;
+  run(g, { up: true }, 2);
+  assert.ok(g.fl.x > 9.7, 'a pallet carried by a bot no longer blocks');
 }
 
 console.log('fork tests passed');

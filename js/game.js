@@ -6,7 +6,7 @@ import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, OIL_DRAIN_SIZE, generateLevel } from './level.js';
 import { makeStation, stepRepair, repairable, recordDropAngle } from './repair.js';
 import { makeHatch, makeBot, makeInspector, makeConeBot, makeTapeBot, makeFixBot, stepBot, stepInspector, stepConeBot, stepTapeBot, stepFixBot, stepConeCollisions, stepTapeCollisions, stackSig, makePhoto } from './bot.js';
-import { closingSpeed, contactCorrection, palletSupported, solveContacts, supported } from './hard-physics.js';
+import { closingSpeed, contactCorrection, palletSupported, solveContacts, tinesInPallet, supported } from './hard-physics.js';
 
 const FORKLIFT_MASS = 6;
 const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
@@ -475,6 +475,19 @@ function fallBase(g, s) {
   return v;
 }
 
+// Pallets a tumbled box lost lie on the floor as solid obstacles shaped like walls (`of`: the stack they came off).
+function solids(g) {
+  const out = g.walls.slice();
+  for (const s of g.stacks) {
+    const l = s.pen?.[0]?.loose;
+    if (!l || l.lift) continue;
+    const poly = rectPoly(l.x, l.y, BOX_HALF_X, halfY(s.pen[0]), l.a), xs = poly.map((p) => p.x), ys = poly.map((p) => p.y);
+    const x = Math.min(...xs), y = Math.min(...ys);
+    out.push({ x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y, poly, of: s, pallet: true });
+  }
+  return out;
+}
+
 const ROLL_SPEED = 1.6, ROLL_DECEL = 1.2; // tiles/s a toppled barrel starts rolling at, and how fast it slows
 // Where the pallet of a tumbled box ends up beside it (a pose relative to the box), or null when the box keeps its pallet.
 function looseOnLanding(x, y, startZ, tip) {
@@ -525,54 +538,62 @@ function settle(g, S) {
     }
     const len = Math.hypot(dx, dy) || 1;
     dx /= len; dy /= len;
-    const target = g.hard ? hardFallSpot(g, S, i, dx, dy) : null;
-    if (g.hard && !target) return;
-    const startZ = i;
-    addDent(S.pen[i - 1], 't');
-    const pen = S.pen.splice(i);
-    const offs = S.offs.splice(i);
-    const rots = S.rots.splice(i);
-    const { x: nx, y: ny } = target || fallSpot(g, S, dx, dy, rots[0], pen[0]);
-    hurt(g, pen, CRASH_POINTS, target ? nx : S.x + dx * 1.45, target ? ny : S.y + dy * 1.45, pen.length);
-    const layers = S.layers.splice(i);
-    const rel = offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y }));
-    // Landing within stackable reach of another stack's top box, the fallen boxes come to rest on it.
-    const under0 = g.hard ? target.under : g.stacks.find((t) => {
-      if (t === S || t.layers.length + layers.length > MAX_LAYERS || blocksStacking(t.pen) || wideBox(t.pen) !== wideBox(pen)) return false;
-      const c = boxPos(t, t.layers.length - 1);
-      return Math.abs(c.x - nx) < 0.55 && Math.abs(c.y - ny) < 0.55;
-    });
-    const under = under0;
-    const fall = (from, z, ox = a.x, oy = a.y, nx2 = nx, ny2 = ny) => ({ t0: g.clock, dx: ox - nx2, dy: oy - ny2, dr: 0.7 * Math.sign(dx * dy || 1), z, from });
-    if (under) {
-      under.fall = fall(under.layers.length, 0);
-      under.layers.push(...layers); under.rots.push(...rots); under.pen.push(...pen);
-      under.offs.push(...rel.map((o) => ({ x: nx + o.x - under.x, y: ny + o.y - under.y })));
-      settle(g, under);
-    } else {
-      // Every fallen box (a barrel is one unit of two layers) tumbles on its own: it lands beside the others, upright, on its side or
-      // upside down, and may lose its pallet. A barrel on its side rolls on.
-      const taken = [];
-      for (let j = 0; j < layers.length; j += pen[j].barrelPart === 'base' ? 2 : 1) {
-        const n = pen[j].barrelPart === 'base' ? 2 : 1, ps = pen.slice(j, j + n);
-        const spot = j === 0 ? { x: nx, y: ny } : scatterSpot(g, nx, ny, rots[j], pen[j], taken) || { x: nx + rel[j].x, y: ny + rel[j].y };
-        taken.push(boxPoly(spot.x, spot.y, rots[j], pen[j]));
-        const tip = tipOnLanding(spot.x, spot.y, startZ + j), rolls = tip === 1 && n === 2;
-        const gone = looseOnLanding(spot.x, spot.y, startZ + j, tip);
-        const ang = rolls ? Math.atan2(dy, dx) : rots[j];
-        for (const q of ps) {
-          if (tip) q.tip = tip;
-          if (gone) q.loose = { x: spot.x + gone.x, y: spot.y + gone.y, a: gone.a };
-        }
-        const st = { x: spot.x, y: spot.y, layers: layers.slice(j, j + n), rots: rots.slice(j, j + n).map(() => ang), pen: ps, a: ang,
-          offs: ps.map(() => ({ x: 0, y: 0 })), fall: fall(0, startZ + j, S.x + offs[j].x, S.y + offs[j].y, spot.x, spot.y) };
-        if (rolls) st.roll = { vx: dx * ROLL_SPEED, vy: dy * ROLL_SPEED };
-        g.stacks.push(st);
-      }
-    }
-    if (g.hard && S.layers.length > 1) settle(g, S);
+    if (fallOff(g, S, i, dx, dy) === false) return;
     break;
   }
+}
+
+// Boxes `from` and up slide off their stack and tumble to the floor (`from` 0: the whole stack, which then ceases to be one).
+// Returns false when a hard-mode box finds nowhere to land.
+function fallOff(g, S, i, dx, dy) {
+  const a = boxPos(S, i);
+  const target = g.hard ? hardFallSpot(g, S, i, dx, dy) : null;
+  if (g.hard && !target) return false;
+  const startZ = Math.max(i, 1);
+  if (i > 0) addDent(S.pen[i - 1], 't');
+  const pen = S.pen.splice(i);
+  const offs = S.offs.splice(i);
+  const rots = S.rots.splice(i);
+  const { x: nx, y: ny } = target || fallSpot(g, S, dx, dy, rots[0], pen[0]);
+  hurt(g, pen, CRASH_POINTS, target ? nx : S.x + dx * 1.45, target ? ny : S.y + dy * 1.45, pen.length);
+  const layers = S.layers.splice(i);
+  const rel = offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y }));
+  // Landing within stackable reach of another stack's top box, the fallen boxes come to rest on it.
+  const under0 = g.hard ? target.under : g.stacks.find((t) => {
+    if (t === S || t.layers.length + layers.length > MAX_LAYERS || blocksStacking(t.pen) || wideBox(t.pen) !== wideBox(pen)) return false;
+    const c = boxPos(t, t.layers.length - 1);
+    return Math.abs(c.x - nx) < 0.55 && Math.abs(c.y - ny) < 0.55;
+  });
+  const under = under0;
+  const fall = (from, z, ox = a.x, oy = a.y, nx2 = nx, ny2 = ny) => ({ t0: g.clock, dx: ox - nx2, dy: oy - ny2, dr: 0.7 * Math.sign(dx * dy || 1), z, from });
+  if (under) {
+    under.fall = fall(under.layers.length, 0);
+    under.layers.push(...layers); under.rots.push(...rots); under.pen.push(...pen);
+    under.offs.push(...rel.map((o) => ({ x: nx + o.x - under.x, y: ny + o.y - under.y })));
+    settle(g, under);
+  } else {
+    // Every fallen box (a barrel is one unit of two layers) tumbles on its own: it lands beside the others, upright, on its side or
+    // upside down, and may lose its pallet. A barrel on its side rolls on.
+    const taken = [];
+    for (let j = 0; j < layers.length; j += pen[j].barrelPart === 'base' ? 2 : 1) {
+      const n = pen[j].barrelPart === 'base' ? 2 : 1, ps = pen.slice(j, j + n);
+      const spot = j === 0 ? { x: nx, y: ny } : scatterSpot(g, nx, ny, rots[j], pen[j], taken) || { x: nx + rel[j].x, y: ny + rel[j].y };
+      taken.push(boxPoly(spot.x, spot.y, rots[j], pen[j]));
+      const tip = tipOnLanding(spot.x, spot.y, startZ + j), rolls = tip === 1 && n === 2;
+      const gone = looseOnLanding(spot.x, spot.y, startZ + j, tip);
+      const ang = rolls ? Math.atan2(dy, dx) : rots[j];
+      for (const q of ps) {
+        if (tip) q.tip = tip;
+        if (gone) q.loose = { x: spot.x + gone.x, y: spot.y + gone.y, a: gone.a };
+      }
+      const st = { x: spot.x, y: spot.y, layers: layers.slice(j, j + n), rots: rots.slice(j, j + n).map(() => ang), pen: ps, a: ang,
+        offs: ps.map(() => ({ x: 0, y: 0 })), fall: fall(0, startZ + j, S.x + offs[j].x, S.y + offs[j].y, spot.x, spot.y) };
+      if (rolls) st.roll = { vx: dx * ROLL_SPEED, vy: dy * ROLL_SPEED };
+      g.stacks.push(st);
+    }
+  }
+  if (!S.layers.length) g.stacks.splice(g.stacks.indexOf(S), 1);
+  else if (g.hard && S.layers.length > 1) settle(g, S);
 }
 
 
@@ -976,7 +997,7 @@ function slideCarried(g, from, m) {
   });
   const world = g.carried.map((_, i) => carriedPoly(g, i));
   const obstacles = world.map((_, i) => {
-    const out = g.walls.map((w) => w.poly);
+    const out = solids(g).map((w) => w.poly);
     for (const s of g.stacks) {
       const k = carriedLevel(g) + i;
       if (s.ghost?.includes(g.truck.id) || k < 0 || k >= s.layers.length) continue;
@@ -1030,9 +1051,10 @@ function resolveTruckWalls(g, shapes, moveF, effects = true) {
       wp.x += dx; wp.y += dy;
     }
   };
+  const solid = solids(g);
   for (const sh of shapes) {
     if (sh.carried) continue;
-    for (const w of g.walls) {
+    for (const w of solid) {
       const m = sat(sh.poly, w.poly);
       if (!m) continue;
       changed = true;
@@ -1047,7 +1069,7 @@ function resolveTruckWalls(g, shapes, moveF, effects = true) {
     }
   }
   for (let i = 0; i < (g.carried?.length || 0); i++) {
-    for (const w of g.walls) {
+    for (const w of solid) {
       const poly = carriedPoly(g, i), m = sat(poly, w.poly);
       if (!m) continue;
       changed = true;
@@ -1071,11 +1093,13 @@ function resolveTruckWalls(g, shapes, moveF, effects = true) {
 
 function resolveStackWalls(g, effects = true) {
   let changed = false;
+  const solid = solids(g);
   for (const s of g.stacks) {
     if (s.leaving) continue;
     ensure(s);
     for (let i = 0; i < s.layers.length; i++) {
-      for (const w of g.walls) {
+      for (const w of solid) {
+        if (w.of === s) continue;
         const c = boxPos(s, i), r = Math.hypot(BOX_HALF_X, halfY(s.pen[i]));
         if (c.x + r < w.x || c.x - r > w.x + w.w || c.y + r < w.y || c.y - r > w.y + w.h) continue;
         const poly = boxPoly(c.x, c.y, s.rots[i], s.pen[i]), m = sat(poly, w.poly);
@@ -1249,9 +1273,9 @@ function resolveHard(g, motion) {
   };
 
   const collect = (iteration) => {
-    const contacts = [], shapes = forkShapes(g);
+    const contacts = [], shapes = forkShapes(g), solid = solids(g);
     for (let i = 0; i < shapes.length; i++) {
-      for (const w of g.walls) if (sat(shapes[i].poly, w.poly)) contacts.push({ kind: 'wall', shape: i, wall: w });
+      for (const w of solid) if (sat(shapes[i].poly, w.poly)) contacts.push({ kind: 'wall', shape: i, wall: w });
     }
     for (const o of otherTrucks(g)) {
       if (Math.hypot(o.fl.x - f.x, o.fl.y - f.y) > 6 || ghostBetween(g, g.truck.id, o.truck.id) || o.truck.liftedBy === g.truck.id) continue;
@@ -1288,7 +1312,8 @@ function resolveHard(g, motion) {
       if (s.leaving) continue;
       for (let i = 0; i < s.layers.length; i++) {
         const c = boxPos(s, i), r = Math.hypot(BOX_HALF_X, halfY(s.pen[i]));
-        for (const w of g.walls) {
+        for (const w of solid) {
+          if (w.of === s) continue;
           if (c.x + r < w.x || c.x - r > w.x + w.w || c.y + r < w.y || c.y - r > w.y + w.h) continue;
           if (sat(boxAt(s, i), w.poly)) contacts.push({ kind: 'stackWall', stack: s, layer: i, wall: w });
         }
@@ -2049,6 +2074,26 @@ function forkedStack(g) {
   return S && S.layers.length > g.H && S.pen[g.H]?.barrelPart !== 'top' ? S : null;
 }
 
+// Hard mode: raising forks with only one tine in a pallet (the other beside it) tips the box off. Returns true when it did.
+function toppleOffOneTine(g) {
+  if (!g.hard || g.carried || g.lifting >= 0 || g.hy - g.H > FORK_CLEARANCE + 1e-6) return false;
+  const tines = forkShapes(g).filter((shape) => shape.tine).map((shape) => shape.poly);
+  for (const s of g.stacks) {
+    if (s.layers.length <= g.H || s.ghost?.includes(g.truck.id) || s.leaving) continue;
+    ensure(s);
+    if (s.pen[g.H]?.barrelPart === 'top' || isToppled(s.pen[g.H])) continue;
+    const c = boxPos(s, g.H);
+    if (Math.abs(c.x - g.fl.x) > 3 || Math.abs(c.y - g.fl.y) > 3) continue;
+    const box = boxPoly(c.x, c.y, s.rots[g.H], s.pen[g.H]);
+    const inside = tinesInPallet(tines, box, palletRunners(g, s));
+    if (inside.filter(Boolean).length !== 1) continue;
+    const side = inside[0] ? -1 : 1, ux = -Math.sin(g.fl.a) * side, uy = Math.cos(g.fl.a) * side;
+    if (fallOff(g, s, g.H, ux, uy) === false) continue;
+    return true;
+  }
+  return false;
+}
+
 function forkObstructed(g) {
   const tines = forkShapes(g).filter((shape) => shape.tine);
   return g.stacks.some((s) => {
@@ -2207,6 +2252,7 @@ function forkUpStep(g) {
     return;
   }
   const S = forkedStack(g);
+  if (!S && toppleOffOneTine(g)) { g.H = Math.min(MAX_H, g.H + 1); return; }
   if (g.hard && !S && forkObstructed(g)) return 'blocked';
   if (S && pickUp(g, S) === 'blocked') return 'blocked';
   g.H = Math.min(MAX_H, g.H + 1);
@@ -2334,7 +2380,10 @@ function fluidUp(g, k, dt) {
   }
   const hy = Math.min(MAX_H, g.hy + FORK_RATE * dt);
   const S = forkedStack(g);
-  if (!S && hy - g.H >= FORK_CLEARANCE - 1e-6 && forkObstructed(g)) return 'blocked';
+  if (!S && hy - g.H >= FORK_CLEARANCE - 1e-6) {
+    if (toppleOffOneTine(g)) { setHy(g, hy); return; }
+    if (forkObstructed(g)) return 'blocked';
+  }
   if (S && hy - g.H >= FORK_CLEARANCE - 1e-6) {
     if (pickUp(g, S) === 'blocked') return 'blocked';
     k.last = 1;
