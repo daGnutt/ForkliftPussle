@@ -1,5 +1,7 @@
 # Pallet Polka
 
+![Pallet Polka: an isometric forklift with its cleaner, inspector, cone bot and tape bot warehouse crew](assets/cover/cover.png)
+
 Top-down browser puzzle (keyboard, gamepad or touch; tested for Firefox), rendered in 3D with a 2D fallback. Drive a forklift and move coloured boxes onto the matching coloured zones, solo, in local or online multiplayer, or in endless mode. A zone is done when a stack of exactly its count (`×N`) and only its colour sits on it. All zones of one colour are grouped in a single tinted area.
 
 ## Controls

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Pallet Polka: an isometric yellow forklift carrying a blue box</title>
+  <rect width="64" height="64" rx="14" fill="#1b1f23"/>
+  <g id="forklift" stroke-linejoin="round">
+    <path d="M8 44 34 59 61 43 35 28Z" fill="#101418"/>
+    <ellipse cx="44" cy="42" rx="4.5" ry="5.5" fill="#101418"/>
+    <path d="m11 33 16-9 19 11-16 10Z" fill="#ffc933"/>
+    <path d="m11 33 19 12v8L11 41Z" fill="#e59321"/>
+    <path d="m30 45 16-10v9L30 53Z" fill="#f5b52b"/>
+    <path d="m12 32 7-4 8 5-7 4Z" fill="#ffe18a"/>
+    <path d="m18 28 6-3 8 5-6 4v5l-8-5Z" fill="#25313b"/>
+    <path d="M12 20v13M27 28v14M39 21v12" fill="none" stroke="#607683" stroke-width="2.5"/>
+    <path d="m9 19 16-9 17 10-16 9Z" fill="#f4f0df"/>
+    <path d="m9 19 17 10v3L9 22Z" fill="#9eacb5"/>
+    <path d="m26 29 16-9v3L26 32Z" fill="#d3dce0"/>
+    <path d="m14 19 11-6 12 7-11 6Z" fill="#ffc933"/>
+    <path d="M42 16v25M47 13v26" fill="none" stroke="#a9bac4" stroke-width="3"/>
+    <path d="m42 39 14 8 2-1-14-8Zm5-3 14 8 2-1-14-8Z" fill="#d3dce0"/>
+    <path d="m43 26 9-5 9 5-9 5Z" fill="#8ad9f2"/>
+    <path d="m43 26 9 5v10l-9-5Z" fill="#299cc9"/>
+    <path d="m52 31 9-5v10l-9 5Z" fill="#176786"/>
+    <path d="m47 24 9 5-3 2-9-5Z" fill="#d4eef5"/>
+    <path d="m48 29 3 2v9l-3-2Z" fill="#96d4e7"/>
+    <ellipse cx="16" cy="42" rx="4.5" ry="5.5" fill="#101418"/>
+    <ellipse cx="31" cy="51" rx="4.5" ry="5.5" fill="#101418"/>
+    <ellipse cx="16" cy="42" rx="2" ry="2.7" fill="#9eacb5"/>
+    <ellipse cx="31" cy="51" rx="2" ry="2.7" fill="#9eacb5"/>
+    <path d="m11 35 3 2v3l-3-2Z" fill="#ff775a"/>
+  </g>
+</svg>
