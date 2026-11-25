@@ -1538,6 +1538,7 @@ function pickFixJob(g, bot) {
 function spotFree(g, x, y, self) {
   if (x < 1 || y < 1 || x > g.w - 1 || y > g.h - 1) return false;
   if (g.walls.some((w) => rectDist(x, y, w) < 0.8)) return false;
+  if (g.hatch && Math.hypot(g.hatch.x - x, g.hatch.y - y) < 2.5) return false; // never block the bot's own way home
   for (const s of g.stacks) {
     if (Math.hypot(s.x - x, s.y - y) < 1.5) return false;
     const l = s !== self && s.pen?.[0]?.loose;
@@ -1636,11 +1637,19 @@ export function stepFixBot(g, dt) {
     }
   } else if (job.phase === 'carry') {
     move(bot.x, bot.y, bot.a, FIX_HOVER);
-    if (arrived) { job.phase = 'down'; job.t = 0; job.dx = bot.x; job.dy = bot.y; job.da = bot.a; }
+    if (arrived) {
+      job.phase = 'down'; job.t = 0; job.dx = bot.x; job.dy = bot.y; job.da = bot.a;
+      if (job.kind === 'box') { const l = bot.carry?.pen[0].loose; job.pallet = l && { x: l.x, y: l.y, a: l.a }; job.spot = { x: bot.x, y: bot.y, a: bot.a }; }
+    }
   } else if (job.phase === 'down') {
     if (!bot.scared && bot.unfold >= 1) job.t += dt;
     const p = Math.min(1, job.t / FIX_BEAM_SECS), e = smooth(p), sp = job.spot;
     move(lerp(job.dx, sp.x, e), lerp(job.dy, sp.y, e), job.da + angDiff(job.da, sp.a) * e, FIX_HOVER * (1 - e));
+    // A box is only ever set down right beneath the bot; its lost pallet slides in under it.
+    if (job.pallet && bot.carry) {
+      const q = job.pallet, pose = { x: lerp(q.x, sp.x, e), y: lerp(q.y, sp.y, e), a: q.a + angDiff(q.a, sp.a) * e };
+      for (const p of bot.carry.pen) p.loose = { ...p.loose, ...pose };
+    }
     if (p >= 1) {
       if (bot.carry) { placeBox(g, bot.carry, sp); bot.carry = null; }
       else if (s) { setLoose(s, { x: sp.x, y: sp.y, a: sp.a, set: true }); for (const q of s.pen) delete q.loose.lift; }
