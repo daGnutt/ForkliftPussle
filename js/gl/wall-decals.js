@@ -1,70 +1,8 @@
+import { wallDecal, wallBase, hash } from '../decals.js';
 import { theme } from '../theme.js';
-import { decalsEnabled, wallDecal, wallBase, hash, boxDecalShapes } from '../decals.js';
-import { topShapes, sideShapes, DENT_FILL } from '../dents.js';
-import { tapeShapes, TAPE_FILL } from '../repair.js';
-import { project, pathPoly, toCam, BOX_H, DECAL_MAX_DIST, FAR_DARK, PALLET_COLOR } from './camera.js';
-
-// Face painting: flat colour, distance shading and the decals on walls, boxes and chargers.
-// Decal shapes are given in face coordinates: u = 0..1 along the face, v = height in tiles.
 
 const YEL = '#f4c414', RED = '#c62828', WHITE = '#eeeeee', BLACK = '#1a1a1a';
-
-const rgbCache = new Map();
-function parseHex(c) {
-  let v = rgbCache.get(c);
-  if (v === undefined) {
-    const m = /^#([0-9a-f]{6})$/i.exec(c);
-    v = m ? [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16)] : null;
-    rgbCache.set(c, v);
-  }
-  return v;
-}
-
-// Opaque `fill` darkened by `dark` (0..1) as a single colour, so a face needs one fill instead of two. null if not a #rrggbb colour.
-const shadeCache = new Map();
-function darkened(fill, dark, lift = 0) {
-  const rgb = parseHex(fill);
-  if (!rgb) return null;
-  const step = Math.round(dark * 48) + (lift ? 100 : 0);
-  const key = fill + step;
-  let out = shadeCache.get(key);
-  if (out === undefined) {
-    const k = 1 - (step % 100) / 48;
-    const f = (c) => Math.round(Math.min(255, c * k + lift * (255 - c * k)));
-    out = `rgb(${f(rgb[0])},${f(rgb[1])},${f(rgb[2])})`;
-    shadeCache.set(key, out);
-  }
-  return out;
-}
-
-// Fills a polygon given as world points [x, y, z] with `fill`, darkened by `dark`.
-function decalPoly(ctx, cam, world, fill, dark) {
-  const pts = project(cam, world.map(([x, y, z]) => toCam(cam, x, y, z)));
-  if (pts.length < 3) return;
-  pathPoly(ctx, pts);
-  const flat = darkened(fill, dark);
-  ctx.fillStyle = flat || fill;
-  ctx.fill();
-  if (!flat) {
-    ctx.fillStyle = `rgba(0,0,0,${dark})`;
-    ctx.fill();
-  }
-}
-
-// Shape painter for a face from `a` (u = 0) to `b` (u = 1).
-function faceShapes(ctx, cam, a, b, dark) {
-  const shape = (uv, fill) => decalPoly(ctx, cam, uv.map(([u, v]) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, v]), fill, dark);
-  return {
-    shape,
-    box: (u0, v0, u1, v1, fill) => shape([[u0, v0], [u1, v0], [u1, v1], [u0, v1]], fill),
-    disc: (u, v, r, fill) => shape(circlePts(u, v, r), fill),
-    tri: (u, v, r, fill) => shape([[u, v + r], [u + r * 0.95, v - r * 0.55], [u - r * 0.95, v - r * 0.55]], fill),
-  };
-}
-
-function circlePts(u, v, r, n = 18) {
-  return Array.from({ length: n }, (_, i) => [u + Math.cos((i / n) * Math.PI * 2) * r, v + Math.sin((i / n) * Math.PI * 2) * r]);
-}
+const circlePts = (u, v, r, n = 18) => Array.from({ length: n }, (_, i) => [u + Math.cos((i / n) * Math.PI * 2) * r, v + Math.sin((i / n) * Math.PI * 2) * r]);
 
 // 3×5 pixel font (rows top to bottom) for the slogan posters.
 const FONT = {
@@ -343,16 +281,8 @@ const WALL_SIGNS = {
   },
 };
 
-function drawWallDecals(ctx, cam, g, f, dark) {
-  const [q0, q1] = f.side;
-  const len = Math.hypot(q1[0] - q0[0], q1[1] - q0[1]);
-  if (!decalsEnabled() || len < 0.9 || f.d > DECAL_MAX_DIST) return;
-  // Seen from outside, u = 0 is on the left, which is the segment's end point q1.
-  paintWallDecals(g, faceShapes(ctx, cam, q1, q0, dark), f);
-}
-
 // Paints the decals of one wall segment `f` ({ side: [q0, q1], mx, my, k, n }) through the shape painter `p`
-// ({ shape, box, disc, tri }; u = 0 at q1, u = 1 at q0). Shared by the canvas and WebGL renderers.
+// ({ shape, box, disc, tri }; u = 0 at q1, u = 1 at q0). Used by the WebGL renderer.
 export function paintWallDecals(g, p, f) {
   const [q0, q1] = f.side;
   // The wall ends facing into a doorway always get the hazard-chevron base stripe (no signs or doors).
@@ -387,34 +317,6 @@ export function paintWallDecals(g, p, f) {
   WALL_SIGNS[kind]?.(FIXED_SIGNS.has(kind) ? p : dropped(p, SIGN_DROP));
 }
 
-function drawBoxDecal(ctx, cam, f, dark) {
-  const [q0, q1, z0] = f.side;
-  for (const d of boxDecalShapes(f.deco)) {
-    decalPoly(ctx, cam, d.pts.map(([u, v]) => {
-      const U = 0.5 - u * 0.45;
-      return [q0[0] + (q1[0] - q0[0]) * U, q0[1] + (q1[1] - q0[1]) * U, z0 + BOX_H / 2 + v * BOX_H * 0.9];
-    }), d.fill, dark);
-  }
-}
-
-function drawDents(ctx, cam, f, dark) {
-  if (f.side) {
-    const [q0, q1, z0, z1] = f.side;
-    for (const poly of f.pen.dent ? sideShapes(f.pen, f.edge, f.dseed) : []) {
-      decalPoly(ctx, cam, poly.map(([u, v]) => [q0[0] + (q1[0] - q0[0]) * u, q0[1] + (q1[1] - q0[1]) * u, z0 + (z1 - z0) * v]), DENT_FILL, dark);
-    }
-  } else if (f.boxFlat && f.lit) {
-    const { x, y, r, scale } = f.box, c = Math.cos(r) * scale, s = Math.sin(r) * scale, z = f.quad[0][2];
-    if (f.pen.dent) for (const poly of topShapes(f.pen, f.dseed)) decalPoly(ctx, cam, poly.map(([u, v]) => [x + u * c - v * s, y + u * s + v * c, z]), DENT_FILL, dark);
-    if (f.pen.tape) for (const poly of tapeShapes(f.pen)) decalPoly(ctx, cam, poly.map(([u, v]) => [x + u * c - v * s, y + u * s + v * c, z]), TAPE_FILL, dark);
-  }
-}
-
-// High-voltage warning on a charger side: hazard stripes along the base and a bolt in a yellow triangle.
-function drawChargerDecal(ctx, cam, f, dark) {
-  chargerDecal(faceShapes(ctx, cam, ...f.side.slice(0, 2), dark));
-}
-
 export function chargerDecal({ shape }) {
   shape([[0, 0], [1, 0], [1, 0.1], [0, 0.1]], YEL);
   for (let i = 0; i < 4; i++) {
@@ -426,56 +328,3 @@ export function chargerDecal({ shape }) {
   shape([[0.55, 0.66], [0.38, 0.45], [0.5, 0.45], [0.44, 0.3], [0.64, 0.52], [0.52, 0.52]], BLACK);
 }
 
-export function drawFace(ctx, cam, g, f) {
-  const pts = project(cam, f.quad.map(([x, y, z]) => toCam(cam, x, y, z)));
-  if (pts.length < 3) return;
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const p of pts) {
-    if (p[0] < minX) minX = p[0];
-    if (p[0] > maxX) maxX = p[0];
-    if (p[1] < minY) minY = p[1];
-    if (p[1] > maxY) maxY = p[1];
-  }
-  if (maxX < cam.cx - cam.hw || minX > cam.cx + cam.hw) return; // fully outside the view
-  if (maxX - minX < 1 && maxY - minY < 1) return; // sub-pixel
-  const dark = Math.min(0.75, f.d / FAR_DARK) + (1 - f.shade) * 0.6;
-  pathPoly(ctx, pts);
-  if (f.glow) {
-    ctx.fillStyle = f.color;
-    ctx.fill();
-    ctx.fillStyle = `rgba(0,0,0,${Math.min(0.35, f.d / FAR_DARK * 0.35)})`;
-    ctx.fill();
-    return;
-  }
-  const d = Math.max(0, dark);
-  const base = f.color || ((f.tile ?? 0) & 1 ? '#5d646e' : '#555b64');
-  const flat = darkened(base, d, f.lit ? 0.18 : 0);
-  ctx.fillStyle = flat || base;
-  ctx.fill();
-  if (!flat) {
-    ctx.fillStyle = `rgba(0,0,0,${d})`;
-    ctx.fill();
-    if (f.lit) { ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fill(); }
-  }
-  if (f.charger && f.side) drawChargerDecal(ctx, cam, f, d);
-  if (f.coneFace && f.side) {
-    const { shape } = faceShapes(ctx, cam, ...f.side.slice(0, 2), d * 0.3);
-    const ellipse = (u, v, rx, ry, color) => shape(Array.from({ length: 12 }, (_, i) => {
-      const a = i * Math.PI / 6;
-      return [u + Math.cos(a) * rx, v + Math.sin(a) * ry];
-    }), color);
-    for (const u of [0.26, 0.74]) {
-      ellipse(u, 0.395, 0.12, 0.045, '#ffb768');
-      ellipse(u, 0.395, 0.068, 0.028, '#252322');
-      ellipse(u - 0.02, 0.407, 0.022, 0.008, '#fff3d4');
-    }
-  }
-  if (f.deco && f.d < DECAL_MAX_DIST) drawBoxDecal(ctx, cam, f, d);
-  if (f.pen && f.d < DECAL_MAX_DIST) drawDents(ctx, cam, f, d);
-  if (f.tile != null && f.side) drawWallDecals(ctx, cam, g, f, d);
-  if (f.color && f.color !== PALLET_COLOR && f.d < 14) {
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
-}

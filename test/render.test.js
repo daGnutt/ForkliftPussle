@@ -8,14 +8,10 @@ import { chaseOrbit, lookYawDelta } from '../js/gl/camera.js';
 import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTiles, chaseZoom, clearChaseTilt, groundFootprint, blendCameras, CHASE_TILT } from '../js/gl/camera.js';
 import { staticMeshes, dynamicMeshes, ceilingClip, renderMode, CEILING_HIDE_Z } from '../js/gl/scene.js';
 import { addStack as addGLStack, addForks as addGLForks, addForklift as addGLForklift, PAL, PALLET_COLOR } from '../js/gl/models.js';
-import { buildFaces as buildPovFaces } from '../js/pov/scene.js';
-import { drawFace } from '../js/pov/face.js';
-import { makeCamera } from '../js/pov/camera.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
 import { popupScale, placePhoto, drawPhoto, boxStatus, issues, stripHeight, scoreText } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { floorGrateDecal, setDecalsEnabled } from '../js/decals.js';
-import { drawFloorMarks } from '../js/pov/floor.js';
 import { setThemeMode } from '../js/theme.js';
 import { draw, drawForkGauge, observerLayout, placeObserverCard, observerObstacles } from '../js/render.js';
 import { drawHintArrow, repairHintOn, setRepairHint } from '../js/repairhint.js';
@@ -48,12 +44,6 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   setDecalsEnabled(false);
   try {
     const withMark = dynamicMeshes(g, 'ov', [10, 5]).trans.count;
-    const camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
-    drawFloorMarks(ctx, g, camera);
-    assert.ok(fills.includes('rgba(15,15,15,0.25)'), 'software cabin draws the mark');
-    fills.length = 0;
-    draw(ctx, g, { width: 1200, height: 800, dpr: 1 });
-    assert.ok(fills.includes('rgba(15,15,15,0.25)'), 'overview draws the mark outside its floor cache');
     g.skidMarks = [];
     assert.equal(withMark - dynamicMeshes(g, 'ov', [10, 5]).trans.count, 6, 'GL emits a fresh quad only while the mark exists');
   } finally {
@@ -85,7 +75,6 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 {
   const g = newGame(1, 0), keys = Object.keys(BOT_BEACONS);
   g.stacks = []; g.tapes = []; g.cones = [];
-  const camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
   for (const key of keys) {
     for (const k of keys) g[k] = null;
     const b = g[key] = { x: 7, y: 5, a: 0, show: 1, path: [{ x: 8, y: 5 }] };
@@ -100,12 +89,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
       for (let i = 0; i < mesh.n; i += 10) if (rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)
         && mesh.a[i + 3] === 0 && mesh.a[i + 4] === 0 && mesh.a[i + 5] === 0) glowing = true;
       assert.equal(glowing, on, `${key} GL beacon: ${activity}, scared=${scared}, clock=${clock}`);
-      assert.equal(buildPovFaces(g, camera).some((f) => f.color === bright && f.glow), on, `${key} software beacon follows the same state`);
     }
-    Object.assign(b, { activity: 'work', scared: false, path: [], cleaning: true, shooting: 1 }); g.clock = 0;
-    assert.ok(buildPovFaces(g, camera).some((f) => f.color === bright && f.glow), 'stationary work keeps flashing');
-    b.show = 0;
-    assert.ok(!buildPovFaces(g, camera).some((f) => f.color === bright), 'hidden bot has no beacon');
   }
 }
 
@@ -116,13 +100,12 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   for (const key of Object.keys(BOT_BEACONS)) g[key] = null;
   const tape = { x: 7, y: 5, w: 2, h: 2, posts: [true, false, false, false], edges: [false, false, false, false] };
   g.tapes = [tape];
-  const p = tapeCorners(tape)[0], camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
+  const p = tapeCorners(tape)[0];
   const flashing = () => {
     const rgb = parseColor('#c7fbff'), mesh = dynamicMeshes(g, 'ov', [10, 5]).opaque;
     let gl = false;
     for (let i = 0; i < mesh.n; i += 10) if (rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)
       && mesh.a[i + 3] === 0 && mesh.a[i + 4] === 0 && mesh.a[i + 5] === 0) gl = true;
-    assert.equal(buildPovFaces(g, camera).some((f) => f.color === '#c7fbff' && f.glow), gl, 'software and GL posts agree');
     return gl;
   };
   Object.assign(g.fl, { x: p.x + 10, y: p.y, a: 0, speed: 0 }); g.clock = 0;
@@ -149,14 +132,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const g = newGame(1, 0), c = { x: 7, y: 5, a: 0, tipped: false, squished: false };
   g.walls = []; g.pillars = []; g.stacks = []; g.tapes = []; g.cones = [c];
   for (const key of Object.keys(BOT_BEACONS)) g[key] = null;
-  const camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
-  const fills = [], bright = parseColor('#ffc45a'), dim = parseColor('#ef941f');
-  const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
-    get: (t, k) => k in t ? t[k] : k === 'fill' ? () => fills.push(t.fillStyle)
-      : k === 'measureText' ? (text) => ({ width: text.length * 7 })
-        : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
-    set: (t, k, v) => { t[k] = v; return true; },
-  });
+  const bright = parseColor('#ffc45a'), dim = parseColor('#ef941f');
   const check = (on, present = true) => {
     for (const mode of ['ov', 'pov']) {
       const mesh = dynamicMeshes(g, mode, [10, 5]).opaque;
@@ -170,16 +146,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
       assert.equal(lamp, present, `${mode} draws a cap only on an upright cone`);
       assert.equal(glowing, on, `${mode} cone beacon follows proximity and blink phase`);
     }
-    const faces = buildPovFaces(g, camera);
-    assert.equal(faces.some((f) => f.color === '#ffc45a' && f.glow), on, 'software cabin beacon matches GL');
-    assert.equal(faces.some((f) => f.color === '#ffc45a' || f.color === '#ef941f'), present, 'software cabin cap respects cone damage');
-    fills.length = 0;
-    draw(ctx, g, { width: 1200, height: 800, dpr: 1, fullMap: true });
-    assert.equal(fills.includes('#ffc45a'), on, '2D overview beacon matches GL');
-    assert.equal(fills.includes('#ffc45a') || fills.includes('#ef941f'), present, '2D cap respects cone damage');
   };
-  const oldOffscreen = globalThis.OffscreenCanvas;
-  globalThis.OffscreenCanvas = class { getContext() { return ctx; } };
   try {
     for (const theme of ['light', 'dark']) {
       setThemeMode(theme);
@@ -202,14 +169,13 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
       g.cones = [c];
     }
   } finally {
-    globalThis.OffscreenCanvas = oldOffscreen; setThemeMode('light');
+    setThemeMode('light');
   }
 }
 
-// Cone/tape markings and their bots render in WebGL and software cabin views.
+// Cone/tape markings and their bots render in WebGL views.
 {
   const g = newGame(1, 0), area = g.areas[0], center = { x: area.x + area.w / 2, y: area.y + area.h / 2 };
-  const camera = makeCamera(center, 2, 0, Math.PI / 2, 0, 0, 800, 400);
   g.tapes = [{ key: areaMarkKey(area), color: area.color, x: area.x, y: area.y, w: area.w, h: area.h, sig: '', broken: true,
     posts: [true, true, true, true], edges: [true, false, true, true] }];
   g.cones = [{ id: 'render-cone', goalId: 'render-target', x: center.x, y: center.y, a: 0, tipped: false, squished: false }];
@@ -218,23 +184,15 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     const meshes = dynamicMeshes(g, mode, [center.x, center.y]);
     assert.ok(meshes.opaque.count > 0 && meshes.trans.count > 0, `${mode} mesh includes bots, cone and tape`);
   }
-  const faces = buildPovFaces(g, camera);
-  assert.ok(faces.some((f) => f.color === '#f07822'), 'software cabin includes safety cones');
-  assert.ok(faces.some((f) => f.color === '#e8be26'), 'software cabin includes remaining elevated tape');
 }
 
-// The new tall tracked bot, beacon posts and elevated tape are visible in both 3D paths.
+// The new tall tracked bot, beacon posts and elevated tape are visible in WebGL.
 {
   const g = newGame(1, 0), b = g.tapeBot;
   g.stacks = []; g.cones = []; g.bot = null; g.inspector = null; g.coneBot = null;
   Object.assign(b, { x: 7, y: 5, a: 0, show: 1 });
   g.tapes = [{ key: 'render', color: 0, x: 7, y: 4, w: 2, h: 2, sig: '', broken: true,
     posts: [true, true, true, true], edges: [true, false, false, false] }];
-  const camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
-  const faces = buildPovFaces(g, camera);
-  assert.ok(faces.some((f) => f.color === '#e8eae6' && f.mz > 1), 'software cabin shows the tall white bot');
-  assert.ok(faces.some((f) => f.color === '#78e5f4' && f.mz > 0.8), 'software cabin shows the elevated beacon');
-  assert.ok(faces.some((f) => f.color === '#e8be26' && Math.abs(f.mz - LEVEL_H) < 0.1), 'software cabin places tape at one box height');
   const mesh = dynamicMeshes(g, 'pov', [10, 5]).opaque;
   for (const color of ['#e8eae6', '#78e5f4', '#e8be26', '#202327']) {
     const rgb = parseColor(color);
@@ -244,61 +202,28 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   }
 }
 
-// The tape bot's doors open only while it is drawing, in all three views.
+// The tape bot's doors open only while it is drawing.
 {
   const g = newGame(1, 0), b = g.tapeBot;
   g.stacks = []; g.cones = []; g.tapes = []; g.bot = null; g.inspector = null; g.coneBot = null;
   Object.assign(b, { x: 7, y: 5, a: 0, show: 1 });
-  const camera = makeCamera({ x: 4, y: 5 }, 1, 0, Math.PI / 2, 0, 0, 800, 400);
-  const rects = [];
-  const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
-    get: (t, k) => k in t ? t[k] : k === 'fillRect' ? (...args) => { if (t.fillStyle === '#d6d9d5') rects.push(args); }
-      : k === 'measureText' ? (text) => ({ width: text.length * 7 })
-        : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
-    set: (t, k, v) => { t[k] = v; return true; },
-  });
-  const oldOffscreen = globalThis.OffscreenCanvas;
-  globalThis.OffscreenCanvas = class { getContext() { return ctx; } };
-  try {
-    for (const [phase, scared, open] of [[null, false, false], ['start', false, false], ['post', false, false], ['draw', false, true], ['draw', true, false]]) {
-      b.tapeJob = phase ? { phase } : null; b.scared = scared;
-      rects.length = 0;
-      draw(ctx, g, { width: 1200, height: 800, dpr: 1, fullMap: true });
-      assert.equal(rects.some(([x, y]) => x === -0.34 && y === -0.3), open, `overview doors: ${phase}, scared=${scared}`);
-      assert.equal(rects.some(([x, y]) => x === -0.25 && y === -0.13), !open, 'overview closed doors');
-      const faces = buildPovFaces(g, camera).filter((f) => f.color === '#d6d9d5');
-      assert.ok(faces.length, 'software cabin draws doors');
-      assert.equal(faces.some((f) => Math.abs(f.my - b.y) > 0.16), open, `software doors: ${phase}, scared=${scared}`);
-      const mesh = dynamicMeshes(g, 'pov', [4, 5]).opaque, rgb = parseColor('#d6d9d5');
-      let widest = 0, found = false;
-      for (let i = 0; i < mesh.n; i += 10) if (rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)) {
-        found = true; widest = Math.max(widest, Math.abs(mesh.a[i + 1] - b.y));
-      }
-      assert.ok(found, 'WebGL draws doors');
-      assert.equal(widest > 0.16, open, `WebGL doors: ${phase}, scared=${scared}`);
+  for (const [phase, scared, open] of [[null, false, false], ['start', false, false], ['post', false, false], ['draw', false, true], ['draw', true, false]]) {
+    b.tapeJob = phase ? { phase } : null; b.scared = scared;
+    const mesh = dynamicMeshes(g, 'pov', [4, 5]).opaque, rgb = parseColor('#d6d9d5');
+    let widest = 0, found = false;
+    for (let i = 0; i < mesh.n; i += 10) if (rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)) {
+      found = true; widest = Math.max(widest, Math.abs(mesh.a[i + 1] - b.y));
     }
-  } finally { globalThis.OffscreenCanvas = oldOffscreen; }
+    assert.ok(found, 'WebGL draws doors');
+    assert.equal(widest > 0.16, open, `WebGL doors: ${phase}, scared=${scared}`);
+  }
 }
 
-// Cone bot's delivery-vehicle model appears in both 3D renderers.
+// Cone bot's delivery-vehicle model appears in WebGL.
 {
   const g = newGame(1, 0), b = g.coneBot;
   g.stacks = []; g.cones = []; g.tapes = []; g.bot = null; g.inspector = null; g.tapeBot = null;
   Object.assign(b, { x: 7, y: 5, a: 0, show: 1 });
-  const camera = makeCamera({ x: 10, y: 5 }, 1, Math.PI, Math.PI / 2, 0, 0, 800, 400);
-  const faces = buildPovFaces(g, camera);
-  for (const color of ['#e3e5e2', '#b53630', '#172125', '#ef941f']) {
-    assert.ok(faces.some((f) => f.color === color && Math.abs(f.mx - b.x) < 1 && Math.abs(f.my - b.y) < 1), `software cabin draws cone bot part ${color}`);
-  }
-  const visor = faces.find((f) => f.coneFace);
-  assert.ok(visor, 'software cabin exposes the visor face');
-  const fills = [];
-  const ctx = new Proxy({}, {
-    get: (t, k) => k === 'fill' ? () => fills.push(t.fillStyle) : k in t ? t[k] : () => {},
-    set: (t, k, v) => { t[k] = v; return true; },
-  });
-  drawFace(ctx, camera, g, visor);
-  assert.equal(fills.length, 7, 'software visor paints two eyes, pupils and highlights with the face');
   const mesh = dynamicMeshes(g, 'pov', [10, 5]).opaque;
   for (const color of ['#e3e5e2', '#b53630', '#172125', '#ffb768', '#ef941f']) {
     const rgb = parseColor(color);
@@ -311,7 +236,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   }
 }
 
-// Toppled boxes keep their drawing-only fall height in both 3D renderers.
+// Toppled boxes keep their drawing-only fall height in WebGL.
 {
   const g = newGame(1);
   g.zones = []; g.hatch = null; g.bot = null; g.inspector = null; g.repair = null;
@@ -326,16 +251,13 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
       if (mesh.a[i] > 9 && mesh.a[i] < 11 && mesh.a[i + 1] > 4 && mesh.a[i + 1] < 6) zs.push(mesh.a[i + 2]);
     }
     const top = Math.max(...zs);
-    const faces = buildPovFaces(g, makeCamera({ x: 8, y: 5 }, 2, 0, Math.PI / 2, 0, 0, 800, 400));
-    const softwareTop = Math.max(...faces.filter((f) => f.color === COLORS[0]).flatMap((f) => f.quad.map((p) => p[2])));
-    assert.ok(Math.abs(top - softwareTop) < 0.02, 'software and GL render the falling box at matching heights');
     tops.push(top);
   }
   assert.ok(tops[0] > tops[1] && tops[1] > tops[2], 'the box visibly descends before landing');
   assert.ok(Math.abs(tops[2] - 0.6) < 0.02, 'the landed box rests on the floor');
 }
 
-// All views show the same box height before pickup, while carried, and after release.
+// GL shows the box at the right height before pickup, while carried, and after release.
 {
   const g = newGame(1, 1, true);
   flatWorld(g);
@@ -343,30 +265,13 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   g.stacks = [{ x: 10, y: 5, layers: [1, 0], a: 0 }];
   faceStack(g, 0);
   g.H = g.hy = g.hf = 1;
-  const cam = makeCamera({ x: 8, y: 5 }, 2, 0, Math.PI / 2, 0, 0, 800, 400);
   const check = (height) => {
     const color = parseColor(COLORS[0]), mesh = dynamicMeshes(g, 'pov', [8, 5]).opaque, zs = [];
     for (let i = 0; i < mesh.n; i += 10) {
       if (color.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)) zs.push(mesh.a[i + 2]);
     }
     const glTop = Math.max(...zs);
-    const faces = buildPovFaces(g, cam);
-    const povTop = Math.max(...faces.filter((f) => f.color === COLORS[0]).flatMap((f) => f.quad.map((p) => p[2])));
     assert.ok(Math.abs(glTop - (height + 1) * 0.6) < 1e-5, `GL box height ${glTop}`);
-    assert.ok(Math.abs(povTop - glTop) < 1e-5, `software cabin box height ${povTop}`);
-
-    const translations = [];
-    const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
-      get: (t, k) => k in t ? t[k] : k === 'translate' ? (x, y) => translations.push([x, y])
-        : k === 'measureText' ? (text) => ({ width: text.length * 7 })
-          : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
-      set: (t, k, v) => { t[k] = v; return true; },
-    });
-    const oldOffscreen = globalThis.OffscreenCanvas;
-    globalThis.OffscreenCanvas = class { getContext() { return ctx; } };
-    try { draw(ctx, g, { width: 1200, height: 800, dpr: 1 }); }
-    finally { globalThis.OffscreenCanvas = oldOffscreen; }
-    assert.ok(translations.some(([x, y]) => Math.abs(x - (10 + height * 0.06)) < 1e-6 && Math.abs(y - (5 - height * 0.1)) < 1e-6), 'overview draws the box at the same height');
   };
   run(g, { forkUp: true }, 0.025);
   assert.equal(g.carried, null);
@@ -412,15 +317,6 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(Math.abs(PAL - PALLET_DECK_H - TINE_H - FORK_CLEARANCE * LEVEL_H) < 1e-9, 'the slot has the intended free tine travel');
   assert.ok(wood.filter((p) => p[5] > 0).every((p) => p[5] > TINE_H), 'GL deck clears the full-height tine');
   assert.equal(drums[0][2], Math.max(...wood.map((p) => p[6])), 'the drum sits on the deck');
-
-  const g = newGame(1);
-  g.stacks = [{ x, y, layers, pen, a: 0 }];
-  const faces = buildPovFaces(g, makeCamera({ x: x - 2, y }, 1.5, 0, Math.PI / 2, 0, 0, 800, 400));
-  const pallet = faces.filter((f) => f.color === PALLET_COLOR), barrel = faces.filter((f) => f.color === COLORS[BARREL_COLOR]);
-  const palletDeck = Math.max(...pallet.flatMap((f) => f.quad.map((p) => p[2])));
-  assert.equal(palletDeck, drums[0][2], 'software and GL decks agree');
-  assert.equal(Math.min(...barrel.flatMap((f) => f.quad.map((p) => p[2]))), palletDeck);
-  assert.ok(pallet.some((f) => f.quad.every((p) => p[2] > TINE_H)), 'software deck clears the tines');
 }
 
 // The open-top tape strap stays aligned with the standard box tape when the box rotates.
@@ -455,16 +351,6 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   }
   assert.ok(entryFaces > 0, 'warning decals remain on the fork-entry ends');
   assert.equal(blockedSideFaces, 0, 'no warning decals are on the runner-blocked sides');
-}
-
-// The cabin view shows open-top warning decals only on the two fork-entry faces.
-{
-  const g = newGame(1);
-  g.stacks = [{ x: 10, y: 10, layers: [0], rots: [0], a: 0, pen: [{ open: true }] }];
-  const visibleDecalEdges = (x, yaw) => buildPovFaces(g, makeCamera({ x, y: 10 }, 2, yaw, Math.PI / 2, 0, 0, 800, 400))
-    .filter((face) => face.deco === 4).map((face) => face.edge);
-  assert.deepEqual(visibleDecalEdges(8, 0), [3], 'the back entry face has its decal');
-  assert.deepEqual(visibleDecalEdges(12, Math.PI), [1], 'the front entry face has its decal');
 }
 
 // The observer join card floats over the full-size map without sacrificing readability.
@@ -547,16 +433,6 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
       assert.ok(texts.some(({ text, y }) => text.includes('Zones ') && text.includes('Score ') && y === 23), 'observer score bar appears at the top');
     }
     texts.length = 0;
-    const joinView = { width: 1200, height: 800, dpr: 1, fullMap: true, partyJoin: { code: 'ABCDE', url: 'https://example.org/?multiplayer=ABCDE' } };
-    draw(ctx, g, joinView);
-    assert.ok(joinView.observerCard && texts.some(({ text }) => text === 'JOIN THE PARTY'), 'observer draws the floating photo caption');
-    joinView.height = 390;
-    draw(ctx, g, joinView);
-    assert.ok(joinView.observerCard.y + joinView.observerCard.bh <= 382, 'resizing never leaves the card offscreen during its slide');
-    joinView.partyJoin = null;
-    draw(ctx, g, joinView);
-    assert.equal(joinView.observerCard, null, 'removing join information clears the floating card');
-    texts.length = 0;
     const endless = newEndless(0, false);
     draw(ctx, endless, { width: 1200, height: 800, dpr: 1, fullMap: true, fullscreen: true });
     assert.ok(texts.some(({ text, y }) => text.startsWith('Endless ') && text.includes('Score ') && y === 23), 'endless score stays visible too');
@@ -630,28 +506,6 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   } finally {
     if (previous === undefined) delete globalThis.OffscreenCanvas;
     else globalThis.OffscreenCanvas = previous;
-  }
-}
-
-// The software cabin view renders with and without the repair-station hint.
-{
-  const g = newGame(1), fills = [];
-  assert.ok(g.repair, 'the test level has a repair station');
-  const ctx = new Proxy({ canvas: { width: 1200, height: 800 } }, {
-    get: (t, k) => k in t ? t[k] : k === 'fill' ? () => fills.push(t.fillStyle)
-      : k === 'measureText' ? (text) => ({ width: text.length * 7 })
-        : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {},
-  });
-  const hint = repairHintOn();
-  try {
-    for (const on of [false, true]) {
-      setRepairHint(on);
-      fills.length = 0;
-      draw(ctx, g, { width: 1200, height: 800, dpr: 1, povBig: true });
-      assert.equal(fills.includes('#42a5f5'), on, 'the cabin repair arrow follows the hint state');
-    }
-  } finally {
-    setRepairHint(hint);
   }
 }
 

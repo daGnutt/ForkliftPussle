@@ -1,8 +1,6 @@
 import { lorryHonks } from '../endless.js';
-import { COLORS } from '../level.js';
-import { hitLife, zoneDone, flaggedStacks, flagSymbol } from '../game.js';
+import { flagSymbol } from '../game.js';
 import { truckColor } from '../forklift.js';
-import { toCam, BOX_H, PAL, MAX_DIST } from './camera.js';
 
 // Text overlays drawn over the finished scene.
 
@@ -75,23 +73,6 @@ export function labelRows(ctx, rows, sx, sy, size, minStroke = 2) {
   rows.forEach((parts, i) => labelParts(ctx, parts, sx, sy + i * size * 1.15, size, minStroke));
 }
 
-// Floating "×count" over each unfinished zone, as painter items ({ d, draw }) merged into the sorted faces so
-// walls and boxes in front of a label cover it. d is pulled nearer by the zone radius so whatever stands on the zone itself doesn't hide it.
-export function zoneLabelItems(g, cam) {
-  const items = [];
-  for (const z of g.zones) {
-    if (zoneDone(g, z)) continue;
-    const [fw, rt] = toCam(cam, z.x, z.y, 0);
-    if (fw <= 0.3 || fw >= MAX_DIST) continue;
-    const sx = cam.cx + (rt / fw) * cam.f, sy = cam.cy - ((0.9 - cam.z) / fw) * cam.f;
-    items.push({
-      d: Math.hypot(z.x - cam.x, z.y - cam.y, 0.9 - cam.z) - 0.75,
-      draw: (ctx) => label(ctx, `×${z.count}`, sx, sy, Math.max(8, Math.min(48, (0.5 / fw) * cam.f)), COLORS[z.color]),
-    });
-  }
-  return items;
-}
-
 // Rows of a popup: the red damage `−pts`, or a finished stack's score breakdown.
 export const hitRows = (h) => (h.check ? [[h.check === 'warn' ? { text: '⚠ Warning', color: WONKY_COLOR } : { text: '✔ Perfect', color: '#7dff9b' }]] : h.score ? pointsRows(h.score) : [[{ text: `−${h.pts}`, color: DAMAGE_COLOR }]]);
 
@@ -127,32 +108,3 @@ export function drawHonk(ctx, t, clock, sx, sy, size) {
   label(ctx, t.text ?? honkText(Math.max(0, clock - (honkStart.get(t.id) ?? clock))), sx, sy + bob, size, t.paint ?? truckColor(t.color).body);
 }
 
-// Damage popups floating up from the damaged box.
-export function drawHits(ctx, g, cam, rect) {
-  for (const h of g.hits || []) {
-    const k = (g.clock - h.t) / hitLife(h);
-    const [fw, rt] = toCam(cam, h.x, h.y, 0);
-    if (fw <= 0.3) continue;
-    const sx = cam.cx + (rt / fw) * cam.f, sy = cam.cy - ((h.z * (BOX_H + PAL) + 0.3 + k * 0.8 - cam.z) / fw) * cam.f;
-    ctx.globalAlpha = Math.max(0, 1 - k * k);
-    labelRows(ctx, hitRows(h), sx, sy, Math.max(10, Math.min(60, (0.45 / fw) * cam.f)));
-  }
-  ctx.globalAlpha = 1;
-  for (const f of flaggedStacks(g)) {
-    const [fw, rt] = toCam(cam, f.x, f.y, 0);
-    if (fw <= 0.3 || fw > MAX_DIST) continue;
-    drawFlag(ctx, f, cam.cx + (rt / fw) * cam.f, cam.cy - ((f.h * (BOX_H + PAL) + 0.6 - cam.z) / fw) * cam.f, Math.max(12, Math.min(70, (0.5 / fw) * cam.f)), g.clock);
-  }
-  for (const t of honkers(g)) {
-    const [fw, rt] = toCam(cam, t.fl.x, t.fl.y, 0);
-    if (fw <= 0.3) {
-      if (!rect) continue;
-      const [x, y, s] = pinHonk(0, 0, 60, rect, true, rt || 1e-6, 0);
-      drawHonk(ctx, t, g.clock, x, y, s);
-      continue;
-    }
-    let sx = cam.cx + (rt / fw) * cam.f, sy = cam.cy - ((1.8 - cam.z) / fw) * cam.f, size = Math.max(10, Math.min(60, (0.6 / fw) * cam.f));
-    if (rect) [sx, sy, size] = pinHonk(sx, sy, size, rect);
-    drawHonk(ctx, t, g.clock, sx, sy, size);
-  }
-}

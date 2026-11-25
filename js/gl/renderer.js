@@ -6,8 +6,7 @@ import { projectPoint } from './mat.js';
 // WebGL2 renderer. In the game, the GL canvas (`attachGlCanvas`) sits visibly behind the transparent 2D canvas, which
 // punches holes (clearRect) where a 3D view goes, so the HUD, minimap and menus stay plain 2D without any per-frame
 // GL->2D copy (slow in Firefox). Without an attached canvas (splash) it draws into one hidden canvas and copies the
-// result into the given 2D context. Returns null from `drawGl` when WebGL2 is unavailable (callers fall back to the
-// canvas renderers).
+// result into the given 2D context. WebGL2 is required: `drawGl` returns null only while the context is lost.
 
 const VS = `#version 300 es
 layout(location=0) in vec3 aPos;
@@ -125,9 +124,8 @@ void main() {
 let R = null; // { canvas, gl, prog, u, dyn, statics } | null; undefined while untried
 let D = null; // { r, ctx } for the visible GL canvas attached with attachGlCanvas
 let failed = false;
-let enabled = true;
-export const glEnabled = () => enabled;
-export function setGlEnabled(on) { enabled = !!on; }
+let lostHandler = null;
+export const onGlLost = (fn) => { lostHandler = fn; };
 
 function compile(gl, type, src) {
   const s = gl.createShader(type);
@@ -159,31 +157,31 @@ function init(visible) {
   if (!gl.getProgramParameter(sky, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(sky));
   const su = {};
   for (const n of ['uVP', 'uEye', 'uDark']) su[n] = gl.getUniformLocation(sky, n);
-  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); if (visible) D = null; else R = null; });
+  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); if (visible) D = null; else R = null; lostHandler?.(); });
   canvas.addEventListener('webglcontextrestored', () => { failed = false; });
   return { canvas, gl, prog, u, sky, su, vao: gl.createVertexArray(), buf: gl.createBuffer(), statics: { pov: null, ov: null } };
 }
 
 function get() {
   if (R) return R;
-  if (failed || !enabled || typeof document === 'undefined') return null;
-  try { R = init(); } catch (e) { failed = true; console.warn('WebGL unavailable, using the 2D renderer:', e.message); }
+  if (failed || typeof document === 'undefined') return null;
+  try { R = init(); } catch (e) { failed = true; console.warn('WebGL unavailable:', e.message); }
   return R;
 }
 
-export function glAvailable() { return enabled && (!!D || !!get()); }
+export function glAvailable() { return !!D || !!get(); }
 
 // Uses `glCanvas` (visible, stacked behind the game canvas whose context is `ctx`) for drawGl calls made with `ctx`.
-// Returns false (and leaves the copy path in place) if WebGL2 is unavailable.
+// Returns false if WebGL2 is unavailable.
 export function attachGlCanvas(glCanvas, ctx) {
   try { D = { r: init(glCanvas), ctx, canvas: glCanvas }; } catch (e) { D = null; glCanvas.hidden = true; return false; }
   return true;
 }
 
 // Call at the start of each frame. Returns true if the GL canvas is in use: it is sized like the 2D canvas and cleared to
-// `bg`, and the (transparent) 2D canvas cleared. Otherwise returns false and the caller must paint the background in 2D.
+// `bg`, and the (transparent) 2D canvas cleared. Returns false while the context is lost.
 export function beginGlFrame(ctx, bg) {
-  const on = !!D && D.ctx === ctx && enabled && !D.r.gl.isContextLost();
+  const on = !!D && D.ctx === ctx && !D.r.gl.isContextLost();
   if (D && D.ctx === ctx) D.canvas.hidden = !on;
   if (!on) return false;
   const { canvas } = D, c = ctx.canvas;
@@ -249,7 +247,7 @@ function drawMesh(r, mesh) {
 // must map css px (dpr already applied). mode: 'pov' | 'ov'. Returns a projector (world x, y, z) -> [sx, sy, depth]
 // in ctx css px, or null if WebGL is unavailable. With the attached GL canvas the rect is punched out of `ctx` instead.
 export function drawGl(ctx, g, mode, cam, x, y, dpr) {
-  const direct = !!D && D.ctx === ctx && enabled && !D.r.gl.isContextLost() && !D.canvas.hidden;
+  const direct = !!D && D.ctx === ctx && !D.r.gl.isContextLost() && !D.canvas.hidden;
   const r = direct ? D.r : get();
   if (!r) return null;
   const { gl, canvas, u } = r;

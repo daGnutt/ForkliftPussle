@@ -1,14 +1,13 @@
 // Bump CACHE when shipping changes so clients drop stale files.
-const CACHE = 'forklift-v44';
+const CACHE = 'forklift-v45';
 const CORE = [
   './', 'index.html', 'style.css', 'assets/icons/favicon.svg', 'manifest.webmanifest',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/maskable-512.png',
   ...['audio', 'bot', 'debug', 'decals', 'demo', 'dents', 'disco', 'endless', 'firstplay', 'forklift', 'game', 'gamepad', 'geom',
-    'globalscores', 'hard-physics', 'highscores', 'input', 'level', 'local', 'main', 'midi', 'photo', 'pov', 'power', 'qr', 'render', 'repair', 'repairhint',
+    'globalscores', 'hard-physics', 'highscores', 'input', 'level', 'local', 'main', 'midi', 'photo', 'power', 'qr', 'render', 'repair', 'repairhint',
     'rumble',
-    'revlight', 'savestate', 'state-history', 'schemepicker', 'splash', 'splash3d', 'testing', 'theme', 'visible-loop',
-    'pov/camera', 'pov/scene', 'pov/face', 'pov/floor', 'pov/overlay',
-    'gl/camera', 'gl/mat', 'gl/mesh', 'gl/models', 'gl/particles', 'gl/renderer', 'gl/scene', 'gl/views',
+    'revlight', 'savestate', 'state-history', 'schemepicker', 'splash3d', 'testing', 'theme', 'visible-loop',
+    'gl/camera', 'gl/mat', 'gl/mesh', 'gl/models', 'gl/overlay', 'gl/particles', 'gl/renderer', 'gl/scene', 'gl/views', 'gl/wall-decals',
     'net/guest', 'net/host', 'net/peer', 'net/predict', 'net/protocol', 'net/relay', 'net/round', 'net/vote'].map(m => `js/${m}.js`),
 ];
 

@@ -2,7 +2,7 @@ import { COLORS } from '../level.js';
 import { hitLife, zoneDone, flaggedStacks } from '../game.js';
 import { repairHintOn, drawHintGlow, drawHintArrow, drawRepairEdgeArrow } from '../repairhint.js';
 import { setTruckSpot } from '../photo.js';
-import { label, drawFlag, labelRows, hitRows, honkers, drawHonk, pinHonk } from '../pov/overlay.js';
+import { label, drawFlag, labelRows, hitRows, honkers, drawHonk, pinHonk } from './overlay.js';
 import { povCamera, overviewCamera, chaseCamera, groundFootprint, blendCameras } from './camera.js';
 import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';

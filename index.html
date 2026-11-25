@@ -39,6 +39,10 @@
     <span id="voteNoticeText"></span>
     <button type="button" id="voteMenuBtn">Open party menu</button>
   </div>
+  <div id="glError" hidden role="alert">
+    <h2>WebGL2 is required</h2>
+    <p id="glErrorText">This game draws everything with WebGL2, and your browser or graphics driver does not provide it.</p>
+  </div>
   <div id="record" class="hide">
     <form id="recordForm" autocomplete="off">
       <h2>New high score!</h2>
@@ -88,8 +92,7 @@
         <label title="Reduce decorative effects; off by default"><input type="checkbox" id="batteryEffectsOpt"> Reduce decorative effects</label>
         <label class="row" data-observer><span>Colour mode</span> <select id="themeSel"><option value="auto">Follow OS</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
         <label><input type="checkbox" id="decalOpt"> Decals</label>
-        <label><input type="checkbox" id="glOpt"> 3D graphics (WebGL)</label>
-        <label title="Cabin view (3D graphics): hide the forklift body and mast, leaving only the carriage and tines"><input type="checkbox" id="bareOpt"> Bare forks <small>(cabin view)</small></label>
+        <label title="Cabin view hide the forklift body and mast, leaving only the carriage and tines"><input type="checkbox" id="bareOpt"> Bare forks <small>(cabin view)</small></label>
         <label title="Glitter balls and coloured lights (dark mode only)"><input type="checkbox" id="discoOpt"> Disco lights <small>(dark mode only)</small></label>
         <button type="button" class="back" data-go="main">&#9666; Back</button>
       </div>
@@ -245,8 +248,7 @@
     </div>
   </div>
   <div id="splash">
-    <canvas id="splashGl" aria-hidden="true" hidden></canvas>
-    <canvas id="splashAnim" aria-hidden="true"></canvas>
+    <canvas id="splashGl" aria-hidden="true"></canvas>
     <h1>Pallet <span>Polka</span></h1>
     <p>Stack the boxes. Park the forklift. Mind the tail swing.</p>
     <form id="seedForm" autocomplete="off">

@@ -1,12 +1,14 @@
 import { toWorld, FL } from '../forklift.js';
-import { EYE_X, EYE_Z, BOX_H, PAL } from '../pov/camera.js';
+import { BOX_H, PAL } from '../geom.js';
 import { liftedHf } from '../game.js';
 import { perspective, viewBasis, mul, projectPoint } from './mat.js';
 import { WALL_H } from './models.js';
 
 // Camera maths for the WebGL renderer (pure, no DOM). A camera is { vp, eye: [x, y, z], w, h } (w, h in css px).
 
-const GL_HFOV = (100 * Math.PI) / 180; // wider than the software cabin camera's 90°
+const EYE_X = -0.5; // seat position, local x (origin at the front axle)
+const EYE_Z = 0.95; // eye height with the fork on the floor
+const GL_HFOV = (100 * Math.PI) / 180; 
 const POV_NEAR = 0.06, POV_FAR = 90;
 const LOW_LIFT = 0.22; // radians the view is raised above the fork-tip line when the forks are low (fades out by level 2)
 

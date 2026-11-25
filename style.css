@@ -49,10 +49,7 @@ html.autostart #splash > :is(form, .opt, #party, .press) { display: none; }
 #splash button { padding: 6px 14px; font: inherit; font-weight: bold; color: #111; background: #f9a825; border: 0; border-radius: 4px; cursor: pointer; }
 #splash button svg { display: block; }
 @keyframes blink { 50% { opacity: .25; } }
-#splashAnim { width: 440px; height: 190px; flex: none; }
 #splashGl { width: min(640px, 94vw); aspect-ratio: 640 / 260; flex: none; border-radius: 10px; box-shadow: 0 6px 20px var(--shadow); }
-#splashGl[hidden] { display: none; }
-#splashGl:not([hidden]) + #splashAnim { display: none; }
 
 #record { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); color: var(--fg); z-index: 20; }
 #record.hide { display: none; }
@@ -205,7 +202,6 @@ body.observer-party #mpLeave { display: none; }
 @media (orientation: landscape) and (max-height: 600px) {
   #splash { justify-content: safe center; overflow-y: auto; gap: 8px; padding: 8px 0; box-sizing: border-box; }
   #splash h1 { font-size: 36px; }
-  #splashAnim { width: 264px; height: 114px; }
   #splashGl { width: 300px; }
   #menu { align-items: safe center; overflow-y: auto; }
   #menu .panel { margin: 8px; padding: 10px 16px; width: min(560px, calc(100vw - 16px)); }
@@ -274,3 +270,6 @@ body.keys-wasd .k-arrows { display: none; }
 @media (pointer: coarse) { .photo { pointer-events: auto; } } /* touch: tap the picture to dismiss it */
 .photo.fade { opacity: 0; }
 .photo.old { filter: sepia(.25); } /* a picture shown again, not a fresh one */
+
+#glError { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; text-align: center; background: #111; color: #eee; }
+#glError[hidden] { display: none; }

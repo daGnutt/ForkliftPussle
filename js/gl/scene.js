@@ -9,7 +9,7 @@ import { padPolys } from '../repair.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
 import { zoneDone, zoneExt, zoneLabelPos, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckPopScale, liftedHf, crashBlink } from '../game.js';
-import { paintWallDecals, chargerDecal } from '../pov/face.js';
+import { paintWallDecals, chargerDecal } from './wall-decals.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
 import { addParticles } from './particles.js';
 import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, BOX_H, PAL, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';

@@ -20,12 +20,11 @@ import { debugEnabled, createDebug } from './debug.js';
 import { setBareForks, bareForksEnabled } from './gl/models.js';
 import { setParticlesEnabled } from './gl/particles.js';
 import { setDecalsEnabled } from './decals.js';
-import { glAvailable, glEnabled, setGlEnabled, attachGlCanvas } from './gl/renderer.js';
+import { glAvailable, attachGlCanvas, onGlLost } from './gl/renderer.js';
 import { themeMode, setThemeMode, theme } from './theme.js';
 import { setDiscoEnabled } from './disco.js';
 import { chaseDrift, chaseOrbit, lookYawDelta, CHASE_TILES, CHASE_DEFAULT, CHASE_TILT, chaseZoom as chaseZoomOf } from './gl/camera.js';
 import { initTestingBanner, isTesting } from './testing.js';
-import { startSplashAnimation } from './splash.js';
 import { startSplash3d } from './splash3d.js';
 import { repairHintWanted, setRepairHint, REPAIRED_KEY } from './repairhint.js';
 import { standardPads } from './gamepad.js';
@@ -38,7 +37,14 @@ const canvas = document.getElementById('game');
 const resultsCanvas = document.getElementById('results'); // end-of-level panel, stacked above the gallery photos
 const resultsCtx = resultsCanvas.getContext('2d');
 const ctx = canvas.getContext('2d');
-attachGlCanvas(document.getElementById('gameGl'), ctx);
+const glError = document.getElementById('glError');
+const glSupported = attachGlCanvas(document.getElementById('gameGl'), ctx);
+if (!glSupported) glError.hidden = false;
+onGlLost(() => {
+  document.getElementById('glErrorText').textContent = 'The graphics context was lost. Reload the page to continue.';
+  glError.hidden = false;
+  if (!mp && !splashOn && !view.menuOpen) toggleMenu(true);
+});
 const isTouch = matchMedia('(pointer: coarse)').matches;
 let lowerResolutionOn = batterySaverOption(localStorage, 'resolution', isTouch);
 let limitFrameRateOn = batterySaverOption(localStorage, 'frame-rate', isTouch);
@@ -335,7 +341,7 @@ function nextLevel() {
 }
 
 function toggleChase() {
-  if (mp?.observer || !glEnabled()) return;
+  if (mp?.observer) return;
   if (view.povBig) {
     view.povBig = false;
     localStorage.setItem('forklift-cab-view', '0');
@@ -347,7 +353,6 @@ function toggleChase() {
 }
 
 function setCameraOverview() {
-  if (!glEnabled()) return;
   view.povBig = false;
   view.chase = false;
   view.orbit = null;
@@ -361,7 +366,7 @@ function setCameraOverview() {
 }
 
 function setCameraCabin() {
-  if (mp?.observer || !glEnabled() || isTouch) return;
+  if (mp?.observer || isTouch) return;
   view.povBig = true;
   view.chase = false;
   view.look = null;
@@ -376,7 +381,7 @@ function setCameraCabin() {
 }
 
 function setCameraChase() {
-  if (mp?.observer || !glEnabled()) return;
+  if (mp?.observer) return;
   view.povBig = false;
   view.chase = true;
   view.look = null;
@@ -390,7 +395,6 @@ function setCameraChase() {
 }
 
 function resetCamera() {
-  if (!glEnabled()) return;
   view.look = null;
   view.orbit = null;
   view.manualCab = false;
@@ -555,7 +559,7 @@ function tapped(e) {
 }
 const cameraDragging = createCameraPointerInput(canvas, {
   allowed: (e) => {
-    if (mp?.observer || e.target !== canvas || !glEnabled() || splashOn || recordOpen || view.menuOpen || specialTouch.has(e)) return false;
+    if (mp?.observer || e.target !== canvas || splashOn || recordOpen || view.menuOpen || specialTouch.has(e)) return false;
     if (e.pointerType !== 'touch') return true;
     if (!glAvailable()) return false;
     const r = canvas.getBoundingClientRect();
@@ -1218,10 +1222,7 @@ const decalOpt = document.getElementById('decalOpt');
 const batteryResolutionOpt = document.getElementById('batteryResolutionOpt');
 const batteryFrameRateOpt = document.getElementById('batteryFrameRateOpt');
 const batteryEffectsOpt = document.getElementById('batteryEffectsOpt');
-const glOpt = document.getElementById('glOpt');
-const glParam = new URLSearchParams(location.search).get('gl');
-setGlEnabled(glParam ? glParam !== '0' : localStorage.getItem('forklift-gl-off') !== '1');
-if (!startSplash3d(document.getElementById('splashGl'), () => splashOn, () => lowerResolutionOn, () => limitFrameRateOn)) startSplashAnimation(document.getElementById('splashAnim'), () => splashOn, () => lowerResolutionOn, () => limitFrameRateOn);
+startSplash3d(document.getElementById('splashGl'), () => splashOn, () => lowerResolutionOn, () => limitFrameRateOn);
 let decalsPreference = localStorage.getItem('forklift-decals-off') !== '1';
 setDecalsEnabled(decalsPreference && !reduceEffectsOn);
 const themeSel = document.getElementById('themeSel');
@@ -1363,7 +1364,6 @@ function toggleMenu(open) {
     batteryFrameRateOpt.checked = limitFrameRateOn;
     batteryEffectsOpt.checked = reduceEffectsOn;
     decalOpt.checked = decalsPreference;
-    glOpt.checked = glEnabled();
     discoOpt.checked = discoPreference;
     bareOpt.checked = bareForksEnabled();
     chaseOpt.checked = view.chase;
@@ -1421,10 +1421,6 @@ batteryEffectsOpt.addEventListener('change', () => {
     clearPhotos();
     galleryGame = null;
   }
-});
-glOpt.addEventListener('change', () => {
-  setGlEnabled(glOpt.checked);
-  localStorage.setItem('forklift-gl-off', glOpt.checked ? '0' : '1');
 });
 themeSel.addEventListener('change', () => {
   setThemeMode(themeSel.value);
@@ -1700,7 +1696,7 @@ function frame(now) {
   const cameraStep = (inp, dt) => {
     view.gamepadCab = inp.motionSource === 'gamepad';
     if (inp.up || inp.down || inp.left || inp.right) view.snap = true;
-    if (!splashOn && glEnabled()) {
+    if (!splashOn) {
       const pitch = (inp.lookU ? 1 : 0) - (inp.lookD ? 1 : 0);
       if (view.povBig) {
         if (inp.lookL || inp.lookR || inp.lookU || inp.lookD) lookBy((inp.lookR - inp.lookL) * LOOK_SPEED * dt, pitch * LOOK_SPEED * dt, true);
