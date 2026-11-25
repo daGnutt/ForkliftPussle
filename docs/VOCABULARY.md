@@ -85,7 +85,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Bare forks** | Menu option (key B): in the GL cabin view hides the whole forklift body and the mast, leaving carriage and tines | `bareForksEnabled`, `addForks` |
 | **Tines / forks / blades** | The two prongs that go into a pallet | `addForks` |
 | **Tine tips** | Thin tapered ends; look-at point of the cabin camera | `g.ef` |
-| **Fork level** | Integer 0–8 (`MAX_H`) height of the tines in box heights | `g.H` |
+| **Fork level** | Integer 0–5 (`MAX_H`) height of the tines in box heights | `g.H` |
 | **Fluid fork height** | Hard mode: exact tine height, changed continuously by holding fork up/down (tap = one level) | `g.hy`; in hard mode the small line right of the fork gauge follows it |
 | **Fork gauge** | HUD ladder showing fork height, boxes under the forks and the carried stack | `drawForkGauge` |
 | **Box status badge** | In the fork gauge, after inspection and until the stack is nudged, a warning triangle marks repairable damage and a tilted diamond marks crookedness | `boxStatus`, `drawBoxStatus` |

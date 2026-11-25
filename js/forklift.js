@@ -28,7 +28,7 @@ const STEER_RATE = 2.0;
 // Raised forks make the forklift top-heavy: top speed and acceleration taper
 // off linearly with fork level H, down to MIN_SPEED_FACTOR from SPEED_FALLOFF_H up.
 // The one height limit: the tallest stack, the highest fork level, the mast and the warehouse ceiling (gl/models.js) all derive from it.
-export const MAX_LAYERS = 8;
+export const MAX_LAYERS = 5;
 export const MAX_H = MAX_LAYERS;
 const MIN_SPEED_FACTOR = 0.45;
 const SPEED_FALLOFF_H = 5; // fork levels over which the slowdown builds; higher levels stay at MIN_SPEED_FACTOR

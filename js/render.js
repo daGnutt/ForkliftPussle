@@ -551,7 +551,7 @@ function drawBoxStatus(ctx, x, y, kind) {
 }
 
 export function drawForkGauge(ctx, g, gx, gy) {
-  const cell = 22, top = MAX_H;
+  const cell = 26, top = MAX_H;
   addHudRect(gx - 28, gy - 26, gx + 54, gy + top * cell + cell + 8);
   const yOf = (lvl) => gy + (top - lvl) * cell;
   const tc = truckColor(g.truck.color);
