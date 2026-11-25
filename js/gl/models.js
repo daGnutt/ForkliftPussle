@@ -37,33 +37,44 @@ function addBarrelDecals(m, x, y, z0, r, rot) {
 
 // Pallet with box on top: three runners, five deck slats, a taped cardboard box with a lid.
 // `dent`/`deco` decals go to the transparent mesh `tm` (drawn after, blended over the box top).
-function addBox(m, tm, x, y, r, z, col, pen, level) {
-  const tilt = pen?.tipShow ?? [0, Math.PI / 2, Math.PI][pen?.tip || 0];
-  if (tilt) {
-    // A toppled box is built upright, then rolled about its pallet axis (local x) and set on the floor again.
-    const half = (BOX_H + PAL) / 2, dz = Math.abs(Math.cos(tilt)) * half + Math.abs(Math.sin(tilt)) * 0.5;
-    m.tilt = { x, y, z: z + half, r, c: Math.cos(tilt), s: Math.sin(tilt), dz: dz - half };
-    addBox(m, { poly() {}, vpoly() {} }, x, y, r, z, col, { ...pen, tip: 0, tipShow: undefined, dent: 0, tape: 0, open: pen?.open }, level);
-    m.tilt = null;
-    return;
-  }
-  const co = Math.cos(r), si = Math.sin(r), wood = parseColor(PALLET_COLOR);
-  const scale = BOX_SCALE, hx = BOX_HALF_X, hy = halfY(pen);
-  const z0 = z + PAL, z1 = z0 + BOX_H;
-  for (const [off, hw] of palletRunnerDims(pen)) m.cuboid(x - si * off, y + co * off, r, hx, hw, z, z0 - 0.025, shade(wood, 0.82), { top: false, bottom: level === 0 });
+function addPallet(m, x, y, r, z, pen, bottom) {
+  const co = Math.cos(r), si = Math.sin(r), wood = parseColor(PALLET_COLOR), scale = BOX_SCALE, hx = BOX_HALF_X, hy = halfY(pen), z0 = z + PAL;
+  for (const [off, hw] of palletRunnerDims(pen)) m.cuboid(x - si * off, y + co * off, r, hx, hw, z, z0 - 0.025, shade(wood, 0.82), { top: false, bottom });
   SLATS.forEach((u, i) => m.cuboid(x + co * u * scale, y + si * u * scale, r, 0.075 * scale, hy, z0 - PALLET_DECK_H, z0, shade(wood, i & 1 ? 1 : 0.92), { bottom: false }));
+}
+
+// A box that tumbled lies on its side or upside down (`pen.tip`, `tipShow` while it rolls over) and may have lost its pallet
+// (`pen.loose`, the pallet's own floor pose). A toppled box is built upright, rolled about its pallet axis (local x) and set on the floor again.
+function addBox(m, tm, x, y, r, z, col, pen, level) {
+  const loose = pen?.loose, tilt = pen?.tipShow ?? [0, Math.PI / 2, Math.PI][pen?.tip || 0];
+  if (loose) addPallet(m, loose.x, loose.y, loose.a, 0, pen, true);
+  if (!tilt) { addParts(m, tm, x, y, r, z, col, pen, level, !loose); return; }
+  const barrel = pen?.barrelPart === 'base', zb = z;
+  const full = barrel ? 2 * (BOX_H + PAL) : BOX_H + PAL, ht = loose ? full - PAL : full, half = ht / 2;
+  const dz = Math.abs(Math.cos(tilt)) * half + Math.abs(Math.sin(tilt)) * (barrel && loose ? 0.4 : halfY(pen));
+  m.tilt = { x, y, z: zb + half, r, c: Math.cos(tilt), s: Math.sin(tilt), dz: dz - half };
+  addParts(m, { poly() {}, vpoly() {} }, x, y, r, z, col, { ...pen, tip: 0, tipShow: undefined, loose: undefined, dent: 0, tape: 0 }, level, !loose);
+  m.tilt = null;
+}
+
+function addParts(m, tm, x, y, r, z, col, pen, level, withPallet) {
+  const co = Math.cos(r), si = Math.sin(r);
+  const scale = BOX_SCALE, hx = BOX_HALF_X, hy = halfY(pen);
+  const z0 = withPallet ? z + PAL : z, z1 = z0 + BOX_H;
+  if (withPallet) addPallet(m, x, y, r, z, pen, level === 0);
   const dented = !!pen?.dent;
   const base = parseColor(COLORS[col]);
   const body = dented ? shade(base, 0.82) : base;
   if (pen?.barrelPart === 'base') {
-    const top = z + 2 * (BOX_H + PAL);
+    const top = z0 + 2 * BOX_H + PAL;
     m.cylinder(x, y, z0, top, 0.38, body, 16, r);
     for (const h of [0.26, 0.74]) m.cylinder(x, y, z0 + h * (top - z0), z0 + h * (top - z0) + 0.035, 0.395, '#a8afb0', 16, r);
     m.disc(x, y, top + 0.008, 0.13, '#a8afb0', 12);
+    if (m.tilt) m.poly(Array.from({ length: 16 }, (_, i) => [x + Math.cos(r + i * Math.PI / 8) * 0.38, y + Math.sin(r + i * Math.PI / 8) * 0.38]), z0, body, false);
     if (decalsEnabled()) addBarrelDecals(m, x, y, z0, 0.38, r);
     return;
   }
-  m.cuboid(x, y, r, hx, hy, z0, z1, body, { bottom: false });
+  m.cuboid(x, y, r, hx, hy, z0, z1, body, { bottom: !!m.tilt });
   if (pen?.open) {
     m.cuboid(x, y, r, 0.4 * scale, 0.4 * scale, z1, z1 + 0.012, shade(body, 0.2), { bottom: false });
     m.cuboid(x, y, r, 0.07 * scale, 0.4 * scale, z1 + 0.012, z1 + 0.024, '#555b60', { bottom: false });

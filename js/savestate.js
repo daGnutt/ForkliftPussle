@@ -20,6 +20,7 @@ const okOff = (o) => !!o && num(o.x) && num(o.y);
 const okPen = (p) => !!p && num(p.crash) && num(p.sq) &&
   (p.shift === undefined || num(p.shift) && p.shift >= 0 && p.shift <= 50) &&
   (p.tip === undefined || p.tip === 1 || p.tip === 2) &&
+  (p.loose === undefined || !!p.loose && num(p.loose.x) && num(p.loose.y) && num(p.loose.a)) &&
   (p.inspected === undefined || typeof p.inspected === 'boolean') &&
   (p.oilDropped === undefined || Number.isInteger(p.oilDropped) && p.oilDropped >= 0 && p.oilDropped <= 50) &&
   (p.oilFraction === undefined || num(p.oilFraction) && p.oilFraction >= 0 && p.oilFraction < 1);

@@ -90,8 +90,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const stable = drop(0);
   assert.deepEqual(stable.stacks[0].layers, [0, 1, 2]);
   const unstable = drop(0.4);
-  assert.deepEqual(unstable.stacks[0].layers, [0], 'the unsupported group falls together');
-  assert.deepEqual(unstable.stacks[1].layers, [1, 2]);
+  assert.deepEqual(unstable.stacks[0].layers, [0], 'the unsupported group falls off the stack');
+  assert.deepEqual(unstable.stacks.slice(1).flatMap((s) => s.layers).sort(), [1, 2], 'each fallen box tumbles on its own');
   const topFalls = drop(0.9);
   assert.deepEqual(topFalls.stacks[0].layers, [0, 1], 'an unsupported top falls before it can pull down a stable box');
   assert.deepEqual(topFalls.stacks[1].layers, [2]);
@@ -113,15 +113,16 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     return g;
   };
   const a = drop(), b = drop();
-  const fallen = a.stacks.find((s) => s.layers[0] === 1);
-  assert.ok(fallen && fallen.fall, 'the unsupported group lands elsewhere');
-  assert.deepEqual(fallen.layers, [1, 2]);
-  assert.deepEqual(fallen.pen.map((p) => p.deco), [1, 2]);
-  assert.deepEqual(a.stacks.map((s) => [s.x, s.y, s.layers]), b.stacks.map((s) => [s.x, s.y, s.layers]), 'landing is deterministic');
-  const box = rectPoly(fallen.x, fallen.y, 0.5, 0.5, fallen.rots[0]);
-  for (const s of a.stacks.filter((s) => s !== fallen)) {
-    const p = rectPoly(s.x, s.y, 0.5, 0.5, s.rots[0]);
-    assert.ok(!sat(box, p), 'landing does not overlap another floor stack');
+  const fallen = a.stacks.filter((s) => s.fall);
+  assert.deepEqual(fallen.flatMap((s) => s.layers).sort(), [1, 2], 'each unsupported box lands elsewhere');
+  assert.deepEqual(fallen.flatMap((s) => s.pen.map((p) => p.deco)).sort(), [1, 2]);
+  assert.deepEqual(a.stacks.map((s) => [s.x, s.y, s.layers, s.pen[0].tip]), b.stacks.map((s) => [s.x, s.y, s.layers, s.pen[0].tip]), 'landing is deterministic');
+  for (const f of fallen) {
+    const box = rectPoly(f.x, f.y, 0.5, 0.5, f.rots[0]);
+    for (const s of a.stacks.filter((s) => s !== f)) {
+      const p = rectPoly(s.x, s.y, 0.5, 0.5, s.rots[0]);
+      assert.ok(!sat(box, p), 'landing does not overlap another floor stack');
+    }
   }
 }
 

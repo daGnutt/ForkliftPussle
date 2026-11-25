@@ -40,10 +40,10 @@ const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
 // stacks on (and under) other wide boxes.
 const newPen = (col = 0, seed = 0, open = false, wide = false) => ({ crash: 0, sq: 0, deco: open ? 4 : boxDecalKind(col, seed), ...(open && { open: true }), ...(wide && { wide: true }) });
 export const topOpen = (pens) => !!pens?.[pens.length - 1]?.open;
-const blocksStacking = (pens) => topOpen(pens) || pens?.[pens.length - 1]?.barrelPart === 'top' || !!pens?.[pens.length - 1]?.tip;
+const blocksStacking = (pens) => topOpen(pens) || pens?.[pens.length - 1]?.barrelPart === 'top' || isToppled(pens?.[pens.length - 1]) || isToppled(pens?.[0]);
 // A box that toppled lies on its side (`pen.tip` 1) or upside down (2): it cannot be stacked on, lifted or count for a drop point.
 // There is no way to right it yet (a future bot will), so it is a deliberate soft-lock.
-export const isToppled = (pen) => !!pen?.tip;
+export const isToppled = (pen) => !!pen?.tip || !!pen?.loose;
 const TIP_ANGLE = [0, Math.PI / 2, Math.PI];
 // Deterministic per landing spot and fall height: taller falls tumble more often and further.
 function tipOnLanding(x, y, startZ) {
@@ -475,6 +475,32 @@ function fallBase(g, s) {
   return v;
 }
 
+const ROLL_SPEED = 1.6, ROLL_DECEL = 1.2; // tiles/s a toppled barrel starts rolling at, and how fast it slows
+// Where the pallet of a tumbled box ends up beside it (a pose relative to the box), or null when the box keeps its pallet.
+function looseOnLanding(x, y, startZ, tip) {
+  const r = Math.abs(Math.sin(x * 4.1414 + y * 9.2653 + startZ * 5.8979) * 12345.6789) % 1;
+  if (r > (tip ? 0.6 : 0.12 * startZ)) return null;
+  const a = r * 40;
+  return { x: Math.cos(a) * 0.85, y: Math.sin(a) * 0.85, a };
+}
+
+// A free floor spot 1.1..1.8 tiles around (x, y) for a box of a toppled group: clear of walls, floor boxes and the group's other boxes.
+function scatterSpot(g, x, y, a, pen, taken) {
+  const turn = Math.abs(Math.sin(x * 91.7 + y * 13.3)) * Math.PI;
+  for (const r of [1.1, 1.4, 1.8]) {
+    for (let k = 0; k < 8; k++) {
+      const ang = turn + (k * Math.PI) / 4, cx = x + Math.cos(ang) * r, cy = y + Math.sin(ang) * r;
+      const clear = (t) => !g.walls.some((w) => sat(boxPoly(x + (cx - x) * t, y + (cy - y) * t, a, pen), w.poly));
+      if (![0.25, 0.5, 0.75].every(clear)) continue; // never past a wall
+      const poly = boxPoly(cx, cy, a, pen);
+      if (poly.some((v) => v.x < 0 || v.x > g.w || v.y < 0 || v.y > g.h) || g.walls.some((w) => sat(poly, w.poly))) continue;
+      if (taken.some((t) => sat(poly, t)) || g.stacks.some((s) => { ensure(s); return sat(poly, boxPoly(s.x, s.y, s.rots[0], s.pen[0])); })) continue;
+      return { x: cx, y: cy };
+    }
+  }
+  return null;
+}
+
 // Unsupported boxes fall together, taking maximum damage.
 function settle(g, S) {
   ensure(S);
@@ -517,16 +543,32 @@ function settle(g, S) {
       return Math.abs(c.x - nx) < 0.55 && Math.abs(c.y - ny) < 0.55;
     });
     const under = under0;
-    const tip = !under && layers.length === 1 && !pen[0].barrelPart && !pen[0].wide ? tipOnLanding(nx, ny, startZ) : 0;
-    if (tip) pen[0].tip = tip;
-    const fall = (from, z) => ({ t0: g.clock, dx: a.x - nx, dy: a.y - ny, dr: 0.7 * Math.sign(dx * dy || 1), z, from });
+    const fall = (from, z, ox = a.x, oy = a.y, nx2 = nx, ny2 = ny) => ({ t0: g.clock, dx: ox - nx2, dy: oy - ny2, dr: 0.7 * Math.sign(dx * dy || 1), z, from });
     if (under) {
       under.fall = fall(under.layers.length, 0);
       under.layers.push(...layers); under.rots.push(...rots); under.pen.push(...pen);
       under.offs.push(...rel.map((o) => ({ x: nx + o.x - under.x, y: ny + o.y - under.y })));
       settle(g, under);
     } else {
-      g.stacks.push({ x: nx, y: ny, layers, rots, pen, a: rots[0], offs: rel, fall: fall(0, startZ) });
+      // Every fallen box (a barrel is one unit of two layers) tumbles on its own: it lands beside the others, upright, on its side or
+      // upside down, and may lose its pallet. A barrel on its side rolls on.
+      const taken = [];
+      for (let j = 0; j < layers.length; j += pen[j].barrelPart === 'base' ? 2 : 1) {
+        const n = pen[j].barrelPart === 'base' ? 2 : 1, ps = pen.slice(j, j + n);
+        const spot = j === 0 ? { x: nx, y: ny } : scatterSpot(g, nx, ny, rots[j], pen[j], taken) || { x: nx + rel[j].x, y: ny + rel[j].y };
+        taken.push(boxPoly(spot.x, spot.y, rots[j], pen[j]));
+        const tip = tipOnLanding(spot.x, spot.y, startZ + j), rolls = tip === 1 && n === 2;
+        const gone = looseOnLanding(spot.x, spot.y, startZ + j, tip);
+        const ang = rolls ? Math.atan2(dy, dx) : rots[j];
+        for (const q of ps) {
+          if (tip) q.tip = tip;
+          if (gone) q.loose = { x: spot.x + gone.x, y: spot.y + gone.y, a: gone.a };
+        }
+        const st = { x: spot.x, y: spot.y, layers: layers.slice(j, j + n), rots: rots.slice(j, j + n).map(() => ang), pen: ps, a: ang,
+          offs: ps.map(() => ({ x: 0, y: 0 })), fall: fall(0, startZ + j, S.x + offs[j].x, S.y + offs[j].y, spot.x, spot.y) };
+        if (rolls) st.roll = { vx: dx * ROLL_SPEED, vy: dy * ROLL_SPEED };
+        g.stacks.push(st);
+      }
     }
     if (g.hard && S.layers.length > 1) settle(g, S);
     break;
@@ -1618,12 +1660,24 @@ export function update(g, input, dt) {
   updateStep(g, input, dt);
 }
 
+// A toppled barrel rolls on after landing, slowing down until it stops or meets a wall or another stack.
+function stepRoll(g, s, dt) {
+  const v = Math.hypot(s.roll.vx, s.roll.vy), k = Math.max(0, v - ROLL_DECEL * dt) / (v || 1);
+  s.roll.vx *= k; s.roll.vy *= k;
+  if (v < 0.05 || k === 0) { delete s.roll; return; }
+  const nx = s.x + s.roll.vx * dt, ny = s.y + s.roll.vy * dt, poly = boxPoly(nx, ny, s.rots[0], s.pen[0]);
+  const blocked = poly.some((p) => p.x < 0 || p.x > g.w || p.y < 0 || p.y > g.h) || g.walls.some((w) => sat(poly, w.poly)) ||
+    g.stacks.some((o) => o !== s && sat(poly, boxPoly(o.x, o.y, o.rots[0], o.pen?.[0])));
+  if (blocked) delete s.roll; else { s.x = nx; s.y = ny; }
+}
+
 function updateStep(g, input, dt) {
   const root = g.root;
   root.clock += dt;
   for (const s of root.stacks) {
     if (s.fall && root.clock - s.fall.t0 >= FALL_TIME) delete s.fall;
     if (s.jolt != null && root.clock - s.jolt >= JOLT_TIME) delete s.jolt;
+    if (s.roll) stepRoll(root, s, dt);
   }
   if (root.hits) root.hits = root.hits.filter((h) => root.clock - h.t < hitLife(h));
   root.trucks.forEach((t, i) => { if (!t.gone) stepTruck(truckView(root, i), i === root.self && input != null ? input : t.input, dt); });

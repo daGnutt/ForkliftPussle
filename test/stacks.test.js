@@ -209,6 +209,33 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('toppled ok');
 }
 
+// Every fallen box tumbles on its own (a barrel is one unit): a toppled barrel rolls on, and tumbled boxes may lose their pallet.
+{
+  let rolled = null, loose = false;
+  for (let y = 3; y < 8 && !(rolled && loose); y += 0.07) {
+    const g = newGame(1);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y, layers: [0, BARREL_COLOR, BARREL_COLOR], rots: [0, 0, 0], a: 0, offs: [{ x: 0, y: 0 }, { x: 0.45, y: 0 }, { x: 0.45, y: 0 }],
+      pen: [{ crash: 0, sq: 0 }, { crash: 0, sq: 0, barrelPart: 'base' }, { crash: 0, sq: 0, barrelPart: 'top' }] }];
+    Object.assign(g.fl, { x: 8, y, a: 0, speed: 0 });
+    for (let i = 0; i < 600 && !g.stacks.some((s) => s.fall); i++) { g.fl.speed = 2; update(g, { up: true }, 1 / 120); }
+    const b = g.stacks.find((s) => s.layers[0] === BARREL_COLOR);
+    if (!b) continue;
+    assert.equal(b.layers.length, 2, 'the barrel stays one rigid unit');
+    if (b.pen.some((q) => q.loose)) loose = true;
+    if (b.roll) {
+      rolled = g;
+      const x0 = b.x, y0 = b.y;
+      g.fl.speed = 0; g.fl.x = 1; g.fl.y = 1;
+      for (let i = 0; i < 480; i++) update(g, {}, 1 / 120);
+      assert.ok(Math.hypot(b.x - x0, b.y - y0) > 0.1 && !b.roll, 'the barrel rolls and comes to rest');
+    }
+  }
+  assert.ok(rolled, 'a toppled barrel rolls');
+  assert.ok(loose, 'a tumbled box can lose its pallet');
+  console.log('barrel roll ok');
+}
+
 // Boxes that topple off a stack tumble visually: the logical stack is at its landing spot at once, fallView interpolates.
 {
   const g = newGame(1);
