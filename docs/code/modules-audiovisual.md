@@ -1,6 +1,6 @@
 # Modules: audio, decals, effects, 2D render
 
-Fresh wheel skid marks are dynamic game state, not the cached permanent `floorDecals`. `skidMark` supplies their shared geometry to the overview, software cabin and GL dynamic mesh, independently of the cosmetic decal switch.
+Fresh wheel skid marks are dynamic game state, not the cached permanent `floorDecals`. `skidMark` supplies their shared geometry to the GL dynamic mesh, independently of the cosmetic decal switch.
 
 Part of the code guide (see `../CODE_GUIDE.md`).
 

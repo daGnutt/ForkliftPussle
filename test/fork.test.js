@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateLevel, parseSeed, isReachable } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
-import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
+import { FL, MAX_H, MAX_LAYERS, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
 import { chaseOrbit } from '../js/gl/camera.js';
@@ -364,9 +364,9 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   driveUntil(g, 10, 8);
   forkUp(g);
   assert.equal(g.carried.length, 2);
-  while (g.H < 4) assert.equal(forkUp(g), undefined);
+  while (g.H < MAX_H - 1) assert.equal(forkUp(g), undefined);
   assert.equal(forkUp(g), 'blocked');
-  assert.equal(g.H, 4, 'forks stay put');
+  assert.equal(g.H, MAX_H - 1, 'forks stay put');
   assert.deepEqual(g.carriedPen.map((p) => p.crash), [10, 10], 'every carried box is damaged');
   assert.equal(g.hitCount, 1);
   console.log('ceiling ok');
@@ -462,9 +462,9 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   driveUntil(g, 8.9, 7);
   forkUp(g);
   assert.equal(g.lifting, b);
-  while (g.H < 4) assert.equal(forkUp(g), undefined);
+  while (g.H < MAX_H - 1) assert.equal(forkUp(g), undefined);
   assert.equal(forkUp(g), 'blocked');
-  assert.equal(g.H, 4, 'lift stops');
+  assert.equal(g.H, MAX_H - 1, 'lift stops');
   assert.deepEqual(bob.carriedPen.map((p) => p.crash), [10, 10], 'the carried stack is damaged');
   console.log('lift ceiling ok');
 }
@@ -814,6 +814,20 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(g.carried, null, 'a tap sets it down on the stack underneath');
   assert.equal(g.stacks[0].layers.length, 2);
   console.log('fork hover alert ok');
+}
+
+// The fork lifts to MAX_H and a floor stack of MAX_LAYERS boxes is lifted whole.
+{
+  const g = newGame(1);
+  flatWorld(g);
+  g.stacks = [{ x: 10, y: 5, layers: Array.from({ length: MAX_LAYERS }, (_, i) => i % 4) }];
+  Object.assign(g.fl, { x: 6, y: 5, a: 0, speed: 0 });
+  driveUntil(g, 10, 8);
+  forkUp(g);
+  assert.equal(g.carried.length, MAX_LAYERS, 'a full-height stack is lifted whole');
+  assert.equal(forkUp(g), 'blocked', 'a full-height stack cannot go up into the ceiling');
+  assert.equal(g.H, 1, 'it stays lifted at level 1 (full stack plus H < ceiling)');
+  console.log('fork max height ok');
 }
 
 console.log('fork tests passed');

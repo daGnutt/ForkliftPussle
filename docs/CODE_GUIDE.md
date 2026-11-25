@@ -7,7 +7,7 @@ Read this index first, then only the files relevant to your task. Vanilla JS ES 
 | [code/modules-core.md](code/modules-core.md) | Module map: `main`, `game`, `forklift`, `level`, `input`, `gamepad`, `local`, `savestate`, `theme`, `geom`, `debug`, `power`, `testing`; dependency direction; gear |
 | [code/modules-modes.md](code/modules-modes.md) | Module map: `endless`, `bot`, `highscores`, `globalscores`, `repair` |
 | [code/modules-audiovisual.md](code/modules-audiovisual.md) | Module map: `render`, `audio`, `midi`, `photo`, `disco`, `decals`, `revlight`, `dents` |
-| [code/modules-3d.md](code/modules-3d.md) | Module map: cabin view `pov.js` + `pov/`, GL renderer `gl/`, bot, tape-post and cone beacons |
+| [code/modules-3d.md](code/modules-3d.md) | Module map: GL renderer `gl/` (WebGL2 only), bot, tape-post and cone beacons |
 | [code/features.md](code/features.md) | Open-top boxes, oil barrels |
 | [code/multiplayer.md](code/multiplayer.md) | Party / multiplayer (lifting trucks etc.) |
 | [code/state-and-rules.md](code/state-and-rules.md) | Units and pallet dimensions, game state `g`, fork and stack rules, scoring (including Hard Mode placement and inspection), level generation, rendering |

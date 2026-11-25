@@ -1,16 +1,16 @@
 import { COLORS } from '../level.js';
 import { theme } from '../theme.js';
-import { FL, toWorld, truckColor } from '../forklift.js';
+import { FL, MAX_LAYERS, toWorld, truckColor } from '../forklift.js';
 import { topShapes, DENT_FILL } from '../dents.js';
 import { tapeShapes, TAPE_FILL } from '../repair.js';
 import { decalsEnabled, boxDeco, boxDecalShapes, OPEN_BOX_DECAL_EDGES } from '../decals.js';
 import { carriedDrawH, carriedWorldOffs, carriedJoltZ, liftedHf, crashBlink } from '../game.js';
 import { parseColor, shade, mix } from './mesh.js';
-import { BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims, BOX_H, PAL, TINE_H, PALLET_DECK_H } from '../geom.js';
+import { BOX_SCALE, BOX_HALF_X, halfY, palletRunnerDims, BOX_H, PAL, LEVEL_H, TINE_H, PALLET_DECK_H } from '../geom.js';
 
 // Geometry of the movable things (forklift, pallets, boxes). Heights in tiles; a box is BOX_H tall, a pallet PAL.
 export { BOX_H, PAL } from '../geom.js';
-export const WALL_H = 4;
+export const WALL_H = MAX_LAYERS * LEVEL_H + 1; // clears a full-height stack carried at the top fork level
 export const PALLET_COLOR = '#9a7040';
 const WHITE = [1, 1, 1, 1];
 

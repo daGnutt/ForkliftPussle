@@ -85,7 +85,7 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Bare forks** | Menu option (key B): in the GL cabin view hides the whole forklift body and the mast, leaving carriage and tines | `bareForksEnabled`, `addForks` |
 | **Tines / forks / blades** | The two prongs that go into a pallet | `addForks` |
 | **Tine tips** | Thin tapered ends; look-at point of the cabin camera | `g.ef` |
-| **Fork level** | Integer 0–5 height of the tines in box heights | `g.H` |
+| **Fork level** | Integer 0–8 (`MAX_H`) height of the tines in box heights | `g.H` |
 | **Fluid fork height** | Hard mode: exact tine height, changed continuously by holding fork up/down (tap = one level) | `g.hy`; in hard mode the small line right of the fork gauge follows it |
 | **Fork gauge** | HUD ladder showing fork height, boxes under the forks and the carried stack | `drawForkGauge` |
 | **Box status badge** | In the fork gauge, after inspection and until the stack is nudged, a warning triangle marks repairable damage and a tilted diamond marks crookedness | `boxStatus`, `drawBoxStatus` |
@@ -116,7 +116,6 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Local / global top list** | Local top 10 / online top 10 per seed+level | `highscores.js`, `globalscores.js` |
 | **Endless save** | Endless game checkpoint saved on opening the pause menu or starting/loading a run, resumed by Start endless after a browser restart; game over clears it | `forklift-endless-state`, `serializeEndless` |
 | **Earlier-state export** | Testing-only export of a snapshot from about five seconds of active gameplay earlier; unavailable until enough history exists | `stateExportEarlier`, `createStateHistory` |
-| **Skid marks / smoke** | Splash-animation effects | `splash.js` |
 
 ## Decals (cosmetic)
 
@@ -150,7 +149,6 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Compass** | Small needle (shown only when north is not up; always in the chase camera) under the fork gauge pointing north (world up) as seen from the current camera | `drawCompass` |
 | **Chase camera** | Third-person GL overview camera behind the forklift (`view.camP` is its floor position: it translates as little as possible, only to stay within a maximum distance of the truck, and pitches/yaws to keep the truck centred, so reversing causes no swing; while moving it slowly drifts behind (forwards) or in front (reverse) of the truck; drag/Q/W orbit it around the middle of the tines, driving springs it back; a wall hiding more than half the forklift makes it orbit upwards (`view.chaseLift`) (C / menu / double tap on the canvas); the minimap outlines its tilted floor footprint instead of a rectangle | `view.chase`, `chaseCamera`, `groundFootprint` |
 | **Corner window / look window** | Small inset showing the other view | `drawLook3d` |
-| **Software camera** | 2D Canvas renderer (`pov.js`, `pov/camera.js`) | – |
 | **GL camera** | WebGL renderer (`gl/camera.js`) | `povCamera`, `overviewCamera` |
 | **Eye** | Cabin camera position/pitch following the forks | `g.ef`, `EYE_Z` |
 | **Follow camera** | Overview that scrolls on big maps | `main.js` |

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateLevel, parseSeed, isReachable, BARREL_COLOR } from '../js/level.js';
 import { pointRectDist } from '../js/geom.js';
-import { FL, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
+import { FL, MAX_LAYERS, toLocal, toWorld, maxSteerFor } from '../js/forklift.js';
 import { reverseLight, REV_RADIUS } from '../js/revlight.js';
 import { serializeGame, deserializeGame, encodeState, decodeState, serializeEndless, deserializeEndless } from '../js/savestate.js';
 import { chaseOrbit } from '../js/gl/camera.js';
@@ -282,9 +282,9 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     assert.equal(a.carried, null);
     assert.deepEqual(b.carried, [0, 1, 2, 3, 0], 'four boxes from height 2 land on the single carried box');
     // a full stack is not merged into
-    b.carried = [0, 1, 2, 3]; a.carried = [1, 2]; a.carriedRots = [0, 0]; a.carriedPen = []; a.carriedOffs = []; a.H = 4;
+    b.carried = Array.from({ length: MAX_LAYERS - 1 }, (_, i) => i % 4); a.carried = [1, 2]; a.carriedRots = [0, 0]; a.carriedPen = []; a.carriedOffs = []; a.H = MAX_LAYERS - 1;
     forkDown(g4);
-    assert.equal(b.carried.length, 4, 'over MAX_LAYERS is refused');
+    assert.equal(b.carried.length, MAX_LAYERS - 1, 'over MAX_LAYERS is refused');
   }
 
   // a player leaving puts the carried boxes down and frees the slot

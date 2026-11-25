@@ -6,7 +6,7 @@
 - Each slide is a `<section class="slide">`. Timeline slides have a `.date` line (day · date), an `<h2>`, then `<div class="row"><ul>…</ul><figure><img src="shots/NN-name.png"><figcaption>…</figcaption></figure></div>`.
 - Slides: title, idea & stack, one or more per day of development, "where it ended up", timeline at a glance, thank you.
 - Keep stats current: commit count (`git rev-list --count HEAD`), JS lines (`wc -l js/*.js`), number of days, and the per-day bar in "Timeline at a glance". The "Commits per day" slide embeds a `perDay` object in the script (lines changed per commit, per day, from `git log --date=short --pretty='C %ad' --numstat`; binary files count as 0); refresh it when adding commits.
-- Slogan poster slide ("Wall posters"): the script holds a copy of `FONT` and `SLOGANS` from `js/pov/face.js` (colours as Y/K/W) and draws a handful of posters to canvases, chosen by the slide's `data-pick` list of `SLOGANS` indices; when slogans change, refresh that copy and check the picks still exist.
+- Slogan poster slide ("Wall posters"): the script holds a copy of `FONT` and `SLOGANS` from `js/gl/wall-decals.js` (colours as Y/K/W) and draws a handful of posters to canvases, chosen by the slide's `data-pick` list of `SLOGANS` indices; when slogans change, refresh that copy and check the picks still exist.
 
 ## Regenerating / updating
 1. Read the history: `git log --reverse --date=short --pretty='%ad %h %s'`. Group commits by day and theme; for an update, only add what is new since the last slide (check the last date/commit mentioned).
@@ -25,7 +25,7 @@ Firefox is the only browser installed; `firefox --headless --screenshot` fires a
 - Kill helper servers (by PID) and delete `/tmp` files when done.
 
 ## Taking screenshots of current commits with WebGL (Chromium via Playwright)
-Headless Firefox (snap) has **no WebGL** (`getContext('webgl2')` is null, even with `webgl.force-enabled`), so it only shows the 2D fallback renderer. For anything since the WebGL2 renderer (overview, chase camera, cabin view, dark-mode lights, doorway beacons) use Chromium with software GL (SwiftShader). Everything lives in `/tmp`, nothing goes in the repo.
+Headless Firefox (snap) has **no WebGL** (`getContext('webgl2')` is null, even with `webgl.force-enabled`), so it only shows the WebGL2-required message. For all views use Chromium with software GL (SwiftShader). Everything lives in `/tmp`, nothing goes in the repo.
 1. Install (no root, no build step in the repo): `mkdir /tmp/shotrig && cd /tmp/shotrig && npm init -y && npm i playwright && npx playwright install chromium`.
 2. If Chromium fails with `libasound.so.2: cannot open shared object file`, fetch it without sudo: `mkdir libs && cd libs && apt-get download libasound2t64 && dpkg -x *.deb .`, then `export LD_LIBRARY_PATH=/tmp/shotrig/libs/usr/lib/x86_64-linux-gnu` before running node.
 3. Serve the repo root (or a `git worktree` of another commit) statically: `python3 -m http.server 8765` (run from that directory; kill it by PID afterwards).
