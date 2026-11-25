@@ -194,7 +194,7 @@ function watchBots() {
   const playDroid = (...a) => { if (game.status !== 'won') droid(...a); }; // silent on the end-of-level screen
   const loaded = botGame !== game; // first look at this game (new level, or restored from a save): its existing photo is not news
   if (loaded) { botGame = game; botPrev = new Map(); botSaid = new WeakSet(); }
-  for (const [key, b] of [['cleaner', game.bot], ['inspector', game.inspector], ['cone', game.coneBot], ['tape', game.tapeBot]]) {
+  for (const [key, b] of [['cleaner', game.bot], ['inspector', game.inspector], ['cone', game.coneBot], ['tape', game.tapeBot], ['fix', game.fixBot]]) {
     if (!b) continue;
     const p = botPrev.get(key), vol = hearVol(b.x, b.y);
     const now = { show: b.show > 0, scared: !!b.scared, shoot: (b.shooting || 0) > 0, clean: !!b.cleaning,

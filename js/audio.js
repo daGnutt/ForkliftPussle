@@ -604,6 +604,7 @@ const DROID_VOICES = {
   cleaner: { pitch: 0.8, type: 'triangle', tempo: 1.15, rhythm: [1, 0.6, 0.6], notes: [1, 0.8, 1.2], vibrato: 18, depth: 0.035 },
   inspector: { pitch: 1.25, type: 'sine', tempo: 0.9, rhythm: [1, 1, 1.5], notes: [1, 1.25, 1.5], vibrato: 30, depth: 0.02 },
   cone: { pitch: 0.65, type: 'square', tempo: 1.35, rhythm: [0.6, 0.6, 1.8], notes: [1, 1.5, 1], vibrato: 12, depth: 0.055 },
+  fix: { pitch: 0.9, type: 'sine', tempo: 1.0, rhythm: [1, 0.5, 1, 1.5], notes: [1, 1.33, 1.5, 1.2], vibrato: 22, depth: 0.03 },
   tape: { pitch: 1.05, type: 'sawtooth', tempo: 0.7, rhythm: [0.5, 1.5, 0.5, 1.5], notes: [1, 1.12, 0.89, 1.33], vibrato: 38, depth: 0.015 },
 };
 const rand = (a, b) => a + Math.random() * (b - a);

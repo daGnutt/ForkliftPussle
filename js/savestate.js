@@ -24,7 +24,7 @@ const okPen = (p) => !!p && num(p.crash) && num(p.sq) &&
   (p.inspected === undefined || typeof p.inspected === 'boolean') &&
   (p.oilDropped === undefined || Number.isInteger(p.oilDropped) && p.oilDropped >= 0 && p.oilDropped <= 50) &&
   (p.oilFraction === undefined || num(p.oilFraction) && p.oilFraction >= 0 && p.oilFraction < 1);
-const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'oil', 'skidMarks', 'cones', 'tapes', 'repair', 'bot', 'inspector', 'coneBot', 'tapeBot', 'photo', 'bonks', 'H', 'hy', 'hf', 'status', 'time', 'started', 'clock'];
+const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'oil', 'skidMarks', 'cones', 'tapes', 'repair', 'bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot', 'photo', 'bonks', 'H', 'hy', 'hf', 'status', 'time', 'started', 'clock'];
 
 // Plain-JSON snapshot of a level in progress; the static layout is regenerated from (level, seed, hard).
 export function serializeGame(g, seedText = '') {
@@ -98,8 +98,8 @@ export function deserializeGame(data) {
   }
   const g = newGame(level, seed, !!hard);
   checkState(s);
-  const boxes = (stacks, carried) => stacks.reduce((n, st) => n + st.layers.length, 0) + (carried ? carried.length : 0);
-  if (boxes(s.stacks, s.carried) !== boxes(g.stacks, null)) throw new Error('State does not match level');
+  const boxes = (stacks, carried, extra) => stacks.reduce((n, st) => n + st.layers.length, 0) + (carried ? carried.length : 0) + (extra?.length || 0);
+  if (boxes(s.stacks, s.carried, s.fixBot?.carry?.layers) !== boxes(g.stacks, null)) throw new Error('State does not match level');
   Object.assign(g, clone(s));
   if (!g.bot) g.bot = makeBot(g);
   restoreInspections(g, data);

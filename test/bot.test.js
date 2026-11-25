@@ -1747,4 +1747,41 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(g.tapes.length, 1, 'a current hard-mode scan permits installation');
 }
 
+// Righting bot: reachable pallet first (set down on a free spot), then the box onto it, upright; unreachable ones are beamed from a distance.
+{
+  const mk = (x, y, lx, ly) => ({ x, y, a: 0, layers: [1], rots: [0], offs: [{ x: 0, y: 0 }], pen: [{ crash: 0, sq: 0, tip: 1, loose: { x: lx, y: ly, a: 0.3 } }] });
+  const g = newGame(1, 0);
+  flatWorld(g); g.stacks = []; g.bot = null; g.inspector = null; g.coneBot = null; g.tapeBot = null;
+  Object.assign(g.fl, { x: g.w - 2, y: g.h - 2, speed: 0 });
+  assert.ok(g.fixBot && g.fixBot.show === 0, 'a righting bot waits behind the hatch');
+  const box = mk(g.w / 2, g.h / 2, g.w / 2 + 2, g.h / 2 + 1);
+  g.stacks.push(box);
+  const start = { x: box.x, y: box.y };
+  let palletFirst = false, lifted = false, carried = null;
+  for (let i = 0; i < 120 * 90 && (g.fixBot.carry || g.stacks.some((s) => s.pen[0].tip || s.pen[0].loose)); i++) {
+    update(g, NONE, 1 / 120);
+    const l = box.pen[0].loose;
+    lifted ||= !!l?.lift;
+    if (g.fixBot.carry && !carried) carried = structuredClone(JSON.parse(JSON.stringify(g.fixBot)));
+    palletFirst ||= !!l?.set && box.pen[0].tip === 1;
+  }
+  assert.ok(lifted && palletFirst, 'the pallet is lifted and set down before the box is touched');
+  assert.ok(carried?.carry?.layers.length === 1 && carried.unfold > 0, 'a box in the beam is plain JSON (saved with the bot) and the bot is unfolded');
+  const fixed = g.stacks[0];
+  assert.ok(g.stacks.length === 1 && !fixed.pen[0].tip && !fixed.pen[0].loose && !g.fixBot.carry, 'the box ends upright on a pallet');
+  assert.ok(Math.hypot(fixed.x - start.x, fixed.y - start.y) > 0.5, 'the box was moved to the pallet');
+  for (let i = 0; i < 120 * 40 && g.fixBot.mode !== 'hidden'; i++) update(g, NONE, 1 / 120);
+  assert.equal(g.fixBot.mode, 'hidden', 'the bot goes home when nothing is left to fix');
+}
+{
+  const g = newGame(1, 0);
+  flatWorld(g); g.stacks = []; g.bot = null; g.inspector = null; g.coneBot = null; g.tapeBot = null;
+  Object.assign(g.fl, { x: g.w - 2, y: g.h - 2, speed: 0 });
+  const wall = { layers: [1, 1], rots: [0, 0], offs: [{ x: 0, y: 0 }, { x: 0, y: 0 }], pen: [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }] };
+  const boxed = { ...wall, x: g.w / 2, y: g.h / 2, a: 0, layers: [1], rots: [0], offs: [{ x: 0, y: 0 }], pen: [{ crash: 0, sq: 0, tip: 2 }] };
+  g.stacks.push(boxed);
+  for (let i = 0; i < 120 * 60 && (g.fixBot.carry || g.stacks[0].pen[0].tip); i++) update(g, NONE, 1 / 120);
+  assert.ok(!g.stacks[0].pen[0].tip, 'a box that kept its pallet is turned upright');
+}
+
 console.log('bot tests passed');

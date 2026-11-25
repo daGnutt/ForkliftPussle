@@ -23,7 +23,7 @@ export function drawBotDebug(ctx, g, proj, unit = 1) {
   drawAlertProbes(ctx, g, proj, unit);
   drawAlertMarks(ctx, g, proj, unit);
   const bots = [[g.bot, '#ffb84a', 'cleaner'], [g.inspector, '#4ad8ff', 'inspector'],
-    [g.coneBot, '#ff785a', 'cone'], [g.tapeBot, '#e8be26', 'tape']].filter(([b]) => b && b.mode === 'out');
+    [g.coneBot, '#ff785a', 'cone'], [g.tapeBot, '#e8be26', 'tape'], [g.fixBot, '#6fe08a', 'fix']].filter(([b]) => b && b.mode === 'out');
   if (!bots.length) return;
   ctx.save();
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';

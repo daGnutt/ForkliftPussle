@@ -5,7 +5,7 @@ import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLoc
 import { addDent, dentIndex, toLocalDir } from './dents.js';
 import { BARREL_COLOR, OIL_DRAIN_SIZE, generateLevel } from './level.js';
 import { makeStation, stepRepair, repairable, recordDropAngle } from './repair.js';
-import { makeHatch, makeBot, makeInspector, makeConeBot, makeTapeBot, stepBot, stepInspector, stepConeBot, stepTapeBot, stepConeCollisions, stepTapeCollisions, stackSig, makePhoto } from './bot.js';
+import { makeHatch, makeBot, makeInspector, makeConeBot, makeTapeBot, makeFixBot, stepBot, stepInspector, stepConeBot, stepTapeBot, stepFixBot, stepConeCollisions, stepTapeCollisions, stackSig, makePhoto } from './bot.js';
 import { closingSpeed, contactCorrection, palletSupported, solveContacts, supported } from './hard-physics.js';
 
 const FORKLIFT_MASS = 6;
@@ -765,6 +765,7 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
   g.inspector = makeInspector(g);
   g.coneBot = makeConeBot(g);
   g.tapeBot = makeTapeBot(g);
+  g.fixBot = makeFixBot(g);
   bindTrucks(g);
   markSpawnStacks(g, 0);
   return g;
@@ -1713,6 +1714,7 @@ function updateStep(g, input, dt) {
   stepInspector(root, dt, doneZones, stackAt, wonky);
   stepConeBot(root, dt, doneZones, stackAt);
   stepTapeBot(root, dt, doneZones, stackAt, wonky, tapeShapes);
+  stepFixBot(root, dt);
   updateGhosts(root);
   if (root.status === 'play' && root.started) root.time += dt; // the level timer runs from the first move until solved
   scorePopups(root);

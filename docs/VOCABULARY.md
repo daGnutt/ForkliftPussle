@@ -85,7 +85,8 @@ Shared names for things in Pallet Polka, so bug reports and requests are unambig
 | **Bare forks** | Menu option (key B): in the GL cabin view hides the whole forklift body and the mast, leaving carriage and tines | `bareForksEnabled`, `addForks` |
 | **Tines / forks / blades** | The two prongs that go into a pallet | `addForks` |
 | **Tine tips** | Thin tapered ends; look-at point of the cabin camera | `g.ef` |
-| **Toppled box** | A box or barrel that fell off a stack and landed on its side (`pen.tip` 1), upside down (2) and/or without its pallet (`pen.loose`, the pallet lies loose on the floor); cannot be lifted, stacked on or fill a drop point; no way to right it yet (a future bot will), so a soft-lock | `pen.tip`, `pen.loose`, `isToppled` |
+| **Righting bot** | Folding gantry-arch robot on tracks (compact 0.5 high when driving empty, unfolds to 2.2 to carry). Works reachable loose pallets first, then reachable toppled boxes, then "cheats" with a tractor beam from the nearest reachable spot; sets a pallet down on a free spot, then beams the box upright onto it; goes home when nothing is left | `g.fixBot`, `makeFixBot`, `stepFixBot`, `bot.fix`, `bot.carry` |
+| **Toppled box** | A box or barrel that fell off a stack and landed on its side (`pen.tip` 1), upside down (2) and/or without its pallet (`pen.loose`, the pallet lies loose on the floor); cannot be lifted, stacked on or fill a drop point; the righting bot sets it upright | `pen.tip`, `pen.loose`, `isToppled` |
 | **Rolling barrel** | A barrel lying on its side after toppling, rolling on until it slows down or hits something | `stack.roll`, `stepRoll` |
 | **Fork level** | Integer 0–5 (`MAX_H`) height of the tines in box heights | `g.H` |
 | **Fluid fork height** | Hard mode: exact tine height, changed continuously by holding fork up/down (tap = one level) | `g.hy`; in hard mode the small line right of the fork gauge follows it |

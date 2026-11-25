@@ -1,7 +1,7 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from '../level.js';
 import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
-import { scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, BOT_BEACONS, botBeaconOn, beaconColor, proximityBeaconOn, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
+import { fixBotShape, scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, BOT_BEACONS, botBeaconOn, beaconColor, proximityBeaconOn, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
 import { LEVEL_H } from '../geom.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals, floorGrateDecal, skidMark } from '../decals.js';
@@ -12,7 +12,7 @@ import { zoneDone, zoneExt, zoneLabelPos, isSolved, isParked, otherTrucksShown, 
 import { paintWallDecals, chargerDecal } from './wall-decals.js';
 import { Mesh, parseColor, mix, shade, hsl } from './mesh.js';
 import { addParticles } from './particles.js';
-import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, BOX_H, PAL, addStack, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
+import { WALL_H, HEAD_X, HEAD_Z, TAIL_X, TAIL_Z, LAMP_Y, BOX_H, PAL, addStack, addPallet, addForklift, addForks, addCarried, bareForksEnabled } from './models.js';
 
 // Builds the meshes for the WebGL renderer. `mode` is 'pov' (cabin: ceiling, signs) or 'ov' (overview / third person:
 // no ceiling). Walls are always full height; in 'ov' the renderer clips the ones on the camera side of the forklift
@@ -543,6 +543,33 @@ function addSafetyMarks(om, tm, g) {
   }
 }
 
+// Righting bot: a gantry arch that unfolds from a compact block, with a green tractor beam from its head to what it carries.
+function addFixBot(om, tm, g) {
+  const b = g.fixBot;
+  if (!b || b.show <= 0) return;
+  const { x, y } = botDrawPos(b, g.hatch), c = Math.cos(b.a), s = Math.sin(b.a);
+  const at = (u, v) => [x + u * c - v * s, y + u * s + v * c];
+  const shape = fixBotShape(b.unfold ?? 0);
+  for (const [u, v, hl, hw, z0, z1, color, emissive] of shape.parts) om.cuboid(...at(u, v), b.a, hl, hw, z0, z1, color, { emissive });
+  const on = botBeaconOn(g, b);
+  om.cuboid(...at(0, 0), b.a, 0.04, 0.04, shape.h - 0.05, shape.h, beaconColor('#78e5f4', on), { emissive: on });
+  if (b.carry) {
+    const k = b.carry, pens = k.pen.map((p) => ({ ...p, loose: undefined }));
+    const l = k.pen[0].loose;
+    if (l) addPallet(om, l.x, l.y, l.a, 0, k.pen[0], true);
+    addStack(om, tm, k.x, k.y, k.rots || [], k.layers, (b.carryZ || 0) / (BOX_H + PAL), k.offs, 0, 0, pens);
+  }
+  if (b.beam) {
+    const bx = b.beam.x, by = b.beam.y, top = shape.beamZ, bz = b.beam.z + 0.05, r0 = 0.12, r1 = 0.55;
+    const n = 10;
+    for (let i = 0; i < n; i++) {
+      const a0 = i / n * Math.PI * 2, a1 = (i + 1) / n * Math.PI * 2;
+      tm.quad([x + Math.cos(a0) * r0, y + Math.sin(a0) * r0, top], [x + Math.cos(a1) * r0, y + Math.sin(a1) * r0, top],
+        [bx + Math.cos(a1) * r1, by + Math.sin(a1) * r1, bz], [bx + Math.cos(a0) * r1, by + Math.sin(a0) * r1, bz], [0, 0, 1], [0.35, 1, 0.55, 0.16]);
+    }
+  }
+}
+
 function addBotBeacons(om, g) {
   for (const [key, [u, v, hl, hw, z0, z1, color]] of Object.entries(BOT_BEACONS)) {
     const b = g[key];
@@ -565,6 +592,7 @@ export function dynamicMeshes(g, mode, eye) {
   }
   addSafetyMarks(om, tm, g);
   addBot(om, tm, g);
+  addFixBot(om, tm, g);
   addBotBeacons(om, g);
   for (const st0 of g.stacks) {
     const st = fallView(g, st0);

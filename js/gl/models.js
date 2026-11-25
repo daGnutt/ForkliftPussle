@@ -37,7 +37,7 @@ function addBarrelDecals(m, x, y, z0, r, rot) {
 
 // Pallet with box on top: three runners, five deck slats, a taped cardboard box with a lid.
 // `dent`/`deco` decals go to the transparent mesh `tm` (drawn after, blended over the box top).
-function addPallet(m, x, y, r, z, pen, bottom) {
+export function addPallet(m, x, y, r, z, pen, bottom) {
   const co = Math.cos(r), si = Math.sin(r), wood = parseColor(PALLET_COLOR), scale = BOX_SCALE, hx = BOX_HALF_X, hy = halfY(pen), z0 = z + PAL;
   for (const [off, hw] of palletRunnerDims(pen)) m.cuboid(x - si * off, y + co * off, r, hx, hw, z, z0 - 0.025, shade(wood, 0.82), { top: false, bottom });
   SLATS.forEach((u, i) => m.cuboid(x + co * u * scale, y + si * u * scale, r, 0.075 * scale, hy, z0 - PALLET_DECK_H, z0, shade(wood, i & 1 ? 1 : 0.92), { bottom: false }));
@@ -47,7 +47,7 @@ function addPallet(m, x, y, r, z, pen, bottom) {
 // (`pen.loose`, the pallet's own floor pose). A toppled box is built upright, rolled about its pallet axis (local x) and set on the floor again.
 function addBox(m, tm, x, y, r, z, col, pen, level) {
   const loose = pen?.loose, tilt = pen?.tipShow ?? [0, Math.PI / 2, Math.PI][pen?.tip || 0];
-  if (loose) addPallet(m, loose.x, loose.y, loose.a, 0, pen, true);
+  if (loose) addPallet(m, loose.x, loose.y, loose.a, loose.lift || 0, pen, true);
   if (!tilt) { addParts(m, tm, x, y, r, z, col, pen, level, !loose); return; }
   const barrel = pen?.barrelPart === 'base', zb = z;
   const full = barrel ? 2 * (BOX_H + PAL) : BOX_H + PAL, ht = loose ? full - PAL : full, half = ht / 2;
