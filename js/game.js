@@ -40,7 +40,17 @@ const ALIGN_RATE = 1.2; // rad/s a nudged stack turns square to the forklift
 // stacks on (and under) other wide boxes.
 const newPen = (col = 0, seed = 0, open = false, wide = false) => ({ crash: 0, sq: 0, deco: open ? 4 : boxDecalKind(col, seed), ...(open && { open: true }), ...(wide && { wide: true }) });
 export const topOpen = (pens) => !!pens?.[pens.length - 1]?.open;
-const blocksStacking = (pens) => topOpen(pens) || pens?.[pens.length - 1]?.barrelPart === 'top';
+const blocksStacking = (pens) => topOpen(pens) || pens?.[pens.length - 1]?.barrelPart === 'top' || !!pens?.[pens.length - 1]?.tip;
+// A box that toppled lies on its side (`pen.tip` 1) or upside down (2): it cannot be stacked on, lifted or count for a drop point.
+// There is no way to right it yet (a future bot will), so it is a deliberate soft-lock.
+export const isToppled = (pen) => !!pen?.tip;
+const TIP_ANGLE = [0, Math.PI / 2, Math.PI];
+// Deterministic per landing spot and fall height: taller falls tumble more often and further.
+function tipOnLanding(x, y, startZ) {
+  const r = Math.abs(Math.sin(x * 12.9898 + y * 78.233 + startZ * 37.719) * 43758.5453) % 1;
+  if (r > Math.min(0.9, 0.35 + 0.2 * startZ)) return 0;
+  return r < 0.55 * Math.min(0.9, 0.35 + 0.2 * startZ) ? 1 : 2;
+}
 const wideBox = (pens) => !!pens?.[0]?.wide;
 const boxPoly = (x, y, a, pen) => rectPoly(x, y, BOX_HALF_X, halfY(pen), a);
 const boxArea = (pen) => 4 * BOX_HALF_X * halfY(pen);
@@ -455,7 +465,7 @@ function fallBase(g, s) {
   const p = Math.min(1, ((g.root || g).clock - f.t0) / FALL_TIME);
   if (p >= 1) return s;
   const e = 1 - (1 - p) ** 2, k = 1 - e;
-  const v = { ...s, rots: s.rots.map((r, i) => (i >= f.from ? r + f.dr * (1 - p) * Math.sin(Math.PI * Math.min(1, p * 1.3)) : r)) };
+  const v = { ...s, pen: s.pen.map((q, i) => (i >= f.from && q.tip ? { ...q, tipShow: TIP_ANGLE[q.tip] * Math.min(1, p * 1.25) } : q)), rots: s.rots.map((r, i) => (i >= f.from ? r + f.dr * (1 - p) * Math.sin(Math.PI * Math.min(1, p * 1.3)) : r)) };
   if (f.from === 0) {
     v.x = s.x + f.dx * k; v.y = s.y + f.dy * k;
     v.fallZ = Math.max(0, f.z * (1 - p * p) + 0.25 * Math.sin(Math.PI * p));
@@ -501,11 +511,14 @@ function settle(g, S) {
     const layers = S.layers.splice(i);
     const rel = offs.map((o) => ({ x: o.x - offs[0].x, y: o.y - offs[0].y }));
     // Landing within stackable reach of another stack's top box, the fallen boxes come to rest on it.
-    const under = g.hard ? target.under : g.stacks.find((t) => {
+    const under0 = g.hard ? target.under : g.stacks.find((t) => {
       if (t === S || t.layers.length + layers.length > MAX_LAYERS || blocksStacking(t.pen) || wideBox(t.pen) !== wideBox(pen)) return false;
       const c = boxPos(t, t.layers.length - 1);
       return Math.abs(c.x - nx) < 0.55 && Math.abs(c.y - ny) < 0.55;
     });
+    const under = under0;
+    const tip = !under && layers.length === 1 && !pen[0].barrelPart && !pen[0].wide ? tipOnLanding(nx, ny, startZ) : 0;
+    if (tip) pen[0].tip = tip;
     const fall = (from, z) => ({ t0: g.clock, dx: a.x - nx, dy: a.y - ny, dr: 0.7 * Math.sign(dx * dy || 1), z, from });
     if (under) {
       under.fall = fall(under.layers.length, 0);
@@ -2146,6 +2159,7 @@ function forkUpStep(g) {
 // The tines under the box at the fork level lift it and everything above it. Refused ('blocked') when the tines don't both fit under a wide box.
 function pickUp(g, S) {
   const k = g.H;
+  if (isToppled(S.pen?.[k])) return 'blocked';
   if (!g.hard && S.pen?.[k]?.wide && Math.abs(Math.sin(g.fl.a - S.rots[k])) > WIDE_ALIGN) return 'blocked';
   const rider = perchedOn(g, S);
   liftBoxes(g, S, k);
@@ -2409,6 +2423,7 @@ const stackFillsZone = (s, z) => {
     : s.layers.length === z.count && s.layers.every((c) => c === z.color);
   return Math.abs(s.x - z.x) < 0.5 &&
     Math.abs(s.y - z.y) < 0.5 &&
+    !s.pen?.some(isToppled) &&
     matchesLoad &&
     !!z.wide === wideBox(s.pen) &&
     (!z.wide || Math.abs(Math.sin((s.a || 0) - (z.a || 0))) < 0.4);

@@ -38,6 +38,15 @@ function addBarrelDecals(m, x, y, z0, r, rot) {
 // Pallet with box on top: three runners, five deck slats, a taped cardboard box with a lid.
 // `dent`/`deco` decals go to the transparent mesh `tm` (drawn after, blended over the box top).
 function addBox(m, tm, x, y, r, z, col, pen, level) {
+  const tilt = pen?.tipShow ?? [0, Math.PI / 2, Math.PI][pen?.tip || 0];
+  if (tilt) {
+    // A toppled box is built upright, then rolled about its pallet axis (local x) and set on the floor again.
+    const half = (BOX_H + PAL) / 2, dz = Math.abs(Math.cos(tilt)) * half + Math.abs(Math.sin(tilt)) * 0.5;
+    m.tilt = { x, y, z: z + half, r, c: Math.cos(tilt), s: Math.sin(tilt), dz: dz - half };
+    addBox(m, { poly() {}, vpoly() {} }, x, y, r, z, col, { ...pen, tip: 0, tipShow: undefined, dent: 0, tape: 0, open: pen?.open }, level);
+    m.tilt = null;
+    return;
+  }
   const co = Math.cos(r), si = Math.sin(r), wood = parseColor(PALLET_COLOR);
   const scale = BOX_SCALE, hx = BOX_HALF_X, hy = halfY(pen);
   const z0 = z + PAL, z1 = z0 + BOX_H;

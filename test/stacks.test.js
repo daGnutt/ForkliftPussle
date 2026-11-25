@@ -179,6 +179,36 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(s.pen.every((p) => p.crash === 0), 'slow tine contact does not damage the stack');
 }
 
+// Boxes pushed off a stack may land on their side or upside down; a toppled box cannot be lifted, and a drop point needs an upright box.
+{
+  let tipped = null;
+  for (let y = 4; y < 7 && !tipped; y += 0.13) {
+    const g = newGame(1);
+    flatWorld(g);
+    g.stacks = [{ x: 10, y, layers: [0, 1], rots: [0, 0], pen: [{ crash: 0, sq: 0 }, { crash: 0, sq: 0 }], a: 0, offs: [{ x: 0, y: 0 }, { x: 0.45, y: 0 }] }];
+    Object.assign(g.fl, { x: 8, y, a: 0, speed: 0 });
+    for (let i = 0; i < 600 && !g.stacks.some((s) => s.fall); i++) { g.fl.speed = 2; update(g, { up: true }, 1 / 120); }
+    tipped = g.stacks.find((s) => s.fall && s.pen[0].tip) && g;
+  }
+  assert.ok(tipped, 'some toppled boxes land on their side or upside down');
+  const t = tipped.stacks.find((s) => s.pen[0].tip);
+  assert.ok([1, 2].includes(t.pen[0].tip));
+  assert.ok(fallView(tipped, t).pen[0].tipShow < Math.PI, 'the tumble is animated');
+  const g = newGame(1);
+  flatWorld(g);
+  g.zones = [{ x: 10, y: 5, w: 1.38, h: 1.38, color: 0, count: 1, a: 0 }];
+  g.stacks = [{ x: 10, y: 5, layers: [0], rots: [0], pen: [{ crash: 0, sq: 0, tip: 1 }], a: 0, offs: [{ x: 0, y: 0 }] }];
+  assert.ok(!zoneDone(g, g.zones[0]), 'a toppled box does not fill a drop point');
+  g.stacks[0].pen[0].tip = 0;
+  assert.ok(zoneDone(g, g.zones[0]), 'the same box upright does');
+  g.stacks[0].pen[0].tip = 2;
+  Object.assign(g.fl, { x: 10 - FL.carryX, y: 5, a: 0, speed: 0 });
+  g.H = 0;
+  assert.equal(forkUp(g), 'blocked', 'a toppled box cannot be lifted');
+  assert.equal(g.carried, null);
+  console.log('toppled ok');
+}
+
 // Boxes that topple off a stack tumble visually: the logical stack is at its landing spot at once, fallView interpolates.
 {
   const g = newGame(1);

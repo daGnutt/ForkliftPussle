@@ -37,6 +37,17 @@ export class Mesh {
   get count() { return this.n / STRIDE; }
 
   vert(p, n, c) {
+    const tl = this.tilt;
+    if (tl) {
+      const turn = (a, b, c, k) => { // roll about the horizontal axis (cos r, sin r) through the box centre
+        const u = a * Math.cos(tl.r) + b * Math.sin(tl.r), v = -a * Math.sin(tl.r) + b * Math.cos(tl.r);
+        const v2 = v * tl.c - c * tl.s, w2 = v * tl.s + c * tl.c;
+        return [u * Math.cos(tl.r) - v2 * Math.sin(tl.r), u * Math.sin(tl.r) + v2 * Math.cos(tl.r), w2 + k];
+      };
+      const q = turn(p[0] - tl.x, p[1] - tl.y, p[2] - tl.z, 0);
+      p = [tl.x + q[0], tl.y + q[1], tl.z + q[2] + tl.dz];
+      if (n[0] || n[1] || n[2]) n = turn(n[0], n[1], n[2], 0);
+    }
     const tr = this.transform;
     if (tr) p = [tr.x + (p[0] - tr.x) * tr.scale, tr.y + (p[1] - tr.y) * tr.scale, tr.z + (p[2] - tr.z) * tr.scale];
     let a = this.a, i = this.n;
