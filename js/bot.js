@@ -10,6 +10,7 @@ import { BOX_HALF_X, halfY, zoneExt, rectPoly, sat } from './geom.js';
 export const BOT_R = 0.3; // about a quarter of a forklift's footprint
 export const CLEAN_SECS = 5; // seconds per oil drop
 const SKID_CLEAN_SECS = 0.3;
+const SKID_TRUCK_CLEARANCE = 1.5;
 const CELL = 0.25, SPEED = 2.25, FLEE_SPEED = 3.2, SCARE = 1.3, CALM = 2.0, SHOW_SECS = 0.6;
 export const TURN_RATE = 5, TURN_FIRST = 0.6; // max turning speed (rad/s; a tracked bot spins on the spot) and the heading error above which it turns before driving on
 const FLEE_TURN_RATE = 16;
@@ -779,7 +780,9 @@ export function stepBot(g, dt, dropArea) {
   if (!bot || !g.hatch) return;
   const home = botLane(g.hatch);
   const spill = pickSpill(g, bot, dropArea);
-  const mark = !spill && preferLive(g, bot, g.skidMarks || [], (m) => m.id)
+  const trucks = truckCircles(g);
+  const safeMark = (m) => trucks.every((c) => Math.hypot(m.x - c.x, m.y - c.y) > c.r + SKID_TRUCK_CLEARANCE);
+  const mark = !spill && preferLive(g, bot, (g.skidMarks || []).filter(safeMark), (m) => m.id)
     .reduce((best, m) => !best || Math.hypot(m.x - bot.x, m.y - bot.y) < Math.hypot(best.x - bot.x, best.y - bot.y) ? m : best, null);
   const target = spill || mark;
   bot.debugTask = target ? `${spill ? 'spill' : 'skid'} ${target.id} at ${target.x.toFixed(1)},${target.y.toFixed(1)}` : null;
@@ -836,7 +839,7 @@ export function stepBot(g, dt, dropArea) {
     if (d > 1e-6 && d < 0.5 && truckGap(g, goal) > 0 && !underStack(g, goal)) {
       const step = Math.min(move, Math.max(0, d - goal.r * 0.5));
       if (Math.abs(turnTo(bot, Math.atan2(goal.y - bot.y, goal.x - bot.x), dt)) < TURN_FIRST) moveBot(g, bot, bot.x + (goal.x - bot.x) / d * step, bot.y + (goal.y - bot.y) / d * step);
-    }
+    } else if (!target && d >= 0.5 && bot.repath > REPLAN) bot.repath = REPLAN;
   }
 
   pushOut(g, bot);
@@ -852,7 +855,7 @@ export function stepBot(g, dt, dropArea) {
         if (drops <= 1e-9) g.oil.splice(g.oil.indexOf(spill), 1);
         else { spill.drops = drops; spill.r = Math.sqrt(drops * dropArea); }
       } else {
-        for (const m of g.skidMarks) if (Math.hypot(m.x - mark.x, m.y - mark.y) < 0.5) m.left -= dt / SKID_CLEAN_SECS;
+        for (const m of g.skidMarks) if (safeMark(m) && Math.hypot(m.x - mark.x, m.y - mark.y) < 0.5) m.left -= dt / SKID_CLEAN_SECS;
         g.skidMarks = g.skidMarks.filter((m) => m.left > 1e-9);
       }
     } else if (!target && Math.hypot(home.x - bot.x, home.y - bot.y) < 0.15) {
@@ -917,6 +920,28 @@ export function coneTargets(g, doneZones, stackAt = (z) => g.stacks.find((s) => 
 function coneWorkKey(target) {
   const i = target.id.lastIndexOf(':');
   return i < 0 ? target.id : target.id.slice(0, i);
+}
+
+const CONE_RETRY_SECS = 10, CONE_PLAN_SECS = 3, CONE_R = 0.13;
+function clearConeSpot(g, p, ignored, trucks = truckCircles(g)) {
+  return p.x >= CONE_R && p.y >= CONE_R && p.x <= g.w - CONE_R && p.y <= g.h - CONE_R
+    && !g.walls.some((w) => rectDist(p.x, p.y, w) < CONE_R)
+    && !g.stacks.some((s) => Math.hypot(p.x - s.x, p.y - s.y) < STACK_R + CONE_R || nearBox(s, p.x, p.y, CONE_R))
+    && !trucks.some((c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r + CONE_R)
+    && !(g.cones || []).some((c) => c !== ignored && Math.hypot(p.x - c.x, p.y - c.y) < CONE_R * 2);
+}
+
+function conePlacement(g, bot, target, goal) {
+  const grid = buildGrid(g, 0.45, false, bot);
+  const trucks = truckCircles(g);
+  const path = plan(grid, bot, 80, (x, y, cost) => clearConeSpot(g, { x, y }, null, trucks)
+    ? Math.hypot(x - goal.x, y - goal.y) * 10 + cost * 0.02 : Infinity);
+  const end = path.at(-1) || { x: bot.x, y: bot.y };
+  const clearLine = !g.walls.some((w) => sightHits(end, target, w.x + w.w / 2, w.y + w.h / 2, w.w / 2 + CONE_R, w.h / 2 + CONE_R));
+  const ideal = Math.hypot(end.x - goal.x, end.y - goal.y) < 0.6 && clearLine && clearConeSpot(g, target);
+  const spot = ideal ? { x: target.x, y: target.y } : end;
+  if (!clearConeSpot(g, spot)) return null;
+  return { goal: end, spot, misplaced: !ideal };
 }
 
 export function areaComplete(g, area, stackAt, doneZones, wonky) {
@@ -1008,27 +1033,50 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
     if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < (target ? 0.7 : 0.4) && !bot.path.length && !bot.scared) {
       const i = g.cones.indexOf(cone);
       if (i >= 0) g.cones.splice(i, 1);
+    } else if (bot.show === 1 && !bot.scared && !bot.path.length && bot.repath <= REPLAN) {
+      (bot.skip ||= {})[`cone:${cone.id}`] = g.clock + SKIP_SECS;
     }
   };
-  const place = (target) => {
+  const place = (target, old = null) => {
     bot.workKey = coneWorkKey(target);
     bot.debugTask = 'placing cone';
-    const goal = approach(target);
-    stepWorker(g, bot, dt, true, goal, `place:${target.id}`);
-    if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < 0.7 && !bot.path.length && !bot.scared) {
+    let job = bot.conePlan;
+    if (!job || job.id !== target.id || job.old !== (old?.id || null)
+        || job.until <= g.clock || Math.hypot(job.target.x - target.x, job.target.y - target.y) >= 0.22) {
+      const placement = conePlacement(g, bot, target, approach(target));
+      job = bot.conePlan = { ...placement, id: target.id, old: old?.id || null,
+        target: { x: target.x, y: target.y }, until: g.clock + CONE_PLAN_SECS };
+      bot.repath = 0;
+      if (old && (!job.goal || Math.hypot(job.spot.x - old.x, job.spot.y - old.y) < CONE_R * 2
+          || Math.hypot(job.spot.x - target.x, job.spot.y - target.y) >= Math.hypot(old.x - target.x, old.y - target.y) - 0.22)) {
+        old.retryAt = g.clock + CONE_RETRY_SECS;
+        bot.conePlan = null;
+        stepWorker(g, bot, dt, false, null, null);
+        return;
+      }
+    }
+    if (!job.goal) { stepWorker(g, bot, dt, true, approach(target), `place:${target.id}`); return; }
+    stepWorker(g, bot, dt, true, job.goal, `place:${target.id}`);
+    if (bot.show === 1 && Math.hypot(bot.x - job.goal.x, bot.y - job.goal.y) < 0.2 && !bot.path.length && !bot.scared
+        && clearConeSpot(g, job.spot)) {
       bot.coneSeq = (bot.coneSeq || 0) + 1;
-      g.cones.push({ id: `cone:${target.id}:${bot.coneSeq}`, goalId: target.id, x: target.x, y: target.y, a: 0, tipped: false, squished: false });
+      if (old) old.retire = true;
+      g.cones.push({ id: `cone:${target.id}:${bot.coneSeq}`, goalId: target.id, ...job.spot, a: 0, tipped: false, squished: false,
+        misplaced: job.misplaced, placedX: job.spot.x, placedY: job.spot.y, retryAt: job.misplaced ? g.clock + CONE_RETRY_SECS : 0 });
+      bot.conePlan = null;
     }
   };
   const good = new Set();
+  const accepted = new Set();
   for (const c of g.cones) {
     const t = byId.get(c.goalId);
-    if (t && !c.tipped && !c.squished && Math.hypot(c.x - t.x, c.y - t.y) < 0.22 && !good.has(c.goalId)) good.add(c.goalId);
+    if (t && c.misplaced && Math.hypot(c.x - t.x, c.y - t.y) < 0.22) c.misplaced = false;
+    const unmoved = c.placedX == null || Math.hypot(c.x - c.placedX, c.y - c.placedY) < 0.22;
+    if (t && !c.retire && !c.tipped && !c.squished && ((c.misplaced && unmoved) || Math.hypot(c.x - t.x, c.y - t.y) < 0.22) && !good.has(c.goalId)) {
+      good.add(c.goalId); accepted.add(c);
+    }
   }
-  const invalid = g.cones.filter((c) => {
-    const t = byId.get(c.goalId);
-    return !t || c.tipped || c.squished || Math.hypot(c.x - t.x, c.y - t.y) >= 0.22 || !good.has(c.goalId);
-  });
+  const invalid = g.cones.filter((c) => !accepted.has(c));
   const missing = targets.filter((t) => !good.has(t.id));
   const jobs = [
     ...invalid.map((cone) => {
@@ -1037,12 +1085,20 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
     }),
     ...missing.map((target) => ({ type: 'place', item: target, key: coneWorkKey(target), point: approach(target) })),
   ];
-  const currentJobs = jobs.filter((job) => job.key === bot.workKey);
-  const selected = closest(currentJobs.length ? currentJobs : jobs, (job) => job.point);
+  const jobKey = (job) => job.type === 'retrieve' ? `cone:${job.item.id}` : `place:${job.item.id}`;
+  if (!jobs.some((job) => !skipped(g, bot, jobKey(job)))) for (const cone of accepted) {
+    if (cone.misplaced && (cone.retryAt ?? 0) <= g.clock) {
+      const target = byId.get(cone.goalId);
+      jobs.push({ type: 'improve', item: target, cone, key: coneWorkKey(target), point: approach(target) });
+    }
+  }
+  const liveJobs = preferLive(g, bot, jobs, jobKey);
+  const currentJobs = liveJobs.filter((job) => job.key === bot.workKey);
+  const selected = closest(currentJobs.length ? currentJobs : liveJobs, (job) => job.point);
   if (selected) {
     bot.workKey = selected.key;
     if (selected.type === 'retrieve') retrieve(selected.item);
-    else place(selected.item);
+    else place(selected.item, selected.cone);
     return;
   }
   bot.workKey = null;

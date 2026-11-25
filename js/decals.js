@@ -1,5 +1,6 @@
 // Factory fluff: deterministic decals (tire marks, oil stains, yellow floor markings, wall signs).
 // Pure data, no drawing, so all renderers can share it. Purely cosmetic; never touches game state.
+import { OIL_DRAIN_SIZE } from './level.js';
 
 const CELL = 4; // floor decals live in CELL×CELL tile cells
 
@@ -29,6 +30,15 @@ function strip(pts, w, fill) {
 
 function rect(x, y, w, h, fill) {
   return { pts: [[x, y], [x + w, y], [x + w, y + h], [x, y + h]], fill };
+}
+
+export function floorGrateDecal(x, y, size = OIL_DRAIN_SIZE) {
+  const left = x - size / 2, top = y - size / 2, slotW = size * 0.8, slotH = size * 0.0875;
+  const out = [rect(left, top, size, size, 'rgba(35,38,42,0.75)')];
+  for (let i = 0; i < 5; i++) {
+    out.push(rect(left + size * 0.1, top + size * 0.1 + i * size * 0.18125, slotW, slotH, 'rgba(120,126,132,0.55)'));
+  }
+  return out;
 }
 
 const YELLOW = 'rgba(244,196,20,0.6)';
@@ -62,8 +72,7 @@ function cellDecals(cx, cy) {
     }
   } else if (r >= 0.5 && r < 0.54) { // floor grate: dark frame with lighter slots
     const x = Math.floor(ox * 2) / 2, y = Math.floor(oy * 2) / 2;
-    out.push(rect(x, y, 0.8, 0.8, 'rgba(35,38,42,0.75)'));
-    for (let i = 0; i < 5; i++) out.push(rect(x + 0.08, y + 0.08 + i * 0.145, 0.64, 0.07, 'rgba(120,126,132,0.55)'));
+    out.push(...floorGrateDecal(x + 0.4, y + 0.4));
   } else if (r < 0.33) { // yellow/black hazard stripe patch
     const horiz = hash(cx, cy, 9) < 0.5, n = 8;
     for (let i = 0; i < n; i++) {
@@ -282,13 +291,6 @@ export function boxDecalShapes(kind) {
   }
   if (kind === 4) return DO_NOT_STACK;
   return [];
-}
-
-// Light mode gets a darker fill and a white outline (`edge`, in tiles: `edgeW`) so the mark stands out on the pale floor; dark mode keeps the plain fill.
-export function oilDropMark(x, y, scale = 1, light = false) {
-  const shape = [[0, -0.27], [0.12, -0.06], [0.16, 0.06], [0.14, 0.16], [0.08, 0.23],
-    [0, 0.27], [-0.08, 0.23], [-0.14, 0.16], [-0.16, 0.06], [-0.12, -0.06]];
-  return { pts: shape.map(([u, v]) => [x + u * scale, y + v * scale]), fill: light ? '#141d20' : '#39484b', ...(light && { edge: '#ffffff', edgeW: 0.04 * scale }) };
 }
 
 // "Do not stack" label: red rounded frame, crossed-out pair of stacked cubes and the words in a stroke font.

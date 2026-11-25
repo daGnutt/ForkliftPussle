@@ -82,6 +82,53 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.deepEqual(coneTargets(g, []), withMarks, 'skid marks do not create cone jobs');
 }
 
+// Skid jobs and grouped scrubbing stay outside every live forklift's safety perimeter.
+{
+  const g = newGame(1);
+  flatWorld(g); g.stacks = []; g.inspector = null; g.coneBot = null; g.tapeBot = null;
+  Object.assign(g.fl, { x: 5, y: 4, a: 0, speed: 0 });
+  const near = { id: 'near', x: 5.1, y: 6, a: 0, left: 1 };
+  const far = { id: 'far', x: 5.1, y: 6.2, a: 0, left: 1 };
+  g.skidMarks = [near, far];
+  Object.assign(g.bot, { x: far.x, y: far.y, show: 1, mode: 'out' });
+  stepBot(g, 0.1, 1.15 ** 2 / 50);
+  assert.ok(g.bot.debugTask.startsWith('skid far '), 'a parked forklift excludes the nearer mark');
+  assert.ok(far.left < 1, 'a mark outside the perimeter is cleaned');
+  assert.equal(near.left, 1, 'grouped cleaning does not touch an unsafe mark');
+
+  Object.assign(g.fl, { x: 5, y: 4.3 });
+  stepBot(g, 0.1, 1.15 ** 2 / 50);
+  assert.equal(g.bot.debugTask, null, 'a moving perimeter cancels an existing skid job');
+  assert.equal(near.left, 1);
+  const remaining = far.left;
+  stepBot(g, 0.1, 1.15 ** 2 / 50);
+  assert.equal(far.left, remaining, 'unsafe marks remain untouched');
+
+  Object.assign(g.fl, { x: 12, y: 1 });
+  const other = g.trucks[addTruck(g, 'Other', 1)];
+  Object.assign(other.fl, { x: 5, y: 4, a: 0, speed: 0 });
+  stepBot(g, 0.1, 1.15 ** 2 / 50);
+  assert.ok(g.bot.debugTask.startsWith('skid far '), 'another parked player also protects nearby marks');
+  other.gone = true;
+  Object.assign(g.bot, { x: near.x, y: near.y });
+  stepBot(g, 0.1, 1.15 ** 2 / 50);
+  assert.ok(g.bot.debugTask.startsWith('skid near '), 'marks become eligible when the truck leaves');
+}
+
+// Nearby skid marks do not summon a hidden cleaner, but nearby oil still does.
+{
+  const g = newGame(1);
+  flatWorld(g); g.stacks = [];
+  Object.assign(g.fl, { x: 5, y: 4, a: 0, speed: 0 });
+  g.skidMarks = [{ id: 'near', x: 5.1, y: 6.1, a: 0, left: 1 }];
+  stepBot(g, 1 / 120, 1.15 ** 2 / 50);
+  assert.equal(g.bot.mode, 'hidden', 'a mark at the perimeter boundary is not a job');
+  g.oil = [{ id: 'oil', x: 5.1, y: 6.1, r: 0.163, drops: 1 }];
+  stepBot(g, 1 / 120, 1.15 ** 2 / 50);
+  assert.ok(g.bot.debugTask.startsWith('spill oil '), 'the skid perimeter does not apply to oil');
+  assert.equal(g.bot.mode, 'out');
+}
+
 // Other players leave marks too, while stationary wheelspin does not create unlimited duplicates.
 {
   const g = newGame(1);
@@ -1112,6 +1159,93 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.ok(Math.hypot(b.x - 8, b.y - 8) < 1, 'the bot stays near the collected cones');
   stepConeBot(g, 0.05, []);
   assert.equal(b.activity, 'follow', 'the bot resumes curiosity once collection is finished');
+}
+
+// A blocked target gets a persistent best-effort cone, which is improved when the route opens.
+{
+  const g = newGame(1, 0);
+  flatWorld(g); g.stacks = []; g.zones = []; g.areas = [];
+  g.bot = null; g.inspector = null; g.tapeBot = null;
+  g.oil = [{ id: 'blocked', x: 10, y: 8, r: 0.2, drops: 1 }];
+  Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
+  Object.assign(g.coneBot, { x: 6, y: 8, a: 0, mode: 'out', show: 1, path: [], repath: 0 });
+  const wall = { x: 8, y: 0, w: 0.5, h: g.h };
+  g.walls.push(wall);
+  const [target, ...others] = coneTargets(g, []);
+  g.cones = others.map((t) => ({ id: t.id, goalId: t.id, x: t.x, y: t.y, a: 0, tipped: false, squished: false }));
+  const step = () => { g.clock += 0.05; stepConeBot(g, 0.05, []); };
+  for (let i = 0; i < 1200 && !g.cones.some((c) => c.goalId === target.id); i++) step();
+  const misplaced = g.cones.find((c) => c.goalId === target.id);
+  assert.ok(misplaced?.misplaced, 'an unreachable target gets a flagged cone');
+  assert.ok(misplaced.x < wall.x && Math.hypot(misplaced.x - target.x, misplaced.y - target.y) > 0.22, 'fallback is on reachable floor');
+  const saveGame = newGame(1, 0);
+  saveGame.cones = [misplaced];
+  const saved = deserializeGame(JSON.parse(JSON.stringify(serializeGame(saveGame))));
+  assert.ok(saved.cones.find((c) => c.goalId === target.id).misplaced, 'the flag survives saving');
+  for (let i = 0; i < 500; i++) step();
+  assert.ok(g.cones.includes(misplaced) && !misplaced.retire, 'failed retries leave the warning in place');
+  g.walls.splice(g.walls.indexOf(wall), 1);
+  for (let i = 0; i < 1200 && !g.cones.some((c) => c.goalId === target.id && !c.misplaced && !c.retire); i++) {
+    step();
+    assert.ok(g.cones.some((c) => c.goalId === target.id && !c.retire), 'a warning remains while the bot travels');
+  }
+  const improved = g.cones.find((c) => c.goalId === target.id && !c.misplaced && !c.retire);
+  assert.ok(improved && Math.hypot(improved.x - target.x, improved.y - target.y) < 0.22, 'the cone is improved once reachable');
+  for (let i = 0; i < 1200 && g.cones.includes(misplaced); i++) step();
+  assert.ok(!g.cones.includes(misplaced), 'the superseded fallback is collected');
+}
+
+// Multiple unreachable markers get separate cones instead of blocking each other.
+{
+  const g = newGame(1, 0);
+  flatWorld(g); g.stacks = []; g.zones = []; g.areas = [];
+  g.bot = null; g.inspector = null; g.tapeBot = null;
+  g.oil = [{ id: 'isolated', x: 10, y: 8, r: 0.2, drops: 1 }];
+  Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
+  Object.assign(g.coneBot, { x: 6, y: 8, a: 0, mode: 'out', show: 1, path: [], repath: 0 });
+  g.walls.push({ x: 8, y: 0, w: 0.5, h: g.h });
+  for (let i = 0; i < 2400 && g.cones.length < 4; i++) { g.clock += 0.05; stepConeBot(g, 0.05, []); }
+  assert.equal(g.cones.length, 4, 'each blocked target receives a cone');
+  assert.ok(g.cones.every((c) => c.misplaced && c.x < 8), 'all fallbacks are flagged and reachable');
+  for (let i = 0; i < g.cones.length; i++) for (let j = 0; j < i; j++) {
+    assert.ok(Math.hypot(g.cones[i].x - g.cones[j].x, g.cones[i].y - g.cones[j].y) >= 0.26, 'cones do not overlap');
+  }
+}
+
+// A parked forklift blocks placement even when the target's surrounding floor is reachable.
+{
+  const g = newGame(1, 0);
+  flatWorld(g); g.stacks = []; g.zones = []; g.areas = [];
+  g.bot = null; g.inspector = null; g.tapeBot = null;
+  g.oil = [{ id: 'truck', x: 10, y: 8, r: 0.2, drops: 1 }];
+  const [target, ...others] = coneTargets(g, []);
+  Object.assign(g.fl, { x: target.x, y: target.y, a: 0, speed: 0 });
+  Object.assign(g.coneBot, { x: 6, y: 8, a: 0, mode: 'out', show: 1, path: [], repath: 0 });
+  g.cones = others.map((t) => ({ id: t.id, goalId: t.id, x: t.x, y: t.y, a: 0, tipped: false, squished: false }));
+  const step = () => { g.clock += 0.05; stepConeBot(g, 0.05, []); };
+  for (let i = 0; i < 1200 && !g.cones.some((c) => c.goalId === target.id); i++) step();
+  const fallback = g.cones.find((c) => c.goalId === target.id);
+  assert.ok(fallback?.misplaced, 'the bot does not place the cone underneath the parked forklift');
+  Object.assign(g.fl, { x: 1, y: 1 });
+  for (let i = 0; i < 1200 && !g.cones.some((c) => c.goalId === target.id && !c.misplaced && !c.retire); i++) step();
+  assert.ok(g.cones.some((c) => c.goalId === target.id && !c.misplaced && !c.retire), 'the target is used after the forklift moves');
+}
+
+// An unreachable obsolete cone does not prevent new warnings from being delivered.
+{
+  const g = newGame(1, 0);
+  flatWorld(g); g.stacks = []; g.zones = []; g.areas = [];
+  g.bot = null; g.inspector = null; g.tapeBot = null;
+  g.oil = [{ id: 'new', x: 4, y: 8, r: 0.2, drops: 1 }];
+  Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
+  Object.assign(g.coneBot, { x: 7, y: 8, a: 0, mode: 'out', show: 1, path: [], repath: 0 });
+  g.walls.push({ x: 8, y: 0, w: 0.5, h: g.h });
+  g.cones = [{ id: 'old', goalId: 'old:0', x: 8.8, y: 8, a: 0, tipped: false, squished: false }];
+  for (let i = 0; i < 1200 && !g.cones.some((c) => c.goalId.startsWith('spill:new:')); i++) {
+    g.clock += 0.05; stepConeBot(g, 0.05, []);
+  }
+  assert.ok(g.cones.some((c) => c.id === 'old'), 'the unreachable cone remains for later retrieval');
+  assert.ok(g.cones.some((c) => c.goalId.startsWith('spill:new:')), 'other cone work proceeds');
 }
 
 // Cone work stays on its current spill/stack point until finished, then selects the nearest point.
