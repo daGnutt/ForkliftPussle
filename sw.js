@@ -1,8 +1,8 @@
 // Bump CACHE when shipping changes so clients drop stale files.
-const CACHE = 'forklift-v43';
+const CACHE = 'forklift-v44';
 const CORE = [
-  './', 'index.html', 'style.css', 'favicon.svg', 'manifest.webmanifest',
-  'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png',
+  './', 'index.html', 'style.css', 'assets/icons/favicon.svg', 'manifest.webmanifest',
+  'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/maskable-512.png',
   ...['audio', 'bot', 'debug', 'decals', 'demo', 'dents', 'disco', 'endless', 'firstplay', 'forklift', 'game', 'gamepad', 'geom',
     'globalscores', 'hard-physics', 'highscores', 'input', 'level', 'local', 'main', 'midi', 'photo', 'pov', 'power', 'qr', 'render', 'repair', 'repairhint',
     'rumble',

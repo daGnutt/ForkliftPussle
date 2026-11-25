@@ -1,46 +1,183 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Pallet Polka</title>
+  <desc id="desc">Original cover illustration: a yellow isometric forklift carries a blue box through a night-time warehouse, surrounded by its robot crew: a roller cleaner, a camera inspector, a red cone bot and a tall tape bot marking a safe area.</desc>
   <defs>
-    <radialGradient id="bg" cx="50%" cy="40%" r="75%"><stop offset="0" stop-color="#2b323a"/><stop offset="1" stop-color="#14171a"/></radialGradient>
+    <linearGradient id="background" x2="1" y2="1">
+      <stop stop-color="#111c26"/>
+      <stop offset="1" stop-color="#25333d"/>
+    </linearGradient>
+    <radialGradient id="light">
+      <stop stop-color="#65adc3" stop-opacity=".24"/>
+      <stop offset="1" stop-color="#65adc3" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="floor" x2="0" y2="1">
+      <stop stop-color="#405563"/>
+      <stop offset="1" stop-color="#283943"/>
+    </linearGradient>
+    <pattern id="grid" width="100" height="58" patternUnits="userSpaceOnUse">
+      <path d="m0 29 50-29 50 29-50 29Z" fill="none" stroke="#9cb4c2" stroke-opacity=".07"/>
+    </pattern>
+    <pattern id="hazard" width="34" height="24" patternUnits="userSpaceOnUse" patternTransform="skewX(-30)">
+      <rect width="34" height="24" fill="#ffc933"/>
+      <rect width="17" height="24" fill="#1b1f23"/>
+    </pattern>
     <g id="box">
-      <rect width="100" height="100" stroke="#000" stroke-opacity=".6" stroke-width="4"/>
+      <path d="m-64 32 64-37 64 37-64 37Z" fill="#121d25" opacity=".6"/>
+      <path d="m-57 15 57-33 57 33v12L0 60-57 27Z" fill="#94653d"/>
+      <path d="m-57 15 57 33 57-33-57-33Z" fill="#c39a62"/>
+      <path d="M-36 28v12m24-12v12m48-12v12" stroke="#26303a" stroke-width="5"/>
+      <path d="m-53-43 53-30 53 30L0-12Z" fill="var(--top)"/>
+      <path d="m-53-43 53 31v57l-53-31Z" fill="var(--side)"/>
+      <path d="m0-12 53-31v57L0 45Z" fill="var(--front)"/>
+      <path d="m-31-56 53 31 12-7-53-31Z" fill="#f3ead5" opacity=".6"/>
+      <path d="m22-25 12-7v57l-12 7Z" fill="#f3ead5" opacity=".45"/>
+      <path d="m-38-14 13 7m-13 0 13 7" stroke="#fff" stroke-opacity=".45" stroke-width="3"/>
+    </g>
+    <g id="truck" stroke-linejoin="round">
+      <path d="M8 44 34 59 61 43 35 28Z" fill="#101418" opacity=".8"/>
+      <ellipse cx="44" cy="42" rx="4.5" ry="5.5" fill="#101418"/>
+      <path d="m11 33 16-9 19 11-16 10Z" fill="#ffc933"/>
+      <path d="m11 33 19 12v8L11 41Z" fill="#e59321"/>
+      <path d="m30 45 16-10v9L30 53Z" fill="#f5b52b"/>
+      <path d="m12 32 7-4 8 5-7 4Z" fill="#ffe18a"/>
+      <path d="m18 28 6-3 8 5-6 4v5l-8-5Z" fill="#25313b"/>
+      <path d="M12 20v13M27 28v14M39 21v12" fill="none" stroke="#607683" stroke-width="2.5"/>
+      <path d="m9 19 16-9 17 10-16 9Z" fill="#f4f0df"/>
+      <path d="m9 19 17 10v3L9 22Z" fill="#9eacb5"/>
+      <path d="m26 29 16-9v3L26 32Z" fill="#d3dce0"/>
+      <path d="m14 19 11-6 12 7-11 6Z" fill="#ffc933"/>
+      <path d="M42 16v25M47 13v26" fill="none" stroke="#a9bac4" stroke-width="3"/>
+      <path d="m42 39 14 8 2-1-14-8Zm5-3 14 8 2-1-14-8Z" fill="#d3dce0"/>
+      <path d="m43 26 9-5 9 5-9 5Z" fill="#8ad9f2"/>
+      <path d="m43 26 9 5v10l-9-5Z" fill="#299cc9"/>
+      <path d="m52 31 9-5v10l-9 5Z" fill="#176786"/>
+      <path d="m47 24 9 5-3 2-9-5Z" fill="#d4eef5"/>
+      <path d="m48 29 3 2v9l-3-2Z" fill="#96d4e7"/>
+      <ellipse cx="16" cy="42" rx="4.5" ry="5.5" fill="#101418"/>
+      <ellipse cx="31" cy="51" rx="4.5" ry="5.5" fill="#101418"/>
+      <ellipse cx="16" cy="42" rx="2" ry="2.7" fill="#9eacb5"/>
+      <ellipse cx="31" cy="51" rx="2" ry="2.7" fill="#9eacb5"/>
+      <path d="m11 35 3 2v3l-3-2Z" fill="#ff775a"/>
+      <path d="m14 38 10 6m-10-4 10 6" stroke="#bd721c" stroke-width=".6"/>
+      <path d="m36 43 6-3v3l-6 3Z" fill="#ffe18a"/>
+      <path d="m29 32 3 2" stroke="#9eacb5" stroke-width="1.4"/>
+      <path d="M17 39v6m12 5 4 2" stroke="#36454f" stroke-width=".6"/>
+      <ellipse cx="25" cy="11" rx="1.3" ry=".8" fill="#ff9354"/>
+      <path d="M25 10v1" stroke="#fff2b1" stroke-width="1.5"/>
     </g>
   </defs>
-  <rect width="1280" height="640" fill="url(#bg)"/>
-  <g opacity=".16">
-    <circle cx="90" cy="80" r="46" fill="#e53935"/><circle cx="330" cy="170" r="30" fill="#fdd835"/>
-    <circle cx="560" cy="60" r="38" fill="#43a047"/><circle cx="820" cy="140" r="52" fill="#8e24aa"/>
-    <circle cx="1090" cy="70" r="36" fill="#1e88e5"/><circle cx="1210" cy="210" r="44" fill="#e53935"/>
-    <circle cx="60" cy="300" r="34" fill="#43a047"/><circle cx="200" cy="420" r="48" fill="#1e88e5"/>
-    <circle cx="470" cy="330" r="26" fill="#8e24aa"/><circle cx="1000" cy="330" r="30" fill="#fdd835"/>
+  <rect width="1600" height="900" fill="url(#background)"/>
+  <rect width="1600" height="900" fill="url(#grid)"/>
+  <ellipse cx="1170" cy="440" rx="620" ry="510" fill="url(#light)"/>
+  <path d="M900 167 1504 167 1504 573 900 223Z" fill="#1a2832" stroke="#445461" stroke-width="2"/>
+  <path d="M956 200v56m148-56v142m148-142v228m148-228v314" stroke="#344652" stroke-width="8"/>
+  <path d="M951 184h499" stroke="#89cfe3" stroke-width="5"/>
+  <path d="M680 531 1053 316 1554 605 1181 821Z" fill="#17242d"/>
+  <path d="M680 513 1053 298 1554 587 1181 803Z" fill="url(#floor)" stroke="#58717e" stroke-width="2"/>
+  <g fill="none" stroke="#79939f" stroke-opacity=".16" stroke-width="2">
+    <path d="m773 459 501 289m-408-343 501 289m-408-343 501 289"/>
+    <path d="m780 571 373-215m-273 273 373-215m-273 273 373-215m-273 273 373-215"/>
   </g>
-  <rect y="520" width="1280" height="120" fill="#0e1012"/>
-  <g stroke="#f9a825" stroke-width="6" stroke-dasharray="50 40" opacity=".5"><path d="M0 580H1280"/></g>
-
-  <text x="640" y="190" text-anchor="middle" font-family="Impact, 'Arial Black', sans-serif" font-size="150" letter-spacing="6" fill="#f9a825" stroke="#000" stroke-width="8" paint-order="stroke">PALLET POLKA</text>
-  <text x="640" y="250" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="34" letter-spacing="8" fill="#cfd8dc">A FORKLIFT STACKING PUZZLE</text>
-
-  <!-- zones -->
-  <g stroke-width="6" fill-opacity=".25" stroke-dasharray="14 8" fill="none">
-    <rect x="860" y="410" width="110" height="110" stroke="#e53935" fill="#e53935"/>
-    <rect x="990" y="410" width="110" height="110" stroke="#43a047" fill="#43a047"/>
+  <path d="m1280 423 111-64 132 76-111 64Z" fill="#53b896" fill-opacity=".12" stroke="#69d3aa" stroke-width="3" stroke-dasharray="10 7"/>
+  <g style="--top:#92ddb6;--side:#4baf85;--front:#32795c">
+    <use href="#box" x="1380" y="429"/>
+    <use href="#box" x="1380" y="342"/>
   </g>
-  <g transform="translate(865 415) scale(1)"><rect width="100" height="100" fill="#e53935" stroke="#000" stroke-opacity=".6" stroke-width="4"/></g>
-  <g transform="translate(995 415)"><rect width="100" height="100" fill="#43a047" stroke="#000" stroke-opacity=".6" stroke-width="4"/>
-    <rect y="-100" width="100" height="100" fill="#fdd835" stroke="#000" stroke-opacity=".6" stroke-width="4"/></g>
-  <g transform="translate(150 415)"><rect width="100" height="100" fill="#8e24aa" stroke="#000" stroke-opacity=".6" stroke-width="4"/>
-    <rect y="-100" width="100" height="100" fill="#1e88e5" stroke="#000" stroke-opacity=".6" stroke-width="4"/></g>
-
-  <!-- forklift -->
-  <g transform="translate(410 0)">
-    <rect x="300" y="330" width="14" height="200" fill="#cfd8dc" stroke="#000" stroke-width="3"/>
-    <rect x="300" y="500" width="130" height="14" fill="#b0bec5" stroke="#000" stroke-width="3"/>
-    <rect x="316" y="400" width="100" height="100" fill="#1e88e5" stroke="#000" stroke-opacity=".6" stroke-width="4"/>
-    <rect x="316" y="300" width="100" height="100" fill="#e53935" stroke="#000" stroke-opacity=".6" stroke-width="4" transform="translate(0 0)"/>
-    <path d="M0 500h220l40-100H120z" fill="#f9a825" stroke="#000" stroke-width="4"/>
-    <path d="M110 405l25-65h70l25 65z" fill="#1b1f23" opacity=".85"/>
-    <path d="M100 405v-80M215 405v-80" stroke="#455a64" stroke-width="8"/><path d="M95 325h125" stroke="#455a64" stroke-width="10"/>
-    <rect x="-10" y="470" width="40" height="30" fill="#455a64"/>
-    <circle cx="50" cy="520" r="42" fill="#111"/><circle cx="50" cy="520" r="17" fill="#888"/>
-    <circle cx="215" cy="520" r="42" fill="#111"/><circle cx="215" cy="520" r="17" fill="#888"/>
+  <path d="m765 488 111-64 117 68-111 64Z" fill="#df6e5d" fill-opacity=".12" stroke="#f39580" stroke-width="3" stroke-dasharray="10 7"/>
+  <g style="--top:#ffac91;--side:#db735d;--front:#a44439">
+    <use href="#box" x="864" y="489"/>
   </g>
+  <path d="m1080 748 97 56 153-88" fill="none" stroke="#101a23" stroke-width="13" stroke-linecap="round"/>
+  <path d="m1080 743 97 56 153-88" fill="none" stroke="#e8bd47" stroke-width="4" stroke-linecap="round" stroke-dasharray="22 8"/>
+  <path d="m1021 705 50 29-15 9 49 4-7-28-15 9-50-29Z" fill="#dfbd57" opacity=".55"/>
+  <use href="#truck" transform="translate(890 267) scale(8)"/>
+  <g id="cleaner" transform="translate(813 577)">
+    <ellipse cy="33" rx="57" ry="25" fill="#14212a" opacity=".8"/>
+    <path d="m-34 9 29 17v22l-29-17Zm38 22 32-19v22L4 53Z" fill="#303b43"/>
+    <path d="m-32-14 32-18 33 19v41L0 47-32 28Z" fill="#e1e6e3"/>
+    <path d="m0 5 33-18v41L0 47Z" fill="#93a7ae"/>
+    <path d="m-32-14 32-18 33 19L0 5Z" fill="#f6f5eb"/>
+    <path d="m-27 0 23 13v17l-23-13Z" fill="#202c35"/>
+    <path d="m-21 8 12 7v5l-12-7Z" fill="#69d9ff"/>
+    <path d="m-25 29-17 10m35-1-16 10" stroke="#80939c" stroke-width="5"/>
+    <path d="m-45 33 29 17v13l-29-17Z" fill="#e5b92e"/>
+    <path d="m-45 33 7-4 29 17-7 4Z" fill="#ffe17f"/>
+    <path d="m-16 50 7-4v13l-7 4Z" fill="#a37b20"/>
+    <path d="m-64 61 19 11m-5-22 11 6" stroke="#8ad9f2" stroke-opacity=".6" stroke-width="3" stroke-linecap="round"/>
+    <ellipse cy="-31" rx="7" ry="4" fill="#ffbe58"/>
+  </g>
+  <g id="inspector" transform="translate(960 664)">
+    <ellipse cy="35" rx="53" ry="23" fill="#14212a" opacity=".8"/>
+    <ellipse cx="-30" cy="27" rx="10" ry="15" fill="#1b252c"/>
+    <ellipse cx="27" cy="37" rx="10" ry="15" fill="#1b252c"/>
+    <ellipse cx="27" cy="37" rx="4" ry="7" fill="#92a5af"/>
+    <path d="M-32 13v-24Q-30-45 0-48q32 3 34 31v32L0 37Z" fill="#e8ece8"/>
+    <path d="M0-6q24-9 34-11v32L0 37Z" fill="#a6b8bf"/>
+    <path d="m-29-10 29 17v23l-29-17Z" fill="#1c2b36"/>
+    <ellipse cx="-21" cy="4" rx="6" ry="8" transform="rotate(-25 -21 4)" fill="#f3f5ef"/>
+    <ellipse cx="-8" cy="12" rx="6" ry="8" transform="rotate(-25 -8 12)" fill="#f3f5ef"/>
+    <ellipse cx="-20" cy="5" rx="3" ry="5" fill="#263a49"/>
+    <ellipse cx="-7" cy="13" rx="3" ry="5" fill="#263a49"/>
+    <circle cx="-16" cy="22" r="3" fill="#ff7167"/>
+    <path d="m-16 22-53-175" stroke="#ff7167" stroke-width="2" opacity=".7"/>
+    <path d="m-82-164 29-17v26l-29 17Z" fill="#ff7167" fill-opacity=".12" stroke="#ff9688" stroke-opacity=".65"/>
+    <ellipse cy="-49" rx="7" ry="4" fill="#ffbe58"/>
+  </g>
+  <g id="cone-bot" transform="translate(1470 588)">
+    <ellipse cy="44" rx="62" ry="27" fill="#14212a" opacity=".8"/>
+    <ellipse cx="-31" cy="33" rx="10" ry="14" fill="#202b32"/>
+    <ellipse cx="27" cy="45" rx="10" ry="14" fill="#202b32"/>
+    <ellipse cx="27" cy="45" rx="4" ry="6" fill="#b94d42"/>
+    <path d="m-37-4 31-18 45 26v28L8 50-37 24Z" fill="#b83d36"/>
+    <path d="m-37-4 31-18 45 26-31 18Z" fill="#efb5a2"/>
+    <path d="m8 22 31-18v28L8 50Z" fill="#812f30"/>
+    <path d="m-37-4 31 18v-37l-31-18Z" fill="#e1e6e2"/>
+    <path d="m-37-41 19-11 31 18-19 11Z" fill="#f4f1e5"/>
+    <path d="m-29-21 15 9v6l-15-9Z" fill="#b83d36"/>
+    <path d="m14 23 21-12v14L14 37Z" fill="#172832"/>
+    <path d="m18 24 4-2v6l-4 2m6-10 4-2v6l-4 2" fill="#ffce88"/>
+    <path d="m-1-13 18-10 18 10-18 10Z" fill="#de6e34"/>
+    <path d="m4-15 13-38 13 38-13 8Z" fill="#f58b43"/>
+    <path d="m9-30 8-5 8 5-3-8-5-3-5 3Z" fill="#fff1d2"/>
+    <path d="m-9-24 7-4 9 5-7 4Z" fill="#ffbe58"/>
+  </g>
+  <g id="tape-bot" transform="translate(1322 733)">
+    <ellipse cy="39" rx="53" ry="23" fill="#14212a" opacity=".8"/>
+    <path d="m-29 17 20 12v18l-20-12m33-6 28-16v19L4 48" fill="#303b43"/>
+    <path d="m-23-63 23-13 24 14v87L0 39-23 25Z" fill="#e6e9e3"/>
+    <path d="m0-49 24-13v87L0 39Z" fill="#a4b4ba"/>
+    <path d="m-23-63 23-13 24 14L0-49Z" fill="#fff4d9"/>
+    <path d="m-19-41 8 5v57l-8-5Z" fill="#efc43a"/>
+    <path d="m5-40 15-9v57L5 17Z" fill="#e0b42b"/>
+    <path d="m-24-93 24-14 25 14v31L0-48-24-62Z" fill="#e7eeea"/>
+    <path d="m0-79 25-14v31L0-48Z" fill="#a4b9c1"/>
+    <path d="m-24-93 24-14 25 14L0-79Z" fill="#f8f6e8"/>
+    <path d="m-19-84 15 9v15l-15-9Z" fill="#172832"/>
+    <path d="m-16-78 10 6v4l-10-6Z" fill="#65e6f4"/>
+    <path d="M-10-99v-24m24 13v-24" stroke="#4d6470" stroke-width="3"/>
+    <ellipse cy="-107" rx="7" ry="4" fill="#9cf5ff"/>
+    <path d="m-23-23-22 14v43m69-57 17 10v40" fill="none" stroke="#d4dfdc" stroke-width="6" stroke-linejoin="round"/>
+    <ellipse cx="-45" cy="35" rx="7" ry="5" fill="#ffc933"/>
+    <path d="m-45 35-86 50" stroke="#14212a" stroke-width="9"/>
+    <path d="m-45 35-86 50" stroke="#ffc933" stroke-width="5" stroke-dasharray="9 7"/>
+    <path d="M-131 85v-44" stroke="#9eafb5" stroke-width="5"/>
+    <ellipse cx="-131" cy="40" rx="6" ry="4" fill="#9cf5ff"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <path d="M104 147h60" stroke="#ffc933" stroke-width="6"/>
+    <text x="183" y="155" fill="#9eb9c7" font-size="22" font-weight="700" letter-spacing="4">A FORKLIFT PUZZLE</text>
+    <g font-size="139" font-weight="900" letter-spacing="-7">
+      <text x="97" y="328" fill="#080f15">PALLET</text>
+      <text x="97" y="469" fill="#080f15">POLKA</text>
+      <text x="89" y="316" fill="#f4f0df">PALLET</text>
+      <text x="89" y="457" fill="#ffc933">POLKA</text>
+    </g>
+    <text x="103" y="533" fill="#8ad9f2" font-size="27" font-weight="700" letter-spacing="2">STACK IT. DON'T TOPPLE IT.</text>
+    <path d="M104 573h477" stroke="#4b6574" stroke-width="2"/>
+    <text x="104" y="620" fill="#c1cfd5" font-size="25">Small warehouse. Big moves.</text>
+    <text x="104" y="659" fill="#c1cfd5" font-size="25">Mind the tail swing.</text>
+    <rect x="104" y="746" width="336" height="44" rx="5" fill="#273b47" stroke="#506c7c"/>
+    <text x="124" y="775" fill="#b5cfdb" font-size="18" font-weight="700" letter-spacing="2">3D WAREHOUSE PUZZLE</text>
+  </g>
+  <rect x="0" y="876" width="1600" height="24" fill="url(#hazard)"/>
 </svg>
