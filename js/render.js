@@ -17,7 +17,7 @@ import { formatTime, timePenalty, finalScore } from './highscores.js';
 import { theme } from './theme.js';
 import { discoOn, drawDiscoSpots } from './disco.js';
 import { qrMatrix } from './qr.js';
-import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, oilDropMark, skidMark } from './decals.js';
+import { decalsEnabled, floorDecals, boxDeco, boxDecalShapes, floorGrateDecal, skidMark } from './decals.js';
 import { liftedHf, carriedDrawH, carriedWorldOffs, forkHeight, zoneExt, hitLife, zoneDone, flaggedStacks, zoneLabelPos, stackInZone, score, maxScore, lostBreakdown, isSolved, isParked, otherTrucksShown, isGhost, dropLift, stackZ, fallView, truckView, carriedJoltZ, truckPopScale, crashBlink } from './game.js';
 import { BOX_SCALE, BOX_HALF_X, halfY, LEVEL_H } from './geom.js';
 
@@ -913,13 +913,13 @@ function drawWorldObjects(ctx, g, vis) {
     ctx.strokeRect(z.x - e.x, z.y - e.y, 2 * e.x, 2 * e.y);
     ctx.setLineDash([]);
     if (z.color === BARREL_COLOR && decalsEnabled()) {
-      const mark = oilDropMark(z.x, z.y, 1, !theme().dark);
-      ctx.fillStyle = mark.fill;
-      ctx.beginPath();
-      mark.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-      ctx.closePath();
-      ctx.fill();
-      if (mark.edge) { ctx.strokeStyle = mark.edge; ctx.lineWidth = mark.edgeW; ctx.stroke(); }
+      for (const d of floorGrateDecal(z.x, z.y)) {
+        ctx.fillStyle = d.fill;
+        ctx.beginPath();
+        d.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+        ctx.fill();
+      }
     }
     if (done) continue;
     ctx.font = 'bold 0.5px sans-serif';

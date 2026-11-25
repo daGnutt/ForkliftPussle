@@ -3,7 +3,7 @@ import { rectPoly, sat, overlapArea, intersectionCenter, BOX_HALF_X, halfY, pall
 export { zoneExt } from './geom.js';
 import { FL, MAX_H, MAX_LAYERS, MAX_PLAYERS, makeForklift, drive, toWorld, toLocal, wheelPoints, maxSteerFor, topSpeed } from './forklift.js';
 import { addDent, dentIndex, toLocalDir } from './dents.js';
-import { BARREL_COLOR, generateLevel } from './level.js';
+import { BARREL_COLOR, OIL_DRAIN_SIZE, generateLevel } from './level.js';
 import { makeStation, stepRepair, repairable, recordDropAngle } from './repair.js';
 import { makeHatch, makeBot, makeInspector, makeConeBot, makeTapeBot, stepBot, stepInspector, stepConeBot, stepTapeBot, stepConeCollisions, stepTapeCollisions, stackSig, makePhoto } from './bot.js';
 import { closingSpeed, contactCorrection, palletSupported, solveContacts, supported } from './hard-physics.js';
@@ -1748,8 +1748,15 @@ function oilDrift(f, rear, dt) {
 
 const OIL_DROPS = 50, OIL_FULL_R = 1.15, OIL_DROP_AREA = OIL_FULL_R ** 2 / OIL_DROPS;
 
+function oilTouchesDrain(root, oil) {
+  const half = OIL_DRAIN_SIZE / 2;
+  return (root.zones || []).some((z) => z.color === BARREL_COLOR &&
+    Math.hypot(Math.max(Math.abs(oil.x - z.x) - half, 0), Math.max(Math.abs(oil.y - z.y) - half, 0)) <= oil.r);
+}
+
 function dropOil(root, barrel) {
   const spill = { id: `${barrel.id}:${barrel.base.oilDropped}`, x: barrel.x, y: barrel.y, r: Math.sqrt(OIL_DROP_AREA), drops: 1 };
+  if (oilTouchesDrain(root, spill)) return;
   // Radius squared measures area, so merging conserves oil volume.
   for (let i = 0; i < root.oil.length;) {
     const other = root.oil[i];
@@ -1762,6 +1769,7 @@ function dropOil(root, barrel) {
     root.oil.splice(i, 1);
     i = 0;
   }
+  if (oilTouchesDrain(root, spill)) return;
   root.oil.push(spill);
 }
 
@@ -1787,8 +1795,11 @@ function stepOil(root, dt) {
       return toWorld(t.fl, FL.carryX + o.x, o.y);
     });
   }
-  if (!barrels.length) return;
   root.oil ||= [];
+  for (let i = root.oil.length - 1; i >= 0; i--) {
+    if (oilTouchesDrain(root, root.oil[i])) root.oil.splice(i, 1);
+  }
+  if (!barrels.length) return;
   for (const barrel of barrels) {
     const base = barrel.base;
     base.oilDropped ??= 0;

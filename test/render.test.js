@@ -14,7 +14,7 @@ import { makeCamera } from '../js/pov/camera.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
 import { popupScale, placePhoto, drawPhoto, boxStatus, issues, stripHeight, scoreText } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
-import { oilDropMark, setDecalsEnabled } from '../js/decals.js';
+import { floorGrateDecal, setDecalsEnabled } from '../js/decals.js';
 import { drawFloorMarks } from '../js/pov/floor.js';
 import { setThemeMode } from '../js/theme.js';
 import { draw, drawForkGauge, observerLayout, placeObserverCard, observerObstacles } from '../js/render.js';
@@ -1146,9 +1146,11 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(popupScale(false, true) >= 1.5 * popupScale(false, false) && popupScale(false, true) <= 2 * popupScale(false, false), 'touch popups are 50-100% bigger');
 }
 
-{ // oil drop-point mark: outlined and darker in light mode, plain in dark mode
-  const lm = oilDropMark(0, 0, 1, true), dm = oilDropMark(0, 0);
-  assert.ok(lm.edge && lm.edgeW > 0 && !dm.edge && lm.fill !== dm.fill);
+{ // barrel drop points carry the shared floor-grate decal
+  const grate = floorGrateDecal(2, 3);
+  assert.equal(grate.length, 6);
+  assert.deepEqual(grate[0].pts.map(([x, y]) => [+x.toFixed(2), +y.toFixed(2)]), [[1.6, 2.6], [2.4, 2.6], [2.4, 3.4], [1.6, 3.4]]);
+  assert.ok(grate.slice(1).every((slot) => slot.fill === 'rgba(120,126,132,0.55)'));
 }
 
 { // gallery photos carry their points

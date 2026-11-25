@@ -1,7 +1,7 @@
 import { BARREL_COLOR, ZONE_COLORS } from '../level.js';
 import { truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays } from '../endless.js';
 import { theme } from '../theme.js';
-import { decalsEnabled, floorDecals, oilDropMark, skidMark } from '../decals.js';
+import { decalsEnabled, floorDecals, floorGrateDecal, skidMark } from '../decals.js';
 import { padPolys } from '../repair.js';
 import { FL } from '../forklift.js';
 import { reverseLight } from '../revlight.js';
@@ -76,8 +76,7 @@ export function drawFloorMarks(ctx, g, cam) {
     floorPoly(ctx, cam, [[z.x - e.x, z.y - e.y], [z.x + e.x, z.y - e.y], [z.x + e.x, z.y + e.y], [z.x - e.x, z.y + e.y]],
       ZONE_COLORS[z.color] + (done ? 'cc' : '77'), ZONE_COLORS[z.color]);
     if (z.color === BARREL_COLOR && decalsEnabled()) {
-      const mark = oilDropMark(z.x, z.y, 1, !theme().dark);
-      floorPoly(ctx, cam, mark.pts, mark.fill, mark.edge || mark.fill);
+      for (const d of floorGrateDecal(z.x, z.y)) floorPoly(ctx, cam, d.pts, d.fill, d.fill);
     }
   }
   const ready = isSolved(g);

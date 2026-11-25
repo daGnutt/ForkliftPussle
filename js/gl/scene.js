@@ -4,7 +4,7 @@ import { theme } from '../theme.js';
 import { scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, BOT_BEACONS, botBeaconOn, beaconColor, proximityBeaconOn, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
 import { LEVEL_H } from '../geom.js';
 import { FL, toWorld } from '../forklift.js';
-import { decalsEnabled, floorDecals, overheadDecals, oilDropMark, skidMark } from '../decals.js';
+import { decalsEnabled, floorDecals, overheadDecals, floorGrateDecal, skidMark } from '../decals.js';
 import { padPolys } from '../repair.js';
 import { discoOn, discoBalls, discoSources, discoSpots, SPOT_R, BALL_R, BALL_DROP } from '../disco.js';
 import { reverseLight } from '../revlight.js';
@@ -333,9 +333,7 @@ function addMarks(tm, g, mode) {
     tm.poly([[z.x - e.x, z.y - e.y], [z.x + e.x, z.y - e.y], [z.x + e.x, z.y + e.y], [z.x - e.x, z.y + e.y]], 0, [c[0], c[1], c[2], done ? 0.8 : 0.47]);
     tm.frame(z.x - e.x, z.y - e.y, z.x + e.x, z.y + e.y, 0.07, 0, c);
     if (z.color === BARREL_COLOR && decalsEnabled()) {
-      const mark = oilDropMark(z.x, z.y, 1, !theme().dark);
-      if (mark.edge) tm.poly(oilDropMark(z.x, z.y, 1.25).pts, 0.008, parseColor(mark.edge));
-      tm.poly(mark.pts, 0.01, mark.fill);
+      for (const [i, d] of floorGrateDecal(z.x, z.y).entries()) tm.poly(d.pts, i ? 0.01 : 0.008, parseColor(d.fill));
     }
   }
   const ready = isSolved(g);

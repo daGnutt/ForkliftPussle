@@ -891,6 +891,25 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const intact = leak(0);
   run(intact, NONE, 12);
   assert.equal(intact.oil.length, 0, 'undamaged barrels do not leak');
+  const drained = leak(1);
+  drained.zones = [{ x: 10, y: 5, color: BARREL_COLOR, count: 1 }];
+  run(drained, NONE, 10);
+  assert.equal(drained.stacks[0].pen[0].oilDropped, 1, 'a damaged barrel still emits oil on a drain grate');
+  assert.equal(drained.oil.length, 0, 'oil emitted on a drain grate disappears immediately');
+  drained.stacks[0].x = 10.4;
+  drained.oil = [{ id: 'nearby', x: 10.64, y: 5, r: 0.1, drops: 1 }];
+  run(drained, NONE, 10);
+  assert.deepEqual(drained.oil.map((spill) => [spill.id, spill.drops]), [['nearby', 1]], 'drained drops do not merge with or remove nearby oil outside the grate');
+  drained.stacks[0].x = 11.5;
+  run(drained, NONE, 10);
+  assert.equal(drained.oil.length, 2, 'the barrel leaves puddles again after moving away from the grate');
+  drained.stacks = [];
+  drained.oil = [
+    { id: 'touching-grate', x: 10.45, y: 5, r: 0.1, drops: 1 },
+    { id: 'clear-of-grate', x: 10.6, y: 5, r: 0.1, drops: 1 },
+  ];
+  run(drained, NONE, 1 / 120);
+  assert.deepEqual(drained.oil.map((spill) => spill.id), ['clear-of-grate'], 'existing oil is drained on contact, but nearby oil remains');
   const lightLeak = leak(1);
   run(lightLeak, NONE, 9);
   assert.equal(lightLeak.oil.length, 0, 'one damage point takes ten seconds to emit a drop');
