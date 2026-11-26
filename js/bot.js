@@ -4,14 +4,16 @@
 // Pure data + DOM-free; `g.hatch` is static (regenerated per level), `g.bot` is dynamic (saved and synced).
 import { repairable } from './repair.js';
 import { BARREL_COLOR } from './level.js';
-import { FL, toWorld } from './forklift.js';
+import { FL, toWorld, topSpeed } from './forklift.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly, sat } from './geom.js';
 
 export const BOT_R = 0.3; // about a quarter of a forklift's footprint
 export const CLEAN_SECS = 5; // seconds per oil drop
 const SKID_CLEAN_SECS = 0.3;
 const SKID_TRUCK_CLEARANCE = 1.5;
-const CELL = 0.25, SPEED = 2.25, FLEE_SPEED = 3.2, SCARE = 1.3, CALM = 2.0, SHOW_SECS = 0.6;
+// every bot's speed is a fraction of the forklift's top speed
+const FL_SPEED = topSpeed(0), SPEED = FL_SPEED * 0.75, FLEE_SPEED = FL_SPEED * 1.2, WORK_SPEED = FL_SPEED * 0.25;
+const CELL = 0.25, SCARE = 1.3, CALM = 2.0, SHOW_SECS = 0.6;
 export const TURN_RATE = 5, TURN_FIRST = 0.6; // max turning speed (rad/s; a tracked bot spins on the spot) and the heading error above which it turns before driving on
 const FLEE_TURN_RATE = 16;
 const angDiff = (a, b) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
@@ -21,6 +23,8 @@ function turnTo(bot, ang, dt, rate = TURN_RATE) {
   bot.a += step;
   return da - step;
 }
+// Turn for a follow-up move in the same step: followPath already used this step's turn budget if it turned.
+const turnAfterPath = (bot, ang, dt) => bot.didTurn ? angDiff(bot.a, ang) : turnTo(bot, ang, dt);
 const hash = (n) => { const t = Math.sin(n * 12.9898) * 43758.5453; return t - Math.floor(t); };
 
 // Predetermined hatch position on the outer walls: seeded, and clear of stacks, pillars and the start.
@@ -518,6 +522,7 @@ function passingPoint(g, bot, w) {
 // Moves along bot.path by `move` tiles, turning towards each waypoint; returns the unused distance.
 function followPath(g, bot, move, dt) {
   let turned = false;
+  bot.didTurn = false;
   while ((bot.path.length || bot.yieldPath?.length || bot.passing) && move > 0) {
     const w = passingPoint(g, bot, bot.path[0]), d = Math.hypot(w.x - bot.x, w.y - bot.y);
     if (w === bot) return 0;
@@ -528,7 +533,7 @@ function followPath(g, bot, move, dt) {
       continue;
     }
     const ang = Math.atan2(w.y - bot.y, w.x - bot.x);
-    if (!turned) { turned = true; if (Math.abs(turnTo(bot, ang, dt, bot.scared ? FLEE_TURN_RATE : TURN_RATE)) > TURN_FIRST) return move; }
+    if (!turned) { turned = bot.didTurn = true; if (Math.abs(turnTo(bot, ang, dt, bot.scared ? FLEE_TURN_RATE : TURN_RATE)) > TURN_FIRST) return move; }
     else if (Math.abs(angDiff(bot.a, ang)) > TURN_FIRST) return move;
     const step = Math.min(d, move);
     if (!moveBot(g, bot, bot.x + Math.cos(ang) * step, bot.y + Math.sin(ang) * step)) {
@@ -766,7 +771,7 @@ function followTruck(g, bot, dt, speed) {
   }
   if (!truck || !viewingSpot(g, bot, bot, truck)) { bot.curiosity = null; bot.repath = 0; return; }
   const aim = toWorld(truck.fl, -0.7, 0);
-  if (Math.abs(turnTo(bot, Math.atan2(aim.y - bot.y, aim.x - bot.x), dt)) > 0.15) return;
+  if (Math.abs(turnAfterPath(bot, Math.atan2(aim.y - bot.y, aim.x - bot.x), dt)) > 0.15) return;
   bot.observing = true;
   if (q.left === null) q.left = 5 + Math.random() * 10;
   else q.left -= dt;
@@ -838,7 +843,7 @@ export function stepBot(g, dt, dropArea) {
     const d = Math.hypot(goal.x - bot.x, goal.y - bot.y);
     if (d > 1e-6 && d < 0.5 && truckGap(g, goal) > 0 && !underStack(g, goal)) {
       const step = Math.min(move, Math.max(0, d - goal.r * 0.5));
-      if (Math.abs(turnTo(bot, Math.atan2(goal.y - bot.y, goal.x - bot.x), dt)) < TURN_FIRST) moveBot(g, bot, bot.x + (goal.x - bot.x) / d * step, bot.y + (goal.y - bot.y) / d * step);
+      if (Math.abs(turnAfterPath(bot, Math.atan2(goal.y - bot.y, goal.x - bot.x), dt)) < TURN_FIRST) moveBot(g, bot, bot.x + (goal.x - bot.x) / d * step, bot.y + (goal.y - bot.y) / d * step);
     } else if (!target && d >= 0.5 && bot.repath > REPLAN) bot.repath = REPLAN;
   }
 
@@ -849,7 +854,7 @@ export function stepBot(g, dt, dropArea) {
     const reaching = target && !bot.path.length && d <= REACH && underStack(g, target);
     if (target && (d <= goal.r + 0.12 || reaching)) {
       bot.cleaning = true;
-      if (reaching) turnTo(bot, Math.atan2(goal.y - bot.y, goal.x - bot.x), dt);
+      if (reaching) turnAfterPath(bot, Math.atan2(goal.y - bot.y, goal.x - bot.x), dt);
       if (spill) {
         const drops = spillDrops(spill, dropArea) - dt / CLEAN_SECS;
         if (drops <= 1e-9) g.oil.splice(g.oil.indexOf(spill), 1);
@@ -971,7 +976,7 @@ export function areaComplete(g, area, stackAt, doneZones, wonky) {
   });
 }
 
-function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.5) {
+function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = SPEED) {
   if (!bot || !g.hatch) return;
   bot.goal = null;
   if (bot.mode === 'hidden') {
@@ -990,12 +995,12 @@ function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.5) {
     if (bot.repath <= 0 || !bot.fleePath) {
       bot.path = fleePlan(g, bot); bot.fleePath = true; bot.repath = 0.25;
     }
-    followPath(g, bot, FLEE_SPEED * (bot === g.tapeBot ? 2 : 1) * dt, dt);
+    followPath(g, bot, FLEE_SPEED * dt, dt);
     pushOut(g, bot);
     return;
   }
   if (wasScared || bot.fleePath) { bot.path = []; bot.repath = 0; bot.fleePath = false; }
-  if (bot === g.tapeBot && current === 'work' && !tapeDeploying(bot)) speed *= 2;
+  if (bot === g.tapeBot) speed = tapeDeploying(bot) ? WORK_SPEED : SPEED;
   if (current === 'follow') {
     followTruck(g, bot, dt, speed);
     pushOut(g, bot);
@@ -1016,7 +1021,7 @@ function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = 1.5) {
     const dx = destination.x - bot.x, dy = destination.y - bot.y, d = Math.hypot(dx, dy);
     if (d > 1e-6 && d < 0.5) {
       const step = Math.min(left, d), a = Math.atan2(dy, dx);
-      if (Math.abs(turnTo(bot, a, dt)) < TURN_FIRST) moveBot(g, bot, bot.x + dx / d * step, bot.y + dy / d * step);
+      if (Math.abs(turnAfterPath(bot, a, dt)) < TURN_FIRST) moveBot(g, bot, bot.x + dx / d * step, bot.y + dy / d * step);
     } else if (d >= 0.5 && bot.repath > REPLAN) bot.repath = REPLAN;
   }
   pushOut(g, bot);
@@ -1249,7 +1254,7 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
       x: Math.max(BOT_R + 0.1, Math.min(g.w - BOT_R - 0.1, corner.x + dx / dist * 0.55)),
       y: Math.max(BOT_R + 0.1, Math.min(g.h - BOT_R - 0.1, corner.y + dy / dist * 0.55)),
     };
-    stepWorker(g, bot, dt, true, goal, `remove:${job.key}:${post}`, 1);
+    stepWorker(g, bot, dt, true, goal, `remove:${job.key}:${post}`);
     if (bot.scared || Math.hypot(bot.x - goal.x, bot.y - goal.y) >= 0.35 || bot.path.length) return;
     tape.posts[post] = false;
     tape.edges[post] = false;
@@ -1264,7 +1269,7 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
       sig: '', broken: true, posts: [false, false, false, false], edges: [false, false, false, false] }; // sig is retained for save compatibility
     initTape(tape, g);
     g.tapes.push(tape);
-    stepWorker(g, bot, dt, true, tapeCorners(tape)[0], `${job.key}:start:0`, 1);
+    stepWorker(g, bot, dt, true, tapeCorners(tape)[0], `${job.key}:start:0`);
     return;
   }
   const corners = tapeCorners(tape);
@@ -1289,7 +1294,7 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
     x: Math.max(BOT_R + 0.1, Math.min(g.w - BOT_R - 0.1, corner.x + dx / dist * 0.55)),
     y: Math.max(BOT_R + 0.1, Math.min(g.h - BOT_R - 0.1, corner.y + dy / dist * 0.55)),
   };
-  stepWorker(g, bot, dt, true, goal, `${job.key}:${task.phase}:${index}`, 1);
+  stepWorker(g, bot, dt, true, goal, `${job.key}:${task.phase}:${index}`);
   if (bot.scared) { if (task.edge != null) task.phase = 'start'; return; }
   if (Math.hypot(bot.x - goal.x, bot.y - goal.y) >= 0.35 || bot.path.length) return;
   if (touching(postPoly(corner), shapes)) return;
@@ -1309,7 +1314,7 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
 }
 
 // ---- Inspection bot ----
-const CORNER_WEIGHT = 12, PHOTO_DIST = 1.4, BOX_SECS = 1.2, INSPECT_SPEED = 1.25, FLASH_SECS = 0.35;
+const CORNER_WEIGHT = 12, PHOTO_DIST = 1.4, BOX_SECS = 1.2, FLASH_SECS = 0.35;
 // Laser scan of the stack being inspected, or null: `lens` the beam's origin (in front of the bot), `aim` the stack, `h` its height in boxes,
 // `u` scan progress 0..1, `sx, sy` the beam's current target on the floor, `z` its height in boxes (0..h) and `sheet` the offset of the scan sheet.
 export function scanBeam(b) {
@@ -1397,7 +1402,7 @@ function inspectorStep(g, dt, done, stackAt, wonky) {
   const wasScared = bot.scared;
   bot.scared = approachGap(g, bot) < (wasScared ? CALM : SCARE);
   if (bot.scared) bot.spookedUntil = g.clock + SPOOK_SECS;
-  let speed = INSPECT_SPEED;
+  let speed = SPEED;
   bot.repath -= dt;
   bot.goal = null;
   if (bot.scared) {
@@ -1481,7 +1486,7 @@ function inspectorStep(g, dt, done, stackAt, wonky) {
 // a free spot; a box is then beamed upright onto it (`pen.loose.set`), or onto its own spot when it never lost its pallet.
 // `bot.fix` = { kind, key, sx, sy, phase: 'go' | 'up' | 'carry' | 'down', t, age, stuck, spot, ... }; a box in the beam is `bot.carry` (out of `g.stacks`).
 export const FIX_HOVER = 0.4, FIX_H_FOLDED = 0.5, FIX_H_OPEN = 2.2;
-const FIX_SPEED = 1.4, FIX_BEAM_SECS = 0.9, FIX_UNFOLD_SECS = 0.7, FIX_GIVE_UP = 90, FIX_REACH = 2.1;
+const FIX_BEAM_SECS = 0.9, FIX_UNFOLD_SECS = 0.7, FIX_GIVE_UP = 90, FIX_REACH = 2.1;
 const smooth = (p) => p * p * (3 - 2 * p);
 const lerp = (a, b, t) => a + (b - a) * t;
 const toppled = (p) => !!p?.tip || !!p?.loose;
@@ -1601,7 +1606,7 @@ export function stepFixBot(g, dt) {
   const s = job && !bot.carry ? fixStack(g, job) : null;
   let goal = null;
   if (job) goal = job.phase === 'go' ? { x: job.ax, y: job.ay } : job.phase === 'carry' ? job.spot : { x: bot.x, y: bot.y };
-  stepWorker(g, bot, dt, hasWork, goal, job ? `${job.phase}:${job.key}` : null, FIX_SPEED);
+  stepWorker(g, bot, dt, hasWork, goal, job ? `${job.phase}:${job.key}` : null, SPEED);
   // It drives collapsed, and only unfolds to pick something up and to move with it.
   const working = !!job && job.phase !== 'go' && bot.show === 1 && bot.activity === 'work';
   bot.unfold = Math.max(0, Math.min(1, bot.unfold + (working ? 1 : -1) * dt / FIX_UNFOLD_SECS));
