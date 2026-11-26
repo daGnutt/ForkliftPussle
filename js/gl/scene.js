@@ -1,7 +1,7 @@
 import { BARREL_COLOR, COLORS, ZONE_COLORS } from '../level.js';
 import { BOGIE, TRUCK_H, truckRoofs, truckPaint, truckGeom, truckFloorArt, rampDecals, numberRects, yardRects, truckBays, animatedDoors } from '../endless.js';
 import { theme } from '../theme.js';
-import { fixBotShape, scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, BOT_BEACONS, botBeaconOn, beaconColor, proximityBeaconOn, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
+import { fixBotShape, scanBeam, botDrawPos, CONE_BOT_PARTS, CONE_BOT_WHEELS, TAPE_BOT_PARTS, BOT_BEACONS, botBeaconOn, botBeaconTone, beaconColor, proximityBeaconOn, tapeCorners, tapeLines, tapeDeploying } from '../bot.js';
 import { LEVEL_H } from '../geom.js';
 import { FL, toWorld } from '../forklift.js';
 import { decalsEnabled, floorDecals, overheadDecals, floorGrateDecal, skidMark } from '../decals.js';
@@ -552,7 +552,7 @@ function addFixBot(om, tm, g) {
   const shape = fixBotShape(b.unfold ?? 0);
   for (const [u, v, hl, hw, z0, z1, color, emissive] of shape.parts) om.cuboid(...at(u, v), b.a, hl, hw, z0, z1, color, { emissive });
   const on = botBeaconOn(g, b);
-  om.cuboid(...at(0, 0), b.a, 0.04, 0.04, shape.h - 0.05, shape.h, beaconColor('#78e5f4', on), { emissive: on });
+  om.cuboid(...at(0, 0), b.a, 0.04, 0.04, shape.h - 0.05, shape.h, beaconColor('#78e5f4', on, botBeaconTone(g, b)), { emissive: on });
   if (b.carry) {
     const k = b.carry, pens = k.pen.map((p) => ({ ...p, loose: p.loose && { ...p.loose, bare: true } }));
     const l = k.pen[0].loose;
@@ -575,7 +575,7 @@ function addBotBeacons(om, g) {
     const b = g[key];
     if (!b || b.show <= 0) continue;
     const p = botDrawPos(b, g.hatch), c = Math.cos(b.a), s = Math.sin(b.a), on = botBeaconOn(g, b);
-    om.cuboid(p.x + u * c - v * s, p.y + u * s + v * c, b.a, hl, hw, z0, z1, beaconColor(color, on), { emissive: on });
+    om.cuboid(p.x + u * c - v * s, p.y + u * s + v * c, b.a, hl, hw, z0, z1, beaconColor(color, on, botBeaconTone(g, b)), { emissive: on });
   }
 }
 

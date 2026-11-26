@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { newGame, update, addTruck, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
 import { issues } from '../js/photo.js';
-import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape } from '../js/bot.js';
+import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape, botBeaconOn, botRequesting, botBeaconTone } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
 import { run, NONE, flatWorld } from './common.js';
@@ -663,13 +663,31 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   g.inspector = null;
   // Keep the tape bot's job on the west side of the gap.
   const stackAt = () => null;
-  let backedUp = false;
+  let backedUp = false, requested = false;
   for (let n = 0; n < 1200 && east.x < 12.5; n++) {
     stepConeBot(g, 0.05, []); stepTapeBot(g, 0.05, [], stackAt, () => false);
-    backedUp ||= west.x > 11.6;
+    backedUp ||= east.x < 7.9;
+    requested ||= west.rightOfWay;
     assert.ok(Math.hypot(east.x - west.x, east.y - west.y) >= BOT_R * 2, 'bots keep clear while yielding');
   }
-  assert.ok(backedUp && east.x > 12.5, 'the yielding bot backs out and the oncoming bot passes');
+  assert.ok(backedUp && requested && east.x > 12.5, 'the lower-ranked cone bot backs out for the tape bot, which requested right of way');
+}
+
+// A right-of-way request lights the beacon even when idle, and nobody requests on a free path.
+{
+  const g = botGame();
+  g.clock = 0;
+  Object.assign(g.inspector, { show: 1, activity: 'follow', scared: false });
+  assert.ok(!botRequesting(g, g.inspector) && !botBeaconOn(g, g.inspector), 'no request, no beacon while curious');
+  g.inspector.rightOfWay = true;
+  assert.ok(botRequesting(g, g.inspector) && botBeaconOn(g, g.inspector), 'requesting bot blinks its beacon');
+  assert.equal(botBeaconTone(g, g.inspector), 'blue');
+  g.inspector.yieldFor = 'fixBot';
+  assert.equal(botBeaconTone(g, g.inspector), 'red', 'making way blinks red');
+  g.inspector.yieldFor = null; g.inspector.scared = true;
+  assert.ok(botBeaconTone(g, g.inspector) === 'red' && botBeaconOn(g, g.inspector), 'fleeing blinks red');
+  g.inspector.scared = false;
+  assert.ok(botRequesting(g, g.inspector), 'the request lasts until the destination is reached');
 }
 
 // Both bots turn sharply when fleeing and persist their idle timer in a save.

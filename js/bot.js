@@ -76,7 +76,12 @@ const botLane = (h) => laneAt(h, 1);
 const bots = (g) => [g.bot, g.inspector, g.coneBot, g.tapeBot, g.fixBot].filter(Boolean);
 const BOT_SPACE = BOT_R * 2 + 0.04;
 const botKey = (g, bot) => ['bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot'].find((key) => g[key] === bot);
-const canYield = (g, worker, bot) => worker.activity === 'work' && bot.activity === 'follow'
+// Right of way: a bot blocked by a lower-ranked bot requests a clear path and the other flees from its route (box righter ranks highest).
+const BOT_RANK = ['coneBot', 'tapeBot', 'bot', 'inspector', 'fixBot'];
+const outranks = (g, a, b) => BOT_RANK.indexOf(botKey(g, a)) > BOT_RANK.indexOf(botKey(g, b));
+const requesting = (g, b) => !!b?.rightOfWay; // lasts until the bot has reached its destination (route finished) or changes activity
+const canYield = (g, worker, bot) => (worker.activity === 'work' && bot.activity === 'follow'
+  || (worker.activity === 'work' || worker.activity === 'home') && outranks(g, worker, bot))
   && !bot.scared && bot.show === 1 && bot.yieldBlock?.worker !== botKey(g, worker);
 function hatchBusy(g, bot) {
   const lane = botLane(g.hatch);
@@ -151,8 +156,12 @@ export const BOT_BEACONS = {
   tapeBot: [0, 0, 0.055, 0.08, 1.35, 1.43, '#78e5f4'],
 };
 const beaconPulse = (g) => Math.floor((g.clock || 0) * 4) % 2 === 0;
-export const botBeaconOn = (g, b) => b?.show > 0 && b.activity === 'work' && !b.scared && beaconPulse(g);
-export const beaconColor = (color, on) => on ? color === '#ef941f' ? '#ffc45a' : '#c7fbff' : color;
+// Beacon tone: bright blue while requesting right of way, red while fleeing or making way for such a request.
+export const botRequesting = (g, b) => !!b?.show && !b.scared && requesting(g, b);
+export const botBeaconTone = (g, b) => !b?.show ? null : b.scared || b.yieldFor ? 'red' : requesting(g, b) ? 'blue' : null;
+export const botBeaconOn = (g, b) => b?.show > 0 && (b.activity === 'work' || !!botBeaconTone(g, b)) && beaconPulse(g);
+const TONES = { blue: ['#3d8bff', '#1f4fbf'], red: ['#ff3b30', '#a31c14'] };
+export const beaconColor = (color, on, tone = null) => tone ? TONES[tone][on ? 0 : 1] : on ? color === '#ef941f' ? '#ffc45a' : '#c7fbff' : color;
 export const proximityBeaconOn = (g, p) => beaconPulse(g)
   && truckCircles(g).some((c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r + 3);
 
@@ -491,6 +500,7 @@ function passingPoint(g, bot, w) {
   if (canYield(g, bot, other)) {
     if (pathDistance(other, bot, bot.path) >= BOT_SPACE + 0.3) return w;
     const key = botKey(g, bot);
+    bot.rightOfWay = true;
     if (other.yieldFor !== key) { other.yieldFor = key; other.yieldPath = []; other.yieldWait = 0; other.repath = 0; }
     return bot;
   }
@@ -549,6 +559,7 @@ function followPath(g, bot, move, dt) {
     }
     move = 0;
   }
+  if (!bot.path.length && !bot.passing && !bot.yieldPath?.length) bot.rightOfWay = false;
   return move;
 }
 
@@ -605,7 +616,7 @@ function activity(bot, work, dt) {
     bot.activity = next; bot.path = []; bot.repath = 0; bot.planKey = null;
     bot.target = null; bot.shooting = 0; bot.idleEscape = false;
     bot.curiosity = null; bot.observing = false; bot.passing = null;
-    bot.yieldPath = []; bot.yieldFor = null; bot.yieldBlock = null;
+    bot.yieldPath = []; bot.yieldFor = null; bot.yieldBlock = null; bot.rightOfWay = false;
   }
   if (work) bot.leaving = false;
   return next;
@@ -681,7 +692,7 @@ function pathDistance(p, from, path) {
 
 function makeWay(g, bot, dt, speed) {
   const worker = g[bot.yieldFor];
-  if (!worker || worker.show <= 0 || worker.activity !== 'work' || worker.scared || !worker.path.length
+  if (!worker || worker.show <= 0 || (worker.activity !== 'work' && worker.activity !== 'home') || worker.scared || !worker.path.length
       || (Math.hypot(bot.x - worker.x, bot.y - worker.y) > 2 && !bot.yieldPath?.length)) {
     bot.yieldFor = null; bot.yieldPath = []; bot.repath = 0;
     return false;
@@ -823,6 +834,7 @@ export function stepBot(g, dt, dropArea) {
       pushOut(g, bot);
       return;
     }
+    if (bot.yieldFor && makeWay(g, bot, dt, speed)) { pushOut(g, bot); return; }
     const key = target?.id ?? 'home';
     if (bot.planKey !== key) { bot.planKey = key; bot.repath = 0; }
     goal = spill ? { x: spill.x, y: spill.y, r: Math.max(0.08, Math.sqrt(spillDrops(spill, dropArea) * dropArea) * 0.5) }
@@ -1006,6 +1018,7 @@ function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = SPEED) {
     pushOut(g, bot);
     return;
   }
+  if (bot.yieldFor && makeWay(g, bot, dt, speed)) { pushOut(g, bot); return; }
   const destination = current === 'home' ? botLane(g.hatch) : goal;
   const key = current === 'home' ? 'home' : goalKey;
   if (!destination) return;
@@ -1418,6 +1431,7 @@ function inspectorStep(g, dt, done, stackAt, wonky) {
       pushOut(g, bot);
       return;
     }
+    if (bot.yieldFor && makeWay(g, bot, dt, speed)) { pushOut(g, bot); return; }
     if (bot.target && blockedAhead(g, bot)) { bot.target = null; bot.path = []; bot.shooting = 0; bot.repath = 0; } // met the obstacle: pick again
     if (!bot.target && todo.length && bot.repath <= 0) {
       const grid = buildGrid(g, 0.45, false, bot);
