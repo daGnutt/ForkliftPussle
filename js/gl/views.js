@@ -2,7 +2,7 @@ import { COLORS } from '../level.js';
 import { hitLife, zoneDone, flaggedStacks } from '../game.js';
 import { repairHintOn, drawHintGlow, drawHintArrow, drawRepairEdgeArrow } from '../repairhint.js';
 import { setTruckSpot } from '../photo.js';
-import { label, drawFlag, labelRows, hitRows, honkers, drawHonk, pinHonk } from './overlay.js';
+import { label, drawFlag, labelRows, hitRows, honkers, drawHonk, pinHonk, drawBotSpeech } from './overlay.js';
 import { povCamera, overviewCamera, chaseCamera, groundFootprint, blendCameras } from './camera.js';
 import { drawGl, glAvailable } from './renderer.js';
 import { BOX_H, PAL } from './models.js';
@@ -76,6 +76,7 @@ export function drawPov3d(ctx, g, x, y, w, h, dpr, look = null, autoHead = true)
       drawHonk(ctx, t, g.clock, sx, sy, sz);
     }
   }
+  drawBotSpeech(ctx, g, proj, w / 2);
   ctx.restore();
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 3;
@@ -157,6 +158,7 @@ export function drawOverview3d(ctx, g, rx, ry, rw, rh, cx, cy, s, dpr, orbit = n
       drawHonk(ctx, t, g.clock, sx, sy, sz);
     }
   }
+  drawBotSpeech(ctx, g, proj, 0, Math.max(10, 0.3 * s));
   ctx.restore();
   return foot;
 }

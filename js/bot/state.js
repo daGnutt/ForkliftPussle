@@ -82,7 +82,7 @@ export function stepHead(g, bot, dt, hasWork) {
   bot.repath -= dt;
   const threat = threatOf(g, bot);
   if (threat.kind) {
-    if (bot.state !== 'flee') enterFlee(g, bot);
+    if (bot.state !== 'flee') { enterFlee(g, bot); speak(g, bot, threat.kind === 'truck' ? 'flee-truck' : 'flee-bot'); }
     bot.fleeKind = threat.kind;
     bot.goal = null;
     const threats = threat.keys.map((k) => g[k]).filter(Boolean);
@@ -110,6 +110,7 @@ export function settle(g, bot, hasWork, atJob) {
   else if (atJob) next = 'working';
   else if (bot.state === 'right-of-way') next = 'right-of-way';
   else if (bot.state === 'going-to-work' && bot.path.length && botAhead(g, bot, bot.path[0])) next = 'right-of-way';
+  if (next === 'right-of-way' && bot.state !== 'right-of-way') speak(g, bot, 'right-of-way');
   setState(bot, next);
   if (next === 'working') yellIfBlocked(g, bot);
 }

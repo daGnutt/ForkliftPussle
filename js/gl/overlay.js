@@ -1,6 +1,7 @@
 import { lorryHonks } from '../endless.js';
 import { flagSymbol } from '../game.js';
 import { truckColor } from '../forklift.js';
+import { bots, speaking } from '../bot.js';
 
 // Text overlays drawn over the finished scene.
 
@@ -108,3 +109,34 @@ export function drawHonk(ctx, t, clock, sx, sy, size) {
   label(ctx, t.text ?? honkText(Math.max(0, clock - (honkStart.get(t.id) ?? clock))), sx, sy + bob, size, t.paint ?? truckColor(t.color).body);
 }
 
+
+// Botspeak: a rounded speech bubble with a tail pointing down at (sx, sy), the bot's head. `size` is the text height in px.
+const BUBBLE = { yell: '#ffe1dc', 'flee-truck': '#fff6c9', 'flee-bot': '#fff6c9' };
+export function drawBubble(ctx, text, sx, sy, size, reason = '', alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = `bold ${size}px monospace`;
+  const w = ctx.measureText(text).width + size * 1.2, h = size * 1.7, x = sx - w / 2, y = sy - size * 0.9 - h, r = size * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.lineTo(sx + size * 0.4, y + h); ctx.lineTo(sx, y + h + size * 0.8); ctx.lineTo(sx - size * 0.4, y + h);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  ctx.fillStyle = BUBBLE[reason] || '#ffffff'; ctx.fill();
+  ctx.lineWidth = Math.max(1.5, size / 8); ctx.strokeStyle = '#111'; ctx.stroke();
+  ctx.fillStyle = reason === 'yell' ? '#b3261e' : '#111';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, sx, y + h / 2);
+  ctx.restore();
+}
+
+// Speech bubbles of every bot that is talking, above its head; `proj(x, y, z)` is the view's projector (null behind the camera) and `scale` the
+// pixel size of 1 tile at distance 1 (so the text shrinks with distance; `fixed` instead draws every bubble at that size).
+export function drawBotSpeech(ctx, g, proj, scale, fixed = 0) {
+  for (const b of bots(g)) {
+    if (!speaking(g, b)) continue;
+    const p = proj(b.x, b.y, 0.95);
+    if (!p || (!fixed && (p[2] < 0.3 || p[2] > 60))) continue;
+    const left = b.say.until - g.clock;
+    drawBubble(ctx, b.say.text, p[0], p[1], fixed || Math.max(9, Math.min(22, (0.22 / p[2]) * scale)), b.say.reason, Math.min(1, left / 0.3));
+  }
+}

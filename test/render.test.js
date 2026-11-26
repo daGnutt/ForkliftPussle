@@ -1079,3 +1079,25 @@ console.log('render tests passed');
   assert.ok(sizes[2].every((poly) => poly.length > 2 && poly.every(([u, v]) => Math.abs(u) <= 0.5 + 1e-9 && Math.abs(v) <= 0.5 + 1e-9)));
   console.log('tape ok');
 }
+
+// Botspeak bubbles are drawn above a talking bot for SAY_SECS only, in the bot's own text.
+{
+  const { drawBotSpeech } = await import('../js/gl/overlay.js');
+  const { speak, BOTSPEAK, SAY_SECS } = await import('../js/bot.js');
+  const g = newGame(1, 0), texts = [];
+  Object.assign(g.bot, { x: 5, y: 5, a: 0, show: 1 });
+  const ctx = new Proxy({}, {
+    get: (t, k) => k === 'fillText' ? (text) => texts.push(text) : k === 'measureText' ? (text) => ({ width: text.length * 8 }) : k in t ? t[k] : () => {},
+    set: (t, k, v) => { t[k] = v; return true; },
+  });
+  const proj = (x, y) => [x * 10, y * 10, 5];
+  drawBotSpeech(ctx, g, proj, 400);
+  assert.equal(texts.length, 0, 'a silent bot has no bubble');
+  speak(g, g.bot, 'yell');
+  drawBotSpeech(ctx, g, proj, 400);
+  assert.ok(texts.length === 1 && BOTSPEAK.yell.includes(texts[0]), 'a yelling bot shows a botspeak bubble');
+  g.clock += SAY_SECS + 0.1; texts.length = 0;
+  drawBotSpeech(ctx, g, proj, 400);
+  assert.equal(texts.length, 0, 'the bubble disappears after its time');
+  console.log('botspeak bubble ok');
+}
