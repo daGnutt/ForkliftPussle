@@ -52,7 +52,8 @@ export function stepSeq(g, bot, dt) {
   if (!bot.seq) return true;
   if (bot.show !== 1 || bot.state !== 'working') { drop(bot); return true; }
   if (s.phase === 'aim') {
-    const a = spawnHeading(g, bot, s.size);
+    if (s.heading != null && !clearHeading(g, bot, s.heading, s.size, [s.size + 0.1])) delete s.heading;
+    const a = s.heading ?? (s.heading = spawnHeading(g, bot, s.size));
     if (a == null) { // boxed in: after a second, go ahead with the current heading rather than stall the bot forever
       s.aimT = (s.aimT || 0) + dt;
       if (s.aimT > 1) { s.phase = 'free'; s.t = SPAWN_WAIT; }
@@ -60,7 +61,9 @@ export function stepSeq(g, bot, dt) {
     }
     if (Math.abs(turnTo(bot, a, dt)) < AIM_TOL) { s.phase = 'wait'; s.t = SPAWN_WAIT; }
   } else if ((s.phase === 'wait' || s.phase === 'free') && s.kind === 'spawn') {
-    if (s.phase === 'wait' && !clearHeading(g, bot, bot.a, s.size, [s.size + 0.1])) { s.phase = 'aim'; return true; }
+    if (s.phase === 'wait' && !clearHeading(g, bot, bot.a, s.size, [s.size + 0.1])) {
+      s.phase = 'aim'; delete s.heading; s.aimT = 0; return true;
+    }
     s.t -= dt;
     if (s.t > 0) return true;
     COMMITS[s.commit]?.(g, bot, s, 'spawn');

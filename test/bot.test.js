@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { newGame, update, addTruck, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
 import { issues } from '../js/photo.js';
 import { buildGrid, routeDistance, moveBot, watchStuck, STUCK_SECS } from '../js/bot/nav.js';
-import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape } from '../js/bot.js';
+import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape, stepSeq, startSpawn } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
 import { run, NONE, flatWorld } from './common.js';
@@ -1255,6 +1255,25 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   assert.ok(!t.broken, 'bot replaces the post and both edges');
 }
 
+// A post whose corner is physically blocked is relocated to the nearest reachable point after a bounded wait.
+{
+  const g = newGame(1, 0), z = { x: 8, y: 8, color: 0, count: 1 }, area = { x: 7, y: 7, w: 2, h: 2, color: 0 };
+  flatWorld(g); g.zones = [z]; g.areas = [area];
+  g.stacks = [{ x: 8, y: 8, layers: [0], rots: [0], offs: [{ x: 0, y: 0 }], pen: [{ crash: 0, sq: 0 }] }];
+  g.walls.push({ x: 6.6, y: 6.6, w: 0.2, h: 0.2 });
+  scanTapeZone(g, z, g.stacks[0]);
+  Object.assign(g.fl, { x: 15, y: 11, speed: 0 });
+  Object.assign(g.tapeBot, { x: 5.5, y: 7.5, show: 1, mode: 'out', state: 'working', path: [], repath: 0 });
+  const stackAt = () => g.stacks[0];
+  for (let i = 0; i < 100 && !g.tapes[0]?.postPoints?.[0]; i++) {
+    g.clock += 0.05;
+    stepTapeBot(g, 0.05, g.zones, stackAt, () => false);
+  }
+  const tape = g.tapes[0], moved = tape?.postPoints?.[0], original = { x: area.x - 0.3, y: area.y - 0.3 };
+  assert.ok(moved && Math.hypot(moved.x - original.x, moved.y - original.y) <= 0.75, 'the blocked post moves only as far as needed');
+  assert.deepEqual(tapeCorners(tape)[0], moved, 'the visible tape outline follows its relocated post');
+}
+
 // Travelling to a post is faster than drawing an edge (normal 0.75 vs work 0.25 of the forklift's speed).
 {
   const move = (phase) => {
@@ -1672,6 +1691,25 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
     if (removedAt >= 0 && !b.seq) freeAt = t;
   }
   assert.ok(removedAt > 0 && freeAt - removedAt >= 0.24 && freeAt - removedAt < 0.4, 'the bot waits 0.25 s after despawning before moving on');
+}
+
+// A constrained spawn heading stays fixed while the tape bot turns, so it can finish aiming instead of chasing a rotating target.
+{
+  const g = newGame(3, 0, true), b = g.tapeBot, dt = 1 / 120;
+  g.bot = null; g.inspector = null; g.coneBot = null; g.fixBot = null;
+  g.stacks = [
+    { x: 1.9422523832968517, y: 11.859860839874617, layers: [0, 0], rots: [-1.635, -1.508], offs: [{ x: 0, y: 0 }, { x: -0.0229, y: -0.102 }], pen: [{}, {}] },
+    { x: 3.569696916505103, y: 11.885816945354053, layers: [0, 0], rots: [-1.635, -1.508], offs: [{ x: 0, y: 0 }, { x: 0, y: 0 }], pen: [{}, {}] },
+  ];
+  Object.assign(g.fl, { x: 13.038, y: 10.087, speed: 0 });
+  Object.assign(b, { x: 0.875, y: 12.625, a: -5.414453810448859, mode: 'out', show: 1, state: 'working', path: [], repath: 0,
+    tapeJob: { key: 'corner', phase: 'draw' } });
+  startSpawn(b, { commit: 'post', data: {}, size: 0.16, speed: 1, at: { x: 0.874, y: 12.92 } });
+  for (let i = 0; i < 8 * 120 && b.seq?.phase === 'aim'; i++) {
+    g.clock += dt;
+    stepSeq(g, b, dt);
+  }
+  assert.notEqual(b.seq?.phase, 'aim', 'the bot reaches its spawn heading instead of oscillating at the map edge');
 }
 
 console.log('bot tests passed');

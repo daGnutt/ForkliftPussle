@@ -86,7 +86,8 @@ function checkState(s) {
     && num(t.x) && num(t.y) && num(t.w) && num(t.h) && typeof t.sig === 'string' && typeof t.broken === 'boolean'
     && (t.posts === undefined || arr(t.posts, 4, (v) => typeof v === 'boolean'))
     && (t.edges === undefined || arr(t.edges, 4, (v) => typeof v === 'boolean'))
-    && (t.wallSides === undefined || arr(t.wallSides, 4, (v) => v === null || num(v)))));
+    && (t.wallSides === undefined || arr(t.wallSides, 4, (v) => v === null || num(v)))
+    && (t.postPoints === undefined || arr(t.postPoints, 4, (p) => p === null || p && num(p.x) && num(p.y)))));
   if (!okFl || !okStacks || !okCarried || !okOil || !okSkids || !okCones || !okTapes || !Number.isInteger(s.H) || s.H < 0 || s.H > MAX_H) throw new Error('Corrupt state');
   if (s.status !== 'play' && s.status !== 'won') throw new Error('Corrupt state');
 }

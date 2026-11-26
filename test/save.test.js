@@ -127,7 +127,8 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const cGuest = newGame(3, 7, true);
   c.cones = [{ id: 'net-cone', goalId: 'stack:zone:0', x: 2, y: 3, a: 0, tipped: false, squished: false }];
   c.tapes = [{ key: 'net-area', color: 0, x: 1, y: 1, w: 2, h: 2, sig: '', broken: true,
-    posts: [true, true, false, false], edges: [true, false, false, false], wallSides: [null, 3.2, null, null] }];
+    posts: [true, true, false, false], edges: [true, false, false, false], wallSides: [null, 3.2, null, null],
+    postPoints: [null, { x: 3.4, y: 1 }, null, null] }];
   c.tapeBot.tapeJob = { key: 'net-area', edge: 1, from: 1, to: 2, phase: 'draw' };
   c.inspector.checkedAreas = [{ key: 'net-area', sig: 'net', complete: true }];
   c.inspector.seen = ['2,3,0'];
@@ -139,6 +140,9 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const badTape = JSON.parse(JSON.stringify(tapeSave));
   badTape.state.tapes[0].edges = [true];
   assert.throws(() => deserializeGame(badTape), /Corrupt state/, 'malformed tape state is rejected');
+  const badPostPoint = JSON.parse(JSON.stringify(tapeSave));
+  badPostPoint.state.tapes[0].postPoints[1].x = '3.4';
+  assert.throws(() => deserializeGame(badPostPoint), /Corrupt state/, 'malformed relocated tape post is rejected');
   applySnapshot(cGuest, JSON.parse(JSON.stringify(snapshot(c))));
   assert.deepEqual(cGuest.cones, c.cones, 'cones sync to party guests');
   assert.deepEqual(cGuest.tapes, c.tapes, 'tape syncs to party guests');

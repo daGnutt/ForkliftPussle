@@ -1,10 +1,10 @@
 import { toWorld } from '../forklift.js';
 import { rectPoly, sat } from '../geom.js';
-import { BOT_R, SPEED, WORK_SPEED, botHome, zoneMarkKey, areaMarkKey, zonesInArea } from './common.js';
+import { BOT_R, CELL, SPEED, WORK_SPEED, botHome, zoneMarkKey, areaMarkKey, zonesInArea } from './common.js';
 import { currentInspection } from './inspector.js';
 import { stepWorker } from './worker.js';
 import { startSpawn, startDespawn, stepSeq, registerCommit } from './spawn.js';
-import { buildGrid, routeDistance } from './nav.js';
+import { buildGrid, routeDistance, plan, cellOf } from './nav.js';
 
 export const TAPE_BOT_PARTS = [
   [0, -0.16, 0.28, 0.04, 0.03, 0.18, '#303538'],
@@ -34,7 +34,8 @@ export function tapeCorners(t) {
   const x1 = walls[1] == null ? t.x + t.w + 0.3 : walls[1] - 0.08;
   const y0 = walls[0] == null ? t.y - 0.3 : walls[0] + 0.08;
   const y1 = walls[2] == null ? t.y + t.h + 0.3 : walls[2] - 0.08;
-  return [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
+  const corners = [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
+  return corners.map((p, i) => t.postPoints?.[i] || p);
 }
 
 export function tapeSegment(a, b) {
@@ -72,6 +73,13 @@ export const tapeComplete = (t) => t.posts.every(Boolean) && t.edges.every((edge
 export const touching = (poly, shapes) => poly && shapes.some((shape) => sat(poly, shape));
 export const POST_R = 0.08;
 export const postPoly = (p) => rectPoly(p.x, p.y, POST_R, POST_R);
+
+function nearestReachable(grid, bot, target) {
+  const route = plan(grid, bot, 80, (x, y, cost) => Math.hypot(x - target.x, y - target.y) * 10 + cost * 0.02);
+  if (route.length) return route.at(-1);
+  const { i, j } = cellOf(grid, bot), id = j * grid.nx + i;
+  return grid.blocked[id] ? null : { x: (i + 0.5) * CELL, y: (j + 0.5) * CELL };
+}
 
 // Tape and posts are deliberately breakable rather than solid obstacles.
 export function stepTapeCollisions(g, shapes) {
@@ -193,8 +201,6 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
       sig: '', broken: true, posts: [false, false, false, false], edges: [false, false, false, false] }; // sig is retained for save compatibility
     initTape(tape, g);
     g.tapes.push(tape);
-    stepWorker(g, bot, dt, true, tapeCorners(tape)[0], `${job.key}:start:0`);
-    return;
   }
   const corners = tapeCorners(tape);
   let task = bot.tapeJob;
@@ -216,7 +222,24 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
   const exists = tape.posts[index], dx = corner.x - (tape.x + tape.w / 2), dy = corner.y - (tape.y + tape.h / 2), dist = Math.hypot(dx, dy) || 1;
   const lim = (v, max) => Math.max(BOT_R + 0.1, Math.min(max - BOT_R - 0.1, v));
   const goal = { x: lim(corner.x + (exists ? dx / dist * 0.55 : 0), g.w), y: lim(corner.y + (exists ? dy / dist * 0.55 : 0), g.h) };
+  const distance = Math.hypot(bot.x - goal.x, bot.y - goal.y);
+  if (!exists && distance > 0.2 && distance < (task.bestDist ?? Infinity) - 0.02) {
+    task.bestDist = distance;
+    task.blocked = 0;
+  } else if (!exists && distance > 0.2) task.blocked = (task.blocked || 0) + dt;
+  else task.blocked = 0;
   stepWorker(g, bot, dt, true, goal, `${job.key}:${task.phase}:${index}`);
+  if (!exists && task.blocked > 3) {
+    const safe = nearestReachable(grid, bot, goal);
+    task.blocked = 0;
+    if (safe) {
+      // Move only the unreachable post; the tape outline then follows its adjusted corners.
+      (tape.postPoints ||= [null, null, null, null])[index] = safe;
+      delete task.bestDist;
+      bot.path = []; bot.planKey = null; bot.repath = 0;
+      return;
+    }
+  }
   if (bot.state === 'flee') { if (task.edge != null) task.phase = 'start'; return; }
   // Something (e.g. a cone) can keep the bot off a corner; after standing still for a second it settles for a spot beside it.
   const still = bot.still?.x === bot.x && bot.still?.y === bot.y ? bot.still.t + dt : 0;
