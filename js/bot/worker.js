@@ -1,5 +1,5 @@
 import { SPEED, WORK_SPEED, TURN_FIRST, turnAfterPath } from './common.js';
-import { buildGrid, plan, REPLAN, KEEP_ROUTE, blockedAhead, moveBot, followPath, pushOut } from './nav.js';
+import { buildGrid, plan, REPLAN, KEEP_ROUTE, blockedAhead, moveBot, followPath, pushOut, watchStuck } from './nav.js';
 import { stepHead, settle } from './state.js';
 import { tapeDeploying } from './tapebot.js';
 
@@ -17,7 +17,9 @@ export function stepWorker(g, bot, dt, hasWork, goal, goalKey, speed = SPEED, at
     bot.path = plan(buildGrid(g, 0.45, bot === g.tapeBot, bot), bot, 80, (x, y, c) => Math.hypot(x - goal.x, y - goal.y) * 10 + c * 0.02);
     bot.repath = bot.path.length ? KEEP_ROUTE : REPLAN;
   }
+  const start = { x: bot.x, y: bot.y };
   const left = followPath(g, bot, speed * dt, dt);
+  watchStuck(g, bot, dt, start, speed * dt);
   if (!bot.path.length && left > 0) {
     const dx = goal.x - bot.x, dy = goal.y - bot.y, d = Math.hypot(dx, dy);
     if (d > 1e-6 && d < 0.5) {

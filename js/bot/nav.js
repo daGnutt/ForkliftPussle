@@ -1,16 +1,14 @@
 import { BOX_HALF_X, halfY } from '../geom.js';
 import { BOT_R, CELL, TURN_RATE, TURN_FIRST, FLEE_TURN_RATE, angDiff, turnTo, BOT_SPACE, rectDist, truckCircles, truckGap, STACK_R, bots, outranks } from './common.js';
-import { CONE_R } from './conebot.js';
 import { tapeCorners, POST_R } from './tapebot.js';
 
 // A lower-priority bot flees from a bot in right-of-way, so the planner may route through it; higher-priority bots stay put.
 export const canYield = (g, me, other) => other.show === 1 && outranks(g, me, other);
 
-// Cones and tape posts are solid for bots (not for forklifts). A bot that has just spawned one (or is reversing onto one to retrieve it)
-// has `bot.ghost` set to its position and drives through it.
+// Tape posts are solid for bots (not for forklifts). Cones are deliberately breakable and never block bot routes:
+// bot contact tips/displaces them for the cone bot to retrieve. Own/other spawn ghosts still apply to tape posts.
 export function solidProps(g) {
   const out = [];
-  for (const c of g.cones || []) if (!c.squished) out.push({ x: c.x, y: c.y, r: CONE_R });
   for (const t of g.tapes || []) {
     if (!Array.isArray(t.posts)) continue;
     const corners = tapeCorners(t);
@@ -82,6 +80,62 @@ export function nearestFree(grid, s) {
 
 // Dijkstra over free cells from `from`. `score(x, y, cost)` ranks cells (lower is better); the best cell within `maxCost` wins.
 // Returns the waypoint list (world coordinates) to that cell, or [].
+export const pathLength = (from, path) => path.reduce((n, w, i) => n + Math.hypot(w.x - (i ? path[i - 1].x : from.x), w.y - (i ? path[i - 1].y : from.y)), 0);
+
+// Shortest navigable route distance to a point (or to a free cell within `radius`).
+// Unlike Euclidean distance, this follows walls and other moving obstacles on the bot grid.
+export function routeDistance(grid, bot, point, radius = 1.5, maxCost = 80) {
+  const { nx, ny, blocked } = grid, n = nx * ny;
+  const s = cellOf(grid, bot);
+  let start = s.j * nx + s.i;
+  const escape = grid.fixed?.[start] ? nearestFree(grid, s) : -1;
+  if (escape >= 0) start = escape;
+  const cost = new Float64Array(n).fill(Infinity);
+  cost[start] = 0;
+  const open = [[0, start]], seen = new Uint8Array(n);
+  const push = (item) => {
+    let k = open.push(item) - 1;
+    while (k > 0 && open[(k - 1) >> 1][0] > item[0]) {
+      open[k] = open[(k - 1) >> 1]; k = (k - 1) >> 1;
+    }
+    open[k] = item;
+  };
+  const pop = () => {
+    const top = open[0], last = open.pop();
+    if (open.length) {
+      let k = 0;
+      for (;;) {
+        let c = 2 * k + 1;
+        if (c >= open.length) break;
+        if (c + 1 < open.length && open[c + 1][0] < open[c][0]) c++;
+        if (open[c][0] >= last[0]) break;
+        open[k] = open[c]; k = c;
+      }
+      open[k] = last;
+    }
+    return top;
+  };
+  let best = Infinity;
+  while (open.length) {
+    const [c, id] = pop();
+    if (c > cost[id]) continue;
+    seen[id] = 1;
+    const i = id % nx, j = (id - i) / nx;
+    const x = (i + 0.5) * CELL, y = (j + 0.5) * CELL;
+    if (!blocked[id] && Math.hypot(x - point.x, y - point.y) <= radius) best = Math.min(best, c);
+    if (c >= best) continue;
+    for (const [di, dj, w] of NB) {
+      const ni = i + di, nj = j + dj;
+      if (ni < 0 || nj < 0 || ni >= nx || nj >= ny || blocked[nj * nx + ni]) continue;
+      if (di && dj && (blocked[j * nx + ni] || blocked[nj * nx + i])) continue;
+      const nc = c + w * CELL;
+      if (nc > maxCost || nc >= cost[nj * nx + ni]) continue;
+      cost[nj * nx + ni] = nc; push([nc, nj * nx + ni]);
+    }
+  }
+  return best;
+}
+
 export function plan(grid, from, maxCost, score) {
   const { nx, ny, blocked } = grid, n = nx * ny;
   const s = cellOf(grid, from);
@@ -255,8 +309,46 @@ export function passingPoint(g, bot, w) {
 }
 
 // Moves along bot.path by `move` tiles, turning towards each waypoint; returns the unused distance.
+export const STUCK_SECS = 3, STUCK_ESCAPE_SECS = 2;
+
+// Detect a route that can no longer make progress. The first two failures create a
+// short escape route away from the goal; a persistent third failure temporarily
+// skips that goal key so another bot job can be attempted.
+export function watchStuck(g, bot, dt, start, move) {
+  if (bot.state === 'loiter') { bot.stuckTime = 0; return; }
+  const goal = bot.goal;
+  const intended = bot.path.length || (goal && Math.hypot(goal.x - bot.x, goal.y - bot.y) > 0.35);
+  if (!intended) { bot.stuckTime = 0; return; }
+  const moved = Math.hypot(bot.x - start.x, bot.y - start.y);
+  if (moved > Math.max(0.002, move * 0.15)) { bot.stuckTime = 0; return; }
+  bot.stuckTime = (bot.stuckTime || 0) + dt;
+  if (bot.stuckTime < STUCK_SECS || (bot.recoveryUntil || 0) > g.clock) return;
+
+  bot.stuckTime = 0;
+  bot.stuckCount = (bot.stuckCount || 0) + 1;
+  bot.recoveryUntil = g.clock + STUCK_ESCAPE_SECS;
+  bot.passing = null;
+
+  if (bot.stuckCount >= 3) {
+    const key = bot.planKey;
+    if (key) (bot.skip ||= {})[key] = g.clock + SKIP_SECS;
+    bot.planKey = null;
+    bot.path = [];
+    bot.repath = REPLAN;
+    bot.recoveryUntil = g.clock + STUCK_ESCAPE_SECS * 2;
+    bot.stuckCount = 0;
+    return;
+  }
+
+  const away = goal || { x: bot.x, y: bot.y };
+  const grid = buildGrid(g, 0.45, bot === g.tapeBot, bot);
+  bot.path = plan(grid, bot, 80, (x, y, c) => c * 0.02 - Math.hypot(x - away.x, y - away.y) * 8);
+  bot.repath = bot.path.length ? KEEP_ROUTE : REPLAN;
+}
+
 export function followPath(g, bot, move, dt) {
   let turned = false;
+  const start = { x: bot.x, y: bot.y };
   bot.didTurn = false;
   while ((bot.path.length || bot.passing) && move > 0) {
     const w = passingPoint(g, bot, bot.path[0]), d = Math.hypot(w.x - bot.x, w.y - bot.y);

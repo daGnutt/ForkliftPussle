@@ -4,6 +4,7 @@ import { BOT_R, SPEED, WORK_SPEED, botHome, zoneMarkKey, areaMarkKey, zonesInAre
 import { currentInspection } from './inspector.js';
 import { stepWorker } from './worker.js';
 import { startSpawn, startDespawn, stepSeq, registerCommit } from './spawn.js';
+import { buildGrid, routeDistance } from './nav.js';
 
 export const TAPE_BOT_PARTS = [
   [0, -0.16, 0.28, 0.04, 0.03, 0.18, '#303538'],
@@ -160,8 +161,11 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
     }
   }
   const currentKey = bot.workKey || bot.tapeJob?.key;
+  const grid = buildGrid(g, 0.45, true, bot);
   const job = jobs.find((j) => j.key === currentKey) || jobs.reduce((best, j) => {
-    const d = Math.hypot(j.area.x + j.area.w / 2 - bot.x, j.area.y + j.area.h / 2 - bot.y);
+    const point = { x: j.area.x + j.area.w / 2, y: j.area.y + j.area.h / 2 };
+    const found = routeDistance(grid, bot, point);
+    const d = Number.isFinite(found) ? found : Math.hypot(point.x - bot.x, point.y - bot.y);
     return !best || d < best.d ? { job: j, d } : best;
   }, null)?.job;
   if (!job) { bot.tapeJob = null; bot.workKey = null; bot.debugTask = null; stepWorker(g, bot, dt, false, null, null); return; }

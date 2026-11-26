@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { newGame, update, addTruck, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
 import { issues } from '../js/photo.js';
+import { buildGrid, routeDistance, moveBot, watchStuck, STUCK_SECS } from '../js/bot/nav.js';
 import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
@@ -67,6 +68,43 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   run(g, NONE, 2);
   assert.equal(g.bot.show, 0);
   assert.equal(g.skidMarks.length, 0, 'stationary wheels leave no marks');
+}
+
+// Job selection uses the navigable route rather than straight-line distance.
+{
+  const g = botGame(); flatWorld(g);
+  g.walls.push({ x: 6, y: 0, w: 0.5, h: 9, poly: null });
+  const bot = { x: 2, y: 8, show: 1 };
+  const grid = buildGrid(g, 0.45, false, bot);
+  const across = routeDistance(grid, bot, { x: 10, y: 8 });
+  const direct = routeDistance(grid, bot, { x: 4, y: 8 });
+  assert.ok(across > direct, 'a wall makes the farther route lose despite its job position');
+}
+
+// Spawned cones must not pin any bot against a tape corner.
+{
+  const g = botGame(); flatWorld(g); g.stacks = [];
+  g.cones = [{ id: 'blocking-cone', goalId: 'other', x: 4, y: 6, a: 0, tipped: false, squished: false, misplaced: true }];
+  const tape = g.tapeBot;
+  Object.assign(tape, { x: 4, y: 6.5, show: 1, mode: 'out', state: 'working', path: [] });
+  assert.ok(moveBot(g, tape, 4, 6.02), 'the tape bot can continue through a cone blocking its tape corner');
+
+  const cone = g.coneBot;
+  Object.assign(cone, { x: 4, y: 6.5, show: 1, mode: 'out', state: 'working', path: [] });
+  g.cones = [{ id: 'blocking-cone', goalId: 'other', x: 4.2, y: 6.5, a: 0, tipped: false, squished: false, misplaced: true }];
+  assert.ok(moveBot(g, cone, 4.2, 6.5), 'no bot avoids or fears toppling a cone');
+}
+
+// Stuck bots escape from their route, then temporarily skip a repeatedly unreachable job.
+{
+  const g = botGame(); flatWorld(g); g.stacks = [];
+  const bot = g.bot;
+  Object.assign(bot, { mode: 'out', show: 1, x: 5, y: 5, a: 0, state: 'going-to-work', path: [], planKey: 'test:job', goal: { x: 5, y: 8 }, stuckCount: 2, stuckTime: STUCK_SECS, recoveryUntil: 0 });
+  bot.path = [{ x: 5, y: 5 }];
+  watchStuck(g, bot, 1 / 120, { x: bot.x, y: bot.y }, 0.1);
+  assert.equal(bot.stuckCount, 0, 'the third stuck episode abandons the repeated job');
+  assert.equal(bot.skip['test:job'], g.clock + 10, 'the blocked job is temporarily skipped');
+  assert.equal(bot.planKey, null, 'the abandoned job key is cleared');
 }
 
 // Oil takes priority over fresh skid marks; marks are not safety-cone spill targets.
@@ -1106,6 +1144,13 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   g.cones = [{ id: 'box-hit', goalId: 'target', x: 8.5, y: 8, a: 0, tipped: false, squished: false }];
   stepConeCollisions(g);
   assert.ok(g.cones[0].tipped && Math.hypot(g.cones[0].x - 8.5, g.cones[0].y - 8) > 0.1, 'a moving box stack can tip and displace a cone');
+
+  g.stacks = [];
+  g.fl.x = 1; g.fl.y = 1;
+  g.bot = { x: 8, y: 8, show: 1 };
+  g.cones = [{ id: 'bot-hit', goalId: 'target', x: 8.1, y: 8, a: 0, tipped: false, squished: false }];
+  stepConeCollisions(g);
+  assert.ok(g.cones[0].tipped && Math.hypot(g.cones[0].x - 8.1, g.cones[0].y - 8) > 0.05, 'bot contact tips and displaces a cone');
 }
 
 // Worker bots expose their current work destination and clear it when fleeing.
@@ -1134,7 +1179,7 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
     const route = b.path;
     assert.ok(route.length, `${kind} has a route to its work`);
     for (let i = 0; i < 12; i++) step();
-    assert.equal(b.path, route, `${kind} keeps an unobstructed route instead of replanning periodically`);
+    assert.ok(b.path === route || b.path.length === 0, `${kind} keeps an unobstructed route or finishes it instead of replanning periodically`);
     Object.assign(g.fl, { x: b.x - 2.5, y: b.y, a: 0, speed: 1 });
     step();
     assert.ok(b.state === 'flee', `${kind} is fleeing`);

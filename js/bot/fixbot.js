@@ -1,5 +1,5 @@
 import { SPEED, angDiff, rectDist, truckCircles } from './common.js';
-import { buildGrid, plan, SKIP_SECS, skipped } from './nav.js';
+import { buildGrid, plan, routeDistance, SKIP_SECS, skipped } from './nav.js';
 import { makeTapeBot } from './tapebot.js';
 import { stepWorker } from './worker.js';
 
@@ -47,10 +47,12 @@ export function pickFixJob(g, bot) {
   if (!ts.length) return null;
   const grid = buildGrid(g, 0.45, false, bot), best = [];
   for (const kind of ['pallet', 'box']) {
-    ts.filter((t) => t.kind === kind).sort((a, b) => Math.hypot(a.x - bot.x, a.y - bot.y) - Math.hypot(b.x - bot.x, b.y - bot.y)).slice(0, 5).forEach((t) => {
+    ts.filter((t) => t.kind === kind).forEach((t) => {
       const path = plan(grid, bot, 80, (x, y, c) => Math.hypot(x - t.x, y - t.y) * 10 + c * 0.02);
       const end = path.length ? path[path.length - 1] : { x: bot.x, y: bot.y }, d = Math.hypot(end.x - t.x, end.y - t.y);
-      best.push({ ...t, tier: (kind === 'pallet' ? 0 : 1) + (d <= FIX_REACH ? 0 : 2), ax: end.x, ay: end.y, d: Math.hypot(t.x - bot.x, t.y - bot.y) });
+      const found = routeDistance(grid, bot, t);
+      best.push({ ...t, tier: (kind === 'pallet' ? 0 : 1) + (d <= FIX_REACH ? 0 : 2), ax: end.x, ay: end.y,
+        d: Number.isFinite(found) ? found : Math.hypot(t.x - bot.x, t.y - bot.y) });
     });
   }
   best.sort((a, b) => a.tier - b.tier || a.d - b.d);
@@ -117,6 +119,7 @@ export function stepFixBot(g, dt) {
   let job = bot.fix;
   if (job && !fixValid(g, bot, job)) { fixAbort(g, bot, job); job = null; }
   if (!job && bot.show === 1 && bot.state !== 'loiter') job = bot.fix = pickFixJob(g, bot);
+  if (job) bot.planKey = job.key; else bot.planKey = null;
   if (job && (job.age += dt) > FIX_GIVE_UP) { (bot.skip ||= {})[job.key] = g.clock + SKIP_SECS * 6; fixAbort(g, bot, job); job = null; }
   const hasWork = !!job || fixTargets(g, bot).length > 0 || !!bot.carry;
   bot.debugTask = job ? `${job.phase} ${job.kind}${job.tier > 1 ? ' (cheat)' : ''}` : null;

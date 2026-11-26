@@ -1,6 +1,6 @@
 import { repairable } from '../repair.js';
 import { SPEED, turnTo, botHome } from './common.js';
-import { buildGrid, plan, REPLAN, blockedAhead, followPath, pushOut } from './nav.js';
+import { buildGrid, plan, pathLength, REPLAN, blockedAhead, followPath, pushOut } from './nav.js';
 import { stepHead, settle } from './state.js';
 
 // The inspection bot: photographs every completed drop point once (`seen` holds the keys of inspected zones).
@@ -78,8 +78,6 @@ export function stepInspector(g, dt, done, stackAt, wonky) {
   bot.roll = ((bot.roll || 0) + ((bot.x - x) * Math.cos(bot.a) + (bot.y - y) * Math.sin(bot.a)) / WHEEL_R) % (Math.PI * 2);
 }
 
-export const pathLength = (from, path) => path.reduce((n, w, i) => n + Math.hypot(w.x - (i ? path[i - 1].x : from.x), w.y - (i ? path[i - 1].y : from.y)), 0);
-
 // Inspector targeting: pick the nearest reachable pending drop point, pathfind to it and go. Obstacles that appear on the route are ignored until
 // the bot actually meets one (then it picks a target afresh); a forklift driving towards it makes it run away first, then it picks afresh.
 export function inspectorStep(g, dt, done, stackAt, wonky) {
@@ -87,11 +85,14 @@ export function inspectorStep(g, dt, done, stackAt, wonky) {
   if (!bot || !g.hatch) return;
   const todo = pendingZones(g, done, stackAt);
   bot.flash = Math.max(0, bot.flash - dt / FLASH_SECS);
-  if (bot.target && !todo.some((z) => zoneKey(z) === bot.target)) { bot.target = null; bot.shooting = 0; bot.path = []; }
+  if (bot.recoveryUntil && bot.recoveryUntil <= g.clock) {
+    bot.target = null; bot.planKey = null; bot.shooting = 0; bot.path = []; bot.repath = 0; bot.recoveryUntil = 0;
+  }
+  if (bot.target && !todo.some((z) => zoneKey(z) === bot.target)) { bot.target = null; bot.planKey = null; bot.shooting = 0; bot.path = []; }
   bot.goal = null;
   if (stepHead(g, bot, dt, todo.length > 0)) return;
   const speed = SPEED;
-  if (bot.target && blockedAhead(g, bot)) { bot.target = null; bot.path = []; bot.shooting = 0; bot.repath = 0; } // met the obstacle: pick again
+  if (bot.target && blockedAhead(g, bot)) { bot.target = null; bot.planKey = null; bot.path = []; bot.shooting = 0; bot.repath = 0; } // met the obstacle: pick again
   if (!bot.target && bot.repath <= 0) {
     const grid = buildGrid(g, 0.45, false, bot);
     let best = null;
@@ -105,7 +106,7 @@ export function inspectorStep(g, dt, done, stackAt, wonky) {
       const len = pathLength(bot, path);
       if (!best || len < best.len) best = { z, path, len };
     }
-    if (best) { bot.target = zoneKey(best.z); bot.path = best.path; bot.shooting = 0; }
+    if (best) { bot.target = zoneKey(best.z); bot.planKey = bot.target; bot.path = best.path; bot.shooting = 0; }
     bot.repath = REPLAN; // when nothing is reachable, look again shortly
   }
   const aimed = bot.target && todo.find((z) => zoneKey(z) === bot.target);

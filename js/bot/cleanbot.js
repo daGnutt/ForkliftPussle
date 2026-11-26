@@ -1,5 +1,5 @@
 import { SPEED, TURN_FIRST, turnAfterPath, botHome, truckCircles, truckGap, REACH, underStack } from './common.js';
-import { REPLAN, KEEP_ROUTE, preferLive, blockedAhead, goalPlan, moveBot, followPath, pushOut } from './nav.js';
+import { REPLAN, KEEP_ROUTE, preferLive, blockedAhead, goalPlan, moveBot, followPath, pushOut, buildGrid, routeDistance } from './nav.js';
 import { stepHead, settle } from './state.js';
 
 export const CLEAN_SECS = 5; // seconds per oil drop
@@ -25,9 +25,12 @@ export function farFromTrucks(g, p) {
 export const spillDrops = (sp, dropArea) => sp.drops ?? sp.r * sp.r / dropArea;
 
 export function pickSpill(g, bot, dropArea) {
+  const grid = buildGrid(g, 0.45, false, bot);
   let best = null, bs = Infinity;
   for (const sp of preferLive(g, bot, g.oil || [], (o) => o.id)) {
-    const sc = (underStack(g, sp) ? 1e6 : 0) + Math.round(spillDrops(sp, dropArea) * 4) * 100 + Math.hypot(sp.x - bot.x, sp.y - bot.y) - (bot.spookedUntil > g.clock ? farWeight(g, bot, CLEAN_FAR_WEIGHT) * farFromTrucks(g, sp) : 0); // only a spooked cleaner goes for far-away spills
+    const found = routeDistance(grid, bot, sp);
+    const route = Number.isFinite(found) ? found : Math.hypot(sp.x - bot.x, sp.y - bot.y);
+    const sc = (underStack(g, sp) ? 1e6 : 0) + Math.round(spillDrops(sp, dropArea) * 4) * 100 + route - (bot.spookedUntil > g.clock ? farWeight(g, bot, CLEAN_FAR_WEIGHT) * farFromTrucks(g, sp) : 0); // only a spooked cleaner goes for far-away spills
     if (sc < bs) { bs = sc; best = sp; }
   }
   return best;
@@ -40,8 +43,13 @@ export function stepBot(g, dt, dropArea) {
   const spill = pickSpill(g, bot, dropArea);
   const trucks = truckCircles(g);
   const safeMark = (m) => trucks.every((c) => Math.hypot(m.x - c.x, m.y - c.y) > c.r + SKID_TRUCK_CLEARANCE);
-  const mark = !spill && preferLive(g, bot, (g.skidMarks || []).filter(safeMark), (m) => m.id)
-    .reduce((best, m) => !best || Math.hypot(m.x - bot.x, m.y - bot.y) < Math.hypot(best.x - bot.x, best.y - bot.y) ? m : best, null);
+  const marks = preferLive(g, bot, (g.skidMarks || []).filter(safeMark), (m) => m.id);
+  const grid = buildGrid(g, 0.45, false, bot);
+  const mark = !spill && marks.reduce((best, m) => {
+    const found = routeDistance(grid, bot, m);
+    const d = Number.isFinite(found) ? found : Math.hypot(m.x - bot.x, m.y - bot.y);
+    return !best || d < best.d ? { item: m, d } : best;
+  }, null)?.item;
   const target = spill || mark;
   bot.debugTask = target ? `${spill ? 'spill' : 'skid'} ${target.id} at ${target.x.toFixed(1)},${target.y.toFixed(1)}` : null;
   bot.cleaning = false;

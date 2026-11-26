@@ -1,7 +1,7 @@
 import { repairable } from '../repair.js';
 import { BOX_HALF_X, halfY, zoneExt } from '../geom.js';
-import { BOT_R, hash, botHome, place, rectDist, circlesOf, truckCircles, STACK_R, zoneMarkKey, zonesInArea } from './common.js';
-import { nearBox, buildGrid, plan, SKIP_SECS, REPLAN, skipped, preferLive } from './nav.js';
+import { BOT_R, hash, botHome, place, rectDist, circlesOf, truckCircles, STACK_R, zoneMarkKey, zonesInArea, bots } from './common.js';
+import { nearBox, buildGrid, plan, routeDistance, SKIP_SECS, REPLAN, skipped, preferLive } from './nav.js';
 import { sightHits } from './loiter.js';
 import { tapeCorners } from './tapebot.js';
 import { stepWorker } from './worker.js';
@@ -48,6 +48,16 @@ export function stepConeCollisions(g) {
         if (Math.abs(t.fl.speed) > 2.6) cone.squished = true;
         else if (Math.abs(t.fl.speed) > 0.25) cone.tipped = true;
       }
+    }
+    for (const bot of bots(g)) {
+      if (!bot.show) continue;
+      if (bot === g.coneBot && cone.placedX != null && Math.hypot(cone.x - cone.placedX, cone.y - cone.placedY) < 0.22) continue;
+      const dx = cone.x - bot.x, dy = cone.y - bot.y, d = Math.hypot(dx, dy), min = BOT_R * 0.8 + 0.13;
+      if (d >= min) continue;
+      const a = d > 1e-6 ? Math.atan2(dy, dx) : hash((cone.id || '').length + bot.x * 7 + bot.y * 11) * Math.PI * 2;
+      cone.x = bot.x + Math.cos(a) * min;
+      cone.y = bot.y + Math.sin(a) * min;
+      cone.tipped = true;
     }
     for (const s of g.stacks) {
       const dx = cone.x - s.x, dy = cone.y - s.y, d = Math.hypot(dx, dy), min = STACK_R + 0.13;
@@ -197,8 +207,10 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
     const r = STACK_R + BOT_R + 0.5;
     return { x: t.stackCenter.x + dx / d * r, y: t.stackCenter.y + dy / d * r };
   };
+  const grid = buildGrid(g, 0.45, false, bot);
   const closest = (items, point) => items.reduce((best, item) => {
-    const p = point(item), d = Math.hypot(p.x - bot.x, p.y - bot.y);
+    const p = point(item), found = routeDistance(grid, bot, p);
+    const d = Number.isFinite(found) ? found : Math.hypot(p.x - bot.x, p.y - bot.y);
     return !best || d < best.d ? { item, d } : best;
   }, null)?.item;
   const retrieve = (cone) => {
