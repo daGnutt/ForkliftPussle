@@ -82,9 +82,7 @@ export function nearestFree(grid, s) {
 // Returns the waypoint list (world coordinates) to that cell, or [].
 export const pathLength = (from, path) => path.reduce((n, w, i) => n + Math.hypot(w.x - (i ? path[i - 1].x : from.x), w.y - (i ? path[i - 1].y : from.y)), 0);
 
-// Shortest navigable route distance to a point (or to a free cell within `radius`).
-// Unlike Euclidean distance, this follows walls and other moving obstacles on the bot grid.
-export function routeDistance(grid, bot, point, radius = 1.5, maxCost = 80) {
+function walkRoutes(grid, bot, maxCost, visit) {
   const { nx, ny, blocked } = grid, n = nx * ny;
   const s = cellOf(grid, bot);
   let start = s.j * nx + s.i;
@@ -92,7 +90,7 @@ export function routeDistance(grid, bot, point, radius = 1.5, maxCost = 80) {
   if (escape >= 0) start = escape;
   const cost = new Float64Array(n).fill(Infinity);
   cost[start] = 0;
-  const open = [[0, start]], seen = new Uint8Array(n);
+  const open = [[0, start]];
   const push = (item) => {
     let k = open.push(item) - 1;
     while (k > 0 && open[(k - 1) >> 1][0] > item[0]) {
@@ -115,15 +113,11 @@ export function routeDistance(grid, bot, point, radius = 1.5, maxCost = 80) {
     }
     return top;
   };
-  let best = Infinity;
   while (open.length) {
     const [c, id] = pop();
     if (c > cost[id]) continue;
-    seen[id] = 1;
     const i = id % nx, j = (id - i) / nx;
-    const x = (i + 0.5) * CELL, y = (j + 0.5) * CELL;
-    if (!blocked[id] && Math.hypot(x - point.x, y - point.y) <= radius) best = Math.min(best, c);
-    if (c >= best) continue;
+    if (!blocked[id] && visit(id, i, j, c)) return;
     for (const [di, dj, w] of NB) {
       const ni = i + di, nj = j + dj;
       if (ni < 0 || nj < 0 || ni >= nx || nj >= ny || blocked[nj * nx + ni]) continue;
@@ -133,7 +127,53 @@ export function routeDistance(grid, bot, point, radius = 1.5, maxCost = 80) {
       cost[nj * nx + ni] = nc; push([nc, nj * nx + ni]);
     }
   }
+}
+
+// Shortest navigable route distance to a point (or to a free cell within `radius`).
+// Unlike Euclidean distance, this follows walls and other moving obstacles on the bot grid.
+export function routeDistance(grid, bot, point, radius = 1.5, maxCost = 80) {
+  let best = Infinity;
+  walkRoutes(grid, bot, maxCost, (_id, i, j, cost) => {
+    if (Math.hypot((i + 0.5) * CELL - point.x, (j + 0.5) * CELL - point.y) > radius) return false;
+    best = cost;
+    return true;
+  });
   return best;
+}
+
+// Search once for many targets instead of repeating Dijkstra for each one.
+export function routeDistances(grid, bot, points, radius = 1.5, maxCost = 80) {
+  if (!points.length) return [];
+  if (points.length === 1) return [routeDistance(grid, bot, points[0], radius, maxCost)];
+  const { nx, ny, blocked } = grid, targets = new Map(), distances = points.map(() => Infinity);
+  let remaining = 0;
+  for (const [index, point] of points.entries()) {
+    let hasCell = false;
+    const minI = Math.max(0, Math.ceil((point.x - radius) / CELL - 0.5));
+    const maxI = Math.min(nx - 1, Math.floor((point.x + radius) / CELL - 0.5));
+    const minJ = Math.max(0, Math.ceil((point.y - radius) / CELL - 0.5));
+    const maxJ = Math.min(ny - 1, Math.floor((point.y + radius) / CELL - 0.5));
+    for (let j = minJ; j <= maxJ; j++) for (let i = minI; i <= maxI; i++) {
+      const id = j * nx + i;
+      if (blocked[id] || Math.hypot((i + 0.5) * CELL - point.x, (j + 0.5) * CELL - point.y) > radius) continue;
+      if (!targets.has(id)) targets.set(id, []);
+      targets.get(id).push(index);
+      hasCell = true;
+    }
+    if (hasCell) remaining++;
+  }
+  if (!remaining) return distances;
+  walkRoutes(grid, bot, maxCost, (id, _i, _j, cost) => {
+    const candidates = targets.get(id);
+    if (!candidates) return false;
+    for (const index of candidates) {
+      if (distances[index] !== Infinity) continue;
+      distances[index] = cost;
+      remaining--;
+    }
+    return remaining === 0;
+  });
+  return distances;
 }
 
 export function plan(grid, from, maxCost, score) {

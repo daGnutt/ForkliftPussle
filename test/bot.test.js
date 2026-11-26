@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { newGame, update, addTruck, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
 import { issues } from '../js/photo.js';
-import { buildGrid, routeDistance, moveBot, watchStuck, STUCK_SECS } from '../js/bot/nav.js';
+import { buildGrid, routeDistance, routeDistances, moveBot, watchStuck, STUCK_SECS } from '../js/bot/nav.js';
 import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape, stepSeq, startSpawn } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
@@ -79,6 +79,36 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   const across = routeDistance(grid, bot, { x: 10, y: 8 });
   const direct = routeDistance(grid, bot, { x: 4, y: 8 });
   assert.ok(across > direct, 'a wall makes the farther route lose despite its job position');
+}
+
+// A shared search gives the same distances as independent searches, including unreachable targets.
+{
+  const nx = 12, ny = 12, blocked = new Uint8Array(nx * ny);
+  for (let j = 0; j < ny; j++) blocked[j * nx + 6] = 1;
+  const grid = { nx, ny, blocked, fixed: blocked.slice() };
+  const points = [{ x: 0.625, y: 1.125 }, { x: 0.625, y: 1.125 }, { x: 2.625, y: 1.125 }, { x: 10, y: 10 }];
+  for (const bot of [{ x: 0.375, y: 1.125 }, { x: 1.625, y: 1.125 }]) {
+    for (const [radius, maxCost] of [[0, 80], [0.5, 80], [0.5, 0.5]]) {
+      assert.deepEqual(routeDistances(grid, bot, points, radius, maxCost),
+        points.map((point) => routeDistance(grid, bot, point, radius, maxCost)));
+    }
+  }
+  assert.deepEqual(routeDistances(grid, { x: 0, y: 0 }, []), []);
+  assert.equal(routeDistances(grid, { x: 0.375, y: 1.125 }, points, 0)[2], Infinity);
+}
+
+// Skid selection still prefers a navigable route over a closer mark across a wall.
+{
+  const g = botGame(); flatWorld(g); g.stacks = [];
+  g.walls.push({ x: 6, y: 0, w: 0.5, h: 9, poly: null });
+  Object.assign(g.fl, { x: 12, y: 1, speed: 0 });
+  Object.assign(g.bot, { x: 5, y: 8, show: 1, mode: 'out', state: 'going-to-work' });
+  g.skidMarks = [
+    { id: 'across', x: 8, y: 8, a: 0, left: 1 },
+    { id: 'direct', x: 1, y: 8, a: 0, left: 1 },
+  ];
+  stepBot(g, 1 / 120, 1.15 ** 2 / 50);
+  assert.ok(g.bot.debugTask.startsWith('skid direct '));
 }
 
 // Spawned cones must not pin any bot against a tape corner.

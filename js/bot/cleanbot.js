@@ -1,5 +1,5 @@
 import { SPEED, TURN_FIRST, turnAfterPath, botHome, truckCircles, truckGap, REACH, underStack } from './common.js';
-import { REPLAN, KEEP_ROUTE, preferLive, blockedAhead, goalPlan, moveBot, followPath, pushOut, buildGrid, routeDistance } from './nav.js';
+import { REPLAN, KEEP_ROUTE, preferLive, blockedAhead, goalPlan, moveBot, followPath, pushOut, buildGrid, routeDistances } from './nav.js';
 import { stepHead, settle } from './state.js';
 
 export const CLEAN_SECS = 5; // seconds per oil drop
@@ -25,9 +25,12 @@ export function farFromTrucks(g, p) {
 export const spillDrops = (sp, dropArea) => sp.drops ?? sp.r * sp.r / dropArea;
 
 export function pickSpill(g, bot, dropArea) {
-  let grid, best = null, bs = Infinity; // the grid is only built when there is something to route to
-  for (const sp of preferLive(g, bot, g.oil || [], (o) => o.id)) {
-    const found = routeDistance(grid ||= buildGrid(g, 0.45, false, bot), bot, sp);
+  const spills = preferLive(g, bot, g.oil || [], (o) => o.id);
+  if (!spills.length) return null;
+  const distances = routeDistances(buildGrid(g, 0.45, false, bot), bot, spills);
+  let best = null, bs = Infinity;
+  for (const [index, sp] of spills.entries()) {
+    const found = distances[index];
     const route = Number.isFinite(found) ? found : Math.hypot(sp.x - bot.x, sp.y - bot.y);
     const sc = (underStack(g, sp) ? 1e6 : 0) + Math.round(spillDrops(sp, dropArea) * 4) * 100 + route - (bot.spookedUntil > g.clock ? farWeight(g, bot, CLEAN_FAR_WEIGHT) * farFromTrucks(g, sp) : 0); // only a spooked cleaner goes for far-away spills
     if (sc < bs) { bs = sc; best = sp; }
@@ -43,9 +46,9 @@ export function stepBot(g, dt, dropArea) {
   const trucks = truckCircles(g);
   const safeMark = (m) => trucks.every((c) => Math.hypot(m.x - c.x, m.y - c.y) > c.r + SKID_TRUCK_CLEARANCE);
   const marks = preferLive(g, bot, (g.skidMarks || []).filter(safeMark), (m) => m.id);
-  let grid;
-  const mark = !spill && marks.reduce((best, m) => {
-    const found = routeDistance(grid ||= buildGrid(g, 0.45, false, bot), bot, m);
+  const distances = !spill && marks.length ? routeDistances(buildGrid(g, 0.45, false, bot), bot, marks) : [];
+  const mark = !spill && marks.reduce((best, m, index) => {
+    const found = distances[index];
     const d = Number.isFinite(found) ? found : Math.hypot(m.x - bot.x, m.y - bot.y);
     return !best || d < best.d ? { item: m, d } : best;
   }, null)?.item;
