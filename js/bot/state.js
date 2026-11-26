@@ -1,15 +1,12 @@
-import { BOT_SPACE, truckCircles } from './common.js';
-import { buildGrid, plan, REPLAN, followPath, pathDistance } from './nav.js';
+import { BOT_SPACE, SPEED, FLEE_SPEED, FLEE_BOT_SPEED, SCARE, CALM, truckCircles, approachGap, bots, botKey, outranks, botLane, emerge, retract } from './common.js';
+import { followPath, pushOut, fleePlan, pathDistance, botAhead } from './nav.js';
+import { SPOOK_SECS } from './cleanbot.js';
+import { stepLoiter } from './loiter.js';
+import { speak } from './speech.js';
 
-export const bots = (g) => [g.bot, g.inspector, g.coneBot, g.tapeBot, g.fixBot].filter(Boolean);
-export const botKey = (g, bot) => ['bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot'].find((key) => g[key] === bot);
-// Right of way: a bot blocked by a lower-ranked bot requests a clear path and the other flees from its route (box righter ranks highest).
-export const BOT_RANK = ['coneBot', 'tapeBot', 'bot', 'inspector', 'fixBot'];
-export const outranks = (g, a, b) => BOT_RANK.indexOf(botKey(g, a)) > BOT_RANK.indexOf(botKey(g, b));
-export const requesting = (g, b) => !!b?.rightOfWay; // lasts until the bot has reached its destination (route finished) or changes activity
-export const canYield = (g, worker, bot) => (worker.activity === 'work' && bot.activity === 'follow'
-  || (worker.activity === 'work' || worker.activity === 'home') && outranks(g, worker, bot))
-  && !bot.scared && bot.show === 1 && bot.yieldBlock?.worker !== botKey(g, worker);
+export { bots, botKey, outranks };
+export const STATES = ['flee', 'right-of-way', 'going-to-work', 'working', 'loiter'];
+
 // Beacon prisms use the same local dimensions as the shared bot parts.
 export const BOT_BEACONS = {
   bot: [-0.08, 0, 0.045, 0.06, 0.40, 0.46, '#ef941f'],
@@ -18,55 +15,110 @@ export const BOT_BEACONS = {
   tapeBot: [0, 0, 0.055, 0.08, 1.35, 1.43, '#78e5f4'],
 };
 export const beaconPulse = (g) => Math.floor((g.clock || 0) * 4) % 2 === 0;
-// Beacon tone: bright blue while requesting right of way, red while fleeing or making way for such a request.
-export const botRequesting = (g, b) => !!b?.show && !b.scared && requesting(g, b);
-export const botBeaconTone = (g, b) => !b?.show ? null : b.scared || b.yieldFor ? 'red' : requesting(g, b) ? 'blue' : null;
-export const botBeaconOn = (g, b) => b?.show > 0 && (b.activity === 'work' || !!botBeaconTone(g, b)) && beaconPulse(g);
+// Beacon: blinking red while fleeing, blinking blue in right-of-way, blinking amber going to and doing work, off while loitering.
+export const STATE_TONE = { flee: 'red', 'right-of-way': 'blue' };
+export const botBeaconTone = (g, b) => !b?.show ? null : STATE_TONE[b.state] || null;
+export const botBeaconOn = (g, b) => b?.show > 0 && (b.state === 'flee' || b.state === 'right-of-way' || b.state === 'going-to-work' || b.state === 'working') && beaconPulse(g);
 export const TONES = { blue: ['#3d8bff', '#1f4fbf'], red: ['#ff3b30', '#a31c14'] };
 export const beaconColor = (color, on, tone = null) => tone ? TONES[tone][on ? 0 : 1] : on ? color === '#ef941f' ? '#ffc45a' : '#c7fbff' : color;
 export const proximityBeaconOn = (g, p) => beaconPulse(g)
   && truckCircles(g).some((c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r + 3);
-export const IDLE_SECS = 600, FOLLOW_GAP = 3.5;
+export const IDLE_SECS = 600, ROW_NEAR = BOT_SPACE + 0.6, YELL_SECS = 0.8, FLEE_BOT_HOLD = 0.5;
 
-// Changing activity discards the old route so new work or a trip home always takes priority.
-export function activity(bot, work, dt) {
-  bot.idle = work ? 0 : (bot.idle || 0) + dt;
-  const next = work ? 'work' : bot.idle >= IDLE_SECS ? 'home' : 'follow';
-  if (bot.activity !== next) {
-    bot.activity = next; bot.path = []; bot.repath = 0; bot.planKey = null;
-    bot.target = null; bot.shooting = 0; bot.idleEscape = false;
-    bot.curiosity = null; bot.observing = false; bot.passing = null;
-    bot.yieldPath = []; bot.yieldFor = null; bot.yieldBlock = null; bot.rightOfWay = false;
+// Changing state discards the old route when the bot starts or stops having a job (or stops fleeing): it always re-evaluates its world afresh.
+export function setState(bot, next) {
+  const prev = bot.state;
+  if (prev === next) return;
+  bot.state = next;
+  if (prev === 'flee' || prev === 'loiter' || next === 'loiter') {
+    bot.path = []; bot.repath = 0; bot.planKey = null; bot.passing = null; bot.loiter = null; bot.blockWait = 0;
   }
-  if (work) bot.leaving = false;
-  return next;
 }
 
-export function makeWay(g, bot, dt, speed) {
-  const worker = g[bot.yieldFor];
-  if (!worker || worker.show <= 0 || (worker.activity !== 'work' && worker.activity !== 'home') || worker.scared || !worker.path.length
-      || (Math.hypot(bot.x - worker.x, bot.y - worker.y) > 2 && !bot.yieldPath?.length)) {
-    bot.yieldFor = null; bot.yieldPath = []; bot.repath = 0;
-    return false;
-  }
-  bot.observing = false; bot.path = []; bot.passing = null;
-  const inWay = pathDistance(bot, worker, worker.path) < BOT_SPACE + 0.3;
-  if (!bot.yieldPath?.length && inWay && bot.repath <= 0) {
-    bot.yieldPath = plan(buildGrid(g, 0.1, bot === g.tapeBot, bot), bot, 12, (x, y, cost) => {
-      const p = { x, y };
-      if (Math.hypot(x - worker.x, y - worker.y) < BOT_SPACE + 0.3
-          || pathDistance(p, worker, worker.path) < BOT_SPACE + 0.3) return Infinity;
-      return cost;
-    });
-    bot.repath = REPLAN;
-  }
-  if (bot.yieldPath?.length) { bot.yieldWait = 0; followPath(g, bot, speed * dt, dt); }
-  else if (inWay && (bot.yieldWait = (bot.yieldWait || 0) + dt) >= 2) {
-    bot.yieldBlock = { worker: bot.yieldFor, left: 3 };
-    bot.yieldFor = null; bot.repath = 0; worker.repath = 0;
-    return false;
-  }
-  return true;
+function enterFlee(g, bot) {
+  setState(bot, 'flee');
+  bot.path = []; bot.repath = 0; bot.fleePath = false; bot.target = null; bot.shooting = 0; bot.passing = null;
+  if (bot === g.tapeBot) { bot.tapeJob = null; bot.seq = null; bot.ghost = null; }
 }
 
-// Curious bots travel to a visible vantage point, then watch for 5-15 simulated seconds.
+// What a bot is running from: a moving forklift, a bot in right-of-way (unless this one outranks it or is itself in right-of-way), or a worker it is blocking.
+export function threatOf(g, bot) {
+  const was = bot.state === 'flee';
+  const out = { speed: 0, kind: null, keys: [] };
+  if (approachGap(g, bot) < (was && bot.fleeKind === 'truck' ? CALM : SCARE)) {
+    out.speed = FLEE_SPEED; out.kind = 'truck'; bot.spookedUntil = g.clock + SPOOK_SECS;
+  }
+  for (const o of bots(g)) {
+    if (o === bot || o.show !== 1 || o.state !== 'right-of-way' || outranks(g, bot, o)) continue;
+    if (bot.state === 'right-of-way' && !((bot.blockWait || 0) > 4 && outranks(g, o, bot))) continue; // a stuck lower-priority bot makes way
+    if (Math.hypot(o.x - bot.x, o.y - bot.y) < ROW_NEAR || pathDistance(bot, o, o.path || []) < BOT_SPACE + 0.4) out.keys.push(botKey(g, o));
+  }
+  if (bot.yelledUntil > g.clock && g[bot.yelledBy]?.show > 0) out.keys.push(bot.yelledBy);
+  if (out.keys.length) {
+    out.speed = FLEE_BOT_SPEED; out.kind = out.kind || 'bot';
+    bot.fleeUntil = g.clock + FLEE_BOT_HOLD; bot.fleeKeys = out.keys;
+  } else if (!out.kind && was && bot.fleeKind === 'bot' && g.clock < bot.fleeUntil) {
+    out.speed = FLEE_BOT_SPEED; out.kind = 'bot'; out.keys = bot.fleeKeys || [];
+  }
+  return out;
+}
+
+// The part of a bot's step that every bot shares: hatch emerging/retracting, fleeing and loitering. Returns 'hatch', 'flee' or 'loiter'
+// when it handled the frame, or false when the caller should run its job logic (and then call `settle`).
+export function stepHead(g, bot, dt, hasWork) {
+  bot.idle = hasWork ? 0 : (bot.idle || 0) + dt;
+  if (bot.mode === 'hidden') {
+    if (!hasWork) return 'hatch';
+    bot.mode = 'out';
+  }
+  if (hasWork) bot.leaving = false;
+  if (bot.show < 1) {
+    if (bot.state !== 'flee') setState(bot, hasWork ? 'going-to-work' : 'loiter');
+    if (bot.leaving) retract(g, bot, dt); else emerge(g, bot, dt);
+    return 'hatch';
+  }
+  bot.repath -= dt;
+  const threat = threatOf(g, bot);
+  if (threat.kind) {
+    if (bot.state !== 'flee') enterFlee(g, bot);
+    bot.fleeKind = threat.kind;
+    bot.goal = null;
+    const threats = threat.keys.map((k) => g[k]).filter(Boolean);
+    if (bot.repath <= 0 || !bot.fleePath) { bot.path = fleePlan(g, bot, threats); bot.fleePath = true; bot.repath = 0.25; }
+    followPath(g, bot, threat.speed * dt, dt);
+    pushOut(g, bot);
+    return 'flee';
+  }
+  if (bot.state === 'flee') { setState(bot, 'loiter'); bot.fleePath = false; bot.fleeKind = null; bot.target = null; }
+  if (!hasWork) {
+    setState(bot, 'loiter');
+    stepLoiter(g, bot, dt);
+    return 'loiter';
+  }
+  if (bot.state === 'loiter') setState(bot, 'going-to-work');
+  return false;
+}
+
+// After the job logic: pick going-to-work / right-of-way / working. Right-of-way is entered only from going-to-work, when another bot is in the way,
+// and kept until the job is reached.
+export function settle(g, bot, hasWork, atJob) {
+  if (bot.state === 'flee' || bot.show < 1) return;
+  let next = 'going-to-work';
+  if (!hasWork) next = 'loiter';
+  else if (atJob) next = 'working';
+  else if (bot.state === 'right-of-way') next = 'right-of-way';
+  else if (bot.state === 'going-to-work' && bot.path.length && botAhead(g, bot, bot.path[0])) next = 'right-of-way';
+  setState(bot, next);
+  if (next === 'working') yellIfBlocked(g, bot);
+}
+
+// A working bot with another bot in its way yells at it; the blocker then flees. Of two working bots only the higher-priority one yells.
+export function yellIfBlocked(g, bot) {
+  for (const o of bots(g)) {
+    if (o === bot || o.show !== 1 || o.state === 'flee' || Math.hypot(o.x - bot.x, o.y - bot.y) >= BOT_SPACE + 0.12) continue;
+    if (o.state === 'working' && outranks(g, o, bot)) continue;
+    o.yelledBy = botKey(g, bot); o.yelledUntil = g.clock + YELL_SECS;
+    bot.blockedBy = botKey(g, o);
+    if (!(bot.say?.until > g.clock)) speak(g, bot, 'yell');
+  }
+}

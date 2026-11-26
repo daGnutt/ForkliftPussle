@@ -9,7 +9,7 @@ import { stepWorker } from './worker.js';
 export function makeConeBot(g) {
   if (!g.hatch) return null;
   const home = botHome(g.hatch);
-  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', scared: false, path: [], repath: 0 };
+  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', state: 'loiter', path: [], repath: 0 };
 }
 
 // Shared cone-bot prisms: local centre, half sizes, height range, colour and optional emissive flag.
@@ -190,10 +190,10 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
     bot.workKey = coneWorkKey({ id: cone.goalId });
     bot.debugTask = 'retrieving cone';
     stepWorker(g, bot, dt, true, goal, `pickup:${cone.goalId}`);
-    if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < (target ? 0.7 : 0.4) && !bot.path.length && !bot.scared) {
+    if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < (target ? 0.7 : 0.4) && !bot.path.length && bot.state !== 'flee') {
       const i = g.cones.indexOf(cone);
       if (i >= 0) g.cones.splice(i, 1);
-    } else if (bot.show === 1 && !bot.scared && !bot.path.length && bot.repath <= REPLAN) {
+    } else if (bot.show === 1 && bot.state !== 'flee' && !bot.path.length && bot.repath <= REPLAN) {
       (bot.skip ||= {})[`cone:${cone.id}`] = g.clock + SKIP_SECS;
     }
   };
@@ -217,7 +217,7 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
     }
     if (!job.goal) { stepWorker(g, bot, dt, true, approach(target), `place:${target.id}`); return; }
     stepWorker(g, bot, dt, true, job.goal, `place:${target.id}`);
-    if (bot.show === 1 && Math.hypot(bot.x - job.goal.x, bot.y - job.goal.y) < 0.2 && !bot.path.length && !bot.scared
+    if (bot.show === 1 && Math.hypot(bot.x - job.goal.x, bot.y - job.goal.y) < 0.2 && !bot.path.length && bot.state !== 'flee'
         && clearConeSpot(g, job.spot)) {
       bot.coneSeq = (bot.coneSeq || 0) + 1;
       if (old) old.retire = true;

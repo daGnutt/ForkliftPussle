@@ -1,8 +1,8 @@
 import { toWorld } from '../forklift.js';
 import { BOX_HALF_X, halfY, rectPoly } from '../geom.js';
-import { BOT_R, CELL, turnAfterPath, BOT_SPACE, rectDist, circlesOf, truckGap } from './common.js';
-import { buildGrid, cellOf, plan, REPLAN, KEEP_ROUTE, blockedAhead, followPath, pushOut } from './nav.js';
-import { bots, FOLLOW_GAP, makeWay } from './state.js';
+import { BOT_R, SPEED, TURN_FIRST, turnTo, turnAfterPath, BOT_SPACE, circlesOf, truckGap, bots, botLane, retract } from './common.js';
+import { buildGrid, plan, REPLAN, KEEP_ROUTE, blockedAhead, followPath, pushOut, moveBot } from './nav.js';
+import { IDLE_SECS } from './state.js';
 
 export function sightHits(p, end, x, y, hx, hy, a = 0) {
   const c = Math.cos(a), s = Math.sin(a), dx = end.x - p.x, dy = end.y - p.y;
@@ -59,75 +59,54 @@ export function peeking(p, aim, cover) {
   });
 }
 
-export function followTruck(g, bot, dt, speed) {
-  if (bot.yieldBlock && (bot.yieldBlock.left -= dt) <= 0) bot.yieldBlock = null;
-  if (bot.yieldFor && makeWay(g, bot, dt, speed)) return;
-  const wall = g.walls.find((w) => rectDist(bot.x, bot.y, w) < BOT_R * 1.05);
-  if (wall || bot.idleEscape) {
-    bot.observing = false;
-    if (!bot.idleEscape) {
-      pushOut(g, bot);
-      bot.path = plan(buildGrid(g, 0.45, bot === g.tapeBot, bot), bot, 6, (x, y, cost) => Math.max(0, 1.5 - rectDist(x, y, wall)) * 4 + cost * 0.2);
-      bot.idleEscape = true; bot.curiosity = null;
-    }
-    followPath(g, bot, speed * dt, dt);
-    if (!bot.path.length) { bot.idleEscape = false; bot.repath = 0; }
+// Loiter: with no job a bot looks for a spot with a sight line to a forklift, far away or peeking around a wall or box corner, and stays there.
+// After IDLE_SECS without a job it goes back into its hatch.
+export const LOITER_RETRY = 1;
+export function stepLoiter(g, bot, dt) {
+  bot.goal = null;
+  if ((bot.idle || 0) >= IDLE_SECS) { goHome(g, bot, dt); return; }
+  const trucks = g.trucks.filter((t) => !t.gone);
+  pushOut(g, bot);
+  const watching = trucks.find((t) => viewingSpot(g, bot, bot, t));
+  if (watching && !bot.path.length && !bot.passing) {
+    bot.loiter = null;
+    const aim = toWorld(watching.fl, -0.7, 0);
+    turnTo(bot, Math.atan2(aim.y - bot.y, aim.x - bot.x), dt);
     return;
   }
-  const trucks = g.trucks.filter((t) => !t.gone);
-  let q = bot.curiosity, truck = q && trucks.find((t) => t.id === q.truck);
-  bot.observing = false;
-  if (q && blockedAhead(g, bot)) bot.repath = 0;
-  if (!q && bot.repath <= 0) {
-    const grid = buildGrid(g, 0.45, bot === g.tapeBot, bot);
-    const cover = viewCover(g);
-    for (truck of trucks.sort((a, b) => Math.hypot(bot.x - a.fl.x, bot.y - a.fl.y) - Math.hypot(bot.x - b.fl.x, bot.y - b.fl.y))) {
+  if (!bot.path.length && !bot.passing && bot.repath <= 0) {
+    const grid = buildGrid(g, 0.45, bot === g.tapeBot, bot), cover = viewCover(g);
+    let best = null;
+    for (const truck of trucks) {
       const circles = circlesOf(truck), centre = toWorld(truck.fl, -0.7, 0);
-      const previous = bot.lastView;
-      const score = (x, y, cost) => {
-        const p = { x, y };
-        if (previous && Math.hypot(x - previous.x, y - previous.y) < 1) return Infinity;
+      const path = plan(grid, bot, 80, (x, y, cost) => {
         const gap = Math.min(...circles.map((c) => Math.hypot(x - c.x, y - c.y) - c.r - BOT_R));
-        if (gap < 2.5 || !viewingSpot(g, bot, p, truck)) return Infinity;
-        return (peeking(p, centre, cover) ? 0 : 1000)
-          + cost * 10 + Math.abs(gap - FOLLOW_GAP) * 0.05;
-      };
-      bot.path = plan(grid, bot, 80, score);
-      let end = bot.path.at(-1) || bot;
-      if (!bot.path.length) {
-        const { i, j } = cellOf(grid, bot), p = { x: (i + 0.5) * CELL, y: (j + 0.5) * CELL };
-        if (!grid.blocked[j * grid.nx + i] && Number.isFinite(score(p.x, p.y, 0))
-            && (!Number.isFinite(score(end.x, end.y, 0)) || (peeking(p, centre, cover) && !peeking(end, centre, cover)))) {
-          bot.path = [p]; end = p;
-        }
-      }
-      if (Number.isFinite(score(end.x, end.y, 0))) {
-        q = bot.curiosity = { x: end.x, y: end.y, truck: truck.id, left: null };
-        break;
-      }
-      bot.path = [];
+        if (gap < 2.5 || !viewingSpot(g, bot, { x, y }, truck)) return Infinity;
+        return cost * 0.5 - Math.min(gap, 8) * 1.2 - (peeking({ x, y }, centre, cover) ? 5 : 0);
+      });
+      if (path.length && (!best || path.length < best.length)) best = path;
     }
-    bot.repath = q ? KEEP_ROUTE : REPLAN;
+    if (best) bot.path = best;
+    bot.repath = LOITER_RETRY;
   }
-  if (!q) return;
-  if (bot.repath <= 0 && !bot.passing) {
-    bot.path = plan(buildGrid(g, 0.45, bot === g.tapeBot, bot), bot, 80, (x, y, cost) => Math.hypot(x - q.x, y - q.y) * 10 + cost * 0.02);
+  if (bot.path.length || bot.passing) { followPath(g, bot, SPEED * dt, dt); pushOut(g, bot); }
+}
+
+export function goHome(g, bot, dt) {
+  const lane = botLane(g.hatch);
+  bot.goal = { x: lane.x, y: lane.y };
+  if (bot.planKey !== 'home') { bot.planKey = 'home'; bot.repath = 0; }
+  if (blockedAhead(g, bot)) bot.repath = 0;
+  if (bot.repath <= 0 && Math.hypot(lane.x - bot.x, lane.y - bot.y) > 0.15) {
+    bot.path = plan(buildGrid(g, 0.45, bot === g.tapeBot, bot), bot, 80, (x, y, c) => Math.hypot(x - lane.x, y - lane.y) * 10 + c * 0.02);
     bot.repath = bot.path.length ? KEEP_ROUTE : REPLAN;
   }
-  bot.goal = { x: q.x, y: q.y };
-  followPath(g, bot, speed * dt, dt);
-  if (bot.path.length || bot.passing || bot.yieldPath?.length) return;
-  if (Math.hypot(bot.x - q.x, bot.y - q.y) > 0.15) {
-    if (bot.repath > REPLAN) bot.repath = REPLAN;
-    return;
+  const left = followPath(g, bot, SPEED * dt, dt);
+  if (!bot.path.length && left > 0) {
+    const dx = lane.x - bot.x, dy = lane.y - bot.y, d = Math.hypot(dx, dy);
+    if (d > 1e-6 && d < 0.5 && Math.abs(turnAfterPath(bot, Math.atan2(dy, dx), dt)) < TURN_FIRST) moveBot(g, bot, bot.x + dx / d * Math.min(left, d), bot.y + dy / d * Math.min(left, d));
+    else if (d >= 0.5 && bot.repath > REPLAN) bot.repath = REPLAN;
   }
-  if (!truck || !viewingSpot(g, bot, bot, truck)) { bot.curiosity = null; bot.repath = 0; return; }
-  const aim = toWorld(truck.fl, -0.7, 0);
-  if (Math.abs(turnAfterPath(bot, Math.atan2(aim.y - bot.y, aim.x - bot.x), dt)) > 0.15) return;
-  bot.observing = true;
-  if (q.left === null) q.left = 5 + Math.random() * 10;
-  else q.left -= dt;
-  if (q.left <= 0) {
-    bot.lastView = { x: q.x, y: q.y }; bot.curiosity = null; bot.repath = 0; bot.observing = false;
-  }
+  pushOut(g, bot);
+  if (Math.hypot(lane.x - bot.x, lane.y - bot.y) < 0.2 && !bot.path.length) retract(g, bot, dt);
 }

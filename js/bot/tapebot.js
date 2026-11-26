@@ -21,10 +21,10 @@ export const TAPE_BOT_PARTS = [
 export function makeTapeBot(g) {
   if (!g.hatch) return null;
   const home = botHome(g.hatch);
-  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', scared: false, path: [], repath: 0 };
+  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', state: 'loiter', path: [], repath: 0 };
 }
 
-export const tapeDeploying = (bot) => bot?.tapeJob?.phase === 'draw' && !bot.scared;
+export const tapeDeploying = (bot) => bot?.tapeJob?.phase === 'draw' && bot.state !== 'flee';
 
 export function tapeCorners(t) {
   const walls = t.wallSides || [];
@@ -68,7 +68,8 @@ export function initTape(t, g) {
 
 export const tapeComplete = (t) => t.posts.every(Boolean) && t.edges.every((edge, i) => edge || t.wallSides[i] !== null);
 export const touching = (poly, shapes) => poly && shapes.some((shape) => sat(poly, shape));
-export const postPoly = (p) => rectPoly(p.x, p.y, 0.08, 0.08);
+export const POST_R = 0.08;
+export const postPoly = (p) => rectPoly(p.x, p.y, POST_R, POST_R);
 
 // Tape and posts are deliberately breakable rather than solid obstacles.
 export function stepTapeCollisions(g, shapes) {
@@ -153,7 +154,7 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
       y: Math.max(BOT_R + 0.1, Math.min(g.h - BOT_R - 0.1, corner.y + dy / dist * 0.55)),
     };
     stepWorker(g, bot, dt, true, goal, `remove:${job.key}:${post}`);
-    if (bot.scared || Math.hypot(bot.x - goal.x, bot.y - goal.y) >= 0.35 || bot.path.length) return;
+    if (bot.state === 'flee' || Math.hypot(bot.x - goal.x, bot.y - goal.y) >= 0.35 || bot.path.length) return;
     tape.posts[post] = false;
     tape.edges[post] = false;
     tape.edges[(post + 3) % 4] = false;
@@ -193,7 +194,7 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
     y: Math.max(BOT_R + 0.1, Math.min(g.h - BOT_R - 0.1, corner.y + dy / dist * 0.55)),
   };
   stepWorker(g, bot, dt, true, goal, `${job.key}:${task.phase}:${index}`);
-  if (bot.scared) { if (task.edge != null) task.phase = 'start'; return; }
+  if (bot.state === 'flee') { if (task.edge != null) task.phase = 'start'; return; }
   if (Math.hypot(bot.x - goal.x, bot.y - goal.y) >= 0.35 || bot.path.length) return;
   if (touching(postPoly(corner), shapes)) return;
   if (task.phase === 'post') {

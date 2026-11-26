@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { newGame, update, addTruck, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
 import { issues } from '../js/photo.js';
-import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape, botBeaconOn, botRequesting, botBeaconTone } from '../js/bot.js';
+import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
 import { run, NONE, flatWorld } from './common.js';
@@ -215,10 +215,10 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.ok(g.bot.cleaning);
   g.fl.x = g.bot.x - 1.5; g.fl.y = g.bot.y; g.fl.a = 0;
   run(g, NONE, 0.2);
-  assert.ok(!g.bot.scared && g.bot.cleaning, 'a standing forklift does not scare the bot');
+  assert.ok(g.bot.state !== 'flee' && g.bot.cleaning, 'a standing forklift does not scare the bot');
   g.fl.x = g.bot.x - 2.5;
   run(g, { up: true }, 1.2);
-  assert.ok(g.bot.scared && !g.bot.cleaning, 'a close moving forklift scares the bot off the spill');
+  assert.ok(g.bot.state === 'flee' && !g.bot.cleaning, 'a close moving forklift scares the bot off the spill');
   g.fl.x += 0.8;
   run(g, { up: true }, 1);
   let min = Infinity;
@@ -266,366 +266,185 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(g2.bot.x, g.bot.x);
 }
 
-// Curious travel is faster for the other bots, while the tape bot travels more slowly off duty.
-{
-  for (const [kind, speed] of [['bot', 3], ['inspector', 3], ['coneBot', 3], ['tapeBot', 3]]) {
-    const g = botGame();
-    g.stacks = []; flatWorld(g); g.areas = [];
-    for (const other of botKinds) if (other !== kind) g[other] = null;
-    const b = g[kind];
-    Object.assign(b, { mode: 'out', show: 1, activity: 'follow', x: 5, y: 6, a: 0,
-      curiosity: { x: 8, y: 6, truck: g.trucks[0].id, left: null }, path: [{ x: 8, y: 6 }], repath: 1e9 });
-    Object.assign(g.fl, { x: 15, y: 10, a: 0, speed: 0 });
-    idleStep(g, kind, 0.05);
-    assert.ok(Math.abs(b.x - 5 - speed * 0.05) < 1e-8, `${kind} travels at its curious speed`);
-    if (kind === 'tapeBot') {
-      Object.assign(b, { activity: 'home', idle: 600, x: 5, y: 6, a: 0, path: [{ x: 8, y: 6 }], repath: 1e9, planKey: 'home' });
-      idleStep(g, kind, 0.05);
-      assert.ok(Math.abs(b.x - 5 - speed * 0.05) < 1e-8, 'the tape bot also returns home at its off-duty speed');
-    }
-  }
-}
-
-// The cleaner, inspector and cone bot also use their faster speed while travelling for work.
-{
-  for (const [kind, speed] of [['bot', 3], ['inspector', 3], ['coneBot', 3]]) {
-    const g = botGame();
-    g.stacks = []; flatWorld(g); g.areas = [];
-    for (const other of botKinds) if (other !== kind) g[other] = null;
-    const b = g[kind], z = { x: 12, y: 6, color: 0, count: 1 };
-    if (kind === 'inspector') g.stacks = [{ x: z.x, y: z.y, layers: [0], pen: [{}], rots: [0] }];
-    else g.oil = [{ id: 'speed', x: z.x, y: z.y, r: 0.2, drops: 1 }];
-    Object.assign(b, { mode: 'out', show: 1, x: 5, y: 6, a: 0 });
-    Object.assign(g.fl, { x: 17, y: 12, a: 0, speed: 0 });
-    const step = () => kind === 'inspector' ? stepInspector(g, 0.05, [z], () => g.stacks[0], () => false) : idleStep(g, kind, 0.05);
-    step();
-    assert.equal(b.activity, 'work', `${kind} has work`);
-    Object.assign(b, { x: 5, y: 6, a: 0, path: [{ x: 8, y: 6 }], repath: 1e9 });
-    step();
-    assert.ok(Math.abs(b.x - 5 - speed * 0.05) < 1e-8, `${kind} travels at its work speed`);
-  }
-}
-
-// Curious bots watch from a distance for 5-15 seconds, relocate even for a parked truck, and prioritise work.
-{
-  for (const kind of ['bot', 'inspector', 'coneBot', 'tapeBot']) {
-    const g = botGame();
-    g.stacks = []; flatWorld(g);
-    const b = g[kind];
-    if (kind !== 'inspector') g.inspector = null;
-    if (kind !== 'bot') g.bot = null;
-    Object.assign(b, { mode: 'out', show: 1, x: 4, y: 6, a: 0 });
-    Object.assign(g.fl, { x: 12, y: 6, a: 0, speed: 0.4 });
-    const step = (dt, done = []) => {
-      if (kind === 'bot') stepBot(g, dt, 1.15 ** 2 / 50);
-      else if (kind === 'coneBot') stepConeBot(g, dt, done);
-      else if (kind === 'tapeBot') stepTapeBot(g, dt, done, (z) => g.stacks.find((s) => s.x === z.x && s.y === z.y), () => false);
-      else stepInspector(g, dt, done, (z) => g.stacks.find((s) => s.x === z.x && s.y === z.y), () => false);
-    };
-    g.fl.speed = 0;
-    for (let i = 0; i < 800 && !b.observing; i++) step(0.05);
-    assert.ok(b.observing, `${kind} reaches a viewing spot for a parked forklift`);
-    assert.ok(truckGap(g, b) >= 2.5, `${kind} keeps a respectful distance`);
-    const duration = b.curiosity.left;
-    assert.ok(duration >= 5 && duration <= 15, `${kind} observes for 5-15 seconds`);
-    const stopped = { x: b.x, y: b.y };
-    for (let i = 0; i < 80; i++) step(0.05);
-    assert.ok(Math.hypot(b.x - stopped.x, b.y - stopped.y) < 0.01, `${kind} watches a parked forklift`);
-    const facing = Math.atan2(g.fl.y - b.y, g.fl.x - 0.7 - b.x);
-    assert.ok(Math.abs(Math.atan2(Math.sin(b.a - facing), Math.cos(b.a - facing))) < 0.1, `${kind} looks at the truck body`);
-    for (let i = 0; i < 240 && b.curiosity; i++) step(0.05);
-    assert.ok(!b.curiosity, `${kind} finishes its observation`);
-    step(0.05);
-    assert.ok(b.curiosity && Math.hypot(b.curiosity.x - stopped.x, b.curiosity.y - stopped.y) >= 1, `${kind} chooses a different destination`);
-    b.idle = 599.8;
-    step(0.1);
-    assert.equal(b.activity, 'follow', `${kind} stays out before ten minutes`);
-    step(0.11);
-    assert.equal(b.activity, 'home', `${kind} returns after ten minutes`);
-    let done = [];
-    if (kind === 'bot' || kind === 'coneBot') g.oil = [{ id: 'new', x: 5, y: 9, r: 0.2, drops: 1 }];
-    else {
-      const z = { x: 5, y: 9, color: 0, count: 1 };
-      g.stacks = [{ x: z.x, y: z.y, layers: [0], pen: [{ crash: 0, sq: 0 }], rots: [0] }];
-      done = [z];
-      if (kind === 'tapeBot') {
-        g.zones = done;
-        const area = { x: 4, y: 8, w: 2, h: 2, color: 0 };
-        g.areas = [area];
-        const key = `${z.x},${z.y},${z.color}`;
-        g.inspector = { seen: [key], sigs: { [key]: stackSig(g.stacks[0]) }, photos: { [key]: { ok: true } } };
-      }
-    }
-    step(0.01, done);
-    assert.equal(b.activity, 'work', `${kind} interrupts its return for new work`);
-    assert.equal(b.idle, 0, 'work resets the idle timer');
-    assert.ok(kind === 'coneBot' ? b.planKey.startsWith('place:spill:new:')
-      : kind === 'tapeBot' ? !!b.planKey : b.goal && Math.hypot(b.goal.x - 5, b.goal.y - 9) < 0.01, 'the new job is the goal');
-    assert.equal(b.curiosity, null, 'work cancels the observation');
-    Object.assign(b, { activity: 'home', idle: 600, show: 0.5, leaving: true });
-    step(0.1, done);
-    assert.ok(b.show > 0.5 && !b.leaving, `${kind} reverses out of the hatch when work appears`);
-  }
-}
-
-// Viewing destinations and observation keep a clear sight line; an occluding wall interrupts the pause.
-{
-  for (const kind of botKinds) {
-    const g = botGame();
-    g.stacks = []; flatWorld(g); g.areas = [];
-    for (const other of botKinds) if (other !== kind) g[other] = null;
-    const b = g[kind];
-    Object.assign(b, { mode: 'out', show: 1, x: 4, y: 6, a: 0 });
-    Object.assign(g.fl, { x: 13, y: 6, a: 0, speed: 0 });
-    g.walls.push({ x: 8, y: 3, w: 0.4, h: 6 });
-    const visible = (p) => {
-      for (let i = 1; i < 100; i++) {
-        const x = p.x + (g.fl.x - 0.7 - p.x) * i / 100, y = p.y + (g.fl.y - p.y) * i / 100;
-        if (g.walls.some((w) => x > w.x && x < w.x + w.w && y > w.y && y < w.y + w.h)) return false;
-      }
-      return true;
-    };
-    for (let i = 0; i < 1600 && !b.observing; i++) {
-      idleStep(g, kind, 0.05);
-      if (b.curiosity) assert.ok(visible(b.curiosity), `${kind} chooses a destination with a view`);
-      if (b.path.length && b.curiosity) assert.equal(b.curiosity.left, null, 'travel time does not consume observation');
-    }
-    assert.ok(b.observing && visible(b), `${kind} reaches a spot with line of sight`);
-    const original = botGame();
-    original[kind] = b;
-    const saved = deserializeGame(JSON.parse(JSON.stringify(serializeGame(original))));
-    assert.deepEqual(saved[kind].curiosity, b.curiosity, 'destination and observation timer survive saving');
-    const old = b.curiosity;
-    const x = (b.x + g.fl.x - 0.7) / 2, y = (b.y + g.fl.y) / 2;
-    g.stacks = [{ x: x - 0.15, y, layers: [0], rots: [Math.PI / 4], offs: [{ x: 0.15, y: 0 }], pen: [{}] }];
-    idleStep(g, kind, 0.05);
-    assert.ok(!b.observing && b.curiosity !== old, `${kind} notices a rotated, offset box blocking its view`);
-    g.stacks = [];
-    Object.assign(b, { x: old.x, y: old.y, curiosity: old, path: [] });
-    g.walls.push({ x: x - 0.01, y: y - 0.01, w: 0.02, h: 0.02 });
-    idleStep(g, kind, 0.05);
-    assert.ok(!b.observing && b.curiosity !== old, `${kind} relocates when its sight line is blocked`);
-    if (b.curiosity) assert.ok(visible(b.curiosity), 'the replacement spot also has a view');
-  }
-}
-
-// Idle bots peek past wall corners and boxes, but still watch from the open when cover is unavailable.
-{
-  for (const kind of botKinds) for (const cover of ['wall', 'box', 'none']) {
-    const g = botGame();
-    g.stacks = []; flatWorld(g); g.areas = [];
-    for (const other of botKinds) if (other !== kind) g[other] = null;
-    const b = g[kind];
-    Object.assign(b, { mode: 'out', show: 1, x: 4, y: 6, a: 0 });
-    Object.assign(g.fl, { x: 13, y: 6, a: 0, speed: 0 });
-    let corners = [];
-    if (cover === 'wall') {
-      g.walls.push({ x: 8, y: 4, w: 0.4, h: 4 });
-      corners = rectPoly(8.2, 6, 0.2, 2);
-    } else if (cover === 'box') {
-      g.stacks.push({ x: 8, y: 6, layers: [0], rots: [Math.PI / 4], offs: [{ x: 0.2, y: 0 }], pen: [{}] });
-      corners = rectPoly(8.2, 6, BOX_HALF_X, halfY({}), Math.PI / 4);
-    }
-    for (let i = 0; i < 1600 && !b.observing; i++) idleStep(g, kind, 0.05);
-    assert.ok(b.observing, `${kind} reaches a ${cover} viewing spot`);
-    assert.ok(truckGap(g, b) >= 2.5, `${kind} stays out of the forklift's way`);
-    if (corners.length) {
-      assert.ok(corners.some((c) => Math.hypot(b.x - c.x, b.y - c.y) < 1.6), `${kind} peeks near ${cover} cover`);
-      const nearest = corners.map((a, i) => {
-        const z = corners[(i + 1) % corners.length], dx = z.x - a.x, dy = z.y - a.y;
-        const t = Math.max(0, Math.min(1, ((b.x - a.x) * dx + (b.y - a.y) * dy) / (dx * dx + dy * dy)));
-        return { x: a.x + dx * t, y: a.y + dy * t };
-      }).sort((a, z) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(z.x - b.x, z.y - b.y))[0];
-      assert.ok((nearest.x - b.x) * (g.fl.x - 0.7 - b.x) + (nearest.y - b.y) * (g.fl.y - b.y) > 0, 'cover is towards the forklift, not behind the bot');
-    }
-    for (let i = 1; i < 100; i++) {
-      const x = b.x + (g.fl.x - 0.7 - b.x) * i / 100, y = b.y + (g.fl.y - b.y) * i / 100;
-      assert.ok(!g.walls.some((w) => x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h), 'wall does not block the view');
-      if (cover === 'box') {
-        const dx = x - 8.2, dy = y - 6, c = Math.SQRT1_2;
-        assert.ok(Math.abs((dx + dy) * c) > BOX_HALF_X || Math.abs((dy - dx) * c) > halfY({}), 'rotated box does not block the view');
-      }
-    }
-    const first = { x: b.x, y: b.y };
-    for (let i = 0; i < 400 && b.observing; i++) idleStep(g, kind, 0.05);
-    for (let i = 0; i < 1600 && !b.observing; i++) idleStep(g, kind, 0.05);
-    assert.ok(b.observing && Math.hypot(b.x - first.x, b.y - first.y) >= 0.99, `${kind} switches ${cover} viewing spots`);
-  }
-}
-
-// Curiosity can choose another forklift when the nearest one is in an unreachable room.
-{
+// Bot state machine: priority order, speeds and beacons per state.
+const { stepWorker, PRIORITY, botBeaconTone: tone, botBeaconOn: beaconOn, FL_SPEED } = await import('../js/bot.js');
+const solo = (...kinds) => {
   const g = botGame();
   g.stacks = []; flatWorld(g); g.areas = [];
-  g.inspector = null; g.coneBot = null; g.tapeBot = null;
-  Object.assign(g.bot, { mode: 'out', show: 1, x: 8, y: 3, a: 0 });
-  Object.assign(g.fl, { x: 4, y: 3, a: 0, speed: 0 });
-  g.walls.push({ x: 6, y: 0, w: 0.4, h: g.h });
-  const other = { id: 1, fl: { ...g.fl, x: 15, y: 8 }, carried: null };
-  g.trucks.push(other);
-  idleStep(g, 'bot', 0.05);
-  assert.equal(g.bot.curiosity?.truck, 1, 'a visible, reachable forklift wins over an inaccessible one');
-  const destination = g.bot.curiosity;
-  other.gone = true;
-  for (let i = 0; i < 800 && g.bot.curiosity === destination; i++) idleStep(g, 'bot', 0.05);
-  assert.ok(g.bot.curiosity !== destination && !g.bot.observing, 'a gone forklift is discarded after reaching the destination');
-}
-
-// All curious bots keep their destination as the truck moves, and detour only when a blockage is close.
-{
-  for (const kind of botKinds) {
-    const g = botGame();
-    g.stacks = []; flatWorld(g); g.areas = [];
-    for (const other of botKinds) if (other !== kind) g[other] = null;
-    const b = g[kind], q = { x: 10.125, y: 6.125, truck: g.trucks[0].id, left: null };
-    const path = Array.from({ length: 24 }, (_, i) => ({ x: 4.375 + i * 0.25, y: 6.125 }));
-    Object.assign(b, { mode: 'out', show: 1, activity: 'follow', x: 4.125, y: 6.125, a: 0, curiosity: q, path, repath: 1e9 });
-    Object.assign(g.fl, { x: 17, y: 12, a: 0, speed: 0 });
-    assert.ok(Math.hypot(q.x - g.fl.x, q.y - g.fl.y) > 8, 'the truck has moved out of viewing range');
-    g.walls.push({ x: 7, y: 5.8, w: 0.4, h: 0.6 });
-    idleStep(g, kind, 0.05);
-    assert.equal(b.curiosity, q, `${kind} keeps the destination when the truck is no longer visible`);
-    assert.equal(b.path, path, `${kind} ignores a distant blockage`);
-    b.x = 6.4;
-    while (path[0].x < b.x) path.shift();
-    idleStep(g, kind, 0.05);
-    assert.equal(b.curiosity, q, `${kind} keeps the destination when detouring`);
-    assert.notEqual(b.path, path, `${kind} replans when approaching the blockage`);
-    for (let i = 0; i < 800 && b.curiosity === q; i++) idleStep(g, kind, 0.05);
-    assert.notEqual(b.curiosity, q, `${kind} reconsiders the truck after reaching the destination`);
-    assert.ok(Math.hypot(b.x - q.x, b.y - q.y) < 0.2, `${kind} reached the original destination`);
-  }
-}
-
-// A temporarily unreachable viewing destination is retried rather than replaced.
-{
-  const g = botGame();
-  g.stacks = []; flatWorld(g); g.areas = [];
-  g.inspector = null; g.coneBot = null; g.tapeBot = null;
-  const b = g.bot, q = { x: 10.125, y: 6.125, truck: g.trucks[0].id, left: null };
-  Object.assign(b, { mode: 'out', show: 1, activity: 'follow', x: 6, y: 6.125, a: 0,
-    curiosity: q, path: [{ x: 6.875, y: 6.125 }, { x: q.x, y: q.y }], repath: 1e9 });
+  for (const k of ['bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot']) if (!kinds.includes(k)) g[k] = null;
   Object.assign(g.fl, { x: 17, y: 12, a: 0, speed: 0 });
-  const wall = { x: 7, y: 0, w: 0.4, h: g.h };
-  g.walls.push(wall);
-  for (let i = 0; i < 120; i++) idleStep(g, 'bot', 0.05);
-  assert.equal(b.curiosity, q, 'the bot retains an unreachable destination');
-  g.walls = g.walls.filter((w) => w !== wall);
-  for (let i = 0; i < 800 && b.curiosity === q; i++) idleStep(g, 'bot', 0.05);
-  assert.notEqual(b.curiosity, q, 'the bot reconsiders its view after the route opens');
-  assert.ok(Math.hypot(b.x - q.x, b.y - q.y) < 0.2, 'the bot reaches its original destination');
-}
+  g.clock = 0;
+  return g;
+};
+const out = (b, p) => Object.assign(b, { mode: 'out', show: 1, a: 0, path: [], repath: 1e9, ...p });
+const work = (g, kind, dt, goal = { x: 14, y: 6 }) => stepWorker(g, g[kind], dt, true, goal, 'job');
+const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null);
 
-// An idle bot uses its current good vantage point and only moves a short distance when switching.
 {
-  for (const kind of botKinds) {
-    const g = botGame();
-    g.stacks = []; flatWorld(g); g.areas = [];
-    for (const other of botKinds) if (other !== kind) g[other] = null;
-    const b = g[kind];
-    Object.assign(b, { mode: 'out', show: 1, x: 7.125, y: 6.125, a: 0 });
-    Object.assign(g.fl, { x: 13, y: 6, a: 0, speed: 0 });
-    for (let i = 0; i < 80 && !b.observing; i++) idleStep(g, kind, 0.05);
-    assert.ok(b.observing && Math.hypot(b.x - 7.125, b.y - 6.125) < 0.01, `${kind} stays at a suitable open vantage point`);
-    const first = { x: b.x, y: b.y };
-    for (let i = 0; i < 400 && b.observing; i++) idleStep(g, kind, 0.05);
-    for (let i = 0; i < 800 && !b.observing; i++) idleStep(g, kind, 0.05);
-    const distance = Math.hypot(b.x - first.x, b.y - first.y);
-    assert.ok(b.observing && distance >= 0.99 && distance < 1.5, `${kind} switches to a nearby spot`);
-  }
-}
-
-// An observer clears a working bot's route, including when it must leave a narrow corridor.
-{
-  for (const [workerKind, observerKind] of [
-    ['inspector', 'bot'], ['inspector', 'coneBot'], ['inspector', 'tapeBot'],
-    ['bot', 'inspector'], ['bot', 'tapeBot'], ['coneBot', 'inspector'],
-  ]) {
-    const g = botGame();
-    g.stacks = []; flatWorld(g); g.areas = [];
-    for (const other of botKinds) if (other !== workerKind && other !== observerKind) g[other] = null;
-    g.walls.push({ x: 7, y: 3, w: 5, h: 2.4 }, { x: 7, y: 6.6, w: 5, h: 2.4 });
-    Object.assign(g.fl, { x: 2, y: 6, a: 0, speed: 0 });
-    const worker = g[workerKind], observer = g[observerKind];
-    Object.assign(worker, { mode: 'out', show: 1, activity: 'work', x: 7.5, y: 6, a: 0 });
-    Object.assign(observer, { mode: 'out', show: 1, activity: 'follow', x: 9.5, y: 6, a: 0,
-      curiosity: { x: 9.5, y: 6, truck: g.trucks[0].id, left: 100 }, path: [], repath: 1e9 });
-    const z = { x: 15, y: 6, color: 0, count: 1 };
-    if (workerKind === 'inspector') g.stacks = [{ x: z.x, y: z.y, layers: [0], pen: [{}], rots: [0] }];
-    else g.oil = [{ id: 'corridor-work', x: 14, y: 6, r: 0.2, drops: 1 }];
-    const stepWorker = () => {
-      if (workerKind === 'inspector') stepInspector(g, 0.05, [z], () => g.stacks[0], () => false);
-      else if (workerKind === 'coneBot') stepConeBot(g, 0.05, []);
-      else stepBot(g, 0.05, 1.15 ** 2 / 50);
-    };
-    let yielded = false;
-    for (let i = 0; i < 1600 && worker.x < 12.5; i++) {
-      stepWorker(); idleStep(g, observerKind, 0.05);
-      yielded ||= !!observer.yieldFor;
-      assert.ok(Math.hypot(worker.x - observer.x, worker.y - observer.y) >= BOT_R * 2 - 1e-6, 'worker and observer do not overlap');
-    }
-    assert.ok(yielded && worker.x >= 12.5, `${observerKind} makes way for working ${workerKind} in a corridor`);
-  }
-}
-
-// If an observer is boxed in, the worker can try another route rather than waiting forever.
-{
+  assert.deepEqual(PRIORITY, ['fixBot', 'inspector', 'tapeBot', 'bot', 'coneBot'], 'priority order, highest first');
   const g = botGame();
-  g.stacks = []; flatWorld(g); g.areas = []; g.coneBot = null; g.tapeBot = null;
-  g.walls.push({ x: 9, y: 5, w: 2, h: 0.1 }, { x: 9, y: 6.9, w: 2, h: 0.1 },
-    { x: 9, y: 5, w: 0.1, h: 2 }, { x: 10.9, y: 5, w: 0.1, h: 2 });
-  Object.assign(g.fl, { x: 15, y: 11, a: 0, speed: 0 });
-  Object.assign(g.inspector, { x: 8.5, y: 6, show: 1, activity: 'work', path: [{ x: 12, y: 6 }], repath: 1e9 });
-  Object.assign(g.bot, { mode: 'out', show: 1, activity: 'follow', x: 10, y: 6, a: 0,
-    yieldFor: 'inspector', yieldPath: [], repath: 0 });
-  for (let i = 0; i < 50 && !g.bot.yieldBlock; i++) idleStep(g, 'bot', 0.05);
-  assert.equal(g.bot.yieldBlock?.worker, 'inspector', 'impossible yielding temporarily restores the observer as an obstacle');
-  assert.equal(g.inspector.repath, 0, 'the worker is prompted to find a detour');
+  assert.ok(['bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot'].every((k) => !g[k] || g[k].state === 'loiter'), 'every bot starts out loitering');
 }
 
-// A yielding observer abandons its detour immediately when a forklift scares it.
+// Going to work and working move at 0.75x the forklift top speed (the tape bot at 0.25x while laying tape), fleeing at 1.2x.
 {
-  for (const kind of botKinds) {
-    const g = botGame();
-    g.stacks = []; flatWorld(g); g.areas = [];
-    for (const other of botKinds) if (other !== kind && other !== 'inspector') g[other] = null;
-    const b = g[kind];
-    if (kind === 'inspector') g.bot = { x: 6, y: 6, show: 1, activity: 'work', path: [{ x: 12, y: 6 }] };
-    else Object.assign(g.inspector, { x: 6, y: 6, show: 1, activity: 'work', path: [{ x: 12, y: 6 }] });
-    Object.assign(b, { mode: 'out', show: 1, activity: 'follow', x: 8, y: 6, a: 0,
-      yieldFor: kind === 'inspector' ? 'bot' : 'inspector', yieldPath: [{ x: 9, y: 6 }], repath: 1e9 });
-    Object.assign(g.fl, { x: 6, y: 6, a: 0, speed: 2 });
-    idleStep(g, kind, 0.05);
-    assert.ok(b.scared && b.fleePath && !b.yieldFor && !b.yieldPath.length, `${kind} flees instead of continuing to yield`);
+  for (const kind of ['bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot']) {
+    const g = solo(kind);
+    const b = out(g[kind], { x: 5, y: 6, state: 'loiter', path: [{ x: 14, y: 6 }] });
+    work(g, kind, 0.05);
+    assert.equal(b.state, 'going-to-work', `${kind} goes to work`);
+    assert.ok(Math.abs(Math.hypot(b.x - 5, b.y - 6) - FL_SPEED * 0.75 * 0.05) < 1e-3, `${kind} travels at 0.75x`);
+    g.clock = 1;
+    Object.assign(g.fl, { x: b.x - 2.2, y: 6, a: 0, speed: 3 });
+    const x0 = b.x, y0 = b.y;
+    work(g, kind, 0.05);
+    assert.equal(b.state, 'flee', `${kind} flees from a moving forklift`);
+    const run1 = Math.hypot(b.x - x0, b.y - y0);
+    assert.ok(run1 <= FL_SPEED * 1.2 * 0.05 + 1e-6 && run1 > FL_SPEED * 0.75 * 0.05, `${kind} runs at 1.2x`);
   }
 }
 
-// All bot pairs pass on their own right without overlapping, including the cone and tape bots.
+// A parked forklift, and one driving away, do not scare a bot.
+{
+  const g = solo('coneBot');
+  const b = out(g.coneBot, { x: 8, y: 6, state: 'going-to-work', path: [{ x: 14, y: 6 }] });
+  Object.assign(g.fl, { x: 6.4, y: 6, a: 0, speed: 0 });
+  work(g, 'coneBot', 0.05);
+  assert.notEqual(b.state, 'flee', 'a parked forklift is ignored');
+  Object.assign(g.fl, { x: 6.4, y: 6, a: Math.PI, speed: 2 });
+  work(g, 'coneBot', 0.05);
+  assert.notEqual(b.state, 'flee', 'a forklift driving away is ignored');
+}
+
+// Right of way is entered only from going-to-work when a bot is in the way, at 0.75x; lower-priority bots flee from it at 1.25x.
+{
+  const g = solo('coneBot', 'bot', 'inspector');
+  const asker = out(g.bot, { x: 6, y: 6, state: 'going-to-work', path: [{ x: 14, y: 6 }] });
+  const lower = out(g.coneBot, { x: 7.1, y: 6, state: 'loiter' });
+  const higher = out(g.inspector, { x: 7.1, y: 7.6, state: 'loiter' });
+  work(g, 'bot', 0.05);
+  assert.equal(asker.state, 'right-of-way', 'blocked on the way to work');
+  assert.equal(tone(g, asker), 'blue');
+  loiterStep(g, 'inspector', 0.05);
+  assert.notEqual(higher.state, 'flee', 'a higher-priority bot ignores the request');
+  loiterStep(g, 'coneBot', 0.05);
+  assert.equal(lower.state, 'flee', 'a lower-priority bot flees from the request');
+  assert.equal(tone(g, lower), 'red');
+  const x = lower.x, y = lower.y;
+  loiterStep(g, 'coneBot', 0.05);
+  assert.ok(Math.hypot(lower.x - x, lower.y - y) <= FL_SPEED * 1.25 * 0.05 + 1e-6, 'flees at 1.25x');
+  work(g, 'bot', 0.05);
+  assert.equal(asker.state, 'right-of-way', 'it stays in right-of-way until it reaches the job');
+}
+
+// A first-time loiterer does not enter right of way (only going-to-work does).
+{
+  const g = solo('coneBot', 'inspector');
+  const b = out(g.coneBot, { x: 6, y: 6, state: 'loiter', path: [{ x: 14, y: 6 }] });
+  out(g.inspector, { x: 7.1, y: 6, state: 'loiter' });
+  work(g, 'coneBot', 0.05);
+  assert.equal(b.state, 'going-to-work', 'right of way is only entered from going-to-work');
+}
+
+// A working bot that is blocked yells in botspeak (speech bubble) and forces the blocker to flee, at 1.25x.
+{
+  const g = solo('tapeBot', 'coneBot');
+  const worker = out(g.tapeBot, { x: 8, y: 6, state: 'working' });
+  const blocker = out(g.coneBot, { x: 8.35, y: 6, state: 'loiter' });
+  work(g, 'tapeBot', 0.05, { x: 8, y: 6 });
+  assert.equal(worker.state, 'working');
+  assert.ok(worker.say && worker.say.until > g.clock && worker.say.text.length > 5 && worker.say.reason === 'yell', 'the worker speaks');
+  loiterStep(g, 'coneBot', 0.05);
+  assert.equal(blocker.state, 'flee', 'the blocker is forced to flee');
+  assert.equal(blocker.fleeKind, 'bot');
+  assert.equal(tone(g, blocker), 'red');
+}
+
+// The tape bot stops laying tape the moment it flees.
+{
+  const g = solo('tapeBot');
+  const b = out(g.tapeBot, { x: 6, y: 6, state: 'working', tapeJob: { key: 'k', edge: 0, from: 0, to: 1, phase: 'draw' } });
+  Object.assign(g.fl, { x: 3.8, y: 6, a: 0, speed: 3 });
+  work(g, 'tapeBot', 0.05);
+  assert.equal(b.state, 'flee');
+  assert.equal(b.tapeJob, null, 'fleeing aborts the tape job');
+}
+
+// Beacons: blinking red (flee), blue (right-of-way), amber (going to work / working), off while loitering.
+{
+  const g = solo('inspector');
+  g.clock = 0;
+  for (const [state, t, on] of [['flee', 'red', true], ['right-of-way', 'blue', true], ['going-to-work', null, true], ['working', null, true], ['loiter', null, false]]) {
+    out(g.inspector, { state });
+    assert.equal(tone(g, g.inspector), t, `${state} beacon tone`);
+    assert.equal(beaconOn(g, g.inspector), on, `${state} beacon`);
+  }
+  g.clock = 0.3;
+  out(g.inspector, { state: 'working' });
+  assert.equal(beaconOn(g, g.inspector), false, 'the beacon blinks');
+}
+
+// Loiter: a bot without a job finds a spot with a line of sight to a forklift, keeps a distance, faces it, and moves at 0.75x.
+{
+  for (const kind of ['bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot']) {
+    const g = solo(kind);
+    const b = out(g[kind], { x: 4, y: 6, state: 'loiter', repath: 0, idle: 0 });
+    Object.assign(g.fl, { x: 12, y: 6, a: 0, speed: 0 });
+    let first = true;
+    for (let i = 0; i < 800; i++) {
+      loiterStep(g, kind, 0.05);
+      if (first && b.path.length) { first = false; assert.ok(Math.hypot(b.x - 4, b.y - 6) <= FL_SPEED * 0.75 * 0.05 * 2 + 1e-6); }
+    }
+    assert.equal(b.state, 'loiter');
+    assert.equal(tone(g, b), null, 'no beacon while loitering');
+    assert.ok(truckGap(g, b) >= 2.5, `${kind} keeps its distance`);
+    const facing = Math.atan2(g.fl.y - b.y, g.fl.x - 0.7 - b.x);
+    assert.ok(Math.abs(Math.atan2(Math.sin(b.a - facing), Math.cos(b.a - facing))) < 0.2, `${kind} watches the forklift`);
+    const at = { x: b.x, y: b.y };
+    for (let i = 0; i < 80; i++) loiterStep(g, kind, 0.05);
+    assert.ok(Math.hypot(b.x - at.x, b.y - at.y) < 0.01, `${kind} stays at a good spot`);
+  }
+}
+
+// After 600 seconds without a job a loitering bot returns to its hatch and hides; it emerges again when a job appears.
+{
+  for (const kind of ['bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot']) {
+    const g = solo(kind);
+    const b = out(g[kind], { x: 4, y: 6, state: 'loiter', idle: 599.9 });
+    Object.assign(g.fl, { x: 17, y: 12, a: 0, speed: 0 });
+    loiterStep(g, kind, 0.05);
+    assert.equal(b.mode, 'out', `${kind} stays out before ten minutes`);
+    loiterStep(g, kind, 0.1);
+    for (let i = 0; i < 1600 && b.mode !== 'hidden'; i++) loiterStep(g, kind, 0.05);
+    assert.equal(b.mode, 'hidden', `${kind} returns into its hatch after ten minutes`);
+    stepWorker(g, b, 0.05, true, { x: 10, y: 6 }, 'job');
+    assert.equal(b.mode, 'out', `${kind} re-emerges for a new job`);
+    for (let i = 0; i < 200 && b.show < 1; i++) stepWorker(g, b, 0.05, true, { x: 10, y: 6 }, 'job');
+    assert.equal(b.show, 1);
+    assert.equal(b.idle, 0, 'work resets the idle timer');
+  }
+}
+
+// Bots keep clear of each other and finish passing: lower-priority bots give way (right of way / flee) rather than deadlock.
 {
   for (let i = 0; i < botKinds.length; i++) for (let j = i + 1; j < botKinds.length; j++) {
-    const g = botGame();
-    g.stacks = []; flatWorld(g); g.areas = [];
+    const g = solo(...[botKinds[i], botKinds[j]]);
     const kinds = [botKinds[i], botKinds[j]];
-    for (const other of botKinds) if (!kinds.includes(other)) g[other] = null;
-    Object.assign(g.fl, { x: 10, y: 11, a: 0, speed: 0 });
     const [east, west] = kinds.map((kind) => g[kind]);
-    Object.assign(east, { mode: 'out', show: 1, activity: 'follow', x: 7, y: 6, a: 0, repath: 1e9,
-      curiosity: { x: 14, y: 6, truck: g.trucks[0].id, left: null }, path: [{ x: 14, y: 6 }] });
-    Object.assign(west, { mode: 'out', show: 1, activity: 'follow', x: 13, y: 6, a: Math.PI, repath: 1e9,
-      curiosity: { x: 6, y: 6, truck: g.trucks[0].id, left: null }, path: [{ x: 6, y: 6 }] });
-    let rightEast = false, rightWest = false, crossedEast = false, crossedWest = false;
-    for (let n = 0; n < 800 && !(crossedEast && crossedWest); n++) {
-      idleStep(g, kinds[0], 0.05); idleStep(g, kinds[1], 0.05);
-      assert.ok(Math.hypot(east.x - west.x, east.y - west.y) >= BOT_R * 2, `${kinds} never overlap`);
-      rightEast ||= east.y > 6.3;
-      rightWest ||= west.y < 5.7;
+    out(east, { x: 7, y: 6, state: 'going-to-work' });
+    out(west, { x: 13, y: 6, a: Math.PI, state: 'going-to-work' });
+    let crossedEast = false, crossedWest = false;
+    for (let n = 0; n < 1200 && !(crossedEast && crossedWest); n++) {
+      g.clock += 0.05;
+      work(g, kinds[0], 0.05, { x: 14, y: 6 }); work(g, kinds[1], 0.05, { x: 6, y: 6 });
+      assert.ok(Math.hypot(east.x - west.x, east.y - west.y) >= BOT_R * 2 - 1e-6, `${kinds} never overlap`);
       crossedEast ||= east.x > 12;
       crossedWest ||= west.x < 8;
     }
-    assert.ok(rightEast && rightWest, `${kinds} both turn right`);
-    assert.ok(crossedEast && crossedWest, `${kinds} finish passing rather than deadlocking`);
+    assert.ok(crossedEast && crossedWest, `${kinds} get past each other`);
   }
 }
+
 
 // The shared hatch serialises departures instead of spawning bots in the same space.
 {
@@ -646,50 +465,6 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.ok(cleanerOut && coneOut, 'both queued bots eventually emerge');
 }
 
-// A single-file gap makes one bot back out to a right-side passing place, not deadlock.
-{
-  const g = botGame();
-  g.stacks = []; flatWorld(g); g.areas = [];
-  g.bot = null; g.inspector = null;
-  Object.assign(g.fl, { x: 10, y: 11, a: 0, speed: 0 });
-  g.walls.push({ x: 8, y: 3, w: 4, h: 2.4 }, { x: 8, y: 6.6, w: 4, h: 2.4 });
-  const east = g.coneBot, west = g.tapeBot;
-  Object.assign(east, { mode: 'out', show: 1, activity: 'work', x: 8.5, y: 6, a: 0 });
-  Object.assign(west, { mode: 'out', show: 1, activity: 'work', x: 11.5, y: 6, a: Math.PI });
-  g.oil = [{ id: 'corridor', x: 14, y: 6, r: 0.3, drops: 20 }];
-  const area = { color: 0, x: 4, y: 5, w: 2, h: 2 }, key = areaMarkKey(area);
-  g.areas = [area];
-  g.tapes = [{ ...area, key, sig: '', posts: [true, true, true, true], edges: [true, true, true, true] }];
-  g.inspector = null;
-  // Keep the tape bot's job on the west side of the gap.
-  const stackAt = () => null;
-  let backedUp = false, requested = false;
-  for (let n = 0; n < 1200 && east.x < 12.5; n++) {
-    stepConeBot(g, 0.05, []); stepTapeBot(g, 0.05, [], stackAt, () => false);
-    backedUp ||= east.x < 7.9;
-    requested ||= west.rightOfWay;
-    assert.ok(Math.hypot(east.x - west.x, east.y - west.y) >= BOT_R * 2, 'bots keep clear while yielding');
-  }
-  assert.ok(backedUp && requested && east.x > 12.5, 'the lower-ranked cone bot backs out for the tape bot, which requested right of way');
-}
-
-// A right-of-way request lights the beacon even when idle, and nobody requests on a free path.
-{
-  const g = botGame();
-  g.clock = 0;
-  Object.assign(g.inspector, { show: 1, activity: 'follow', scared: false });
-  assert.ok(!botRequesting(g, g.inspector) && !botBeaconOn(g, g.inspector), 'no request, no beacon while curious');
-  g.inspector.rightOfWay = true;
-  assert.ok(botRequesting(g, g.inspector) && botBeaconOn(g, g.inspector), 'requesting bot blinks its beacon');
-  assert.equal(botBeaconTone(g, g.inspector), 'blue');
-  g.inspector.yieldFor = 'fixBot';
-  assert.equal(botBeaconTone(g, g.inspector), 'red', 'making way blinks red');
-  g.inspector.yieldFor = null; g.inspector.scared = true;
-  assert.ok(botBeaconTone(g, g.inspector) === 'red' && botBeaconOn(g, g.inspector), 'fleeing blinks red');
-  g.inspector.scared = false;
-  assert.ok(botRequesting(g, g.inspector), 'the request lasts until the destination is reached');
-}
-
 // Both bots turn sharply when fleeing and persist their idle timer in a save.
 {
   for (const kind of ['bot', 'inspector']) {
@@ -701,7 +476,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
     Object.assign(g.fl, { x: 6, y: 6, a: 0, speed: 2 });
     if (kind === 'bot') stepBot(g, 0.1, 1.15 ** 2 / 50);
     else stepInspector(g, 0.1, [], () => null, () => false);
-    assert.ok(b.scared, `${kind} is scared`);
+    assert.ok(b.state === 'flee', `${kind} is scared`);
     assert.ok(Math.abs(Math.atan2(Math.sin(b.a - Math.PI), Math.cos(b.a - Math.PI))) > TURN_RATE * 0.1, `${kind} turns faster when fleeing`);
     const original = botGame();
     original[kind] = b;
@@ -805,17 +580,17 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   Object.assign(i2, { x: 6, y: 6, mode: 'out', show: 1 });
   Object.assign(g2.fl, { x: 4.5, y: 6, a: 0, speed: 2 });
   update(g2, NONE, 1 / 120);
-  assert.ok(i2.scared, 'a forklift driving towards it scares it');
+  assert.ok(i2.state === 'flee', 'a forklift driving towards it scares it');
   const g3 = setup(), i3 = g3.inspector;
   Object.assign(i3, { x: 6, y: 6, mode: 'out', show: 1 });
   Object.assign(g3.fl, { x: 4.5, y: 6, a: Math.PI, speed: 2 });
   update(g3, NONE, 1 / 120);
-  assert.ok(!i3.scared, 'a forklift driving away is ignored');
+  assert.ok(i3.state !== 'flee', 'a forklift driving away is ignored');
   const g4 = setup(), i4 = g4.inspector;
   Object.assign(i4, { x: 6, y: 6, mode: 'out', show: 1 });
   Object.assign(g4.fl, { x: 4.5, y: 6, a: 0, speed: 0 });
   update(g4, NONE, 1 / 120);
-  assert.ok(!i4.scared, 'a stationary forklift is ignored');
+  assert.ok(i4.state !== 'flee', 'a stationary forklift is ignored');
 }
 
 // A wall splits the room: with a forklift in the only gap the bot waits (away from it) and gets through once the gap is free;
@@ -1134,7 +909,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   for (let i = 0; i < 120 * 90 && g.cones.length; i++) { g.clock += 1 / 120; update(g, NONE, 1 / 120); }
   assert.equal(g.cones.length, 0, 'the bot stores obsolete cones');
   update(g, NONE, 1 / 120);
-  assert.equal(g.coneBot.activity, 'follow', 'after storing its last cone the bot watches the forklift');
+  assert.equal(g.coneBot.state, 'loiter', 'after storing its last cone the bot watches the forklift');
   assert.equal(g.coneBot.mode, 'out', 'storing its last cone does not send it straight into the hatch');
 
   const area = { color: 0, x: 4, y: 4, w: 4, h: 4 };
@@ -1176,7 +951,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(b.carried, null, 'a legacy carried cone is put into storage');
   assert.ok(Math.hypot(b.x - 8, b.y - 8) < 1, 'the bot stays near the collected cones');
   stepConeBot(g, 0.05, []);
-  assert.equal(b.activity, 'follow', 'the bot resumes curiosity once collection is finished');
+  assert.equal(b.state, 'loiter', 'the bot loiters once collection is finished');
 }
 
 // A blocked target gets a persistent best-effort cone, which is improved when the route opens.
@@ -1362,7 +1137,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
     assert.equal(b.path, route, `${kind} keeps an unobstructed route instead of replanning periodically`);
     Object.assign(g.fl, { x: b.x - 2.5, y: b.y, a: 0, speed: 1 });
     step();
-    assert.ok(b.scared, `${kind} is fleeing`);
+    assert.ok(b.state === 'flee', `${kind} is fleeing`);
     assert.equal(b.goal, null, `${kind} clears its obsolete goal while fleeing`);
   }
 }
@@ -1447,7 +1222,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
     const key = areaMarkKey(area);
     g.tapes = [{ ...area, key, sig: '', broken: true, posts: [true, false, false, false], edges: [false, false, false, false] }];
     const b = g.tapeBot;
-    Object.assign(b, { x: 5, y: 5, a: 0, show: 1, mode: 'out', activity: 'work', scared: false,
+    Object.assign(b, { x: 5, y: 5, a: 0, show: 1, mode: 'out', state: 'working',
       tapeJob: { key, edge: 0, from: 0, to: 1, phase },
       planKey: `${key}:${phase}:${phase === 'start' ? 0 : 1}`, path: [{ x: 6, y: 5 }], repath: 10 });
     stepTapeBot(g, 0.05, g.zones, stackAt, () => false);
@@ -1468,10 +1243,10 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   g.tapes = [{ ...area, key, sig: '', broken: true, posts: [true, false, false, false], edges: [false, false, false, false] }];
   const b = g.tapeBot;
   Object.assign(g.fl, { x: 2.5, y: 5, a: 0, speed: 1 });
-  Object.assign(b, { x: 5, y: 5, a: 0, show: 1, mode: 'out', activity: 'work', scared: true, fleePath: true,
+  Object.assign(b, { x: 5, y: 5, a: 0, show: 1, mode: 'out', state: 'flee',
     tapeJob: { key, edge: 0, from: 0, to: 1, phase: 'draw' }, path: [{ x: 7, y: 5 }], repath: 10 });
   stepTapeBot(g, 0.05, g.zones, stackAt, () => false);
-  assert.ok(b.scared && Math.abs(b.x - 5.24) < 1e-8, 'fleeing interrupts deployment and runs at 4.8 tiles/s');
+  assert.ok(b.state === 'flee' && Math.abs(Math.hypot(b.x - 5, b.y - 5) - 0.24) < 1e-6, 'fleeing interrupts deployment and runs at 4.8 tiles/s');
   assert.equal(b.tapeJob.phase, 'start');
   Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
   Object.assign(b, { show: 0, leaving: false, mode: 'hidden', path: [] });
@@ -1790,8 +1565,8 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.ok(g.stacks.length === 1 && !fixed.pen[0].tip && !fixed.pen[0].loose && !g.fixBot.carry, 'the box ends upright on a pallet');
   assert.ok(Math.hypot(fixed.x - start.x, fixed.y - start.y) > 0.5, 'the box was moved to the pallet');
   assert.ok(Math.hypot(fixed.x - lastBot.x, fixed.y - lastBot.y) < 0.05, 'the box is set down right beneath the bot');
-  for (let i = 0; i < 120 * 40 && g.fixBot.mode !== 'hidden'; i++) update(g, NONE, 1 / 120);
-  assert.equal(g.fixBot.mode, 'hidden', 'the bot goes home when nothing is left to fix');
+  for (let i = 0; i < 120 * 660 && g.fixBot.mode !== 'hidden'; i++) update(g, NONE, 1 / 120);
+  assert.equal(g.fixBot.mode, 'hidden', 'the bot goes home after 600 s without a job');
 }
 {
   const g = newGame(1, 0);

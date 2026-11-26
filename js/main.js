@@ -197,19 +197,20 @@ function watchBots() {
   for (const [key, b] of [['cleaner', game.bot], ['inspector', game.inspector], ['cone', game.coneBot], ['tape', game.tapeBot], ['fix', game.fixBot]]) {
     if (!b) continue;
     const p = botPrev.get(key), vol = hearVol(b.x, b.y);
-    const now = { show: b.show > 0, scared: !!b.scared, shoot: (b.shooting || 0) > 0, clean: !!b.cleaning,
-      observing: !!b.observing, nextTalk: p?.nextTalk ?? game.clock + 3 };
+    const now = { show: b.show > 0, scared: b.state === 'flee', say: b.say, shoot: (b.shooting || 0) > 0, clean: !!b.cleaning,
+      loiter: b.state === 'loiter', nextTalk: p?.nextTalk ?? game.clock + 3 };
     botPrev.set(key, now);
     if (!p) continue;
     const say = (mood) => { playDroid(mood, vol, key); now.nextTalk = game.clock + 4 + Math.random() * 4; };
-    if (now.scared && !p.scared) say('alarm');
+    if (now.say && now.say !== p.say && now.say.until > game.clock) say(now.say.reason === 'yell' ? 'alarm' : 'mumble');
+    else if (now.scared && !p.scared) say('alarm');
     else if (now.show && !p.show) say('hello');
     else if (!now.show && p.show) say('bye');
     else if (now.shoot && !p.shoot) say('scan');
     else if (now.clean && !p.clean) say('mumble');
     else if (now.show && !now.scared && !now.shoot && game.clock >= now.nextTalk) {
-      if (now.observing && !p.observing) say('curious');
-      else if (b.activity === 'work') say('mumble');
+      if (now.loiter && !p.loiter) say('curious');
+      else if (b.state === 'working') say('mumble');
     }
   }
   if (game.photo && !botSaid.has(game.photo)) { botSaid.add(game.photo); if (!reduceEffectsOn && !loaded && game.status !== 'won') showPhoto(game.photo); } // after the level the gallery shows them

@@ -4,16 +4,13 @@ import { unloadRate, interval, DOCKS } from './endless.js';
 import { truckCircles, BOT_R } from './bot.js';
 
 function botTask(b, name) {
-  if (b.activity === 'home') return 'returning to hatch';
-  if (b.activity === 'follow') {
-    const player = b.curiosity?.truck;
-    return player == null ? 'finding a player to watch'
-      : `${b.observing ? 'watching' : 'going to watch'} player #${player}`;
-  }
+  if (b.state === 'flee') return `fleeing (${b.fleeKind === 'truck' ? 'forklift' : 'bot'})`;
+  if (b.state === 'right-of-way') return `right of way: ${b.debugTask || 'going to work'}`;
+  if (b.state === 'loiter') return (b.idle || 0) >= 600 ? 'returning to hatch' : 'loitering';
   if (name === 'inspector') {
     return b.target ? `${b.shooting > 0 ? 'inspecting' : 'going to inspect'} drop point ${b.target}` : 'selecting drop point to inspect';
   }
-  if (name === 'cleaner' && b.debugTask) return `${b.cleaning && !b.scared ? 'cleaning' : 'going to clean'} ${b.debugTask}`;
+  if (name === 'cleaner' && b.debugTask) return `${b.cleaning ? 'cleaning' : 'going to clean'} ${b.debugTask}`;
   return b.debugTask || 'selecting work';
 }
 
@@ -36,7 +33,7 @@ export function drawBotDebug(ctx, g, proj, unit = 1) {
   };
   for (const c of truckCircles(g)) ring(c.x, c.y, c.r, 'rgba(255,70,70,0.45)', 1);
   for (const [b, color, name] of bots) {
-    const fleeing = !!b.scared, col = fleeing ? '#ff4a4a' : b.waiting ? '#ffe14a' : color;
+    const fleeing = b.state === 'flee', col = fleeing ? '#ff4a4a' : b.waiting ? '#ffe14a' : color;
     const pts = [b, ...b.path].map((p) => proj(p.x, p.y));
     if (b.goal) {
       const a = proj(b.x, b.y), t = proj(b.goal.x, b.goal.y);

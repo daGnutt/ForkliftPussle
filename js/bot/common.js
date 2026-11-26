@@ -1,10 +1,10 @@
 import { BARREL_COLOR } from '../level.js';
 import { FL, toWorld, topSpeed } from '../forklift.js';
-import { bots } from './state.js';
 
 export const BOT_R = 0.3; // about a quarter of a forklift's footprint
 // every bot's speed is a fraction of the forklift's top speed
-export const FL_SPEED = topSpeed(0), SPEED = FL_SPEED * 0.75, FLEE_SPEED = FL_SPEED * 1.2, WORK_SPEED = FL_SPEED * 0.25;
+export const FL_SPEED = topSpeed(0), SPEED = FL_SPEED * 0.75, WORK_SPEED = FL_SPEED * 0.25;
+export const FLEE_SPEED = FL_SPEED * 1.2, FLEE_BOT_SPEED = FL_SPEED * 1.25; // fleeing a moving forklift / a bot in right-of-way or a yelling worker
 export const CELL = 0.25, SCARE = 1.3, CALM = 2.0, SHOW_SECS = 0.6;
 export const TURN_RATE = 5, TURN_FIRST = 0.6; // max turning speed (rad/s; a tracked bot spins on the spot) and the heading error above which it turns before driving on
 export const FLEE_TURN_RATE = 16;
@@ -66,6 +66,12 @@ export const LANE = 1.1; // distance of the lane point (the bot's goal when goin
 export const laneAt = (h, show) => { const d = (LANE - (BOT_R + 0.1)) * show + BOT_R + 0.1; return { x: h.x + h.nx * d, y: h.y + h.ny * d }; };
 export const botLane = (h) => laneAt(h, 1);
 export const BOT_SPACE = BOT_R * 2 + 0.04;
+export const BOT_KEYS = ['bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot'];
+export const bots = (g) => BOT_KEYS.map((k) => g[k]).filter(Boolean);
+export const botKey = (g, bot) => BOT_KEYS.find((key) => g[key] === bot);
+// Priority, highest first: box resetter, inspector, tape bot, cleaner, cone bot.
+export const PRIORITY = ['fixBot', 'inspector', 'tapeBot', 'bot', 'coneBot'];
+export const outranks = (g, a, b) => PRIORITY.indexOf(botKey(g, a)) < PRIORITY.indexOf(botKey(g, b));
 export function hatchBusy(g, bot) {
   const lane = botLane(g.hatch);
   return bots(g).some((o) => o !== bot && o.show > 0
@@ -132,7 +138,6 @@ export function truckGap(g, p, movingOnly = false) {
   return best;
 }
 
-// Cones are light floor objects: moving trucks and stacks displace them, while a hard
 export const STACK_R = 0.75, REACH = 1.45;
 export const underStack = (g, p) => g.stacks.some((s) => Math.hypot(s.x - p.x, s.y - p.y) < STACK_R);
 export const zoneMarkKey = (z) => `${z.x},${z.y},${z.color}`;

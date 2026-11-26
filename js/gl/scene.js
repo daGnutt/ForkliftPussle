@@ -458,7 +458,7 @@ function addInspector(om, tm, g) {
     om.wheel(...at(0.255, v), 0.3, face, 0.055, 0.004, '#ffffff', 14);
     om.wheel(...at(0.257, v), 0.3, face, 0.04, 0.004, '#111317', 14);
   }
-  om.wheel(...at(0.26, 0), 0.24, face, 0.03, 0.006, sc ? '#ff3b3b' : b.scared ? '#ff6a4a' : '#2a3a52', 12);
+  om.wheel(...at(0.26, 0), 0.24, face, 0.03, 0.006, sc ? '#ff3b3b' : b.state === 'flee' ? '#ff6a4a' : '#2a3a52', 12);
   if (!sc) return;
   const U = BOX_H + PAL, lens = [sc.lens.x, sc.lens.y, 0.24], to = [sc.sx, sc.sy, 0.05 + sc.z * U];
   const red = '#ff3030', w = 0.012, dirx = to[0] - lens[0], diry = to[1] - lens[1], dl = Math.hypot(dirx, diry) || 1, px = -diry / dl * w, py = dirx / dl * w;
@@ -485,7 +485,7 @@ function addBot(om, tm, g) {
   for (const v of [-0.25, 0.25]) om.cuboid(...at(0, v), b.a, 0.2, 0.05, 0, 0.12, '#4a4d52');
   om.cuboid(bx, by, b.a, 0.22, 0.2, 0.1, 0.4, '#f2f2ee');
   om.cuboid(...at(0.2, 0), b.a, 0.04, 0.15, 0.2, 0.36, '#20262c');
-  om.cuboid(...at(0.245, 0), b.a, 0.005, 0.06, 0.25, 0.31, b.scared ? '#ff6a4a' : '#4ec3ff', { emissive: true });
+  om.cuboid(...at(0.245, 0), b.a, 0.005, 0.06, 0.25, 0.31, b.state === 'flee' ? '#ff6a4a' : '#4ec3ff', { emissive: true });
   // Two arms hold a square roller across the front; `wheel` has its axis along local y, which is the roller's long axis.
   for (const v of [-0.17, 0.17]) om.cuboid(...at(0.28, v), b.a, 0.08, 0.02, 0.1, 0.14, '#4a4d52');
   om.wheel(...at(0.36, 0), 0.12, b.a, 0.05, 0.17, '#e8c52e', 4, b.cleaning ? (g.clock || 0) * 18 : 0);

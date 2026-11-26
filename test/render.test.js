@@ -58,7 +58,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 {
   const g = newGame(1, 0), keys = Object.keys(BOT_BEACONS);
   g.truck.gone = true; g.stacks = []; g.tapes = []; g.cones = [];
-  for (const [i, key] of keys.entries()) g[key] = { x: 7 + i, y: 5, a: Math.PI / 2, show: 1, activity: 'work' };
+  for (const [i, key] of keys.entries()) g[key] = { x: 7 + i, y: 5, a: Math.PI / 2, show: 1, state: 'working' };
   setDiscoEnabled(false);
   try {
     for (const theme of ['light', 'dark']) {
@@ -80,16 +80,16 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     for (const k of keys) g[k] = null;
     const b = g[key] = { x: 7, y: 5, a: 0, show: 1, path: [{ x: 8, y: 5 }] };
     const bright = key === 'tapeBot' ? '#c7fbff' : '#ffc45a', rgb = parseColor(bright);
-    for (const [activity, scared, clock, on] of [
-      ['work', false, 0, true], ['work', false, 0.25, false],
-      ['follow', false, 0, false], ['home', false, 0, false], ['work', true, 0, false],
+    for (const [state, clock, on] of [
+      ['working', 0, true], ['working', 0.25, false], ['going-to-work', 0, true],
+      ['loiter', 0, false], ['flee', 0, false],
     ]) {
-      Object.assign(b, { activity, scared }); g.clock = clock;
+      Object.assign(b, { state }); g.clock = clock;
       const mesh = dynamicMeshes(g, 'ov', [10, 5]).opaque;
       let glowing = false;
       for (let i = 0; i < mesh.n; i += 10) if (rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)
         && mesh.a[i + 3] === 0 && mesh.a[i + 4] === 0 && mesh.a[i + 5] === 0) glowing = true;
-      assert.equal(glowing, on, `${key} GL beacon: ${activity}, scared=${scared}, clock=${clock}`);
+      assert.equal(glowing, on, `${key} GL beacon: ${state}, clock=${clock}`);
     }
   }
 }
@@ -209,7 +209,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   g.stacks = []; g.cones = []; g.tapes = []; g.bot = null; g.inspector = null; g.coneBot = null;
   Object.assign(b, { x: 7, y: 5, a: 0, show: 1 });
   for (const [phase, scared, open] of [[null, false, false], ['start', false, false], ['post', false, false], ['draw', false, true], ['draw', true, false]]) {
-    b.tapeJob = phase ? { phase } : null; b.scared = scared;
+    b.tapeJob = phase ? { phase } : null; b.state = scared ? 'flee' : 'working';
     const mesh = dynamicMeshes(g, 'pov', [4, 5]).opaque, rgb = parseColor('#d6d9d5');
     let widest = 0, found = false;
     for (let i = 0; i < mesh.n; i += 10) if (rgb.slice(0, 3).every((c, j) => Math.abs(mesh.a[i + 6 + j] - c) < 1e-6)) {
@@ -658,7 +658,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   const g = newGame(4, 0), labels = [], arcs = [];
   for (const [i, b] of [g.bot, g.inspector, g.coneBot, g.tapeBot].entries()) {
     Object.assign(b, { mode: 'out', x: 2 + i * 3, y: 3, path: [{ x: 3 + i * 3, y: 3 }],
-      goal: { x: 4 + i * 3, y: 4 }, scared: i === 3, activity: 'work' });
+      goal: { x: 4 + i * 3, y: 4 }, state: i === 3 ? 'flee' : 'working' });
   }
   g.bot.debugTask = 'spill oil1 at 5.0,6.0';
   g.inspector.target = '8,9,0';
@@ -674,28 +674,28 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     'cleaner: driving · path 1 · task: going to clean spill oil1 at 5.0,6.0',
     'inspector: driving · path 1 · task: going to inspect drop point 8,9,0',
     'cone: driving · path 1 · task: placing cone',
-    'tape: FLEEING · path 1 · task: taping zone 2']);
+    'tape: FLEEING · path 1 · task: fleeing (bot)']);
   assert.equal(labels[2].color, '#ff785a', 'cone bot gets its own colour');
   assert.equal(labels[3].color, '#ff4a4a', 'fleeing tape bot uses the alert colour');
   for (const x of [40, 70, 100, 130]) assert.ok(arcs.some(([ax, ay]) => ax === x && ay === 40), 'each goal has a ring');
   labels.length = 0;
   Object.assign(g.bot, { cleaning: true, path: [] });
   Object.assign(g.inspector, { shooting: 1, path: [] });
-  Object.assign(g.coneBot, { activity: 'follow', curiosity: { truck: 0 }, observing: true });
-  Object.assign(g.tapeBot, { scared: false, tapeJob: { phase: 'draw' } });
+  Object.assign(g.coneBot, { state: 'loiter' });
+  Object.assign(g.tapeBot, { state: 'working', tapeJob: { phase: 'draw' } });
   drawBotDebug(ctx, g, (x, y) => [x * 10, y * 10]);
   assert.ok(labels[0].text.includes('task: cleaning spill oil1'));
   assert.ok(labels[1].text.includes('task: inspecting drop point 8,9,0'));
-  assert.ok(labels[2].text.includes('task: watching player #0'));
+  assert.ok(labels[2].text.includes('task: loitering'));
   assert.ok(labels[3].text.endsWith('task: taping zone 2'));
   labels.length = 0;
-  Object.assign(g.bot, { activity: 'follow', curiosity: { truck: 0 }, observing: false });
-  Object.assign(g.inspector, { activity: 'follow', curiosity: null });
-  Object.assign(g.coneBot, { activity: 'home' });
+  Object.assign(g.bot, { state: 'loiter' });
+  Object.assign(g.inspector, { state: 'right-of-way' });
+  Object.assign(g.coneBot, { state: 'loiter', idle: 700 });
   g.tapeBot.debugTask = 'removing tape from zone 2'; g.tapeBot.tapeJob = { phase: 'remove' };
   drawBotDebug(ctx, g, (x, y) => [x * 10, y * 10]);
-  assert.ok(labels[0].text.includes('task: going to watch player #0'));
-  assert.ok(labels[1].text.includes('task: finding a player to watch'));
+  assert.ok(labels[0].text.includes('task: loitering'));
+  assert.ok(labels[1].text.includes('task: right of way: going to work'));
   assert.ok(labels[2].text.includes('task: returning to hatch'));
   assert.ok(labels[3].text.includes('task: removing tape from zone 2'));
   labels.length = 0;

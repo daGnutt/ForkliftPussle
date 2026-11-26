@@ -1,6 +1,5 @@
 import { SPEED, angDiff, rectDist, truckCircles } from './common.js';
 import { buildGrid, plan, SKIP_SECS, skipped } from './nav.js';
-import { IDLE_SECS, activity } from './state.js';
 import { makeTapeBot } from './tapebot.js';
 import { stepWorker } from './worker.js';
 
@@ -117,17 +116,16 @@ export function stepFixBot(g, dt) {
   bot.beam = null;
   let job = bot.fix;
   if (job && !fixValid(g, bot, job)) { fixAbort(g, bot, job); job = null; }
-  if (!job && bot.show === 1 && bot.activity === 'work') job = bot.fix = pickFixJob(g, bot);
+  if (!job && bot.show === 1 && bot.state !== 'loiter') job = bot.fix = pickFixJob(g, bot);
   if (job && (job.age += dt) > FIX_GIVE_UP) { (bot.skip ||= {})[job.key] = g.clock + SKIP_SECS * 6; fixAbort(g, bot, job); job = null; }
   const hasWork = !!job || fixTargets(g, bot).length > 0 || !!bot.carry;
-  if (!hasWork) bot.idle = IDLE_SECS;
   bot.debugTask = job ? `${job.phase} ${job.kind}${job.tier > 1 ? ' (cheat)' : ''}` : null;
   const s = job && !bot.carry ? fixStack(g, job) : null;
   let goal = null;
   if (job) goal = job.phase === 'go' ? { x: job.ax, y: job.ay } : job.phase === 'carry' ? job.spot : { x: bot.x, y: bot.y };
-  stepWorker(g, bot, dt, hasWork, goal, job ? `${job.phase}:${job.key}` : null, SPEED);
+  stepWorker(g, bot, dt, hasWork, goal, job ? `${job.phase}:${job.key}` : null, SPEED, !!job && job.phase !== 'go');
   // It drives collapsed, and only unfolds to pick something up and to move with it.
-  const working = !!job && job.phase !== 'go' && bot.show === 1 && bot.activity === 'work';
+  const working = !!job && job.phase !== 'go' && bot.show === 1 && bot.state !== 'loiter';
   bot.unfold = Math.max(0, Math.min(1, bot.unfold + (working ? 1 : -1) * dt / FIX_UNFOLD_SECS));
   if (!job) return;
   const obj = bot.carry || s;
@@ -139,7 +137,7 @@ export function stepFixBot(g, dt) {
   };
   if (job.phase === 'carry') { job.stuck = bot.path.length ? 0 : job.stuck + dt; }
   else if (job.phase === 'go') job.stuck = bot.path.length ? 0 : job.stuck + dt;
-  const arrived = !bot.scared && (job.phase === 'go' || bot.unfold >= 1) && !bot.path.length && goal && (Math.hypot(bot.x - goal.x, bot.y - goal.y) < 0.6 || job.stuck > 1.5);
+  const arrived = bot.state !== 'flee' && (job.phase === 'go' || bot.unfold >= 1) && !bot.path.length && goal && (Math.hypot(bot.x - goal.x, bot.y - goal.y) < 0.6 || job.stuck > 1.5);
   if (job.phase === 'go' && arrived && obj) {
     job.phase = 'up'; job.t = 0;
     if (job.kind === 'box') {
@@ -148,7 +146,7 @@ export function stepFixBot(g, dt) {
       bot.carry = s; job.ox = s.x; job.oy = s.y; job.oa = s.a || 0;
     } else { const l = s.pen[0].loose; job.ox = l.x; job.oy = l.y; job.oa = l.a; }
   } else if (job.phase === 'up') {
-    if (!bot.scared && bot.unfold >= 1) job.t += dt;
+    if (bot.state !== 'flee' && bot.unfold >= 1) job.t += dt;
     const p = Math.min(1, job.t / FIX_BEAM_SECS), e = smooth(p), c = bot.carry || s;
     if (c) {
       move(lerp(job.ox, bot.x, e), lerp(job.oy, bot.y, e), job.oa + angDiff(job.oa, bot.a) * e, FIX_HOVER * e);
@@ -166,7 +164,7 @@ export function stepFixBot(g, dt) {
       if (job.kind === 'box') { const l = bot.carry?.pen[0].loose; job.pallet = l && { x: l.x, y: l.y, a: l.a }; job.spot = { x: bot.x, y: bot.y, a: bot.a }; }
     }
   } else if (job.phase === 'down') {
-    if (!bot.scared && bot.unfold >= 1) job.t += dt;
+    if (bot.state !== 'flee' && bot.unfold >= 1) job.t += dt;
     const p = Math.min(1, job.t / FIX_BEAM_SECS), e = smooth(p), sp = job.spot;
     move(lerp(job.dx, sp.x, e), lerp(job.dy, sp.y, e), job.da + angDiff(job.da, sp.a) * e, FIX_HOVER * (1 - e));
     // A box is only ever set down right beneath the bot; its lost pallet slides in under it.
