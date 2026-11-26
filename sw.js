@@ -1,5 +1,5 @@
 // Bump CACHE when shipping changes so clients drop stale files.
-const CACHE = 'forklift-v46';
+const CACHE = 'forklift-v47';
 const CORE = [
   './', 'index.html', 'style.css', 'assets/icons/favicon.svg', 'manifest.webmanifest',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/maskable-512.png',
@@ -7,6 +7,7 @@ const CORE = [
     'globalscores', 'hard-physics', 'highscores', 'input', 'level', 'local', 'main', 'midi', 'photo', 'power', 'qr', 'render', 'repair', 'repairhint',
     'rumble',
     'revlight', 'savestate', 'state-history', 'schemepicker', 'splash3d', 'testing', 'theme', 'visible-loop',
+    'bot/cleanbot', 'bot/common', 'bot/conebot', 'bot/fixbot', 'bot/inspector', 'bot/loiter', 'bot/nav', 'bot/state', 'bot/tapebot', 'bot/worker',
     'gl/camera', 'gl/mat', 'gl/mesh', 'gl/models', 'gl/overlay', 'gl/particles', 'gl/photoview', 'gl/renderer', 'gl/scene', 'gl/views', 'gl/wall-decals',
     'net/guest', 'net/host', 'net/peer', 'net/predict', 'net/protocol', 'net/relay', 'net/round', 'net/vote'].map(m => `js/${m}.js`),
 ];
