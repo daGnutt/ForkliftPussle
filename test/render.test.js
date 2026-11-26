@@ -9,8 +9,9 @@ import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTile
 import { staticMeshes, dynamicMeshes, ceilingClip, renderMode, CEILING_HIDE_Z } from '../js/gl/scene.js';
 import { addStack as addGLStack, addForks as addGLForks, addForklift as addGLForklift, PAL, PALLET_COLOR } from '../js/gl/models.js';
 import { tapeShapes, TAPE_FILL } from '../js/repair.js';
-import { popupScale, placePhoto, drawPhoto, boxStatus, issues, stripHeight, scoreText } from '../js/photo.js';
+import { popupScale, placePhoto, drawPhoto, damageSpots, boxStatus, issues, stripHeight, scoreText } from '../js/photo.js';
 import { projectPoint } from '../js/gl/mat.js';
+import { photoCamera } from '../js/gl/photoview.js';
 import { floorGrateDecal, setDecalsEnabled } from '../js/decals.js';
 import { setThemeMode } from '../js/theme.js';
 import { draw, drawForkGauge, observerLayout, placeObserverCard, observerObstacles } from '../js/render.js';
@@ -1021,20 +1022,23 @@ console.log('render tests passed');
   assert.deepEqual(boxStatus({ crash: 10, wide: true, sq: 5 }), { damaged: false, crooked: true });
   assert.deepEqual(boxStatus({ crash: 10, barrelPart: 'base' }), { damaged: false, crooked: false });
   const photo = { n: 1, ok: false, layers: [0, 1], rots: [0, 0], offs: [{ x: 0, y: 0 }, { x: 0, y: 0 }], pens: [{ crash: 0 }, { crash: 10 }], view: 0, dist: 2 };
-  const symbols = (p) => {
-    let n = 0, style = '';
-    const ctx = new Proxy({}, { get: (t, k) => (k === 'fillStyle' ? style : k === 'measureText' ? () => ({ width: 10 }) : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : k === 'fill' ? () => { if (style === '#ffeb3b') n++; } : () => {}), set: (t, k, v) => { if (k === 'fillStyle') style = v; return true; } });
-    drawPhoto(ctx, p);
-    return n;
-  };
+  const proj = (p) => { const cam = photoCamera(p, 400, 300); return (x, y, z) => projectPoint(cam.vp, x, y, z, 400, 300); };
+  const symbols = (p) => damageSpots(p, proj(p)).length;
   assert.equal(symbols(photo), 1, 'one symbol, on the damaged box only');
   assert.equal(symbols({ ...photo, pens: photo.pens.map((q) => ({ ...q, crash: 0 })) }), 0, 'no symbol without damage');
   assert.equal(symbols({ ...photo, pens: [{ crash: 0 }, { crash: 10, wide: true }] }), 0, 'no symbol on a damaged wide box');
   assert.equal(symbols({ ...photo, pens: [{ crash: 10, barrelPart: 'base' }, { crash: 10, barrelPart: 'top' }] }), 0, 'no symbol on a damaged barrel');
-  let tapes = 0, stroke = '';
-  const spy = new Proxy({}, { get: (t, k) => (k === 'measureText' ? () => ({ width: 10 }) : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : k === 'stroke' ? () => { if (stroke === TAPE_FILL) tapes++; } : () => {}), set: (t, k, v) => { if (k === 'strokeStyle') stroke = v; return true; } });
-  drawPhoto(spy, { ...photo, pens: [{ crash: 0, tape: 2 }, { crash: 0 }] });
-  assert.ok(tapes >= 1, 'repair tape shows in the photo');
+  const [spot] = damageSpots(photo, proj(photo));
+  assert.ok(spot.c[0] > 0 && spot.c[0] < 400 && spot.c[1] > 0 && spot.c[1] < 300 && spot.r > 5, 'the symbol lands on the box inside the picture');
+  const noGl = new Proxy({}, { get: (t, k) => (k === 'measureText' ? () => ({ width: 10 }) : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {}), set: () => true });
+  drawPhoto(noGl, photo); // without WebGL only the frame and text are drawn
+  for (const n of [1, 3, 5]) { // the camera frames the whole stack at any height
+    const p = { ...photo, layers: Array(n).fill(0), dist: 1.6 }, cam = photoCamera(p, 400, 300), top = n * LEVEL_H;
+    for (const z of [0, top]) for (const dx of [-0.5, 0.5]) {
+      const q = projectPoint(cam.vp, dx, 0, z, 400, 300);
+      assert.ok(q && q[0] > 0 && q[0] < 400 && q[1] > 0 && q[1] < 300, `corner (${dx}, ${z}) of a ${n}-box stack is in the picture`);
+    }
+  }
   const bad = { ...photo, pens: [{ crash: 22.6, sq: 0 }, { crash: 0, sq: 0 }, { crash: 5, sq: 10 }, { crash: 0, sq: 15 }] };
   assert.deepEqual(issues(bad), ['Box 1 has 23 pt damage', 'Box 3 has 5 pt damage and is wonky', 'Box 4 is wonky'], 'issues are listed per box, lowest box is 1');
   assert.deepEqual(issues({ ...photo, pens: [{ crash: 0 }, { crash: 0 }] }), []);

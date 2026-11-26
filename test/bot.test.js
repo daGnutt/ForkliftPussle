@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { newGame, update, addTruck, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
 import { issues } from '../js/photo.js';
-import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape } from '../js/bot.js';
+import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape, botBeaconOn, botRequesting, botBeaconTone } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
 import { run, NONE, flatWorld } from './common.js';
@@ -217,7 +217,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   run(g, NONE, 0.2);
   assert.ok(!g.bot.scared && g.bot.cleaning, 'a standing forklift does not scare the bot');
   g.fl.x = g.bot.x - 2.5;
-  run(g, { up: true }, 0.6);
+  run(g, { up: true }, 1.2);
   assert.ok(g.bot.scared && !g.bot.cleaning, 'a close moving forklift scares the bot off the spill');
   g.fl.x += 0.8;
   run(g, { up: true }, 1);
@@ -268,7 +268,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
 
 // Curious travel is faster for the other bots, while the tape bot travels more slowly off duty.
 {
-  for (const [kind, speed] of [['bot', 2.25], ['inspector', 1.25], ['coneBot', 1.5], ['tapeBot', 1.5]]) {
+  for (const [kind, speed] of [['bot', 3], ['inspector', 3], ['coneBot', 3], ['tapeBot', 3]]) {
     const g = botGame();
     g.stacks = []; flatWorld(g); g.areas = [];
     for (const other of botKinds) if (other !== kind) g[other] = null;
@@ -288,7 +288,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
 
 // The cleaner, inspector and cone bot also use their faster speed while travelling for work.
 {
-  for (const [kind, speed] of [['bot', 2.25], ['inspector', 1.25], ['coneBot', 1.5]]) {
+  for (const [kind, speed] of [['bot', 3], ['inspector', 3], ['coneBot', 3]]) {
     const g = botGame();
     g.stacks = []; flatWorld(g); g.areas = [];
     for (const other of botKinds) if (other !== kind) g[other] = null;
@@ -663,13 +663,31 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   g.inspector = null;
   // Keep the tape bot's job on the west side of the gap.
   const stackAt = () => null;
-  let backedUp = false;
+  let backedUp = false, requested = false;
   for (let n = 0; n < 1200 && east.x < 12.5; n++) {
     stepConeBot(g, 0.05, []); stepTapeBot(g, 0.05, [], stackAt, () => false);
-    backedUp ||= west.x > 11.6;
+    backedUp ||= east.x < 7.9;
+    requested ||= west.rightOfWay;
     assert.ok(Math.hypot(east.x - west.x, east.y - west.y) >= BOT_R * 2, 'bots keep clear while yielding');
   }
-  assert.ok(backedUp && east.x > 12.5, 'the yielding bot backs out and the oncoming bot passes');
+  assert.ok(backedUp && requested && east.x > 12.5, 'the lower-ranked cone bot backs out for the tape bot, which requested right of way');
+}
+
+// A right-of-way request lights the beacon even when idle, and nobody requests on a free path.
+{
+  const g = botGame();
+  g.clock = 0;
+  Object.assign(g.inspector, { show: 1, activity: 'follow', scared: false });
+  assert.ok(!botRequesting(g, g.inspector) && !botBeaconOn(g, g.inspector), 'no request, no beacon while curious');
+  g.inspector.rightOfWay = true;
+  assert.ok(botRequesting(g, g.inspector) && botBeaconOn(g, g.inspector), 'requesting bot blinks its beacon');
+  assert.equal(botBeaconTone(g, g.inspector), 'blue');
+  g.inspector.yieldFor = 'fixBot';
+  assert.equal(botBeaconTone(g, g.inspector), 'red', 'making way blinks red');
+  g.inspector.yieldFor = null; g.inspector.scared = true;
+  assert.ok(botBeaconTone(g, g.inspector) === 'red' && botBeaconOn(g, g.inspector), 'fleeing blinks red');
+  g.inspector.scared = false;
+  assert.ok(botRequesting(g, g.inspector), 'the request lasts until the destination is reached');
 }
 
 // Both bots turn sharply when fleeing and persist their idle timer in a save.
@@ -1417,7 +1435,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.ok(!t.broken, 'bot replaces the post and both edges');
 }
 
-// Travelling to a post is faster than drawing an edge.
+// Travelling to a post is faster than drawing an edge (normal 0.75 vs work 0.25 of the forklift's speed).
 {
   const move = (phase) => {
     const g = newGame(1, 0), area = { x: 7, y: 7, w: 2, h: 2, color: 0 };
@@ -1435,11 +1453,11 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
     stepTapeBot(g, 0.05, g.zones, stackAt, () => false);
     return b.x - 5;
   };
-  assert.ok(Math.abs(move('draw') - 0.05) < 1e-8, 'drawing retains its 1 tile/s speed');
-  assert.ok(Math.abs(move('start') - 0.1) < 1e-8, 'travelling to a post is twice as fast');
+  assert.ok(Math.abs(move('draw') - 0.05) < 1e-8, 'drawing moves at the work speed, 1 tile/s');
+  assert.ok(Math.abs(move('start') - 0.15) < 1e-8, 'travelling to a post uses the normal speed, 3 tiles/s');
 }
 
-// The tape bot also moves at double speed when fleeing and passing through the hatch.
+// The tape bot also flees at the common fleeing speed and uses the hatch in half the time.
 {
   const g = newGame(1, 0), area = { x: 7, y: 7, w: 2, h: 2, color: 0 };
   flatWorld(g); g.stacks = []; g.zones = []; g.areas = [area];
@@ -1453,7 +1471,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   Object.assign(b, { x: 5, y: 5, a: 0, show: 1, mode: 'out', activity: 'work', scared: true, fleePath: true,
     tapeJob: { key, edge: 0, from: 0, to: 1, phase: 'draw' }, path: [{ x: 7, y: 5 }], repath: 10 });
   stepTapeBot(g, 0.05, g.zones, stackAt, () => false);
-  assert.ok(b.scared && Math.abs(b.x - 5.32) < 1e-8, 'fleeing interrupts deployment and runs at 6.4 tiles/s');
+  assert.ok(b.scared && Math.abs(b.x - 5.24) < 1e-8, 'fleeing interrupts deployment and runs at 4.8 tiles/s');
   assert.equal(b.tapeJob.phase, 'start');
   Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
   Object.assign(b, { show: 0, leaving: false, mode: 'hidden', path: [] });

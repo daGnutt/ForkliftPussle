@@ -847,6 +847,7 @@ for (const hard of [false, true]) {
   const g = newGame(1, 0, hard);
   flatWorld(g);
   g.stacks = [{ x: 3, y: 3, layers: [0], rots: [0], a: 0, pen: [{ tip: 1, loose: { x: 10, y: 5, a: 0 } }] }];
+  g.fixBot = null; // the repair bot would otherwise collect the loose pallet
   Object.assign(g.fl, { x: 7, y: 5, a: 0, speed: 0 });
   run(g, { up: true }, 4);
   const l = g.stacks[0].pen[0].loose;

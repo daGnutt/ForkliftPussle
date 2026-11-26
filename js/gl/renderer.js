@@ -342,3 +342,59 @@ export function drawGl(ctx, g, mode, cam, x, y, dpr) {
     return p && [x + p[0], y + p[1], p[2]];
   };
 }
+
+const PHOTO_LIGHT = { sun: [-0.3, -0.4, 0.85], sunCol: [0.45, 0.45, 0.42], up: [0.6, 0.6, 0.62], down: [0.42, 0.42, 0.44] };
+
+// Renders a self-contained scene (`opaque` and `trans` meshes, camera `cam` from camera maths) lit by a flash at the eye, into the
+// shared offscreen context, and returns that canvas with the picture in its bottom-left w×h pixels (copy it right away with
+// `ctx.drawImage(canvas, 0, canvas.height - h, w, h, ...)`). Null without WebGL or while the context is lost.
+export function renderPhotoScene(opaque, trans, cam, w, h, bg) {
+  const r = get();
+  if (!r || r.gl.isContextLost()) return null;
+  const { gl, canvas, u } = r;
+  if (canvas.width < w || canvas.height < h) { canvas.width = Math.max(canvas.width, w); canvas.height = Math.max(canvas.height, h); }
+  const L = PHOTO_LIGHT, c = parseColor(bg), sl = Math.hypot(...L.sun);
+  gl.bindVertexArray(r.vao);
+  gl.useProgram(r.prog);
+  gl.viewport(0, 0, w, h);
+  gl.enable(gl.SCISSOR_TEST);
+  gl.scissor(0, 0, w, h);
+  gl.clearColor(c[0], c[1], c[2], 1);
+  gl.depthMask(true);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.disable(gl.CULL_FACE);
+  gl.disable(gl.BLEND);
+  gl.uniformMatrix4fv(u.uVP, false, cam.vp);
+  gl.uniform3fv(u.uEye, cam.eye);
+  gl.uniform3f(u.uSun, L.sun[0] / sl, L.sun[1] / sl, L.sun[2] / sl);
+  gl.uniform3fv(u.uSunCol, L.sunCol);
+  gl.uniform3fv(u.uAmbUp, L.up);
+  gl.uniform3fv(u.uAmbDown, L.down);
+  gl.uniform3f(u.uFogCol, c[0], c[1], c[2]);
+  gl.uniform1f(u.uFogA, 1e4);
+  gl.uniform1f(u.uFogB, 2e4);
+  gl.uniform1f(u.uFogMax, 0);
+  gl.uniform1f(u.uAdd, 0);
+  gl.uniform4fv(u.uClip, [0, 0, 1e9, 1e9]);
+  const lp = new Float32Array(LIGHT_MAX * 4), lc = new Float32Array(LIGHT_MAX * 3), ld = new Float32Array(LIGHT_MAX * 4);
+  lp.set([cam.eye[0], cam.eye[1], cam.eye[2], 9]);
+  lc.set([0.55, 0.55, 0.5]);
+  ld[3] = -2;
+  gl.uniform1i(u.uNL, 1);
+  gl.uniform4fv(u.uLP, lp);
+  gl.uniform3fv(u.uLC, lc);
+  gl.uniform4fv(u.uLD, ld);
+  drawMesh(r, opaque);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  gl.enable(gl.POLYGON_OFFSET_FILL);
+  gl.polygonOffset(-2, -2);
+  drawMesh(r, trans);
+  gl.disable(gl.POLYGON_OFFSET_FILL);
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
+  return canvas;
+}
