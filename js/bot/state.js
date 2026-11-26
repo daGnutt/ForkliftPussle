@@ -38,7 +38,8 @@ export function setState(bot, next) {
 function enterFlee(g, bot) {
   setState(bot, 'flee');
   bot.path = []; bot.repath = 0; bot.fleePath = false; bot.target = null; bot.shooting = 0; bot.passing = null;
-  if (bot === g.tapeBot) { bot.tapeJob = null; bot.seq = null; bot.ghost = null; }
+  bot.seq = null; bot.ghost = null;
+  if (bot === g.tapeBot) bot.tapeJob = null;
 }
 
 // What a bot is running from: a moving forklift, a bot in right-of-way (unless this one outranks it or is itself in right-of-way), or a worker it is blocking.
@@ -49,7 +50,8 @@ export function threatOf(g, bot) {
     out.speed = FLEE_SPEED; out.kind = 'truck'; bot.spookedUntil = g.clock + SPOOK_SECS;
   }
   for (const o of bots(g)) {
-    if (o === bot || o.show !== 1 || o.state !== 'right-of-way' || outranks(g, bot, o)) continue;
+    if (o === bot || o.show !== 1 || o.state !== 'right-of-way') continue;
+    if (outranks(g, bot, o) && !(bot.state === 'loiter' && (o.blockWait || 0) > 4)) continue; // a higher-priority bot stays, unless it is idle and the requester is stuck
     if (bot.state === 'right-of-way' && !((bot.blockWait || 0) > 4 && outranks(g, o, bot))) continue; // a stuck lower-priority bot makes way
     if (Math.hypot(o.x - bot.x, o.y - bot.y) < ROW_NEAR || pathDistance(bot, o, o.path || []) < BOT_SPACE + 0.4) out.keys.push(botKey(g, o));
   }

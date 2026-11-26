@@ -908,7 +908,7 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   g.oil = [];
   for (let i = 0; i < 120 * 90 && g.cones.length; i++) { g.clock += 1 / 120; update(g, NONE, 1 / 120); }
   assert.equal(g.cones.length, 0, 'the bot stores obsolete cones');
-  update(g, NONE, 1 / 120);
+  for (let i = 0; i < 60; i++) update(g, NONE, 1 / 120); // the 0.25 s wait after despawning
   assert.equal(g.coneBot.state, 'loiter', 'after storing its last cone the bot watches the forklift');
   assert.equal(g.coneBot.mode, 'out', 'storing its last cone does not send it straight into the hatch');
 
@@ -946,11 +946,11 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   Object.assign(b, { x: 8, y: 8, a: 0, mode: 'out', show: 1, path: [], repath: 0,
     carried: { id: 'legacy', goalId: 'old:0' } });
   g.cones = [0, 1, 2].map((i) => ({ id: `old-${i}`, goalId: `old:${i}`, x: 8.1 + i * 0.05, y: 8, a: 0 }));
-  for (let i = 0; i < 30 && g.cones.length; i++) stepConeBot(g, 0.05, []);
+  for (let i = 0; i < 400 && g.cones.length; i++) stepConeBot(g, 0.05, []);
   assert.equal(g.cones.length, 0, 'several cones are collected without a hatch trip');
   assert.equal(b.carried, null, 'a legacy carried cone is put into storage');
   assert.ok(Math.hypot(b.x - 8, b.y - 8) < 1, 'the bot stays near the collected cones');
-  stepConeBot(g, 0.05, []);
+  for (let i = 0; i < 10; i++) stepConeBot(g, 0.05, []);
   assert.equal(b.state, 'loiter', 'the bot loiters once collection is finished');
 }
 
@@ -1589,6 +1589,44 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   assert.equal(ids.filter((id) => id.startsWith('pallet:')).length, 4, 'four cones around the loose pallet');
   delete g.stacks[0].pen[0].tip; delete g.stacks[0].pen[0].loose;
   assert.equal(coneTargets(g, []).length, 0, 'none once it is righted');
+}
+
+// Spawning and despawning: the bot stops 0.25 s, the object appears under it (collision off against it) and the bot drives on before collision returns;
+// removal backs onto the object, removes it and waits 0.25 s.
+{
+  const g = newGame(1, 0), b = g.coneBot;
+  flatWorld(g); g.stacks = []; g.zones = []; g.areas = [];
+  g.bot = null; g.inspector = null; g.tapeBot = null;
+  Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
+  g.oil = [{ id: 'spawnspill', x: 8, y: 8, r: 0.3, drops: 1 }];
+  Object.assign(b, { x: 6, y: 8, a: 0, mode: 'out', show: 1, path: [], repath: 0 });
+  let spawnedAt = null, waited = 0, left = 0, ghostCleared = false, cone = null;
+  for (let i = 0; i < 120 * 60 && !ghostCleared; i++) {
+    g.clock += 1 / 120; update(g, NONE, 1 / 120);
+    if (!b.seq || b.seq.kind !== 'spawn') continue;
+    if (!cone && g.cones.length) {
+      cone = g.cones[0]; spawnedAt = { x: b.x, y: b.y };
+      assert.ok(Math.hypot(cone.x - b.x, cone.y - b.y) < 1e-6, 'the cone spawns directly under the bot');
+      assert.ok(b.ghost && Math.hypot(b.ghost.x - cone.x, b.ghost.y - cone.y) < 0.03, 'collision is off against the new cone');
+      assert.ok(b.say?.reason === 'spawn', 'the bot says something when spawning');
+    }
+    if (!cone) { waited += b.seq.phase === 'wait' ? 1 / 120 : 0; }
+    else if (b.seq.phase === 'leave') left = Math.hypot(b.x - spawnedAt.x, b.y - spawnedAt.y);
+    ghostCleared = !!cone && !b.ghost;
+  }
+  assert.ok(cone && waited >= 0.24, 'the bot stands still for 0.25 s before spawning');
+  assert.ok(left >= 0.26 * 0.9, 'the bot drives on at least the cone size before collision returns');
+  g.oil = [];
+  let removedAt = -1, freeAt = -1, t = 0;
+  for (let i = 0; i < 120 * 90 && freeAt < 0; i++) {
+    g.clock += 1 / 120; t += 1 / 120; update(g, NONE, 1 / 120);
+    if (removedAt < 0 && !g.cones.length) {
+      removedAt = t;
+      assert.ok(b.seq?.kind === 'despawn' && !b.ghost, 'the cone is removed and the bot waits');
+    }
+    if (removedAt >= 0 && !b.seq) freeAt = t;
+  }
+  assert.ok(removedAt > 0 && freeAt - removedAt >= 0.24 && freeAt - removedAt < 0.4, 'the bot waits 0.25 s after despawning before moving on');
 }
 
 console.log('bot tests passed');

@@ -51,7 +51,7 @@ export function buildGrid(g, margin, slim = false, avoidBots = null) {
       stamp(s.x - r, s.y - r, s.x + r, s.y + r, (x, y) => nearBox(s, x, y, 0.2));
     }
   }
-  for (const p of solidProps(g)) if (!ghosted(avoidBots, p)) circle(p, p.r + (slim ? 0.2 : BOT_R * 0.75));
+  for (const p of solidProps(g)) if (!ghosted(avoidBots, p)) circle(p, p.r + (slim ? 0.2 : BOT_R * 0.75) + 0.08);
   const fixed = blocked.slice(); // cells blocked by walls, boxes and floor markings only (forklifts move away on their own)
   for (const c of truckCircles(g)) circle(c, c.r + BOT_R + margin);
   if (avoidBots) for (const b of bots(g)) {

@@ -7,7 +7,7 @@ const CORE = [
     'globalscores', 'hard-physics', 'highscores', 'input', 'level', 'local', 'main', 'midi', 'photo', 'power', 'qr', 'render', 'repair', 'repairhint',
     'rumble',
     'revlight', 'savestate', 'state-history', 'schemepicker', 'splash3d', 'testing', 'theme', 'visible-loop',
-    'bot/cleanbot', 'bot/common', 'bot/conebot', 'bot/fixbot', 'bot/inspector', 'bot/loiter', 'bot/nav', 'bot/speech', 'bot/state', 'bot/tapebot', 'bot/worker',
+    'bot/cleanbot', 'bot/common', 'bot/conebot', 'bot/fixbot', 'bot/inspector', 'bot/loiter', 'bot/nav', 'bot/spawn', 'bot/speech', 'bot/state', 'bot/tapebot', 'bot/worker',
     'gl/camera', 'gl/mat', 'gl/mesh', 'gl/models', 'gl/overlay', 'gl/particles', 'gl/photoview', 'gl/renderer', 'gl/scene', 'gl/views', 'gl/wall-decals',
     'net/guest', 'net/host', 'net/peer', 'net/predict', 'net/protocol', 'net/relay', 'net/round', 'net/vote'].map(m => `js/${m}.js`),
 ];

@@ -1,8 +1,9 @@
 import { toWorld } from '../forklift.js';
 import { rectPoly, sat } from '../geom.js';
-import { BOT_R, botHome, zoneMarkKey, areaMarkKey, zonesInArea } from './common.js';
+import { BOT_R, SPEED, WORK_SPEED, botHome, zoneMarkKey, areaMarkKey, zonesInArea } from './common.js';
 import { currentInspection } from './inspector.js';
 import { stepWorker } from './worker.js';
+import { startSpawn, startDespawn, stepSeq, registerCommit } from './spawn.js';
 
 export const TAPE_BOT_PARTS = [
   [0, -0.16, 0.28, 0.04, 0.03, 0.18, '#303538'],
@@ -113,9 +114,34 @@ export function tapeLines(g) {
   return lines;
 }
 
+// Posts are spawned and removed by the bot itself (see spawn.js); this applies the result to the tape.
+registerCommit('post', (g, bot, s, phase) => {
+  const d = s.data, tape = g.tapes.find((t) => t.key === d.key);
+  if (!tape) return;
+  if (phase === 'despawn') {
+    tape.posts[d.from] = false;
+    tape.edges[d.from] = false;
+    tape.edges[(d.from + 3) % 4] = false;
+    tape.broken = !tapeComplete(tape);
+    bot.tapeJob = null;
+    if (!tape.posts.some(Boolean)) g.tapes = g.tapes.filter((t) => t !== tape);
+    return;
+  }
+  if (d.mode === 'start') {
+    tape.posts[d.from] = true;
+    if (bot.tapeJob?.key === d.key) bot.tapeJob.phase = 'draw';
+    return;
+  }
+  tape.posts[d.mode === 'end' ? d.to : d.from] = true;
+  if (d.mode === 'end') tape.edges[d.edge] = true;
+  tape.broken = !tapeComplete(tape);
+  bot.tapeJob = null;
+});
+
 export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
   const bot = g.tapeBot;
   if (!bot) return;
+  if (stepSeq(g, bot, dt)) return;
   g.tapes ||= [];
   const liveAreas = new Map(g.areas.map((a) => [areaMarkKey(a), a]));
   g.tapes = g.tapes.filter((t) => liveAreas.has(t.key));
@@ -154,13 +180,8 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
       y: Math.max(BOT_R + 0.1, Math.min(g.h - BOT_R - 0.1, corner.y + dy / dist * 0.55)),
     };
     stepWorker(g, bot, dt, true, goal, `remove:${job.key}:${post}`);
-    if (bot.state === 'flee' || Math.hypot(bot.x - goal.x, bot.y - goal.y) >= 0.35 || bot.path.length) return;
-    tape.posts[post] = false;
-    tape.edges[post] = false;
-    tape.edges[(post + 3) % 4] = false;
-    tape.broken = !tapeComplete(tape);
-    bot.tapeJob = null;
-    if (!tape.posts.some(Boolean)) g.tapes = g.tapes.filter((t) => t !== tape);
+    if (bot.state === 'flee' || bot.show !== 1 || Math.hypot(bot.x - goal.x, bot.y - goal.y) >= 0.35 || bot.path.length) return;
+    startDespawn(bot, { commit: 'post', data: { key: job.key, from: post }, at: corner });
     return;
   }
   if (!tape) {
@@ -187,27 +208,28 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
   }
   const index = task.phase === 'start' || task.phase === 'post' ? task.from : task.to;
   const corner = corners[index];
-  const cx = tape.x + tape.w / 2, cy = tape.y + tape.h / 2;
-  const dx = corner.x - cx, dy = corner.y - cy, dist = Math.hypot(dx, dy) || 1;
-  const goal = {
-    x: Math.max(BOT_R + 0.1, Math.min(g.w - BOT_R - 0.1, corner.x + dx / dist * 0.55)),
-    y: Math.max(BOT_R + 0.1, Math.min(g.h - BOT_R - 0.1, corner.y + dy / dist * 0.55)),
-  };
+  // A missing post is spawned under the bot, so it stands on the corner itself; an existing post is approached from outside.
+  const exists = tape.posts[index], dx = corner.x - (tape.x + tape.w / 2), dy = corner.y - (tape.y + tape.h / 2), dist = Math.hypot(dx, dy) || 1;
+  const lim = (v, max) => Math.max(BOT_R + 0.1, Math.min(max - BOT_R - 0.1, v));
+  const goal = { x: lim(corner.x + (exists ? dx / dist * 0.55 : 0), g.w), y: lim(corner.y + (exists ? dy / dist * 0.55 : 0), g.h) };
   stepWorker(g, bot, dt, true, goal, `${job.key}:${task.phase}:${index}`);
   if (bot.state === 'flee') { if (task.edge != null) task.phase = 'start'; return; }
-  if (Math.hypot(bot.x - goal.x, bot.y - goal.y) >= 0.35 || bot.path.length) return;
+  // Something (e.g. a cone) can keep the bot off a corner; after standing still for a second it settles for a spot beside it.
+  const still = bot.still?.x === bot.x && bot.still?.y === bot.y ? bot.still.t + dt : 0;
+  bot.still = { x: bot.x, y: bot.y, t: still };
+  const reach = exists ? 0.35 : still > 1 ? 0.75 : 0.2;
+  if (bot.show !== 1 || Math.hypot(bot.x - goal.x, bot.y - goal.y) >= reach || bot.path.length) return;
   if (touching(postPoly(corner), shapes)) return;
-  if (task.phase === 'post') {
-    tape.posts[task.from] = true;
-    tape.broken = !tapeComplete(tape);
-    bot.tapeJob = null;
-  } else if (task.phase === 'start') {
-    tape.posts[task.from] = true;
-    task.phase = 'draw';
-  } else if (tape.posts[task.from] && !touching(tapeSegment(corners[task.from], corner), shapes)) {
-    tape.posts[task.to] = true;
-    tape.edges[task.edge] = true;
-    tape.broken = !tapeComplete(tape);
-    bot.tapeJob = null;
+  const spawn = (mode) => startSpawn(bot, { at: corner, size: POST_R * 2, commit: 'post', speed: tapeDeploying(bot) ? WORK_SPEED : SPEED,
+    data: { key: job.key, mode, from: task.from, to: task.to, edge: task.edge } });
+  if (task.phase === 'post') spawn('post');
+  else if (task.phase === 'start') { if (exists) task.phase = 'draw'; else spawn('start'); }
+  else if (tape.posts[task.from] && !touching(tapeSegment(corners[task.from], corner), shapes)) {
+    if (!exists) spawn('end');
+    else {
+      tape.edges[task.edge] = true;
+      tape.broken = !tapeComplete(tape);
+      bot.tapeJob = null;
+    }
   }
 }

@@ -5,6 +5,7 @@ import { nearBox, buildGrid, plan, SKIP_SECS, REPLAN, skipped, preferLive } from
 import { sightHits } from './loiter.js';
 import { tapeCorners } from './tapebot.js';
 import { stepWorker } from './worker.js';
+import { startSpawn, startDespawn, stepSeq, registerCommit } from './spawn.js';
 
 export function makeConeBot(g) {
   if (!g.hatch) return null;
@@ -143,18 +144,32 @@ export function clearConeSpot(g, p, ignored, trucks = truckCircles(g)) {
     && !(g.cones || []).some((c) => c !== ignored && Math.hypot(p.x - c.x, p.y - c.y) < CONE_R * 2);
 }
 
-export function conePlacement(g, bot, target, goal) {
+// The cone is spawned under the bot, so the bot drives to the reachable clear spot closest to the target and the cone appears there.
+export function conePlacement(g, bot, target) {
   const grid = buildGrid(g, 0.45, false, bot);
   const trucks = truckCircles(g);
   const path = plan(grid, bot, 80, (x, y, cost) => clearConeSpot(g, { x, y }, null, trucks)
-    ? Math.hypot(x - goal.x, y - goal.y) * 10 + cost * 0.02 : Infinity);
+    ? Math.hypot(x - target.x, y - target.y) * 10 + cost * 0.02 : Infinity);
   const end = path.at(-1) || { x: bot.x, y: bot.y };
+  if (bot.show !== 1) return null; // still in the hatch
   const clearLine = !g.walls.some((w) => sightHits(end, target, w.x + w.w / 2, w.y + w.h / 2, w.w / 2 + CONE_R, w.h / 2 + CONE_R));
-  const ideal = Math.hypot(end.x - goal.x, end.y - goal.y) < 0.6 && clearLine && clearConeSpot(g, target);
-  const spot = ideal ? { x: target.x, y: target.y } : end;
-  if (!clearConeSpot(g, spot)) return null;
-  return { goal: end, spot, misplaced: !ideal };
+  if (!clearConeSpot(g, end)) return null;
+  return { goal: end, spot: end, misplaced: Math.hypot(end.x - target.x, end.y - target.y) >= 0.22 || !clearLine };
 }
+
+registerCommit('cone', (g, bot, s, phase) => {
+  const d = s.data;
+  if (phase === 'despawn') {
+    const i = g.cones.findIndex((c) => c.id === d.id);
+    if (i >= 0) g.cones.splice(i, 1);
+    return;
+  }
+  if (!clearConeSpot(g, s.at)) return;
+  const old = d.old && g.cones.find((c) => c.id === d.old);
+  if (old) old.retire = true;
+  g.cones.push({ id: d.id, goalId: d.goalId, x: s.at.x, y: s.at.y, a: 0, tipped: false, squished: false,
+    misplaced: d.misplaced, placedX: s.at.x, placedY: s.at.y, retryAt: d.misplaced ? g.clock + CONE_RETRY_SECS : 0 });
+});
 
 export function areaComplete(g, area, stackAt, doneZones, wonky) {
   const done = new Set(doneZones.map(zoneMarkKey));
@@ -170,6 +185,7 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
   const bot = g.coneBot;
   if (!bot) return;
   if (bot.carried) bot.carried = null;
+  if (stepSeq(g, bot, dt)) return;
   g.cones ||= [];
   const seen = new Set(g.inspector?.seen || []);
   const targets = coneTargets(g, doneZones, stackAt, doneZones.filter((z) => seen.has(zoneMarkKey(z))));
@@ -190,9 +206,8 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
     bot.workKey = coneWorkKey({ id: cone.goalId });
     bot.debugTask = 'retrieving cone';
     stepWorker(g, bot, dt, true, goal, `pickup:${cone.goalId}`);
-    if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < (target ? 0.7 : 0.4) && !bot.path.length && bot.state !== 'flee') {
-      const i = g.cones.indexOf(cone);
-      if (i >= 0) g.cones.splice(i, 1);
+    if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < 0.7 && !bot.path.length && bot.state !== 'flee') {
+      startDespawn(bot, { commit: 'cone', data: { id: cone.id }, at: cone });
     } else if (bot.show === 1 && bot.state !== 'flee' && !bot.path.length && bot.repath <= REPLAN) {
       (bot.skip ||= {})[`cone:${cone.id}`] = g.clock + SKIP_SECS;
     }
@@ -203,7 +218,7 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
     let job = bot.conePlan;
     if (!job || job.id !== target.id || job.old !== (old?.id || null)
         || job.until <= g.clock || Math.hypot(job.target.x - target.x, job.target.y - target.y) >= 0.22) {
-      const placement = conePlacement(g, bot, target, approach(target));
+      const placement = conePlacement(g, bot, target);
       job = bot.conePlan = { ...placement, id: target.id, old: old?.id || null,
         target: { x: target.x, y: target.y }, until: g.clock + CONE_PLAN_SECS };
       bot.repath = 0;
@@ -220,9 +235,8 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
     if (bot.show === 1 && Math.hypot(bot.x - job.goal.x, bot.y - job.goal.y) < 0.2 && !bot.path.length && bot.state !== 'flee'
         && clearConeSpot(g, job.spot)) {
       bot.coneSeq = (bot.coneSeq || 0) + 1;
-      if (old) old.retire = true;
-      g.cones.push({ id: `cone:${target.id}:${bot.coneSeq}`, goalId: target.id, ...job.spot, a: 0, tipped: false, squished: false,
-        misplaced: job.misplaced, placedX: job.spot.x, placedY: job.spot.y, retryAt: job.misplaced ? g.clock + CONE_RETRY_SECS : 0 });
+      startSpawn(bot, { commit: 'cone', size: CONE_R * 2,
+        data: { id: `cone:${target.id}:${bot.coneSeq}`, goalId: target.id, old: old?.id || null, misplaced: job.misplaced } });
       bot.conePlan = null;
     }
   };

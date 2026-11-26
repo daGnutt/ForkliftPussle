@@ -11,4 +11,6 @@ export * from './bot/inspector.js';
 export * from './bot/conebot.js';
 export * from './bot/tapebot.js';
 export * from './bot/worker.js';
+export * from './bot/spawn.js';
+export * from './bot/speech.js';
 export * from './bot/fixbot.js';
