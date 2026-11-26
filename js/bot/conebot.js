@@ -207,9 +207,9 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
     const r = STACK_R + BOT_R + 0.5;
     return { x: t.stackCenter.x + dx / d * r, y: t.stackCenter.y + dy / d * r };
   };
-  const grid = buildGrid(g, 0.45, false, bot);
+  let grid;
   const closest = (items, point) => items.reduce((best, item) => {
-    const p = point(item), found = routeDistance(grid, bot, p);
+    const p = point(item), found = routeDistance(grid ||= buildGrid(g, 0.45, false, bot), bot, p);
     const d = Number.isFinite(found) ? found : Math.hypot(p.x - bot.x, p.y - bot.y);
     return !best || d < best.d ? { item, d } : best;
   }, null)?.item;

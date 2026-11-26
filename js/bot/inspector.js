@@ -94,7 +94,7 @@ export function inspectorStep(g, dt, done, stackAt, wonky) {
   const speed = SPEED;
   if (bot.target && blockedAhead(g, bot)) { bot.target = null; bot.planKey = null; bot.path = []; bot.shooting = 0; bot.repath = 0; } // met the obstacle: pick again
   if (!bot.target && bot.repath <= 0) {
-    const grid = buildGrid(g, 0.45, false, bot);
+    const grid = todo.length ? buildGrid(g, 0.45, false, bot) : null;
     let best = null;
     for (const z of todo) {
       const st = g.stacks.find((q) => Math.hypot(q.x - z.x, q.y - z.y) < 0.5), turn = (st?.rots?.[0] ?? st?.a ?? 0) + Math.PI / 4;

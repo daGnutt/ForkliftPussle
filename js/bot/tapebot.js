@@ -172,10 +172,11 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
     }
   }
   const currentKey = bot.workKey || bot.tapeJob?.key;
-  const grid = buildGrid(g, 0.45, true, bot);
+  let gridMemo;
+  const grid = () => gridMemo ||= buildGrid(g, 0.45, true, bot); // built only when a job needs routing
   const job = jobs.find((j) => j.key === currentKey) || jobs.reduce((best, j) => {
     const point = { x: j.area.x + j.area.w / 2, y: j.area.y + j.area.h / 2 };
-    const found = routeDistance(grid, bot, point);
+    const found = routeDistance(grid(), bot, point);
     const d = Number.isFinite(found) ? found : Math.hypot(point.x - bot.x, point.y - bot.y);
     return !best || d < best.d ? { job: j, d } : best;
   }, null)?.job;
@@ -236,7 +237,7 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
   else task.blocked = 0;
   stepWorker(g, bot, dt, true, goal, `${job.key}:${task.phase}:${index}`);
   if (!exists && task.blocked > 3) {
-    const safe = nearestReachable(grid, bot, goal);
+    const safe = nearestReachable(grid(), bot, goal);
     task.blocked = 0;
     if (safe) {
       // Move only the unreachable post; the tape outline then follows its adjusted corners.
