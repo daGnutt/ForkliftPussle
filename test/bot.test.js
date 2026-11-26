@@ -1408,6 +1408,7 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   stepTapeCollisions(g, [rectPoly(7.2, 6.7, 0.1, 0.1)]);
   assert.equal(g.tapeBot.tapeJob.phase, 'start');
   assert.equal(trailingTape(g), null, 'the interrupted segment is discarded');
+  assert.ok(g.tapeBot.skip[`${key}:draw:0`] > g.clock, 'an interrupted edge is cooled down instead of retried immediately');
   g.tapeBot.tapeJob = null;
   g.tapes = [{ ...area, key, sig: '', broken: false }];
   stepTapeCollisions(g, []);

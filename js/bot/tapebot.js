@@ -4,7 +4,7 @@ import { BOT_R, CELL, SPEED, WORK_SPEED, botHome, zoneMarkKey, areaMarkKey, zone
 import { currentInspection } from './inspector.js';
 import { stepWorker } from './worker.js';
 import { startSpawn, startDespawn, stepSeq, registerCommit } from './spawn.js';
-import { buildGrid, routeDistance, plan, cellOf } from './nav.js';
+import { buildGrid, routeDistance, plan, cellOf, skipped } from './nav.js';
 
 export const TAPE_BOT_PARTS = [
   [0, -0.16, 0.28, 0.04, 0.03, 0.18, '#303538'],
@@ -102,7 +102,10 @@ export function stepTapeCollisions(g, shapes) {
   const t = job && g.tapes.find((q) => q.key === job.key);
   if (job?.phase === 'draw' && t) {
     const end = toWorld(g.tapeBot, -0.25, 0);
-    if (!t.posts[job.from] || touching(tapeSegment(tapeCorners(t)[job.from], end), shapes)) job.phase = 'start';
+    if (!t.posts[job.from] || touching(tapeSegment(tapeCorners(t)[job.from], end), shapes)) {
+      job.phase = 'start';
+      if (job.edge != null) (g.tapeBot.skip ||= {})[`${job.key}:draw:${job.edge}`] = g.clock + 10;
+    }
   }
 }
 
@@ -204,11 +207,14 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
   }
   const corners = tapeCorners(tape);
   let task = bot.tapeJob;
-  if (!task || task.key !== job.key || (task.edge != null && (tape.edges[task.edge] || tape.wallSides[task.edge] !== null))) {
-    const edge = tape.edges.findIndex((v, i) => !v && tape.wallSides[i] === null);
+  if (!task || task.key !== job.key || (task.edge != null && (tape.edges[task.edge]
+      || tape.wallSides[task.edge] !== null
+      || skipped(g, bot, `${job.key}:draw:${task.edge}`)))) {
+    const edge = tape.edges.findIndex((v, i) => !v && tape.wallSides[i] === null
+      && !skipped(g, bot, `${job.key}:draw:${i}`));
     if (edge < 0) {
       const post = tape.posts.findIndex((v) => !v);
-      if (post < 0) { tape.broken = false; bot.tapeJob = null; return; }
+      if (post < 0) { tape.broken = !tapeComplete(tape); bot.tapeJob = null; return; }
       task = bot.tapeJob = { key: job.key, edge: null, from: post, to: post, phase: 'post' };
     } else {
       const from = tape.posts[edge] ? edge : tape.posts[(edge + 1) % 4] ? (edge + 1) % 4 : edge;
