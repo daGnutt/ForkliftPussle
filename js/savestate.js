@@ -24,6 +24,17 @@ const okPen = (p) => !!p && num(p.crash) && num(p.sq) &&
   (p.inspected === undefined || typeof p.inspected === 'boolean') &&
   (p.oilDropped === undefined || Number.isInteger(p.oilDropped) && p.oilDropped >= 0 && p.oilDropped <= 50) &&
   (p.oilFraction === undefined || num(p.oilFraction) && p.oilFraction >= 0 && p.oilFraction < 1);
+const OLD_BOT_FIELDS = ['activity', 'scared', 'curiosity', 'observing', 'lastView', 'yieldFor', 'yieldPath'];
+// Saves from before the unified bot state machine: drop the legacy fields and let each bot re-evaluate its jobs fresh.
+function migrateBots(g) {
+  for (const k of ['bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot']) {
+    const b = g[k];
+    if (!b) continue;
+    for (const f of OLD_BOT_FIELDS) delete b[f];
+    if (!b.state) b.state = 'loiter';
+  }
+}
+
 const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'oil', 'skidMarks', 'cones', 'tapes', 'repair', 'bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot', 'photo', 'bonks', 'H', 'hy', 'hf', 'status', 'time', 'started', 'clock'];
 
 // Plain-JSON snapshot of a level in progress; the static layout is regenerated from (level, seed, hard).
@@ -102,6 +113,7 @@ export function deserializeGame(data) {
   if (boxes(s.stacks, s.carried, s.fixBot?.carry?.layers) !== boxes(g.stacks, null)) throw new Error('State does not match level');
   Object.assign(g, clone(s));
   if (!g.bot) g.bot = makeBot(g);
+  migrateBots(g);
   restoreInspections(g, data);
   const ph = g.photo; // the observer's last picture; a malformed one is dropped rather than failing the load
   if (ph != null && !(Array.isArray(ph.layers) && Array.isArray(ph.pens) && Array.isArray(ph.rots) && Array.isArray(ph.offs) && num(ph.at?.x) && num(ph.at?.y))) g.photo = null;
@@ -155,6 +167,7 @@ export function deserializeEndless(data) {
   const g = newEndless(data.seed, !!data.hard);
   Object.assign(g, clone(s));
   if (!g.bot) g.bot = makeBot(g);
+  migrateBots(g);
   restoreForkHeight(g, data.hardPhysicsVersion);
   if (!num(g.time)) g.time = 0;
   if (!num(g.bonks)) g.bonks = 0;

@@ -242,4 +242,15 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('sw precache ok');
 }
 
+// Saves from before the bot state machine load with legacy fields dropped and the bots loitering.
+{
+  const g = newGame(3, 0), data = serializeGame(g);
+  Object.assign(data.state.bot, { activity: 'follow', scared: true, curiosity: 3, yieldFor: 'x' });
+  delete data.state.bot.state;
+  const back = deserializeGame(data);
+  assert.equal(back.bot.state, 'loiter');
+  for (const f of ['activity', 'scared', 'curiosity', 'yieldFor']) assert.ok(!(f in back.bot), f);
+  console.log('old bot save ok');
+}
+
 console.log('save tests passed');
