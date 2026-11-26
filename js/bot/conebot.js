@@ -1,7 +1,7 @@
 import { repairable } from '../repair.js';
 import { BOX_HALF_X, halfY, zoneExt } from '../geom.js';
 import { BOT_R, hash, botHome, place, rectDist, circlesOf, truckCircles, STACK_R, zoneMarkKey, zonesInArea, bots } from './common.js';
-import { nearBox, buildGrid, plan, routeDistance, SKIP_SECS, REPLAN, skipped, preferLive } from './nav.js';
+import { nearBox, buildGrid, plan, routeDistances, SKIP_SECS, REPLAN, skipped, preferLive } from './nav.js';
 import { sightHits } from './loiter.js';
 import { tapeCorners } from './tapebot.js';
 import { stepWorker } from './worker.js';
@@ -191,6 +191,7 @@ export function areaComplete(g, area, stackAt, doneZones, wonky) {
   });
 }
 
+const PICK_SECS = 0.5;
 export function stepConeBot(g, dt, doneZones, stackAt) {
   const bot = g.coneBot;
   if (!bot) return;
@@ -207,12 +208,17 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
     const r = STACK_R + BOT_R + 0.5;
     return { x: t.stackCenter.x + dx / d * r, y: t.stackCenter.y + dy / d * r };
   };
-  let grid;
-  const closest = (items, point) => items.reduce((best, item) => {
-    const p = point(item), found = routeDistance(grid ||= buildGrid(g, 0.45, false, bot), bot, p);
-    const d = Number.isFinite(found) ? found : Math.hypot(p.x - bot.x, p.y - bot.y);
-    return !best || d < best.d ? { item, d } : best;
-  }, null)?.item;
+  // One search for all candidates; with a single candidate there is nothing to compare, so no search at all.
+  const closest = (items, point) => {
+    if (items.length <= 1) return items[0];
+    const pts = items.map(point), found = routeDistances(buildGrid(g, 0.45, false, bot), bot, pts);
+    let best = null, bestD = Infinity;
+    items.forEach((item, i) => {
+      const d = Number.isFinite(found[i]) ? found[i] : Math.hypot(pts[i].x - bot.x, pts[i].y - bot.y);
+      if (d < bestD) { best = item; bestD = d; }
+    });
+    return best;
+  };
   const retrieve = (cone) => {
     const target = byId.get(cone.goalId), goal = target ? approach(target, cone) : cone;
     bot.workKey = coneWorkKey({ id: cone.goalId });
@@ -280,7 +286,14 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
   }
   const liveJobs = preferLive(g, bot, jobs, jobKey);
   const currentJobs = liveJobs.filter((job) => job.key === bot.workKey);
-  const selected = closest(currentJobs.length ? currentJobs : liveJobs, (job) => job.point);
+  const pool = currentJobs.length ? currentJobs : liveJobs;
+  // The nearest job is re-evaluated only every PICK_SECS; in between the bot keeps its choice while it is still a live job.
+  let selected = bot.pick && bot.pickUntil > g.clock ? pool.find((job) => jobKey(job) === bot.pick) : null;
+  if (!selected) {
+    selected = closest(pool, (job) => job.point);
+    bot.pick = selected ? jobKey(selected) : null;
+    bot.pickUntil = g.clock + PICK_SECS;
+  }
   if (selected) {
     bot.workKey = selected.key;
     if (selected.type === 'retrieve') retrieve(selected.item);
