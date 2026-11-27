@@ -23,7 +23,7 @@ export const TAPE_BOT_PARTS = [
 export function makeTapeBot(g) {
   if (!g.hatch) return null;
   const home = botHome(g.hatch);
-  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', state: 'loiter', path: [], repath: 0 };
+  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', state: 'loiter', task: null, path: [], repath: 0 };
 }
 
 export const tapeDeploying = (bot) => bot?.tapeJob?.phase === 'draw' && bot.state !== 'flee';
@@ -155,111 +155,142 @@ export function stepTapeBot(g, dt, doneZones, stackAt, wonky, shapes = []) {
   if (!bot) return;
   if (stepSeq(g, bot, dt)) return;
   g.tapes ||= [];
-  const liveAreas = new Map(g.areas.map((a) => [areaMarkKey(a), a]));
-  g.tapes = g.tapes.filter((t) => liveAreas.has(t.key));
-  for (const tape of g.tapes) {
-    initTape(tape, g);
-  }
-  const jobs = [], done = new Set(doneZones.map(zoneMarkKey));
-  for (const [key, area] of liveAreas) {
-    const tape = g.tapes.find((t) => t.key === key), zones = zonesInArea(g, area);
+  if (bot.state === 'flee') { bot.tapeJob = null; stepWorker(g, bot, dt, false, null, null); return; }
+  const actionFor = (area, tape) => {
+    const done = new Set(doneZones.map(zoneMarkKey)), zones = zonesInArea(g, area);
     const valid = zones.length > 0 && zones.every((z) => done.has(zoneMarkKey(z)) && stackAt(z));
     const reports = valid ? zones.map((z) => currentInspection(g, z, stackAt(z))) : [];
-    if (tape && (!valid || reports.some((p) => p?.ok === false))) jobs.push({ key, area, action: 'remove' });
+    if (tape && (!valid || reports.some((p) => p?.ok === false))) return 'remove';
     else if (valid && reports.every((p) => p?.ok === true)) {
-      if (tape?.broken) jobs.push({ key, area, action: 'repair' });
-      else if (!tape) jobs.push({ key, area, action: 'install' });
+      if (tape?.broken) return 'repair';
+      if (!tape) return 'install';
     }
-  }
-  const currentKey = bot.workKey || bot.tapeJob?.key;
+    return null;
+  };
   let gridMemo;
-  const grid = () => gridMemo ||= buildGrid(g, 0.45, true, bot); // built only when a job needs routing
-  const job = jobs.find((j) => j.key === currentKey) || jobs.reduce((best, j) => {
-    const point = { x: j.area.x + j.area.w / 2, y: j.area.y + j.area.h / 2 };
-    const found = routeDistance(grid(), bot, point);
-    const d = Number.isFinite(found) ? found : Math.hypot(point.x - bot.x, point.y - bot.y);
-    return !best || d < best.d ? { job: j, d } : best;
-  }, null)?.job;
-  if (!job) { bot.tapeJob = null; bot.workKey = null; bot.debugTask = null; stepWorker(g, bot, dt, false, null, null); return; }
-  bot.workKey = job.key;
-  bot.debugTask = `${job.action === 'remove' ? 'removing tape from' : 'taping'} zone ${g.areas.indexOf(job.area) + 1}`;
-  let tape = g.tapes.find((t) => t.key === job.key);
-  if (job.action === 'remove') {
-    const task = bot.tapeJob;
-    let post = task?.phase === 'remove' && task.key === job.key && tape.posts[task.from] ? task.from : tape.posts.findIndex(Boolean);
-    if (post < 0) { g.tapes = g.tapes.filter((t) => t !== tape); bot.tapeJob = null; return; }
-    bot.tapeJob = { key: job.key, edge: null, from: post, to: post, phase: 'remove' };
-    const corners = tapeCorners(tape), corner = corners[post];
-    const dx = corner.x - (tape.x + tape.w / 2), dy = corner.y - (tape.y + tape.h / 2), dist = Math.hypot(dx, dy) || 1;
-    const goal = {
-      x: Math.max(BOT_R + 0.1, Math.min(g.w - BOT_R - 0.1, corner.x + dx / dist * 0.55)),
-      y: Math.max(BOT_R + 0.1, Math.min(g.h - BOT_R - 0.1, corner.y + dy / dist * 0.55)),
-    };
-    stepWorker(g, bot, dt, true, goal, `remove:${job.key}:${post}`);
-    if (bot.state === 'flee' || bot.show !== 1 || Math.hypot(bot.x - goal.x, bot.y - goal.y) >= 0.35 || bot.path.length) return;
-    startDespawn(bot, { commit: 'post', data: { key: job.key, from: post }, at: corner });
-    return;
-  }
-  if (!tape) {
-    tape = { key: job.key, color: job.area.color, x: job.area.x, y: job.area.y, w: job.area.w, h: job.area.h,
-      sig: '', broken: true, posts: [false, false, false, false], edges: [false, false, false, false] }; // sig is retained for save compatibility
-    initTape(tape, g);
-    g.tapes.push(tape);
-  }
-  const corners = tapeCorners(tape);
-  let task = bot.tapeJob;
-  if (!task || task.key !== job.key || (task.edge != null && (tape.edges[task.edge]
-      || tape.wallSides[task.edge] !== null
-      || skipped(g, bot, `${job.key}:draw:${task.edge}`)))) {
-    const edge = tape.edges.findIndex((v, i) => !v && tape.wallSides[i] === null
-      && !skipped(g, bot, `${job.key}:draw:${i}`));
-    if (edge < 0) {
-      const post = tape.posts.findIndex((v) => !v);
-      if (post < 0) { tape.broken = !tapeComplete(tape); bot.tapeJob = null; return; }
-      task = bot.tapeJob = { key: job.key, edge: null, from: post, to: post, phase: 'post' };
+  const grid = () => gridMemo ||= buildGrid(g, 0.45, true, bot);
+  if (!bot.task) {
+    const liveAreas = new Map(g.areas.map((a) => [areaMarkKey(a), a]));
+    g.tapes = g.tapes.filter((t) => liveAreas.has(t.key));
+    for (const tape of g.tapes) initTape(tape, g);
+    const jobs = [];
+    for (const [key, area] of liveAreas) {
+      const tape = g.tapes.find((t) => t.key === key), action = actionFor(area, tape);
+      const available = !tape || (action === 'remove'
+        ? !tape.posts.some(Boolean) || tape.posts.some((v, i) => v && !skipped(g, bot, `remove:${key}:${i}`))
+        : tape.edges.some((v, i) => !v && tape.wallSides[i] === null && !skipped(g, bot, `${key}:draw:${i}`))
+          || tape.posts.some((v, i) => !v && !skipped(g, bot, `${key}:post:${i}`)));
+      if (action && available) jobs.push({ key, area, action });
+    }
+    const currentKey = bot.workKey || bot.tapeJob?.key;
+    const job = jobs.find((j) => j.key === currentKey) || jobs.reduce((best, j) => {
+      const point = { x: j.area.x + j.area.w / 2, y: j.area.y + j.area.h / 2 };
+      const found = routeDistance(grid(), bot, point);
+      const d = Number.isFinite(found) ? found : Math.hypot(point.x - bot.x, point.y - bot.y);
+      return !best || d < best.d ? { job: j, d } : best;
+    }, null)?.job;
+    if (!job) { bot.tapeJob = null; bot.workKey = null; bot.debugTask = null; stepWorker(g, bot, dt, false, null, null); return; }
+    bot.workKey = job.key;
+    bot.debugTask = `${job.action === 'remove' ? 'removing tape from' : 'taping'} zone ${g.areas.indexOf(job.area) + 1}`;
+    let tape = g.tapes.find((t) => t.key === job.key);
+    if (job.action === 'remove') {
+      const task = bot.tapeJob;
+      let post = task?.phase === 'remove' && task.key === job.key && tape.posts[task.from] && !skipped(g, bot, `remove:${job.key}:${task.from}`)
+        ? task.from : tape.posts.findIndex((v, i) => v && !skipped(g, bot, `remove:${job.key}:${i}`));
+      if (post < 0) {
+        if (!tape.posts.some(Boolean)) g.tapes = g.tapes.filter((t) => t !== tape);
+        bot.tapeJob = null; stepWorker(g, bot, dt, false, null, null); return;
+      }
+      bot.tapeJob = { key: job.key, edge: null, from: post, to: post, phase: 'remove' };
+      const corners = tapeCorners(tape), corner = corners[post];
+      const dx = corner.x - (tape.x + tape.w / 2), dy = corner.y - (tape.y + tape.h / 2), dist = Math.hypot(dx, dy) || 1;
+      const goal = {
+        x: Math.max(BOT_R + 0.1, Math.min(g.w - BOT_R - 0.1, corner.x + dx / dist * 0.55)),
+        y: Math.max(BOT_R + 0.1, Math.min(g.h - BOT_R - 0.1, corner.y + dy / dist * 0.55)),
+      };
+      bot.task = { type: 'remove', key: `remove:${job.key}:${post}`, areaKey: job.key, id: post, goal, corner: { ...corner }, exists: true };
     } else {
-      const from = tape.posts[edge] ? edge : tape.posts[(edge + 1) % 4] ? (edge + 1) % 4 : edge;
-      const to = from === edge ? (edge + 1) % 4 : edge;
-      task = bot.tapeJob = { key: job.key, edge, from, to, phase: 'start' };
+      if (!tape) {
+        tape = { key: job.key, color: job.area.color, x: job.area.x, y: job.area.y, w: job.area.w, h: job.area.h,
+          sig: '', broken: true, posts: [false, false, false, false], edges: [false, false, false, false] }; // sig is retained for save compatibility
+        initTape(tape, g);
+        g.tapes.push(tape);
+      }
+      const corners = tapeCorners(tape);
+      let task = bot.tapeJob;
+      if (!task || task.key !== job.key || (task.edge != null && (tape.edges[task.edge]
+          || tape.wallSides[task.edge] !== null
+          || skipped(g, bot, `${job.key}:draw:${task.edge}`)))) {
+        const edge = tape.edges.findIndex((v, i) => !v && tape.wallSides[i] === null
+          && !skipped(g, bot, `${job.key}:draw:${i}`));
+        if (edge < 0) {
+          const post = tape.posts.findIndex((v, i) => !v && !skipped(g, bot, `${job.key}:post:${i}`));
+          if (post < 0) { tape.broken = !tapeComplete(tape); bot.tapeJob = null; stepWorker(g, bot, dt, false, null, null); return; }
+          task = bot.tapeJob = { key: job.key, edge: null, from: post, to: post, phase: 'post' };
+        } else {
+          const from = tape.posts[edge] ? edge : tape.posts[(edge + 1) % 4] ? (edge + 1) % 4 : edge;
+          const to = from === edge ? (edge + 1) % 4 : edge;
+          task = bot.tapeJob = { key: job.key, edge, from, to, phase: 'start' };
+        }
+      }
+      const index = task.phase === 'start' || task.phase === 'post' ? task.from : task.to;
+      const corner = corners[index];
+      // A missing post is spawned under the bot, so it stands on the corner itself; an existing post is approached from outside.
+      const exists = tape.posts[index], dx = corner.x - (tape.x + tape.w / 2), dy = corner.y - (tape.y + tape.h / 2), dist = Math.hypot(dx, dy) || 1;
+      const lim = (v, max) => Math.max(BOT_R + 0.1, Math.min(max - BOT_R - 0.1, v));
+      const goal = { x: lim(corner.x + (exists ? dx / dist * 0.55 : 0), g.w), y: lim(corner.y + (exists ? dy / dist * 0.55 : 0), g.h) };
+      bot.task = { type: task.phase, key: `${job.key}:${task.phase}:${index}`, areaKey: job.key,
+        skipKey: task.edge == null ? `${job.key}:post:${index}` : `${job.key}:draw:${task.edge}`,
+        action: job.action, id: index, goal, corner: { ...corner }, exists, from: task.from, to: task.to, edge: task.edge };
     }
   }
-  const index = task.phase === 'start' || task.phase === 'post' ? task.from : task.to;
-  const corner = corners[index];
-  // A missing post is spawned under the bot, so it stands on the corner itself; an existing post is approached from outside.
-  const exists = tape.posts[index], dx = corner.x - (tape.x + tape.w / 2), dy = corner.y - (tape.y + tape.h / 2), dist = Math.hypot(dx, dy) || 1;
-  const lim = (v, max) => Math.max(BOT_R + 0.1, Math.min(max - BOT_R - 0.1, v));
-  const goal = { x: lim(corner.x + (exists ? dx / dist * 0.55 : 0), g.w), y: lim(corner.y + (exists ? dy / dist * 0.55 : 0), g.h) };
+  const task = bot.task, goal = task.goal;
   const distance = Math.hypot(bot.x - goal.x, bot.y - goal.y);
-  if (!exists && distance > 0.2 && distance < (task.bestDist ?? Infinity) - 0.02) {
-    task.bestDist = distance;
-    task.blocked = 0;
-  } else if (!exists && distance > 0.2) task.blocked = (task.blocked || 0) + dt;
+  if (!task.exists && distance > 0.2 && distance < (task.bestDist ?? Infinity) - 0.02) {
+    task.bestDist = distance; task.blocked = 0;
+  } else if (!task.exists && distance > 0.2) task.blocked = (task.blocked || 0) + dt;
   else task.blocked = 0;
-  stepWorker(g, bot, dt, true, goal, `${job.key}:${task.phase}:${index}`);
-  if (!exists && task.blocked > 3) {
+  stepWorker(g, bot, dt, true, goal, task.key);
+  if (bot.task !== task || bot.state === 'flee') { if (!bot.task) bot.tapeJob = null; return; }
+  if (!task.exists && task.blocked > 3 && !bot.passing && !(bot.blockWait > 0)) {
     const safe = nearestReachable(grid(), bot, goal);
-    task.blocked = 0;
-    if (safe) {
-      // Move only the unreachable post; the tape outline then follows its adjusted corners.
-      (tape.postPoints ||= [null, null, null, null])[index] = safe;
-      delete task.bestDist;
+    const tape = g.tapes.find((t) => t.key === task.areaKey);
+    if (safe && tape) {
+      bot.task = null;
+      (tape.postPoints ||= [null, null, null, null])[task.id] = safe;
       bot.path = []; bot.planKey = null; bot.repath = 0;
       return;
     }
+    task.blocked = 0;
   }
-  if (bot.state === 'flee') { if (task.edge != null) task.phase = 'start'; return; }
   // Something (e.g. a cone) can keep the bot off a corner; after standing still for a second it settles for a spot beside it.
   const still = bot.still?.x === bot.x && bot.still?.y === bot.y ? bot.still.t + dt : 0;
   bot.still = { x: bot.x, y: bot.y, t: still };
-  const reach = exists ? 0.35 : still > 1 ? 0.75 : 0.2;
+  const reach = task.exists ? 0.35 : still > 1 ? 0.75 : 0.2;
   if (bot.show !== 1 || Math.hypot(bot.x - goal.x, bot.y - goal.y) >= reach || bot.path.length) return;
-  if (touching(postPoly(corner), shapes)) return;
-  const spawn = (mode) => startSpawn(bot, { at: corner, size: POST_R * 2, commit: 'post', speed: tapeDeploying(bot) ? WORK_SPEED : SPEED,
-    data: { key: job.key, mode, from: task.from, to: task.to, edge: task.edge } });
-  if (task.phase === 'post') spawn('post');
-  else if (task.phase === 'start') { if (exists) task.phase = 'draw'; else spawn('start'); }
+  const tape = g.tapes.find((t) => t.key === task.areaKey), area = g.areas.find((a) => areaMarkKey(a) === task.areaKey);
+  const action = area && actionFor(area, tape);
+  const corner = tape && tapeCorners(tape)[task.id];
+  if (!tape || !area || !corner || Math.hypot(corner.x - task.corner.x, corner.y - task.corner.y) >= 0.22
+      || (task.type === 'remove' ? action !== 'remove' || !tape.posts[task.id]
+        : !['install', 'repair'].includes(action) || tape.posts[task.id] !== task.exists
+          || bot.tapeJob?.phase !== task.type || (task.edge != null && (tape.edges[task.edge] || tape.wallSides[task.edge] !== null || skipped(g, bot, `${task.areaKey}:draw:${task.edge}`))))) {
+    bot.task = null; bot.tapeJob = null; bot.debugTask = null; return;
+  }
+  if (touching(postPoly(task.corner), shapes)) return;
+  if (task.type === 'remove') {
+    bot.task = null;
+    startDespawn(bot, { commit: 'post', data: { key: task.areaKey, from: task.id }, at: task.corner });
+    return;
+  }
+  const corners = tapeCorners(tape);
+  const spawn = (mode) => startSpawn(bot, { at: task.corner, size: POST_R * 2, commit: 'post', speed: tapeDeploying(bot) ? WORK_SPEED : SPEED,
+    data: { key: task.areaKey, mode, from: task.from, to: task.to, edge: task.edge } });
+  if (task.type === 'post') { bot.task = null; spawn('post'); }
+  else if (task.type === 'start') { bot.task = null; if (task.exists) bot.tapeJob.phase = 'draw'; else spawn('start'); }
   else if (tape.posts[task.from] && !touching(tapeSegment(corners[task.from], corner), shapes)) {
-    if (!exists) spawn('end');
+    bot.task = null;
+    if (!task.exists) spawn('end');
     else {
       tape.edges[task.edge] = true;
       tape.broken = !tapeComplete(tape);

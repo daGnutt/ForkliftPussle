@@ -10,7 +10,7 @@ import { startSpawn, startDespawn, stepSeq, registerCommit } from './spawn.js';
 export function makeConeBot(g) {
   if (!g.hatch) return null;
   const home = botHome(g.hatch);
-  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', state: 'loiter', path: [], repath: 0 };
+  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', state: 'loiter', task: null, path: [], repath: 0 };
 }
 
 // Shared cone-bot prisms: local centre, half sizes, height range, colour and optional emissive flag.
@@ -80,20 +80,23 @@ export function stepConeCollisions(g) {
   }
 }
 // reconciled against these stable IDs, so a moving truck naturally takes its markings with it.
-export function coneTargets(g, doneZones, stackAt = (z) => g.stacks.find((s) => Math.hypot(s.x - z.x, s.y - z.y) < 0.5), markedZones = doneZones) {
+export function coneTargets(g, doneZones, stackAt = (z) => g.stacks.find((s) => Math.hypot(s.x - z.x, s.y - z.y) < 0.5), markedZones = doneZones, onlyId = null) {
   const targets = new Map();
+  const addTarget = (id, target) => { if (!onlyId || id === onlyId) targets.set(id, target); };
   const tapedAreas = (g.tapes || []).filter((t) => !t.broken).map((t) => {
     const corners = tapeCorners(t);
     return { x0: corners[0].x, x1: corners[1].x, y0: corners[0].y, y1: corners[2].y };
   });
   for (const spill of g.oil || []) {
+    if (onlyId && !onlyId.startsWith(`spill:${spill.id}:`)) continue;
     for (let i = 0; i < 4; i++) {
       const a = i * Math.PI / 2;
       const id = `spill:${spill.id}:${i}`;
-      targets.set(id, { id, x: spill.x + Math.cos(a) * (spill.r + 0.35), y: spill.y + Math.sin(a) * (spill.r + 0.35) });
+      addTarget(id, { id, x: spill.x + Math.cos(a) * (spill.r + 0.35), y: spill.y + Math.sin(a) * (spill.r + 0.35) });
     }
   }
   for (const z of markedZones) {
+    if (onlyId && !onlyId.startsWith(`stack:${zoneMarkKey(z)}:`)) continue;
     const stack = stackAt(z);
     if (!stack) continue;
     const angle = stack.rots?.[0] ?? stack.a ?? 0;
@@ -101,7 +104,7 @@ export function coneTargets(g, doneZones, stackAt = (z) => g.stacks.find((s) => 
     const neighbours = g.zones.filter((other) => other !== z);
     const add = (id, x, y) => {
       const d = Math.hypot(x - stack.x, y - stack.y) || 1, standR = STACK_R + BOT_R + 0.5;
-      targets.set(id, { id, x, y, stackCenter: { x: stack.x, y: stack.y }, approach: { x: stack.x + (x - stack.x) / d * standR, y: stack.y + (y - stack.y) / d * standR } });
+      addTarget(id, { id, x, y, stackCenter: { x: stack.x, y: stack.y }, approach: { x: stack.x + (x - stack.x) / d * standR, y: stack.y + (y - stack.y) / d * standR } });
     };
     for (let i = 0; i < 4; i++) {
       const sx = i & 1 ? 1 : -1, sy = i & 2 ? 1 : -1;
@@ -122,15 +125,17 @@ export function coneTargets(g, doneZones, stackAt = (z) => g.stacks.find((s) => 
       const sx = i & 1 ? 1 : -1, sy = i & 2 ? 1 : -1;
       const cx = x + sx * hx * Math.cos(angle) - sy * hy * Math.sin(angle), cy = y + sx * hx * Math.sin(angle) + sy * hy * Math.cos(angle);
       const d = Math.hypot(cx - x, cy - y) || 1, standR = STACK_R + BOT_R + 0.5;
-      targets.set(`${id}:${i}`, { id: `${id}:${i}`, x: cx, y: cy, stackCenter: { x, y }, approach: { x: x + (cx - x) / d * standR, y: y + (cy - y) / d * standR } });
+      addTarget(`${id}:${i}`, { id: `${id}:${i}`, x: cx, y: cy, stackCenter: { x, y }, approach: { x: x + (cx - x) / d * standR, y: y + (cy - y) / d * standR } });
     }
   };
   for (const stack of g.stacks) {
     const pen = stack.pen?.[0];
     if (!pen || stack.roll || stack.fall) continue;
-    if (pen.tip) hazard(`tip:${stack.x.toFixed(1)},${stack.y.toFixed(1)}`, stack.x, stack.y, stack.rots?.[0] ?? stack.a ?? 0, pen);
+    const tipId = `tip:${stack.x.toFixed(1)},${stack.y.toFixed(1)}`;
+    if (pen.tip && (!onlyId || onlyId.startsWith(`${tipId}:`))) hazard(tipId, stack.x, stack.y, stack.rots?.[0] ?? stack.a ?? 0, pen);
     const l = pen.loose;
-    if (l && !l.lift) hazard(`pallet:${l.x.toFixed(1)},${l.y.toFixed(1)}`, l.x, l.y, l.a, pen);
+    const palletId = l && `pallet:${l.x.toFixed(1)},${l.y.toFixed(1)}`;
+    if (l && !l.lift && (!onlyId || onlyId.startsWith(`${palletId}:`))) hazard(palletId, l.x, l.y, l.a, pen);
   }
   const unique = [];
   for (const target of targets.values()) {
@@ -170,7 +175,7 @@ export function conePlacement(g, bot, target) {
 registerCommit('cone', (g, bot, s, phase) => {
   const d = s.data;
   if (phase === 'despawn') {
-    const i = g.cones.findIndex((c) => c.id === d.id);
+    const i = g.cones.findIndex((c) => c.id === d.id && Math.hypot(c.x - s.at.x, c.y - s.at.y) < 0.22);
     if (i >= 0) g.cones.splice(i, 1);
     return;
   }
@@ -191,16 +196,13 @@ export function areaComplete(g, area, stackAt, doneZones, wonky) {
   });
 }
 
-const PICK_SECS = 0.5;
 export function stepConeBot(g, dt, doneZones, stackAt) {
   const bot = g.coneBot;
   if (!bot) return;
   if (bot.carried) bot.carried = null;
   if (stepSeq(g, bot, dt)) return;
   g.cones ||= [];
-  const seen = new Set(g.inspector?.seen || []);
-  const targets = coneTargets(g, doneZones, stackAt, doneZones.filter((z) => seen.has(zoneMarkKey(z))));
-  const byId = new Map(targets.map((t) => [t.id, t]));
+  if (bot.state === 'flee') { stepWorker(g, bot, dt, false, null, null); return; }
   const approach = (t, cone = t) => {
     if (!t.stackCenter) return cone === t ? t : cone;
     const dx = cone.x - t.stackCenter.x, dy = cone.y - t.stackCenter.y, d = Math.hypot(dx, dy) || 1;
@@ -208,99 +210,102 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
     const r = STACK_R + BOT_R + 0.5;
     return { x: t.stackCenter.x + dx / d * r, y: t.stackCenter.y + dy / d * r };
   };
-  // One search for all candidates; with a single candidate there is nothing to compare, so no search at all.
-  const closest = (items, point) => {
-    if (items.length <= 1) return items[0];
-    const pts = items.map(point), found = routeDistances(buildGrid(g, 0.45, false, bot), bot, pts);
-    let best = null, bestD = Infinity;
-    items.forEach((item, i) => {
-      const d = Number.isFinite(found[i]) ? found[i] : Math.hypot(pts[i].x - bot.x, pts[i].y - bot.y);
-      if (d < bestD) { best = item; bestD = d; }
-    });
-    return best;
-  };
-  const retrieve = (cone) => {
-    const target = byId.get(cone.goalId), goal = target ? approach(target, cone) : cone;
-    bot.workKey = coneWorkKey({ id: cone.goalId });
-    bot.debugTask = 'retrieving cone';
-    stepWorker(g, bot, dt, true, goal, `pickup:${cone.goalId}`);
-    if (Math.hypot(bot.x - goal.x, bot.y - goal.y) < 0.7 && !bot.path.length && bot.state !== 'flee') {
-      startDespawn(bot, { commit: 'cone', data: { id: cone.id }, at: cone });
-    } else if (bot.show === 1 && bot.state !== 'flee' && !bot.path.length && bot.repath <= REPLAN) {
-      (bot.skip ||= {})[`cone:${cone.id}`] = g.clock + SKIP_SECS;
-    }
-  };
-  const place = (target, old = null) => {
-    bot.workKey = coneWorkKey(target);
-    bot.debugTask = 'placing cone';
-    let job = bot.conePlan;
-    if (!job || job.id !== target.id || job.old !== (old?.id || null)
-        || job.until <= g.clock || Math.hypot(job.target.x - target.x, job.target.y - target.y) >= 0.22) {
-      const placement = conePlacement(g, bot, target);
-      job = bot.conePlan = { ...placement, id: target.id, old: old?.id || null,
-        target: { x: target.x, y: target.y }, until: g.clock + CONE_PLAN_SECS };
-      bot.repath = 0;
-      if (old && (!job.goal || Math.hypot(job.spot.x - old.x, job.spot.y - old.y) < CONE_R * 2
-          || Math.hypot(job.spot.x - target.x, job.spot.y - target.y) >= Math.hypot(old.x - target.x, old.y - target.y) - 0.22)) {
-        old.retryAt = g.clock + CONE_RETRY_SECS;
-        bot.conePlan = null;
-        stepWorker(g, bot, dt, false, null, null);
-        return;
+  const jobKey = (job) => job.type === 'retrieve' ? `cone:${job.item.id}` : `place:${job.item.id}`;
+  const findJobs = () => {
+    const seen = new Set(g.inspector?.seen || []);
+    const targets = coneTargets(g, doneZones, stackAt, doneZones.filter((z) => seen.has(zoneMarkKey(z))));
+    const byId = new Map(targets.map((t) => [t.id, t]));
+    const good = new Set();
+    const accepted = new Set();
+    for (const c of g.cones) {
+      const t = byId.get(c.goalId);
+      if (t && c.misplaced && Math.hypot(c.x - t.x, c.y - t.y) < 0.22) c.misplaced = false;
+      const unmoved = c.placedX == null || Math.hypot(c.x - c.placedX, c.y - c.placedY) < 0.22;
+      if (t && !c.retire && !c.tipped && !c.squished && ((c.misplaced && unmoved) || Math.hypot(c.x - t.x, c.y - t.y) < 0.22) && !good.has(c.goalId)) {
+        good.add(c.goalId); accepted.add(c);
       }
     }
-    if (!job.goal) { stepWorker(g, bot, dt, true, approach(target), `place:${target.id}`); return; }
-    stepWorker(g, bot, dt, true, job.goal, `place:${target.id}`);
-    if (bot.show === 1 && Math.hypot(bot.x - job.goal.x, bot.y - job.goal.y) < 0.2 && !bot.path.length && bot.state !== 'flee'
-        && clearConeSpot(g, job.spot)) {
-      bot.coneSeq = (bot.coneSeq || 0) + 1;
-      startSpawn(bot, { commit: 'cone', size: CONE_R * 2,
-        data: { id: `cone:${target.id}:${bot.coneSeq}`, goalId: target.id, old: old?.id || null, misplaced: job.misplaced } });
-      bot.conePlan = null;
+    const invalid = g.cones.filter((c) => !accepted.has(c));
+    const missing = targets.filter((t) => !good.has(t.id));
+    const jobs = [
+      ...invalid.map((cone) => {
+        const target = byId.get(cone.goalId);
+        return { type: 'retrieve', item: cone, key: coneWorkKey({ id: cone.goalId }), point: target ? approach(target, cone) : cone };
+      }),
+      ...missing.map((target) => ({ type: 'place', item: target, key: coneWorkKey(target), point: approach(target) })),
+    ];
+    if (!jobs.some((job) => !skipped(g, bot, jobKey(job)))) for (const cone of accepted) {
+      if (cone.misplaced && (cone.retryAt ?? 0) <= g.clock) {
+        const target = byId.get(cone.goalId);
+        jobs.push({ type: 'improve', item: target, cone, key: coneWorkKey(target), point: approach(target) });
+      }
     }
+    return jobs;
   };
-  const good = new Set();
-  const accepted = new Set();
-  for (const c of g.cones) {
-    const t = byId.get(c.goalId);
-    if (t && c.misplaced && Math.hypot(c.x - t.x, c.y - t.y) < 0.22) c.misplaced = false;
-    const unmoved = c.placedX == null || Math.hypot(c.x - c.placedX, c.y - c.placedY) < 0.22;
-    if (t && !c.retire && !c.tipped && !c.squished && ((c.misplaced && unmoved) || Math.hypot(c.x - t.x, c.y - t.y) < 0.22) && !good.has(c.goalId)) {
-      good.add(c.goalId); accepted.add(c);
+  if (!bot.task) {
+    const jobs = preferLive(g, bot, findJobs(), jobKey);
+    const current = jobs.filter((job) => job.key === bot.workKey);
+    const pool = current.length ? current : jobs;
+    let selected = pool[0];
+    if (pool.length > 1) {
+      const points = pool.map((job) => job.point), distances = routeDistances(buildGrid(g, 0.45, false, bot), bot, points);
+      let best = Infinity;
+      pool.forEach((job, i) => {
+        const d = Number.isFinite(distances[i]) ? distances[i] : Math.hypot(points[i].x - bot.x, points[i].y - bot.y);
+        if (d < best) { best = d; selected = job; }
+      });
     }
-  }
-  const invalid = g.cones.filter((c) => !accepted.has(c));
-  const missing = targets.filter((t) => !good.has(t.id));
-  const jobs = [
-    ...invalid.map((cone) => {
-      const target = byId.get(cone.goalId);
-      return { type: 'retrieve', item: cone, key: coneWorkKey({ id: cone.goalId }), point: target ? approach(target, cone) : cone };
-    }),
-    ...missing.map((target) => ({ type: 'place', item: target, key: coneWorkKey(target), point: approach(target) })),
-  ];
-  const jobKey = (job) => job.type === 'retrieve' ? `cone:${job.item.id}` : `place:${job.item.id}`;
-  if (!jobs.some((job) => !skipped(g, bot, jobKey(job)))) for (const cone of accepted) {
-    if (cone.misplaced && (cone.retryAt ?? 0) <= g.clock) {
-      const target = byId.get(cone.goalId);
-      jobs.push({ type: 'improve', item: target, cone, key: coneWorkKey(target), point: approach(target) });
+    if (!selected) {
+      bot.workKey = null; bot.debugTask = null;
+      stepWorker(g, bot, dt, false, null, null);
+      return;
     }
-  }
-  const liveJobs = preferLive(g, bot, jobs, jobKey);
-  const currentJobs = liveJobs.filter((job) => job.key === bot.workKey);
-  const pool = currentJobs.length ? currentJobs : liveJobs;
-  // The nearest job is re-evaluated only every PICK_SECS; in between the bot keeps its choice while it is still a live job.
-  let selected = bot.pick && bot.pickUntil > g.clock ? pool.find((job) => jobKey(job) === bot.pick) : null;
-  if (!selected) {
-    selected = closest(pool, (job) => job.point);
-    bot.pick = selected ? jobKey(selected) : null;
-    bot.pickUntil = g.clock + PICK_SECS;
-  }
-  if (selected) {
+    if (bot.show !== 1) { stepWorker(g, bot, dt, true, null, null); return; }
+    const placement = selected.type === 'retrieve' ? null : conePlacement(g, bot, selected.item);
+    if (selected.cone && (!placement || Math.hypot(placement.spot.x - selected.cone.x, placement.spot.y - selected.cone.y) < CONE_R * 2
+        || Math.hypot(placement.spot.x - selected.item.x, placement.spot.y - selected.item.y) >= Math.hypot(selected.cone.x - selected.item.x, selected.cone.y - selected.item.y) - 0.22)) {
+      selected.cone.retryAt = g.clock + CONE_RETRY_SECS;
+      stepWorker(g, bot, dt, false, null, null);
+      return;
+    }
+    if (!placement && selected.type !== 'retrieve') {
+      (bot.skip ||= {})[jobKey(selected)] = g.clock + SKIP_SECS;
+      stepWorker(g, bot, dt, false, null, null);
+      return;
+    }
     bot.workKey = selected.key;
-    if (selected.type === 'retrieve') retrieve(selected.item);
-    else place(selected.item, selected.cone);
+    bot.task = { type: selected.type, key: jobKey(selected), id: selected.item.id,
+      target: { x: selected.item.x, y: selected.item.y },
+      goal: { x: (placement?.goal || selected.point).x, y: (placement?.goal || selected.point).y },
+      old: selected.cone?.id || null, misplaced: placement?.misplaced };
+  }
+  const task = bot.task;
+  bot.debugTask = task.type === 'retrieve' ? 'retrieving cone' : 'placing cone';
+  stepWorker(g, bot, dt, true, task.goal, task.key);
+  if (bot.task !== task || bot.state === 'flee' || bot.show !== 1 || bot.path.length) return;
+  const distance = Math.hypot(bot.x - task.goal.x, bot.y - task.goal.y);
+  if (distance >= (task.type === 'retrieve' ? 0.7 : 0.2)) {
+    if (task.type === 'retrieve' && bot.repath <= REPLAN) { (bot.skip ||= {})[task.key] = g.clock + SKIP_SECS; bot.task = null; }
     return;
   }
-  bot.workKey = null;
-  bot.debugTask = null;
-  stepWorker(g, bot, dt, false, null, null);
+  const cone = task.type === 'retrieve' && g.cones.find((c) => c.id === task.id);
+  const id = task.type === 'retrieve' ? cone?.goalId : task.id;
+  const seen = new Set(g.inspector?.seen || []);
+  const target = id && coneTargets(g, doneZones, stackAt, doneZones.filter((z) => seen.has(zoneMarkKey(z))), id)[0];
+  const good = (c) => target && !c.retire && !c.tipped && !c.squished
+    && ((c.misplaced && (c.placedX == null || Math.hypot(c.x - c.placedX, c.y - c.placedY) < 0.22))
+      || Math.hypot(c.x - target.x, c.y - target.y) < 0.22);
+  const firstGood = g.cones.find((c) => c.goalId === id && good(c));
+  const valid = task.type === 'retrieve'
+    ? cone && Math.hypot(cone.x - task.target.x, cone.y - task.target.y) < 0.22 && firstGood !== cone
+    : target && Math.hypot(target.x - task.target.x, target.y - task.target.y) < 0.22
+      && (task.type === 'improve' ? firstGood?.id === task.old : !firstGood);
+  bot.task = null;
+  if (!valid) return;
+  if (task.type === 'retrieve') startDespawn(bot, { commit: 'cone', data: { id: task.id }, at: task.target });
+  else if (clearConeSpot(g, task.goal)) {
+    bot.coneSeq = (bot.coneSeq || 0) + 1;
+    startSpawn(bot, { commit: 'cone', size: CONE_R * 2, at: task.goal,
+      data: { id: `cone:${task.id}:${bot.coneSeq}`, goalId: task.id, old: task.old, misplaced: task.misplaced } });
+  } else (bot.skip ||= {})[task.key] = g.clock + SKIP_SECS;
 }

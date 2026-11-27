@@ -1,13 +1,13 @@
 import { repairable } from '../repair.js';
 import { SPEED, turnTo, botHome } from './common.js';
-import { buildGrid, plan, pathLength, REPLAN, blockedAhead, followPath, pushOut } from './nav.js';
+import { buildGrid, plan, pathLength, REPLAN, KEEP_ROUTE, blockedAhead, followPath, pushOut, watchStuck, skipped } from './nav.js';
 import { stepHead, settle } from './state.js';
 
 // The inspection bot: photographs every completed drop point once (`seen` holds the keys of inspected zones).
 export function makeInspector(g) {
   if (!g.hatch) return null;
   const home = botHome(g.hatch);
-  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', shooting: 0, flash: 0, roll: 0, state: 'loiter', path: [], repath: 0, seen: [] };
+  return { x: home.x, y: home.y, a: g.hatch.a, show: 0, mode: 'hidden', shooting: 0, flash: 0, roll: 0, state: 'loiter', task: null, path: [], repath: 0, seen: [] };
 }
 // ---- Inspection bot ----
 export const CORNER_WEIGHT = 12, PHOTO_DIST = 1.4, BOX_SECS = 1.2, FLASH_SECS = 0.35;
@@ -78,22 +78,17 @@ export function stepInspector(g, dt, done, stackAt, wonky) {
   bot.roll = ((bot.roll || 0) + ((bot.x - x) * Math.cos(bot.a) + (bot.y - y) * Math.sin(bot.a)) / WHEEL_R) % (Math.PI * 2);
 }
 
-// Inspector targeting: pick the nearest reachable pending drop point, pathfind to it and go. Obstacles that appear on the route are ignored until
-// the bot actually meets one (then it picks a target afresh); a forklift driving towards it makes it run away first, then it picks afresh.
+// Inspector targeting: commit to the nearest reachable pending drop point and its viewing position.
 export function inspectorStep(g, dt, done, stackAt, wonky) {
   const bot = g.inspector;
   if (!bot || !g.hatch) return;
-  const todo = pendingZones(g, done, stackAt);
+  if (!bot.task) { bot.target = null; bot.shooting = 0; }
   bot.flash = Math.max(0, bot.flash - dt / FLASH_SECS);
-  if (bot.recoveryUntil && bot.recoveryUntil <= g.clock) {
-    bot.target = null; bot.planKey = null; bot.shooting = 0; bot.path = []; bot.repath = 0; bot.recoveryUntil = 0;
-  }
-  if (bot.target && !todo.some((z) => zoneKey(z) === bot.target)) { bot.target = null; bot.planKey = null; bot.shooting = 0; bot.path = []; }
   bot.goal = null;
-  if (stepHead(g, bot, dt, todo.length > 0)) return;
-  const speed = SPEED;
-  if (bot.target && blockedAhead(g, bot)) { bot.target = null; bot.planKey = null; bot.path = []; bot.shooting = 0; bot.repath = 0; } // met the obstacle: pick again
-  if (!bot.target && bot.repath <= 0) {
+  let todo = [];
+  if (!bot.task && bot.state !== 'flee') todo = pendingZones(g, done, stackAt).filter((z) => !skipped(g, bot, zoneKey(z)));
+  if (stepHead(g, bot, dt, !!bot.task || todo.length > 0)) return;
+  if (!bot.task && bot.repath <= 0) {
     const grid = todo.length ? buildGrid(g, 0.45, false, bot) : null;
     let best = null;
     for (const z of todo) {
@@ -106,23 +101,43 @@ export function inspectorStep(g, dt, done, stackAt, wonky) {
       const len = pathLength(bot, path);
       if (!best || len < best.len) best = { z, path, len };
     }
-    if (best) { bot.target = zoneKey(best.z); bot.planKey = bot.target; bot.path = best.path; bot.shooting = 0; }
-    bot.repath = REPLAN; // when nothing is reachable, look again shortly
+    if (best) {
+      const end = best.path.at(-1) || bot;
+      bot.task = { type: 'inspect', key: zoneKey(best.z), id: zoneKey(best.z),
+        target: { x: best.z.x, y: best.z.y, color: best.z.color },
+        goal: { x: end.x, y: end.y } };
+      bot.target = bot.task.key; bot.planKey = bot.task.key; bot.path = best.path; bot.shooting = 0;
+    }
+    bot.repath = best ? KEEP_ROUTE : REPLAN;
   }
-  const aimed = bot.target && todo.find((z) => zoneKey(z) === bot.target);
-  if (aimed) bot.goal = { x: aimed.x, y: aimed.y };
-  followPath(g, bot, speed * dt, dt);
+  const task = bot.task;
+  if (!task) { settle(g, bot, false, false); return; }
+  bot.goal = { ...task.goal };
+  if (blockedAhead(g, bot)) bot.repath = 0;
+  if (bot.repath <= 0) {
+    bot.path = plan(buildGrid(g, 0.45, false, bot), bot, 80,
+      (x, y, c) => Math.hypot(x - task.goal.x, y - task.goal.y) * 10 + c * 0.02);
+    bot.repath = bot.path.length ? KEEP_ROUTE : REPLAN;
+  }
+  const start = { x: bot.x, y: bot.y };
+  followPath(g, bot, SPEED * dt, dt);
+  watchStuck(g, bot, dt, start, SPEED * dt);
+  if (bot.task !== task) { bot.target = null; bot.shooting = 0; return; }
   pushOut(g, bot);
 
   let atJob = false;
-  const target = bot.target && todo.find((z) => zoneKey(z) === bot.target);
+  const target = task.target;
   if (target) {
     const d = Math.hypot(target.x - bot.x, target.y - bot.y);
-    if (!bot.path.length && d >= PHOTO_DIST + 0.5) { bot.target = null; bot.shooting = 0; bot.repath = 0; } // route ended short of the drop point: pick again
-    else if (!bot.path.length) {
+    if (!bot.path.length && Math.hypot(task.goal.x - bot.x, task.goal.y - bot.y) < 0.35 && d < PHOTO_DIST + 0.5) {
       atJob = true;
-      const key = zoneKey(target), st = stackAt(target);
-      const complete = done.some((z) => zoneKey(z) === key);
+      const key = task.key, zone = done.find((z) => zoneKey(z) === key), st = zone && stackAt(zone);
+      const complete = !!zone && !!st && !currentInspection(g, zone, st);
+      if (!complete) { bot.task = null; bot.target = null; bot.shooting = 0; bot.repath = 0; settle(g, bot, false, false); return; }
+      if (bot.seen.includes(key)) {
+        bot.seen = bot.seen.filter((k) => k !== key);
+        if (bot.photos) delete bot.photos[key];
+      }
       bot.aim = { x: target.x, y: target.y, h: st ? st.layers.length : 1 };
       if (Math.abs(turnTo(bot, Math.atan2(target.y - bot.y, target.x - bot.x), dt)) < 0.15) bot.shooting += dt;
       if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
@@ -136,7 +151,7 @@ export function inspectorStep(g, dt, done, stackAt, wonky) {
           (bot.photos ||= {})[key] = g.photo;
           bot.seen.push(key);
         }
-        bot.shooting = 0; bot.flash = 1; bot.target = null; bot.repath = 0;
+        bot.shooting = 0; bot.flash = 1; bot.target = null; bot.task = null; bot.repath = 0;
         if (photo) (g.hits ||= []).push({ x: bot.x, y: bot.y, z: 0.5, t: g.clock, owner: null, check: !photo.ok ? 'warn' : 'perfect' });
       }
     }

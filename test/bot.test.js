@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import { newGame, update, addTruck, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
 import { issues } from '../js/photo.js';
 import { buildGrid, routeDistance, routeDistances, moveBot, watchStuck, STUCK_SECS } from '../js/bot/nav.js';
-import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape, stepSeq, startSpawn } from '../js/bot.js';
+import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, stepFixBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape, stepSeq, startSpawn } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
 import { run, NONE, flatWorld } from './common.js';
 import { floorDecals } from '../js/decals.js';
+import { FLEE_TURN_RATE } from '../js/bot/common.js';
 
 const hasBarrel = (g) => g.stacks.some((s) => s.layers.includes(6));
 const botGame = () => {
@@ -130,11 +131,13 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   const g = botGame(); flatWorld(g); g.stacks = [];
   const bot = g.bot;
   Object.assign(bot, { mode: 'out', show: 1, x: 5, y: 5, a: 0, state: 'going-to-work', path: [], planKey: 'test:job', goal: { x: 5, y: 8 }, stuckCount: 2, stuckTime: STUCK_SECS, recoveryUntil: 0 });
+  bot.task = { key: 'test:job', goal: { x: 5, y: 8 } };
   bot.path = [{ x: 5, y: 5 }];
   watchStuck(g, bot, 1 / 120, { x: bot.x, y: bot.y }, 0.1);
   assert.equal(bot.stuckCount, 0, 'the third stuck episode abandons the repeated job');
   assert.equal(bot.skip['test:job'], g.clock + 10, 'the blocked job is temporarily skipped');
   assert.equal(bot.planKey, null, 'the abandoned job key is cleared');
+  assert.equal(bot.task, null, 'the abandoned task is cleared');
 }
 
 // Oil takes priority over fresh skid marks; marks are not safety-cone spill targets.
@@ -180,7 +183,9 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   other.gone = true;
   Object.assign(g.bot, { x: near.x, y: near.y });
   stepBot(g, 0.1, 1.15 ** 2 / 50);
-  assert.ok(g.bot.debugTask.startsWith('skid near '), 'marks become eligible when the truck leaves');
+  assert.ok(g.bot.debugTask.startsWith('skid far '), 'the cleaner keeps its current job when another mark becomes eligible');
+  for (let i = 0; i < 10 && g.skidMarks.includes(near); i++) stepBot(g, 0.1, 1.15 ** 2 / 50);
+  assert.ok(!g.skidMarks.includes(near), 'marks become eligible when the truck leaves');
 }
 
 // Nearby skid marks do not summon a hidden cleaner, but nearby oil still does.
@@ -211,7 +216,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.equal(g.skidMarks.length, 4, 'repeated wheelspin at the same spot does not pile up marks');
 }
 
-// New oil interrupts skid cleaning; the mark is scrubbed quickly once the oil is gone.
+// New oil waits until the cleaner finishes its committed skid job.
 {
   const g = newGame(1);
   flatWorld(g); g.stacks = []; g.inspector = null; g.coneBot = null; g.tapeBot = null;
@@ -224,14 +229,14 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   assert.ok(remaining < 1 && remaining > 0, 'skid cleaning has started');
   g.oil = [{ id: 'new-oil', x: spot.x, y: spot.y, r: 0.163, drops: 1 }];
   let elapsed = 0;
+  while (g.skidMarks.length && elapsed < 1) { update(g, NONE, 1 / 120); elapsed += 1 / 120; }
+  assert.ok(!g.skidMarks.length && elapsed < 0.3, 'the partly cleaned mark is finished before switching');
+  assert.equal(g.oil[0].drops, 1, 'new oil does not interrupt the active job');
+  elapsed = 0;
   while (g.oil.length && elapsed < 10) {
     update(g, NONE, 1 / 120); elapsed += 1 / 120;
-    assert.equal(g.skidMarks[0].left, remaining, 'oil interrupts skid cleaning');
   }
-  assert.ok(!g.oil.length && elapsed >= CLEAN_SECS - 0.1, 'oil is cleaned first at its normal rate');
-  elapsed = 0;
-  while (g.skidMarks.length && elapsed < 1) { update(g, NONE, 1 / 120); elapsed += 1 / 120; }
-  assert.ok(!g.skidMarks.length && elapsed < 0.3, 'partly cleaned mark is finished quickly');
+  assert.ok(!g.oil.length && elapsed >= CLEAN_SECS - 0.1, 'oil is then cleaned at its normal rate');
 }
 
 // It drives out, mops one drop in about CLEAN_SECS and eventually goes home.
@@ -332,6 +337,7 @@ assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is determi
   const g2 = deserializeGame(JSON.parse(JSON.stringify(serializeGame(g))));
   assert.equal(g2.bot.show, g.bot.show);
   assert.equal(g2.bot.x, g.bot.x);
+  assert.deepEqual(g2.bot.task, g.bot.task, 'the committed destination survives saving');
 }
 
 // Bot state machine: priority order, speeds and beacons per state.
@@ -348,6 +354,136 @@ const out = (b, p) => Object.assign(b, { mode: 'out', show: 1, a: 0, path: [], r
 const work = (g, kind, dt, goal = { x: 14, y: 6 }) => stepWorker(g, g[kind], dt, true, goal, 'job');
 const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null);
 
+// Moving or removing a target cannot redirect a committed bot before it arrives.
+{
+  const g = solo('coneBot'), b = out(g.coneBot, { x: 3, y: 6, state: 'going-to-work', repath: 0 });
+  g.zones = []; g.oil = [];
+  const old = { id: 'old', goalId: 'obsolete:0', x: 12, y: 6 };
+  g.cones = [old];
+  stepConeBot(g, 0.05, []);
+  const task = b.task, goal = { ...task.goal };
+  let oilReads = 0;
+  Object.defineProperty(g, 'oil', { configurable: true, get: () => { oilReads++; return []; } });
+  old.x += 1;
+  g.cones.push({ id: 'near', goalId: 'obsolete:1', x: 5, y: 8 });
+  for (let i = 0; i < 400 && b.task; i++) {
+    g.clock += 0.05;
+    stepConeBot(g, 0.05, []);
+    if (b.task) { assert.equal(b.task, task); assert.deepEqual(b.task.goal, goal); assert.equal(oilReads, 0, 'travel does not discover cone targets'); }
+  }
+  assert.equal(b.task, null, 'the moved cone is rejected at the committed location');
+  assert.ok(Math.hypot(b.x - goal.x, b.y - goal.y) < 0.7);
+  assert.equal(b.seq, undefined, 'no remote retrieval is started');
+  stepConeBot(g, 0.05, []);
+  assert.ok(b.task || b.seq || b.skip?.['cone:old'] > g.clock, 'the cone bot searches again on the next tick');
+}
+
+// A skipped job is not reacquired until its retry timer expires, even if it is the only one.
+{
+  const g = solo('bot'), b = out(g.bot, { x: 3, y: 6, state: 'going-to-work', repath: 0 });
+  g.oil = [{ id: 'blocked', x: 12, y: 6, r: 0.16, drops: 1 }];
+  b.skip = { blocked: 10 };
+  stepBot(g, 0.05, 1.15 ** 2 / 50);
+  assert.equal(b.task, null);
+  g.clock = 10;
+  stepBot(g, 0.05, 1.15 ** 2 / 50);
+  assert.equal(b.task?.id, 'blocked');
+}
+
+// Fleeing does not discover work until the following tick, then chooses afresh.
+{
+  const g = solo('coneBot'), b = out(g.coneBot, { x: 3, y: 6, state: 'going-to-work', repath: 0 });
+  g.zones = []; g.oil = [];
+  g.cones = [{ id: 'old', goalId: 'old:0', x: 12, y: 6 }];
+  stepConeBot(g, 0.05, []);
+  assert.equal(b.task.id, 'old');
+  g.cones.push({ id: 'new', goalId: 'new:0', x: 5, y: 6 });
+  b.state = 'flee';
+  Object.defineProperty(g, 'oil', { configurable: true, get: () => { throw new Error('searched while fleeing'); } });
+  stepConeBot(g, 0.05, []);
+  assert.equal(b.task, null);
+  assert.equal(b.workKey, null);
+  Object.defineProperty(g, 'oil', { configurable: true, writable: true, value: [] });
+  stepConeBot(g, 0.05, []);
+  assert.equal(b.task?.id ?? b.seq?.data.id, 'new', 'the old work preference is not retained');
+}
+
+{
+  const g = solo('bot'), b = out(g.bot, { x: 3, y: 6, state: 'going-to-work', repath: 0 });
+  const area = 1.15 ** 2 / 50;
+  const spill = { id: 'old', x: 12, y: 6, r: 0.16, drops: 1 };
+  g.oil = [spill];
+  stepBot(g, 0.05, area);
+  const task = b.task, goal = { ...task.goal };
+  spill.x += 1;
+  g.oil.push({ id: 'near', x: 5, y: 8, r: 0.16, drops: 0.1 });
+  for (let i = 0; i < 400 && b.task; i++) {
+    g.clock += 0.05;
+    stepBot(g, 0.05, area);
+    if (b.task) { assert.equal(b.task, task); assert.deepEqual(b.task.goal, goal); }
+  }
+  assert.equal(b.task, null);
+  assert.ok(Math.hypot(b.x - goal.x, b.y - goal.y) < goal.r + 0.12);
+  assert.equal(spill.drops, 1, 'a moved spill is not cleaned remotely');
+  stepBot(g, 0.05, area);
+  assert.ok(b.task, 'the cleaner searches again after rejecting the old job');
+}
+
+{
+  const g = solo('inspector'), b = out(g.inspector, { x: 3, y: 6, state: 'going-to-work', repath: 0 });
+  const zone = { x: 12, y: 6, color: 0, count: 1 };
+  const stack = { x: 12, y: 6, layers: [0], rots: [0], pen: [{}] };
+  g.zones = [zone]; g.stacks = [stack];
+  const stackAt = (z) => g.stacks.find((s) => Math.hypot(s.x - z.x, s.y - z.y) < 0.5);
+  stepInspector(g, 0.05, [zone], stackAt, () => false);
+  const task = b.task, goal = { ...task.goal };
+  g.stacks = [];
+  for (let i = 0; i < 400 && b.task; i++) {
+    g.clock += 0.05;
+    stepInspector(g, 0.05, [], stackAt, () => false);
+    if (b.task) { assert.equal(b.task, task); assert.deepEqual(b.task.goal, goal); }
+  }
+  assert.equal(b.task, null);
+  assert.ok(Math.hypot(b.x - goal.x, b.y - goal.y) < 0.35);
+  assert.equal(b.seen.length, 0, 'an absent stack is not photographed');
+}
+
+{
+  const g = solo('fixBot'), b = out(g.fixBot, { x: 3, y: 6, state: 'going-to-work', repath: 0 });
+  const stack = { x: 12, y: 6, layers: [0], rots: [0], offs: [{ x: 0, y: 0 }], pen: [{ tip: 1 }] };
+  g.stacks = [stack];
+  stepFixBot(g, 0.05);
+  const task = b.task, goal = { ...task.goal };
+  stack.x += 1;
+  for (let i = 0; i < 400 && b.task; i++) {
+    g.clock += 0.05;
+    stepFixBot(g, 0.05);
+    if (b.task) { assert.equal(b.task, task); assert.deepEqual(b.task.goal, goal); }
+  }
+  assert.equal(b.task, null);
+  assert.ok(Math.hypot(b.x - goal.x, b.y - goal.y) < 0.6);
+  assert.ok(g.stacks.includes(stack) && stack.pen[0].tip, 'a moved stack is not picked up remotely');
+}
+
+// Fleeing during a lift puts the carried box down rather than teleporting it to the planned destination.
+{
+  const g = solo('fixBot'), b = out(g.fixBot, { x: 4, y: 6, state: 'going-to-work', repath: 0 });
+  const stack = { x: 10, y: 6, layers: [0], rots: [0], offs: [{ x: 0, y: 0 }], pen: [{ tip: 1 }] };
+  g.stacks = [stack];
+  for (let i = 0; i < 400 && b.fix?.phase !== 'carry'; i++) {
+    g.clock += 0.05; stepFixBot(g, 0.05);
+  }
+  assert.equal(b.fix?.phase, 'carry');
+  assert.equal(b.carry, stack);
+  Object.assign(g.fl, { x: b.x - 2, y: b.y, a: 0, speed: 3 });
+  stepFixBot(g, 0.05);
+  assert.equal(b.state, 'flee');
+  assert.equal(b.task, null);
+  assert.equal(b.carry, null);
+  assert.ok(g.stacks.includes(stack));
+  assert.ok(Math.hypot(stack.x - b.x, stack.y - b.y) < 0.01, 'the box is dropped where the bot fled');
+}
+
 {
   assert.deepEqual(PRIORITY, ['fixBot', 'inspector', 'tapeBot', 'bot', 'coneBot'], 'priority order, highest first');
   const g = botGame();
@@ -360,6 +496,7 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
     const g = solo(kind);
     const b = out(g[kind], { x: 5, y: 6, state: 'loiter', path: [{ x: 14, y: 6 }] });
     work(g, kind, 0.05);
+    b.task = { key: 'job', goal: { x: 14, y: 6 } };
     assert.equal(b.state, 'going-to-work', `${kind} goes to work`);
     assert.ok(Math.abs(Math.hypot(b.x - 5, b.y - 6) - FL_SPEED * 0.75 * 0.05) < 1e-3, `${kind} travels at 0.75x`);
     g.clock = 1;
@@ -367,6 +504,7 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
     const x0 = b.x, y0 = b.y;
     work(g, kind, 0.05);
     assert.equal(b.state, 'flee', `${kind} flees from a moving forklift`);
+    assert.equal(b.task, null, `${kind} drops its task on fleeing`);
     const run1 = Math.hypot(b.x - x0, b.y - y0);
     assert.ok(run1 <= FL_SPEED * 1.2 * 0.05 + 1e-6 && run1 > FL_SPEED * 0.75 * 0.05, `${kind} runs at 1.2x`);
   }
@@ -390,6 +528,8 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   const asker = out(g.bot, { x: 6, y: 6, state: 'going-to-work', path: [{ x: 14, y: 6 }] });
   const lower = out(g.coneBot, { x: 7.1, y: 6, state: 'loiter' });
   const higher = out(g.inspector, { x: 7.1, y: 7.6, state: 'loiter' });
+  asker.task = { key: 'priority', goal: { x: 14, y: 6 } };
+  lower.task = { key: 'yielding', goal: { x: 14, y: 6 } };
   work(g, 'bot', 0.05);
   assert.equal(asker.state, 'right-of-way', 'blocked on the way to work');
   assert.equal(tone(g, asker), 'blue');
@@ -397,12 +537,14 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   assert.notEqual(higher.state, 'flee', 'a higher-priority bot ignores the request');
   loiterStep(g, 'coneBot', 0.05);
   assert.equal(lower.state, 'flee', 'a lower-priority bot flees from the request');
+  assert.equal(lower.task, null, 'yielding abandons its task');
   assert.equal(tone(g, lower), 'red');
   const x = lower.x, y = lower.y;
   loiterStep(g, 'coneBot', 0.05);
   assert.ok(Math.hypot(lower.x - x, lower.y - y) <= FL_SPEED * 1.25 * 0.05 + 1e-6, 'flees at 1.25x');
   work(g, 'bot', 0.05);
   assert.equal(asker.state, 'right-of-way', 'it stays in right-of-way until it reaches the job');
+  assert.equal(asker.task.key, 'priority', 'the bot with right of way keeps its task');
 }
 
 // A first-time loiterer does not enter right of way (only going-to-work does).
@@ -829,10 +971,15 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   for (let i = 0; i < 120 * 30; i++) {
     update(g, NONE, 1 / 120);
     const b = g.bot;
-    if (prev !== null && b.show === 1) maxTurn = Math.max(maxTurn, Math.abs(Math.atan2(Math.sin(b.a - prev), Math.cos(b.a - prev))));
+    if (prev !== null && b.show === 1) {
+      const turn = Math.abs(Math.atan2(Math.sin(b.a - prev), Math.cos(b.a - prev)));
+      const limit = b.state === 'flee' ? FLEE_TURN_RATE : TURN_RATE;
+      assert.ok(turn <= limit / 120 + 1e-9, `turns at most ${limit} rad/s`);
+      maxTurn = Math.max(maxTurn, turn);
+    }
     prev = b.show === 1 ? b.a : null;
   }
-  assert.ok(maxTurn > 0 && maxTurn <= TURN_RATE / 120 + 1e-9, `turns at most ${TURN_RATE} rad/s (${(maxTurn * 120).toFixed(2)})`);
+  assert.ok(maxTurn > 0, 'the bot turns');
 }
 
 // Bots keep their size when they appear: they slide out of the wall through the hatch instead of scaling up.
@@ -1124,12 +1271,18 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   const farTargets = coneTargets(g, []).filter((t) => t.id.startsWith('spill:far:'));
   g.cones = farTargets.slice(1).map((t) => ({ id: `cone:${t.id}`, goalId: t.id, x: t.x, y: t.y, tipped: false, squished: false }));
   b.workKey = 'spill:far';
-  b.planKey = null; b.path = []; b.repath = 0;
+  b.task = null; b.planKey = null; b.path = []; b.repath = 0;
   stepConeBot(g, 0.05, []);
   assert.ok(b.planKey.startsWith('place:spill:far:'), 'it finishes the current point before moving to a closer one');
   g.oil = [];
   stepConeBot(g, 0.05, []);
-  assert.equal(b.debugTask, 'retrieving cone', 'obsolete cones are identified as retrieval work');
+  assert.equal(b.debugTask, 'placing cone', 'the committed destination is retained after its target disappears');
+  const goal = b.task.goal;
+  Object.assign(b, { x: goal.x, y: goal.y, path: [], repath: 1 });
+  stepConeBot(g, 0.05, []);
+  assert.equal(b.task, null, 'the obsolete placement is abandoned on arrival');
+  stepConeBot(g, 0.05, []);
+  assert.equal(b.debugTask, 'retrieving cone', 'obsolete cones are identified on the next search');
 }
 
 // Tape work stays on its current area, or otherwise starts with the nearest area.
@@ -1341,13 +1494,13 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
     tapeJob: { key, edge: 0, from: 0, to: 1, phase: 'draw' }, path: [{ x: 7, y: 5 }], repath: 10 });
   stepTapeBot(g, 0.05, g.zones, stackAt, () => false);
   assert.ok(b.state === 'flee' && Math.abs(Math.hypot(b.x - 5, b.y - 5) - 0.24) < 1e-6, 'fleeing interrupts deployment and runs at 4.8 tiles/s');
-  assert.equal(b.tapeJob.phase, 'start');
+  assert.equal(b.tapeJob, null, 'fleeing abandons the tape job');
   Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
-  Object.assign(b, { show: 0, leaving: false, mode: 'hidden', path: [] });
+  Object.assign(b, { show: 0, leaving: false, mode: 'hidden', state: 'loiter', path: [] });
   stepTapeBot(g, 0.1, g.zones, stackAt, () => false);
   assert.ok(Math.abs(b.show - 1 / 3) < 1e-8, 'the tape bot emerges in half the usual time');
   g.areas = [];
-  Object.assign(b, { show: 0.8, leaving: true, mode: 'out' });
+  Object.assign(b, { show: 0.8, leaving: true, mode: 'out', task: null });
   stepTapeBot(g, 0.1, [], () => null, () => false);
   assert.ok(Math.abs(b.show - (0.8 - 1 / 3)) < 1e-8, 'the tape bot retracts in half the usual time');
 }
@@ -1524,7 +1677,7 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   assert.notEqual(g.tapeBot.debugTask, 'removing tape from zone 1', 'the nudge does not dispatch removal');
 }
 
-// Replacing a stack cancels removal and delays repairs until its new inspection.
+// Replacing a stack cancels removal on arrival and delays repairs until its new inspection.
 {
   const g = newGame(1, 0), area = { color: 0, x: 7, y: 7, w: 2, h: 2 };
   flatWorld(g); g.areas = [area]; g.bot = null; g.coneBot = null;
@@ -1540,7 +1693,10 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   assert.equal(g.tapeBot.debugTask, 'removing tape from zone 1', 'a missing stack dispatches removal');
   g.stacks = [stack]; stack.touched = true;
   for (let i = 0; i < 10; i++) stepTapeBot(g, 0.05, [z], stackAt, () => false);
-  assert.equal(g.tapeBot.debugTask, null, 'restoring the stack cancels removal');
+  assert.equal(g.tapeBot.debugTask, 'removing tape from zone 1', 'removal stays committed while travelling');
+  Object.assign(g.tapeBot, { x: g.tapeBot.task.goal.x, y: g.tapeBot.task.goal.y, path: [], repath: 1 });
+  stepTapeBot(g, 0.05, [z], stackAt, () => false);
+  assert.equal(g.tapeBot.task, null, 'restoring the stack cancels removal on arrival');
   assert.deepEqual(tape.posts, [true, true, true, true], 'no posts are removed');
   assert.equal(tape.edges[0], false, 'repair waits for inspection');
   for (let i = 0; i < 1000 && stack.touched; i++) {
@@ -1627,7 +1783,7 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   g.inspector.photos[key].ok = true;
   step();
   assert.equal(g.tapes.length, 1, 'a current scan and suitable stack allow installation');
-  g.tapes = []; g.hard = true;
+  g.tapes = []; g.hard = true; g.tapeBot.task = null; g.tapeBot.tapeJob = null;
   step();
   assert.equal(g.tapes.length, 0, 'an old hard-mode scan without placement information is not current');
   g.inspector.photos = { [key]: { ok: true, pens: [{ shift: 0 }] } };

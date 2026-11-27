@@ -231,12 +231,11 @@ export function plan(grid, from, maxCost, score) {
 
 // How far (capped at 8 tiles) a point is from the nearest forklift; bots prefer goals far from the forklifts.
 // ---- Blocked routes ----
-// Targets the bot gave up on for a while (`bot.skip`: key -> g.clock until which it is ignored); used only if something else is left to do.
+// Targets the bot gave up on for a while (`bot.skip`: key -> g.clock until which it is ignored).
 export const SKIP_SECS = 10, GIVE_UP_SECS = 3, REPLAN = 0.4, KEEP_ROUTE = 1e9; // KEEP_ROUTE: no periodic replanning (survives JSON, unlike Infinity)
 export const skipped = (g, bot, key) => (bot.skip?.[key] ?? 0) > g.clock;
 export function preferLive(g, bot, items, keyOf) {
-  const live = items.filter((o) => !skipped(g, bot, keyOf(o)));
-  return live.length ? live : items;
+  return items.filter((o) => !skipped(g, bot, keyOf(o)));
 }
 
 // Check only the next half tile of the route, so distant obstacles are dealt with when reached.
@@ -285,7 +284,10 @@ export function goalPlan(g, bot, key, score, reached) {
   if (reached(end)) { bot.waiting = false; bot.waitT = 0; return path; }
   bot.waiting = true;
   bot.waitT = (bot.waitT || 0) + REPLAN;
-  if (key != null && bot.waitT >= GIVE_UP_SECS) { (bot.skip ||= {})[key] = g.clock + SKIP_SECS; bot.waitT = 0; }
+  if (key != null && bot.waitT >= GIVE_UP_SECS) {
+    (bot.skip ||= {})[bot.task?.skipKey ?? bot.task?.key ?? key] = g.clock + SKIP_SECS;
+    bot.task = null; bot.waitT = 0;
+  }
   return waitPlan(g, bot, grid);
 }
 
@@ -335,6 +337,11 @@ export function passingPoint(g, bot, w) {
   if (!w) return bot;
   const other = botAhead(g, bot, w);
   if (!other) { bot.blockWait = 0; return w; }
+  if (!canYield(g, bot, other)) {
+    const dx = w.x - bot.x, dy = w.y - bot.y, len2 = dx * dx + dy * dy;
+    const t = len2 ? Math.max(0, Math.min(1, ((other.x - bot.x) * dx + (other.y - bot.y) * dy) / len2)) : 0;
+    if (Math.hypot(bot.x + dx * t - other.x, bot.y + dy * t - other.y) >= BOT_SPACE) return w;
+  }
   if (canYield(g, bot, other) && (bot.blockWait || 0) < ROW_PATIENCE) return bot;
   const dx = w.x - bot.x, dy = w.y - bot.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
   const side = BOT_SPACE + 0.15;
@@ -355,13 +362,17 @@ export const STUCK_SECS = 3, STUCK_ESCAPE_SECS = 2;
 // short escape route away from the goal; a persistent third failure temporarily
 // skips that goal key so another bot job can be attempted.
 export function watchStuck(g, bot, dt, start, move) {
-  if (bot.state === 'loiter') { bot.stuckTime = 0; return; }
+  if (bot.state === 'loiter') { bot.stuckTime = 0; bot.stuckAnchor = null; return; }
   const goal = bot.goal;
   const intended = bot.path.length || (goal && Math.hypot(goal.x - bot.x, goal.y - bot.y) > 0.35);
-  if (!intended) { bot.stuckTime = 0; return; }
+  if (!intended) { bot.stuckTime = 0; bot.stuckAnchor = null; return; }
   const moved = Math.hypot(bot.x - start.x, bot.y - start.y);
-  if (moved > Math.max(0.002, move * 0.15)) { bot.stuckTime = 0; return; }
-  bot.stuckTime = (bot.stuckTime || 0) + dt;
+  bot.stuckAnchor ||= { x: start.x, y: start.y, t: 0 };
+  bot.stuckAnchor.t += dt;
+  const circling = bot.stuckAnchor.t >= STUCK_SECS && Math.hypot(bot.x - bot.stuckAnchor.x, bot.y - bot.stuckAnchor.y) < 0.3;
+  if (bot.stuckAnchor.t >= STUCK_SECS) bot.stuckAnchor = { x: bot.x, y: bot.y, t: 0 };
+  if (moved > Math.max(0.002, move * 0.15)) bot.stuckTime = circling ? STUCK_SECS : 0;
+  else bot.stuckTime = (bot.stuckTime || 0) + dt;
   if (bot.stuckTime < STUCK_SECS || (bot.recoveryUntil || 0) > g.clock) return;
 
   bot.stuckTime = 0;
@@ -370,8 +381,9 @@ export function watchStuck(g, bot, dt, start, move) {
   bot.passing = null;
 
   if (bot.stuckCount >= 3) {
-    const key = bot.planKey;
+    const key = bot.task?.skipKey ?? bot.task?.key ?? bot.planKey;
     if (key) (bot.skip ||= {})[key] = g.clock + SKIP_SECS;
+    bot.task = null;
     bot.planKey = null;
     bot.path = [];
     bot.repath = REPLAN;

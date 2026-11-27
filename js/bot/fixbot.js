@@ -57,7 +57,7 @@ export function pickFixJob(g, bot) {
   }
   best.sort((a, b) => a.tier - b.tier || a.d - b.d);
   const t = best[0];
-  return { kind: t.kind, key: t.key, sx: t.sx, sy: t.sy, ax: t.ax, ay: t.ay, tier: t.tier, phase: 'go', t: 0, age: 0, stuck: 0 };
+  return { kind: t.kind, key: t.key, sx: t.sx, sy: t.sy, x: t.x, y: t.y, ax: t.ax, ay: t.ay, tier: t.tier, phase: 'go', t: 0, age: 0, stuck: 0 };
 }
 
 export function spotFree(g, x, y, self) {
@@ -96,13 +96,13 @@ export function placeBox(g, s, spot) {
 export function fixAbort(g, bot, job) {
   const spot = { x: bot.x, y: bot.y, a: Math.round(bot.a / (Math.PI / 2)) * Math.PI / 2 };
   if (bot.carry) {
-    placeBox(g, bot.carry, job?.spot ? { ...spot, ...job.spot } : spot);
+    placeBox(g, bot.carry, spot);
     bot.carry = null;
   } else if (job?.kind === 'pallet' && job.phase !== 'go') {
     const s = fixStack(g, job);
     if (s) { setLoose(s, { x: spot.x, y: spot.y, a: spot.a, set: true }); for (const p of s.pen) delete p.loose.lift; }
   }
-  bot.carryZ = 0; bot.beam = null; bot.fix = null;
+  bot.carryZ = 0; bot.beam = null; bot.fix = null; bot.task = null;
 }
 
 export function fixValid(g, bot, job) {
@@ -117,21 +117,32 @@ export function stepFixBot(g, dt) {
   if (!bot) return;
   bot.beam = null;
   let job = bot.fix;
-  if (job && !fixValid(g, bot, job)) { fixAbort(g, bot, job); job = null; }
+  if (bot.state === 'flee') {
+    if (job) fixAbort(g, bot, job);
+    stepWorker(g, bot, dt, false, null, null);
+    return;
+  }
   if (!job && bot.show === 1 && bot.state !== 'loiter') job = bot.fix = pickFixJob(g, bot);
-  if (job) bot.planKey = job.key; else bot.planKey = null;
+  if (job?.phase === 'go' && job.x == null) {
+    const stack = fixStack(g, job), at = job.kind === 'pallet' ? stack?.pen?.[0]?.loose : stack;
+    if (at) { job.x = at.x; job.y = at.y; }
+  }
+  if (!job) bot.planKey = null;
   if (job && (job.age += dt) > FIX_GIVE_UP) { (bot.skip ||= {})[job.key] = g.clock + SKIP_SECS * 6; fixAbort(g, bot, job); job = null; }
   const hasWork = !!job || fixTargets(g, bot).length > 0 || !!bot.carry;
   bot.debugTask = job ? `${job.phase} ${job.kind}${job.tier > 1 ? ' (cheat)' : ''}` : null;
-  const s = job && !bot.carry ? fixStack(g, job) : null;
+  let s = job && !bot.carry && job.phase !== 'go' ? fixStack(g, job) : null;
   let goal = null;
   if (job) goal = job.phase === 'go' ? { x: job.ax, y: job.ay } : job.phase === 'carry' ? job.spot : { x: bot.x, y: bot.y };
+  if (job && !bot.task) bot.task = { type: `fix:${job.phase}`, key: job.key, id: job.key, goal: { x: goal.x, y: goal.y } };
+  const task = bot.task;
+  if (task) goal = task.goal;
   stepWorker(g, bot, dt, hasWork, goal, job ? `${job.phase}:${job.key}` : null, SPEED, !!job && job.phase !== 'go');
+  if (job && bot.task !== task) { fixAbort(g, bot, job); return; }
   // It drives collapsed, and only unfolds to pick something up and to move with it.
   const working = !!job && job.phase !== 'go' && bot.show === 1 && bot.state !== 'loiter';
   bot.unfold = Math.max(0, Math.min(1, bot.unfold + (working ? 1 : -1) * dt / FIX_UNFOLD_SECS));
   if (!job) return;
-  const obj = bot.carry || s;
   const move = (x, y, a, z) => {
     if (bot.carry) {
       Object.assign(bot.carry, { x, y, a }); bot.carry.rots = bot.carry.rots.map(() => a); bot.carryZ = z;
@@ -140,9 +151,15 @@ export function stepFixBot(g, dt) {
   };
   if (job.phase === 'carry') { job.stuck = bot.path.length ? 0 : job.stuck + dt; }
   else if (job.phase === 'go') job.stuck = bot.path.length ? 0 : job.stuck + dt;
-  const arrived = bot.state !== 'flee' && (job.phase === 'go' || bot.unfold >= 1) && !bot.path.length && goal && (Math.hypot(bot.x - goal.x, bot.y - goal.y) < 0.6 || job.stuck > 1.5);
+  const arrived = bot.state !== 'flee' && (job.phase === 'go' || bot.unfold >= 1) && !bot.path.length && goal && Math.hypot(bot.x - goal.x, bot.y - goal.y) < 0.6;
+  if (job.phase === 'go' && arrived) {
+    s = fixStack(g, job);
+    const at = job.kind === 'pallet' ? s?.pen?.[0]?.loose : s;
+    if (!fixValid(g, bot, job) || !at || Math.hypot(at.x - job.x, at.y - job.y) >= 0.22) { fixAbort(g, bot, job); return; }
+  }
+  const obj = bot.carry || s;
   if (job.phase === 'go' && arrived && obj) {
-    job.phase = 'up'; job.t = 0;
+    job.phase = 'up'; job.t = 0; bot.task = null;
     if (job.kind === 'box') {
       g.stacks.splice(g.stacks.indexOf(s), 1);
       delete s.roll; delete s.fall;
@@ -159,11 +176,12 @@ export function stepFixBot(g, dt) {
       job.phase = 'carry'; job.t = 0;
       const l = bot.carry ? bot.carry.pen[0].loose : null;
       job.spot = job.kind === 'pallet' ? freeSpot(g, bot, s) : l ? { x: l.x, y: l.y, a: l.a } : { x: job.sx, y: job.sy, a: job.oa };
+      bot.task = null;
     }
   } else if (job.phase === 'carry') {
     move(bot.x, bot.y, bot.a, FIX_HOVER);
     if (arrived) {
-      job.phase = 'down'; job.t = 0; job.dx = bot.x; job.dy = bot.y; job.da = bot.a;
+      job.phase = 'down'; job.t = 0; job.dx = bot.x; job.dy = bot.y; job.da = bot.a; bot.task = null;
       if (job.kind === 'box') { const l = bot.carry?.pen[0].loose; job.pallet = l && { x: l.x, y: l.y, a: l.a }; job.spot = { x: bot.x, y: bot.y, a: bot.a }; }
     }
   } else if (job.phase === 'down') {
@@ -178,7 +196,7 @@ export function stepFixBot(g, dt) {
     if (p >= 1) {
       if (bot.carry) { placeBox(g, bot.carry, sp); bot.carry = null; }
       else if (s) { setLoose(s, { x: sp.x, y: sp.y, a: sp.a, set: true }); for (const q of s.pen) delete q.loose.lift; }
-      bot.carryZ = 0; bot.fix = null; bot.beam = null;
+      bot.carryZ = 0; bot.fix = null; bot.task = null; bot.beam = null;
     }
   }
 }

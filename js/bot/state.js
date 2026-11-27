@@ -25,9 +25,10 @@ export const proximityBeaconOn = (g, p) => beaconPulse(g)
   && truckCircles(g).some((c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r + 3);
 export const IDLE_SECS = 600, ROW_NEAR = BOT_SPACE + 0.6, YELL_SECS = 0.8, FLEE_BOT_HOLD = 0.5;
 
-// Changing state discards the old route when the bot starts or stops having a job (or stops fleeing): it always re-evaluates its world afresh.
+// Changing state discards the old route when the bot starts or stops having a job (or stops fleeing).
 export function setState(bot, next) {
   const prev = bot.state;
+  if (next === 'flee') { bot.task = null; bot.workKey = null; }
   if (prev === next) return;
   bot.state = next;
   if (prev === 'flee' || prev === 'loiter' || next === 'loiter') {
@@ -68,6 +69,7 @@ export function threatOf(g, bot) {
 // The part of a bot's step that every bot shares: hatch emerging/retracting, fleeing and loitering. Returns 'hatch', 'flee' or 'loiter'
 // when it handled the frame, or false when the caller should run its job logic (and then call `settle`).
 export function stepHead(g, bot, dt, hasWork) {
+  if (bot.state === 'flee') { bot.task = null; bot.workKey = null; }
   bot.idle = hasWork ? 0 : (bot.idle || 0) + dt;
   if (bot.mode === 'hidden') {
     if (!hasWork) return 'hatch';
@@ -91,7 +93,10 @@ export function stepHead(g, bot, dt, hasWork) {
     pushOut(g, bot);
     return 'flee';
   }
-  if (bot.state === 'flee') { setState(bot, 'loiter'); bot.fleePath = false; bot.fleeKind = null; bot.target = null; }
+  if (bot.state === 'flee') {
+    setState(bot, 'loiter'); bot.fleePath = false; bot.fleeKind = null; bot.target = null;
+    return 'flee';
+  }
   if (!hasWork) {
     setState(bot, 'loiter');
     stepLoiter(g, bot, dt);
