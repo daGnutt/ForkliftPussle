@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { newGame, update, addTruck, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
 import { issues } from '../js/photo.js';
-import { buildGrid, blockedAhead, routeDistance, routeDistances, moveBot, watchStuck, STUCK_SECS } from '../js/bot/nav.js';
+import { buildGrid, blockedAhead, routeDistance, routeDistances, moveBot, pushOut, watchStuck, STUCK_SECS } from '../js/bot/nav.js';
 import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, stepFixBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape, stepSeq, startSpawn } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
@@ -618,6 +618,51 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   assert.equal(b.state, 'going-to-work', 'right of way is only entered from going-to-work');
 }
 
+// Right-of-way bots pass through other bots in either direction, without changing ordinary collision behavior.
+{
+  for (const otherKind of ['bot', 'coneBot', 'tapeBot', 'fixBot']) {
+    const g = solo('inspector', otherKind);
+    const b = out(g.inspector, { x: 5, y: 6, state: 'right-of-way', path: [{ x: 8, y: 6 }] });
+    const other = out(g[otherKind], { x: 5.5, y: 6, state: 'flee' });
+    const gridWithBot = buildGrid(g, 0.45, false, b);
+    other.show = 0;
+    assert.deepEqual(gridWithBot.blocked, buildGrid(g, 0.45, false, b).blocked, `${otherKind} does not block right-of-way planning`);
+    other.show = 1;
+    assert.equal(blockedAhead(g, b), false);
+    other.path = [{ x: 4, y: 6 }];
+    assert.equal(blockedAhead(g, other), false, 'a right-of-way bot does not block another bot\'s route');
+    const gridWithPriority = buildGrid(g, 0.45, otherKind === 'tapeBot', other);
+    b.show = 0;
+    assert.deepEqual(gridWithPriority.blocked, buildGrid(g, 0.45, otherKind === 'tapeBot', other).blocked, 'other bots plan through a right-of-way bot');
+    b.show = 1;
+    assert.ok(moveBot(g, b, 5.5, 6), `${otherKind} does not block right-of-way movement`);
+    pushOut(g, b); pushOut(g, other);
+    assert.equal(b.x, 5.5);
+    assert.equal(other.x, 5.5, 'neither bot is pushed out while overlapping');
+    assert.ok(moveBot(g, other, 5.4, 6), 'the exception also applies when the other bot moves');
+    b.state = 'going-to-work';
+    assert.equal(moveBot(g, other, 5.5, 6), false, 'ordinary bots still collide');
+  }
+}
+
+// A right-of-way inspector can cross a blocked route and reach its job instead of taking a stuck escape detour.
+{
+  const g = solo('inspector', 'tapeBot', 'coneBot');
+  const b = out(g.inspector, { x: 5, y: 6, state: 'right-of-way', planKey: 'job', path: [{ x: 9, y: 6 }] });
+  out(g.tapeBot, { x: 5.5, y: 6, state: 'flee' });
+  out(g.coneBot, { x: 6.2, y: 6, state: 'loiter' });
+  b.task = { key: 'job', goal: { x: 9, y: 6 } };
+  let nearest = Infinity;
+  for (let i = 0; i < 240 && b.state !== 'working'; i++) {
+    g.clock += 1 / 120;
+    stepWorker(g, b, 1 / 120, true, b.task.goal, 'job');
+    nearest = Math.min(nearest, Math.hypot(b.x - g.tapeBot.x, b.y - g.tapeBot.y));
+  }
+  assert.ok(nearest < 0.1, 'the inspector crosses the blocking bot');
+  assert.equal(b.state, 'working', 'the inspector reaches its job promptly');
+  assert.ok(!b.stuckCount, 'crossing the bots does not trigger stuck recovery');
+}
+
 // A working bot that is blocked yells in botspeak (speech bubble) and forces the blocker to flee, at 1.25x.
 {
   const g = solo('tapeBot', 'coneBot');
@@ -697,7 +742,7 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   }
 }
 
-// Bots keep clear of each other and finish passing: lower-priority bots give way (right of way / flee) rather than deadlock.
+// Bots finish passing: lower-priority bots give way (right of way / flee) rather than deadlock.
 {
   for (let i = 0; i < botKinds.length; i++) for (let j = i + 1; j < botKinds.length; j++) {
     const g = solo(...[botKinds[i], botKinds[j]]);
@@ -709,7 +754,6 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
     for (let n = 0; n < 1200 && !(crossedEast && crossedWest); n++) {
       g.clock += 0.05;
       work(g, kinds[0], 0.05, { x: 14, y: 6 }); work(g, kinds[1], 0.05, { x: 6, y: 6 });
-      assert.ok(Math.hypot(east.x - west.x, east.y - west.y) >= BOT_R * 2 - 1e-6, `${kinds} never overlap`);
       crossedEast ||= east.x > 12;
       crossedWest ||= west.x < 8;
     }

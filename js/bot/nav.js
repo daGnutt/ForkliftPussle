@@ -1,5 +1,5 @@
 import { BOX_HALF_X, halfY } from '../geom.js';
-import { BOT_R, CELL, TURN_RATE, TURN_FIRST, FLEE_TURN_RATE, angDiff, turnTo, BOT_SPACE, rectDist, truckCircles, truckGap, STACK_R, bots, outranks } from './common.js';
+import { BOT_R, CELL, TURN_RATE, TURN_FIRST, FLEE_TURN_RATE, angDiff, turnTo, BOT_SPACE, rectDist, truckCircles, truckGap, STACK_R, bots, botsCollide, outranks } from './common.js';
 // A lower-priority bot flees from a bot in right-of-way, so the planner may route through it; higher-priority bots stay put.
 export const canYield = (g, me, other) => other.show === 1 && outranks(g, me, other);
 
@@ -36,7 +36,7 @@ export function buildGrid(g, margin, slim = false, avoidBots = null) {
   const fixed = blocked.slice(); // cells blocked by walls and boxes only (forklifts move away on their own)
   for (const c of truckCircles(g)) circle(c, c.r + BOT_R + margin);
   if (avoidBots) for (const b of bots(g)) {
-    if (b !== avoidBots && b.show > 0 && !canYield(g, avoidBots, b)) circle(b, BOT_SPACE + 0.1);
+    if (b !== avoidBots && b.show > 0 && botsCollide(avoidBots, b) && !canYield(g, avoidBots, b)) circle(b, BOT_SPACE + 0.1);
   }
   return { nx, ny, blocked, fixed };
 }
@@ -238,7 +238,7 @@ export function blockedAhead(g, bot) {
   const trucks = truckCircles(g);
   return pts.some((p) => g.walls.some((w) => rectDist(p.x, p.y, w) < (bot === g.tapeBot ? 0.25 : BOT_R))
     || trucks.some((c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r + BOT_R * 0.9)
-    || (!bot.passing && bots(g).some((b) => b !== bot && b.show > 0 && !canYield(g, bot, b) && Math.hypot(p.x - b.x, p.y - b.y) < BOT_SPACE))
+    || (!bot.passing && bots(g).some((b) => b !== bot && b.show > 0 && botsCollide(bot, b) && !canYield(g, bot, b) && Math.hypot(p.x - b.x, p.y - b.y) < BOT_SPACE))
     || g.stacks.some((s) => bot === g.tapeBot ? nearBox(s, p.x, p.y, 0.2) : Math.hypot(p.x - s.x, p.y - s.y) < STACK_R + BOT_R * 0.9));
 }
 
@@ -285,7 +285,7 @@ export function clearBotSpot(g, bot, p) {
 export function moveBot(g, bot, x, y) {
   const dx = x - bot.x, dy = y - bot.y, len2 = dx * dx + dy * dy;
   for (const o of bots(g)) {
-    if (o === bot || o.show <= 0) continue;
+    if (o === bot || o.show <= 0 || !botsCollide(bot, o)) continue;
     const t = len2 ? Math.max(0, Math.min(1, ((o.x - bot.x) * dx + (o.y - bot.y) * dy) / len2)) : 0;
     const d = Math.hypot(bot.x + dx * t - o.x, bot.y + dy * t - o.y);
     if (d < Math.min(BOT_SPACE, Math.hypot(bot.x - o.x, bot.y - o.y)) - 1e-8) return false;
@@ -295,24 +295,24 @@ export function moveBot(g, bot, x, y) {
 }
 
 // The nearest other bot ahead on the route to waypoint `w` (within 1.4 tiles and in our lane), or null.
-export function botAhead(g, bot, w) {
+export function botAhead(g, bot, w, collidableOnly = false) {
   if (!w) return null;
   const dx = w.x - bot.x, dy = w.y - bot.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
   return bots(g).filter((o) => {
-    if (o === bot || o.show <= 0) return false;
+    if (o === bot || o.show <= 0 || (collidableOnly && !botsCollide(bot, o))) return false;
     const ox = o.x - bot.x, oy = o.y - bot.y;
     return ox * ux + oy * uy > 0 && Math.hypot(ox, oy) < 1.4 && Math.abs(ox * uy - oy * ux) < BOT_SPACE;
   }).sort((a, b) => Math.hypot(a.x - bot.x, a.y - bot.y) - Math.hypot(b.x - bot.x, b.y - bot.y))[0] || null;
 }
 
-// Keep the route, but steer around a bot in the way on our right (positive world-y when heading east). A lower-priority bot flees from a
-// bot in right-of-way, so we give it ROW_PATIENCE seconds to clear the way; a higher-priority one stays and is passed (or waited for in a single-file gap).
+// Keep the route, but steer around a collidable bot in the way on our right (positive world-y when heading east).
 export const ROW_PATIENCE = 2;
 export function passingPoint(g, bot, w) {
+  if (bot.state === 'right-of-way') { bot.passing = null; bot.blockWait = 0; return w || bot; }
   if (bot.passing && clearBotSpot(g, bot, bot.passing)) return bot.passing;
   bot.passing = null;
   if (!w) return bot;
-  const other = botAhead(g, bot, w);
+  const other = botAhead(g, bot, w, true);
   if (!other) { bot.blockWait = 0; return w; }
   if (!canYield(g, bot, other)) {
     const dx = w.x - bot.x, dy = w.y - bot.y, len2 = dx * dx + dy * dy;
@@ -424,13 +424,13 @@ export function pushOut(g, bot) {
     }
   }
   for (const o of bots(g)) {
-    if (!o || o === bot || o.show <= 0) continue;
+    if (!o || o === bot || o.show <= 0 || !botsCollide(bot, o)) continue;
     const d = Math.hypot(bot.x - o.x, bot.y - o.y);
     if (d >= BOT_SPACE) continue;
     const a = d > 1e-6 ? Math.atan2(bot.y - o.y, bot.x - o.x) : bot.a + Math.PI / 2;
     for (let i = 0; i < 16; i++) {
       const p = { x: o.x + Math.cos(a + i * Math.PI / 8) * BOT_SPACE, y: o.y + Math.sin(a + i * Math.PI / 8) * BOT_SPACE };
-      if (clearBotSpot(g, bot, p) && bots(g).every((b) => b === bot || b === o || b.show <= 0 || Math.hypot(p.x - b.x, p.y - b.y) >= BOT_SPACE)) {
+      if (clearBotSpot(g, bot, p) && bots(g).every((b) => b === bot || b === o || b.show <= 0 || !botsCollide(bot, b) || Math.hypot(p.x - b.x, p.y - b.y) >= BOT_SPACE)) {
         bot.x = p.x; bot.y = p.y; break;
       }
     }

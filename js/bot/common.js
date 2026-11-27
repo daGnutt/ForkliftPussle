@@ -66,6 +66,7 @@ export const LANE = 1.1; // distance of the lane point (the bot's goal when goin
 export const laneAt = (h, show) => { const d = (LANE - (BOT_R + 0.1)) * show + BOT_R + 0.1; return { x: h.x + h.nx * d, y: h.y + h.ny * d }; };
 export const botLane = (h) => laneAt(h, 1);
 export const BOT_SPACE = BOT_R * 2 + 0.04;
+export const botsCollide = (a, b) => a.state !== 'right-of-way' && b.state !== 'right-of-way';
 export const BOT_KEYS = ['bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot'];
 export const bots = (g) => BOT_KEYS.map((k) => g[k]).filter(Boolean);
 export const botKey = (g, bot) => BOT_KEYS.find((key) => g[key] === bot);

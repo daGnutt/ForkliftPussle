@@ -1,4 +1,4 @@
-import { BOT_R, BOT_SPACE, STACK_R, SPEED, TURN_RATE, turnTo, rectDist, truckCircles, bots } from './common.js';
+import { BOT_R, BOT_SPACE, STACK_R, SPEED, TURN_RATE, turnTo, rectDist, truckCircles, bots, botsCollide } from './common.js';
 import { moveBot, nearBox, pushOut } from './nav.js';
 import { stepWorker } from './worker.js';
 import { speak } from './speech.js';
@@ -25,7 +25,7 @@ function clearAt(g, bot, p) {
     && !g.walls.some((w) => rectDist(p.x, p.y, w) < BOT_R)
     && !g.stacks.some((s) => Math.hypot(p.x - s.x, p.y - s.y) < STACK_R * 0.6 || nearBox(s, p.x, p.y, BOT_R))
     && !truckCircles(g).some((c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r + BOT_R)
-    && !bots(g).some((o) => o !== bot && o.show > 0 && Math.hypot(p.x - o.x, p.y - o.y) < BOT_SPACE);
+    && !bots(g).some((o) => o !== bot && o.show > 0 && botsCollide(bot, o) && Math.hypot(p.x - o.x, p.y - o.y) < BOT_SPACE);
 }
 const clearHeading = (g, bot, a, size, reach = [size + 0.1, size + 0.4]) => reach.every((d) => clearAt(g, bot, { x: bot.x + Math.cos(a) * d, y: bot.y + Math.sin(a) * d }));
 
