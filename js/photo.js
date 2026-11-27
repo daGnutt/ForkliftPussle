@@ -2,7 +2,7 @@ import { BOX_H, PAL } from './geom.js';
 import { repairable } from './repair.js';
 import { drawPhotoGl } from './gl/photoview.js';
 
-// The inspector's snapshot, seen from its own vantage point: a WebGL render (js/gl/photoview.js) from a camera ~0.2 tiles off the floor, tilted up so the whole stack fits.
+// The inspector's snapshot: a WebGL render from a camera ~0.2 tiles off the floor, tilted up so the whole stack fits.
 const W = 400, H = 300, STRIP = 81, LINE = 26, SHOW_MS = 4500;
 
 const hurt = (pen) => (pen?.crash || 0) > 0 && repairable(pen); // no damage symbol on what can't be repaired

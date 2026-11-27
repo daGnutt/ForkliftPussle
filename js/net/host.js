@@ -1,7 +1,7 @@
 // The host side of a party: owns the relay party, one WebRTC link per guest and the guests' trucks in the running game.
 import { addTruck, removeTruck, truckView, forkUp, forkDown } from '../game.js';
 import { createLink } from './peer.js';
-import { createSnapshotter, snapshot, encode, SNAPSHOT_HZ } from './protocol.js';
+import { createSnapshotter, snapshot, encode, photoId, SNAPSHOT_HZ } from './protocol.js';
 import { HARD_PHYSICS_VERSION } from '../hard-physics.js';
 import { createRound } from './round.js';
 import { createVote } from './vote.js';
@@ -25,8 +25,20 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
   let lastVoteSent = -Infinity;
   let lastVoteResolved = 0;
 
-  const payload = (g) => ({ ...levelInfo(), observer, hardPhysicsVersion: HARD_PHYSICS_VERSION, snap: snapshot(g) });
+  const payload = (g) => ({ ...levelInfo(), observer, hardPhysicsVersion: HARD_PHYSICS_VERSION, snap: snapshot(g, true, false) });
   const live = (m) => m.slot >= 0 && m.link.open;
+  function sendPhotoScenes(g, m) {
+    const photos = g.inspector?.photos || {}, sent = m.photoScenes ||= new Map();
+    for (const key of sent.keys()) if (!photos[key]) sent.delete(key);
+    for (const [key, photo] of Object.entries(photos)) {
+      if (!photo.scene) continue;
+      const id = photoId(photo);
+      if (sent.get(key) === id) continue;
+      const text = JSON.stringify(photo.scene), size = 12000, count = Math.ceil(text.length / size);
+      for (let i = 0; i < count; i++) m.link.sendReliable({ t: 'photoScene', key, id, i, count, data: text.slice(i * size, (i + 1) * size) });
+      sent.set(key, id);
+    }
+  }
   function sendRound() {
     const now = clock();
     for (const [peer, m] of members) {
@@ -116,6 +128,7 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
       if (slot < 0) { m.link.sendReliable({ t: 'bye', reason: 'full' }); drop(peer); return; }
       m.slot = slot;
       m.link.sendReliable({ t: 'welcome', slot, started: isStarted(), ...payload(g) });
+      sendPhotoScenes(g, m);
       if (observer) {
         round.join(peer, m.name, isStarted(), m.playerId);
         const state = round.state(peer, clock());
@@ -234,13 +247,21 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
           setTimeout(() => drop(peer), 300);
         } else m.slot = addTruck(g, m.name, m.slot);
       }
-      for (const m of members.values()) if (live(m)) m.link.sendReliable({ t: 'level', ...payload(g) });
+      for (const m of members.values()) if (live(m)) {
+        m.photoScenes = new Map();
+        m.link.sendReliable({ t: 'level', ...payload(g) });
+        sendPhotoScenes(g, m);
+      }
       if (observer) round.reset([...members].filter(([, m]) => live(m)).map(([peer, m]) => [peer, m.name, m.playerId]), isStarted());
     },
     // The host left the splash: waiting guests may start.
     started(g) {
       if (observer) round.begin();
-      for (const m of members.values()) if (live(m)) m.link.sendReliable({ t: 'level', ...payload(g) });
+      for (const m of members.values()) if (live(m)) {
+        m.photoScenes = new Map();
+        m.link.sendReliable({ t: 'level', ...payload(g) });
+        sendPhotoScenes(g, m);
+      }
     },
     // Called every frame; sends a snapshot to every guest at SNAPSHOT_HZ.
     broadcast(g, now = clock()) {
@@ -255,6 +276,7 @@ export function createHost({ relay, getGame, levelInfo, isStarted, name, meta, o
       lastSent = now;
       const ready = [...members.values()].filter(live);
       if (!ready.length) return;
+      for (const m of ready) sendPhotoScenes(g, m);
       const text = encode(snapper.next(g, now));
       for (const m of ready) m.link.sendFast(text);
     },

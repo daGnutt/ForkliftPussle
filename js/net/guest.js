@@ -19,6 +19,7 @@ const analog = (v) => Math.round(Math.max(-1, Math.min(1, +v || 0)) * 20) / 20;
 export function createGuest({ relay, code, name, playerId, onGame, onClosed, onRound, onVote, linkFactory = createLink, clock = () => performance.now() / 1000 }) {
   const interp = createInterpolator();
   const predictor = createPredictor();
+  const photoParts = new Map();
   let link = null, stream = null, peer = null, slot = -1, closed = false, lastIn = '', lastInAt = -Infinity, rtt = 0.1, lastGping = -Infinity;
 
   const end = (reason) => { if (closed) return; closed = true; stream?.close(); link?.close(); onClosed?.(reason); };
@@ -45,8 +46,18 @@ export function createGuest({ relay, code, name, playerId, onGame, onClosed, onR
             if (msg.hard && msg.hardPhysicsVersion !== HARD_PHYSICS_VERSION) { end(BYE.physics); return; }
             if (msg.t === 'welcome') slot = msg.slot;
             interp.reset(msg.snap?.stacks);
+            photoParts.clear();
             if (msg.t === 'welcome') lastGping = -Infinity;
             onGame({ slot, started: true, ...msg }); // a level message means the host is playing
+          } else if (msg.t === 'photoScene') {
+            const key = `${msg.key}:${msg.id}`;
+            let parts = photoParts.get(key);
+            if (!parts) photoParts.set(key, (parts = Array(msg.count)));
+            parts[msg.i] = msg.data;
+            if (parts.filter((p) => p !== undefined).length === parts.length) {
+              interp.setPhotoScene(msg.key, msg.id, JSON.parse(parts.join('')));
+              photoParts.delete(key);
+            }
           } else if (msg.t === 'ping') link.sendReliable({ t: 'pong', n: msg.n });
           else if (msg.t === 'round') onRound?.(msg);
           else if (msg.t === 'vote') onVote?.(msg.state || null, msg.enabled !== false);

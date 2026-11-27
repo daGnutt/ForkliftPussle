@@ -1,5 +1,7 @@
 # State, rules, scoring, level generation, rendering
 
+Inspector reports include a frozen, JSON-serializable `scene` and world-space stack origin. The scene is independent of the live game, preserves zone-completion flags, and drops only stacks provably hidden behind a full-height wall; graphics preferences are applied at redraw time. It is saved with the inspector reports, not a bitmap.
+
 ## Units and coordinates
 - Simulation units are tiles. Crates and pallets are 1×1 (wide: 1×2). Drop points are 15% wider and deeper than their original markings: 1.38×1.38 (wide: 1.38×2.53, or the swapped orientation). `geom.js` shares the footprint, runner and height dimensions with physics and renderers: each level is 0.6 tiles tall, with a 0.125 pallet, 0.475 box, and 0.05-thick tines; the 0.03-thick pallet deck leaves 0.075 levels of free tine travel. Barrels use the same pallet clearance. `game.js` re-exports `zoneExt`.
 - x right, y down; angle `a` in radians, 0 = facing +x.

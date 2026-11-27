@@ -369,10 +369,15 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   };
   // loopback links: the offer carries an id, the answering side pairs with the initiator that made it
   const initiators = new Map();
+  const photoPackets = [];
   let linkSeq = 0;
   const linkFactory = ({ initiator, sendSignal, onMessage, onOpen, onClose }) => {
     const me = { open: false, other: null, closed: false, onMessage, onOpen, onClose };
-    const wire = (msg) => { const o = me.other; if (o && !o.closed) setTimeout(() => o.onMessage(JSON.parse(typeof msg === 'string' ? msg : JSON.stringify(msg)))); };
+    const wire = (msg) => {
+      const data = JSON.parse(typeof msg === 'string' ? msg : JSON.stringify(msg)), o = me.other;
+      if (data.t === 'photoScene') photoPackets.push(data);
+      if (o && !o.closed) setTimeout(() => o.onMessage(data));
+    };
     Object.assign(me, {
       sendReliable: wire, sendFast: wire,
       close() { if (me.closed) return; me.closed = true; me.open = false; const o = me.other; if (o && !o.closed) { o.open = false; setTimeout(() => o.onClose?.()); } },
@@ -414,6 +419,21 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(host.trucks[1].name, 'Bob');
   assert.equal(guestGame.trucks[1].color, 1, 'the guest is the second colour');
   assert.deepEqual(h.players().map((p) => p.name), ['Anna', 'Bob']);
+
+  // Large frozen scenes travel reliably in chunks, not in every fast snapshot.
+  const scene = { origin: { x: 1, y: 2 }, state: { data: 'x'.repeat(36000) } };
+  host.inspector.photos = { test: { n: 1, t: 0.123456, sig: 'stack', ok: true, scene } };
+  assert.equal(snapshot(host, true, false).inspector.photos.test.scene, undefined);
+  h.broadcast(host, 1);
+  for (let i = 0; i < 3; i++) await tick();
+  guest.interp.apply(guestGame, performance.now() / 1000 + 1);
+  assert.deepEqual(guestGame.inspector.photos.test.scene, scene, 'the guest reassembles the frozen scene');
+  assert.ok(photoPackets.length > 1 && photoPackets.every((p) => p.data.length <= 12000), 'large scenes are chunked');
+  const packetCount = photoPackets.length;
+  h.broadcast(host, 2);
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(photoPackets.length, packetCount, 'an unchanged scene is sent only once');
+  delete host.inspector.photos;
 
   // inputs drive the guest's truck on the host, snapshots bring the result back
   guest.sendInput({ up: true });

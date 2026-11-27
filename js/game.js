@@ -7,6 +7,7 @@ import { BARREL_COLOR, OIL_DRAIN_SIZE, generateLevel } from './level.js';
 import { makeStation, stepRepair, repairable, recordDropAngle } from './repair.js';
 import { makeHatch, makeBot, makeInspector, makeConeBot, makeTapeBot, makeFixBot, stepBot, stepInspector, stepConeBot, stepTapeBot, stepFixBot, stepConeCollisions, stepTapeCollisions, stackSig, makePhoto } from './bot.js';
 import { closingSpeed, contactCorrection, palletSupported, solveContacts, tinesInPallet, supported } from './hard-physics.js';
+import { capturePhotoScene } from './photo-scene.js';
 
 const FORKLIFT_MASS = 6;
 const MIN_SUPPORT = 0.5; // fraction of a box that must rest on the box below, else it falls off the stack
@@ -87,7 +88,7 @@ export function makeTruck(start, id = 0, name = '') {
   };
 }
 
-function bindTrucks(g) {
+export function bindTrucks(g) {
   Object.defineProperty(g, 'root', { value: g });
   Object.defineProperty(g, 'truck', { get() { return this.trucks[this.self]; } });
   for (const k of TRUCK_KEYS) {
@@ -2608,6 +2609,7 @@ export function endPhotos(g) {
     const photo = (!g.hard || hasReport(g, S, z)) && g.inspector?.photos?.[inspectionKey(z)], src = photo || S;
     if (!endCache.has(src)) {
       const base = photo || makePhoto(S, !pts.crash && !pts.square, Math.PI / 4 + (S.rots?.[0] ?? 0), 1.4, 0, g.clock);
+      if (!photo) base.scene = capturePhotoScene(g, S, base.view, base.dist);
       endCache.set(src, { ...base, score: { base: pts.base, crash: pts.crash, square: pts.square, total: pts.total } }); // one object per picture, so the gallery can tell which are up
     }
     out.push(endCache.get(src));

@@ -2,6 +2,7 @@ import { repairable } from '../repair.js';
 import { SPEED, turnTo, botHome } from './common.js';
 import { buildGrid, plan, pathLength, REPLAN, KEEP_ROUTE, blockedAhead, followPath, pushOut, watchStuck, skipped } from './nav.js';
 import { stepHead, settle } from './state.js';
+import { capturePhotoScene } from '../photo-scene.js';
 
 // The inspection bot: photographs every completed drop point once (`seen` holds the keys of inspected zones).
 export function makeInspector(g) {
@@ -141,9 +142,11 @@ export function inspectorStep(g, dt, done, stackAt, wonky) {
       bot.aim = { x: target.x, y: target.y, h: st ? st.layers.length : 1 };
       if (Math.abs(turnTo(bot, Math.atan2(target.y - bot.y, target.x - bot.x), dt)) < 0.15) bot.shooting += dt;
       if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
+        const lens = { x: bot.x + Math.cos(bot.a) * 0.3, y: bot.y + Math.sin(bot.a) * 0.3 };
         const photo = st && complete && makePhoto(st, !wonky(st, zone) && !st.pen.some((q) => q?.crash > 0 && repairable(q)),
-          Math.atan2(target.y - bot.y, target.x - bot.x), Math.hypot(target.x - bot.x, target.y - bot.y), (g.photo?.n || 0) + 1, g.clock);
+          Math.atan2(st.y - lens.y, st.x - lens.x), Math.hypot(st.x - lens.x, st.y - lens.y), (g.photo?.n || 0) + 1, g.clock);
         if (photo) {
+          photo.scene = capturePhotoScene(g, st, photo.view, photo.dist);
           g.photo = photo;
           (bot.sigs ||= {})[key] = stackSig(st);
           for (const pen of st.pen || []) pen.inspected = true;

@@ -322,8 +322,8 @@ function floorText(tm, str, cx, cy, u, t, z, color) {
 }
 
 function addMarks(tm, g, mode) {
-  for (const z of g.zones) {
-    const done = zoneDone(g, z), e = zoneExt(z), c = parseColor(ZONE_COLORS[z.color]);
+  for (const [i, z] of g.zones.entries()) {
+    const done = g.photoDone ? g.photoDone[i] : zoneDone(g, z), e = zoneExt(z), c = parseColor(ZONE_COLORS[z.color]);
     if (mode === 'ov' && !done) {
       const txt = `×${z.count}`;
       const lp = zoneLabelPos(g, z);
@@ -336,7 +336,7 @@ function addMarks(tm, g, mode) {
       for (const [i, d] of floorGrateDecal(z.x, z.y).entries()) tm.poly(d.pts, i ? 0.01 : 0.008, parseColor(d.fill));
     }
   }
-  const ready = isSolved(g);
+  const ready = g.photoDone ? g.photoDone.every(Boolean) : isSolved(g);
   const { hx, hy, at } = parkingCorners(g);
   const col = ready ? parseColor('#66bb6a') : parseColor('#bdbdbd');
   const fillA = ready ? (isParked(g) ? 0.6 : 0.4) : 0.33;
@@ -617,15 +617,15 @@ export function dynamicMeshes(g, mode, eye) {
     om.transform = tm.transform = null;
     tm.alpha = 1;
   }
-  const bare = mode === 'pov' && bareForksEnabled();
+  const bare = mode === 'pov' && !g.photoScene && bareForksEnabled();
   if (!g.truck.gone) {
-    if (!bare) addForklift(om, g, mode === 'ov');
+    if (!bare) addForklift(om, g, mode === 'ov' || g.photoScene);
     addForks(om, g, bare);
   }
   addMarks(tm, g, mode);
   addBlobShadows(tm, g);
   if (!g.truck.gone) addRevLight(tm, g);
-  const sparkLights = addParticles(om, tm, g, eye);
+  const sparkLights = g.photoScene ? [] : addParticles(om, tm, g, eye);
   const disco = discoOn();
   if (disco && mode === 'pov') addDisco(om, g, eye);
   const lights = theme().dark ? darkLights(g, eye) : [];

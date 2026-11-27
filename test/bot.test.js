@@ -1084,6 +1084,10 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   assert.ok(g.photo, 'the stack was photographed');
   assert.equal(g.photo.ok, false, 'damage means no GOOD JOB');
   assert.equal(g.photo.pens[0].crash, 12);
+  assert.ok(g.photo.scene?.state.stacks.some((s) => s.x === z.x && s.y === z.y), 'the real warehouse scene is captured');
+  const camX = g.photo.scene.origin.x - Math.cos(g.photo.view) * g.photo.dist;
+  const camY = g.photo.scene.origin.y - Math.sin(g.photo.view) * g.photo.dist;
+  assert.ok(Math.hypot(camX - (g.inspector.x + Math.cos(g.inspector.a) * 0.3), camY - (g.inspector.y + Math.sin(g.inspector.a) * 0.3)) < 1e-8, 'the camera is at the inspector lens');
   assert.equal(flaggedStacks(g).length, 1, 'a photographed damaged stack gets the floating "!"');
   const fl = flaggedStacks(g)[0];
   assert.ok(fl.damaged && !fl.wonky, 'damage only');

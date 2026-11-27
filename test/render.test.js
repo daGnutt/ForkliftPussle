@@ -24,7 +24,8 @@ import { createPredictor } from '../js/net/predict.js';
 import { applySnapshot, createInterpolator, snapshot } from '../js/net/protocol.js';
 import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
-import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, carriedDrawH, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
+import { newGame, bindTrucks, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, carriedDrawH, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
+import { capturePhotoScene } from '../js/photo-scene.js';
 import { addParticles, setParticlesEnabled, shouldSpawnSetdownDust } from '../js/gl/particles.js';
 import { Mesh, parseColor } from '../js/gl/mesh.js';
 import { areaMarkKey, BOT_BEACONS, tapeCorners } from '../js/bot.js';
@@ -1016,6 +1017,33 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 }
 
 console.log('render tests passed');
+
+{ // Photos freeze the real scene and conservatively omit stacks behind a wall.
+  const g = newGame(1);
+  g.w = 25; g.h = 20;
+  const target = { x: 4, y: 10, layers: [0], rots: [0], offs: [{ x: 0, y: 0 }], pen: [{ crash: 0, sq: 0 }] };
+  const hidden = { ...target, x: 15 };
+  const moving = { ...target, x: 16, fallZ: 1 };
+  const exposed = { ...target, x: 15, y: 1 };
+  g.stacks = [target, hidden, moving, exposed];
+  g.walls = [{ x: 7, y: 7, w: 1, h: 6 }];
+  g.inspector.photos = { old: { scene: { state: { previous: true } } } };
+  const scene = capturePhotoScene(g, target, 0, 1.4);
+  assert.deepEqual(scene.state.stacks.map((s) => [s.x, s.y]), [[4, 10], [16, 10], [15, 1]], 'moving and partially exposed stacks are retained');
+  assert.equal(scene.state.inspector.show, 0, 'the camera does not see its own bot');
+  assert.equal(scene.state.inspector.photos, undefined, 'earlier photos are not nested in the scene');
+  const frozen = JSON.stringify(scene);
+  target.layers[0] = 2;
+  g.walls[0].x = 9;
+  g.fl.x += 3;
+  assert.equal(JSON.stringify(scene), frozen, 'later changes cannot alter the photo');
+  const restored = JSON.parse(frozen).state;
+  bindTrucks(restored);
+  const cam = photoCamera({ scene, layers: [0], view: 0, dist: 1.4 }, 400, 300);
+  assert.ok(Math.abs(cam.eye[0] - 2.6) < 1e-9 && cam.eye[1] === 10, 'camera uses the saved world position');
+  assert.ok(staticMeshes(restored, 'pov').opaque.count > 0);
+  assert.ok(dynamicMeshes(restored, 'pov', cam.eye).opaque.count > 0, 'the captured scene can be rebuilt after JSON round-trip');
+}
 
 { // damaged boxes carry a warning symbol in the inspector photo
   assert.deepEqual(boxStatus({ crash: 10, sq: 5 }), { damaged: true, crooked: true });

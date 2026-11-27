@@ -14,10 +14,14 @@ const STACK_REFRESH = 2; // seconds between full stack refreshes while nothing c
 
 // Compact JSON: numbers are rounded to 1/10000.
 export const encode = (msg) => JSON.stringify(msg, (k, v) => (typeof v === 'number' ? Math.round(v * 1e4) / 1e4 : v));
+export const photoId = (photo) => JSON.stringify([photo.n, Math.round(photo.t * 1e4), photo.sig]);
 
 // Plain-data snapshot of the whole game state a guest needs; `stacks` is left out when `withStacks` is false.
-export function snapshot(g, withStacks = true) {
+export function snapshot(g, withStacks = true, withPhotoScenes = true) {
   const r = g.root;
+  const inspector = r.inspector && !withPhotoScenes && r.inspector.photos
+    ? { ...r.inspector, photos: Object.fromEntries(Object.entries(r.inspector.photos).map(([key, { scene, ...photo }]) => [key, photo])) }
+    : r.inspector;
   const s = {
     trucks: r.trucks.map((t) => Object.fromEntries(TRUCK_FIELDS.map((k) => [k, t[k]]))),
     ghostPairs: r.ghostPairs,
@@ -27,7 +31,7 @@ export function snapshot(g, withStacks = true) {
     cones: r.cones,
     tapes: r.tapes,
     bot: r.bot,
-    inspector: r.inspector,
+    inspector,
     coneBot: r.coneBot,
     tapeBot: r.tapeBot,
     hitCount: r.hitCount,
@@ -49,7 +53,7 @@ export function createSnapshotter() {
       const withStacks = left > 0 || now - lastAt >= STACK_REFRESH;
       if (left > 0) left--;
       if (withStacks) lastAt = now;
-      return { t: 'snap', ...snapshot(g, withStacks) };
+      return { t: 'snap', ...snapshot(g, withStacks, false) };
     },
   };
 }
@@ -80,9 +84,11 @@ const lerpAngle = (a, b, k) => a + (((b - a + Math.PI) % (2 * Math.PI) + 2 * Mat
 
 // Guests render slightly in the past, blending between the two snapshots around that time.
 export function createInterpolator(delay = 0.1) {
+  const scenes = new Map();
   let buf = [], stacks = null;
   return {
-    reset(initialStacks = null) { buf = []; stacks = initialStacks; }, // the welcome/level snapshot's stacks stand in until the next full refresh
+    reset(initialStacks = null) { buf = []; stacks = initialStacks; scenes.clear(); }, // the welcome/level snapshot's stacks stand in until the next full refresh
+    setPhotoScene(key, id, scene) { scenes.set(`${key}:${id}`, scene); },
     get ready() { return buf.length > 0; },
     push(snap, now) {
       if (snap.stacks) stacks = snap.stacks; else snap.stacks = stacks;
@@ -97,6 +103,12 @@ export function createInterpolator(delay = 0.1) {
       while (i > 0 && buf[i].t > rt) i--;
       const a = buf[i], b = buf[i + 1];
       applySnapshot(g, a.snap);
+      if (g.inspector?.photos) {
+        for (const [key, photo] of Object.entries(g.inspector.photos)) {
+          const scene = scenes.get(`${key}:${photoId(photo)}`);
+          if (scene) photo.scene = scene;
+        }
+      }
       if (b && rt > a.t) {
         const k = Math.min(1, (rt - a.t) / Math.max(1e-3, b.t - a.t));
         g.trucks.forEach((t, j) => {
