@@ -62,7 +62,7 @@ export function nearestFree(grid, s) {
 }
 
 // Dijkstra over free cells from `from`. `score(x, y, cost)` ranks cells (lower is better); the best cell within `maxCost` wins.
-// Returns the waypoint list (world coordinates) to that cell, or [].
+// Returns the waypoint list (world coordinates) to that cell, or []; score also receives the best score so far for pruning expensive checks.
 export const pathLength = (from, path) => path.reduce((n, w, i) => n + Math.hypot(w.x - (i ? path[i - 1].x : from.x), w.y - (i ? path[i - 1].y : from.y)), 0);
 
 function walkRoutes(grid, bot, maxCost, visit) {
@@ -194,7 +194,7 @@ export function plan(grid, from, maxCost, score) {
     const [c, id] = pop();
     if (c > cost[id]) continue;
     const i = id % nx, j = (id - i) / nx;
-    const sc = score((i + 0.5) * CELL, (j + 0.5) * CELL, c);
+    const sc = score((i + 0.5) * CELL, (j + 0.5) * CELL, c, bestScore);
     if (sc < bestScore) { bestScore = sc; best = id; }
     for (const [di, dj, w] of NB) {
       const ni = i + di, nj = j + dj;

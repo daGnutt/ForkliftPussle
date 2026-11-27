@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { newGame, update, addTruck, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
 import { issues } from '../js/photo.js';
-import { buildGrid, blockedAhead, routeDistance, routeDistances, moveBot, pushOut, watchStuck, STUCK_SECS } from '../js/bot/nav.js';
+import { buildGrid, plan, blockedAhead, routeDistance, routeDistances, moveBot, pushOut, watchStuck, STUCK_SECS } from '../js/bot/nav.js';
 import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, stepFixBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape, stepSeq, startSpawn } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
 import { run, NONE, flatWorld } from './common.js';
 import { floorDecals } from '../js/decals.js';
-import { FLEE_TURN_RATE, makeHatch, rectDist } from '../js/bot/common.js';
+import { FLEE_TURN_RATE, makeHatch, rectDist, truckCircles } from '../js/bot/common.js';
+import { clearConeSpot, conePlacement } from '../js/bot/conebot.js';
 
 const hasBarrel = (g) => g.stacks.some((s) => s.layers.includes(6));
 const botGame = () => {
@@ -390,6 +391,48 @@ const solo = (...kinds) => {
 const out = (b, p) => Object.assign(b, { mode: 'out', show: 1, a: 0, path: [], repath: 1e9, ...p });
 const work = (g, kind, dt, goal = { x: 14, y: 6 }) => stepWorker(g, g[kind], dt, true, goal, 'job');
 const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null);
+
+// Cone placement keeps the exhaustive search's result without checking every cell's obstacles.
+{
+  const g = solo('coneBot'), b = out(g.coneBot, { x: 3, y: 6, state: 'going-to-work' });
+  g.stacks = [{ x: 9, y: 6, layers: [0], rots: [0], pen: [{ tip: 1 }] }];
+  g.walls.push({ x: 6, y: 0, w: 0.5, h: 9 });
+  g.cones = [{ x: 4.125, y: 6.125 }];
+  const some = g.cones.some;
+  let checks = 0;
+  g.cones.some = function (predicate) { checks++; return some.call(this, predicate); };
+  for (const target of [{ x: 4.125, y: 6.125 }, { x: 9, y: 6 }, { x: 10, y: 3 }]) {
+    const grid = buildGrid(g, 0.45, false, b), trucks = truckCircles(g);
+    checks = 0;
+    const path = plan(grid, b, 80, (x, y, cost) => clearConeSpot(g, { x, y }, null, trucks)
+      ? Math.hypot(x - target.x, y - target.y) * 10 + cost * 0.02 : Infinity);
+    const exhaustiveChecks = checks, end = path.at(-1) || { x: b.x, y: b.y };
+    checks = 0;
+    const placement = conePlacement(g, b, target);
+    assert.deepEqual(placement.goal, end, 'pruning preserves the exact destination, including blocked targets');
+    assert.deepEqual(placement.spot, end);
+    assert.ok(checks < exhaustiveChecks / 4, `obstacle checks reduced by at least 75% (${checks}/${exhaustiveChecks})`);
+  }
+  delete g.cones.some;
+}
+
+// Multiple hazard targets must not cause route searches every tick while the cone bot emerges.
+{
+  const g = solo('coneBot'), b = g.coneBot;
+  g.stacks = [{ x: 9, y: 6, layers: [0], rots: [0], pen: [{ tip: 1 }] }];
+  clearOf(g, g.hatch);
+  const width = g.w;
+  let gridReads = 0;
+  Object.defineProperty(g, 'w', { configurable: true, get() { gridReads++; return width; } });
+  for (let i = 0; i < 120 && b.show < 1; i++) {
+    g.clock += 1 / 120;
+    stepConeBot(g, 1 / 120, []);
+  }
+  assert.equal(b.show, 1, 'the cone bot emerges for the toppled box');
+  assert.equal(gridReads, 0, 'no navigation grid is built during emergence');
+  stepConeBot(g, 1 / 120, []);
+  assert.ok(gridReads > 0 && b.task, 'navigation and job commitment start once fully outside');
+}
 
 // Tape posts neither block planning nor movement for any bot, and remain intact.
 {
