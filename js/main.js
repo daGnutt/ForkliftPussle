@@ -1684,6 +1684,7 @@ let lastDraw = -Infinity;
 function frame(now) {
   rafPending = false;
   if (view.paused) return;
+  game.debugBots = !!debug;
   const dtReal = Math.min(0.1, (now - last) / 1000);
   acc += dtReal;
   last = now;
@@ -1822,7 +1823,6 @@ function frame(now) {
     view.fullscreen = !!document.fullscreenElement;
     view.tutorialBottom = isTouch && view.height > view.width && !tutorialEl.classList.contains('hide')
       ? tutorialEl.getBoundingClientRect().bottom - canvas.getBoundingClientRect().top : 0;
-    game.debugBots = !!debug;
     draw(ctx, game, view);
     drawResults(resultsCtx, game, view);
     dodgePhoto();

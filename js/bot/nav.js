@@ -1,23 +1,7 @@
 import { BOX_HALF_X, halfY } from '../geom.js';
 import { BOT_R, CELL, TURN_RATE, TURN_FIRST, FLEE_TURN_RATE, angDiff, turnTo, BOT_SPACE, rectDist, truckCircles, truckGap, STACK_R, bots, outranks } from './common.js';
-import { tapeCorners, POST_R } from './tapebot.js';
-
 // A lower-priority bot flees from a bot in right-of-way, so the planner may route through it; higher-priority bots stay put.
 export const canYield = (g, me, other) => other.show === 1 && outranks(g, me, other);
-
-// Tape posts are solid for bots (not for forklifts). Cones are deliberately breakable and never block bot routes:
-// bot contact tips/displaces them for the cone bot to retrieve. Own/other spawn ghosts still apply to tape posts.
-export function solidProps(g) {
-  const out = [];
-  for (const t of g.tapes || []) {
-    if (!Array.isArray(t.posts)) continue;
-    const corners = tapeCorners(t);
-    t.posts.forEach((on, i) => { if (on) out.push({ x: corners[i].x, y: corners[i].y, r: POST_R }); });
-  }
-  return out;
-}
-export const propGap = (g, bot) => bot === g.tapeBot ? 0.2 : BOT_R * 0.75;
-export const ghosted = (bot, p) => !!bot?.ghost && Math.hypot(bot.ghost.x - p.x, bot.ghost.y - p.y) < 0.03;
 
 export function nearBox(s, x, y, margin) {
   return s.layers.some((_, i) => {
@@ -49,8 +33,7 @@ export function buildGrid(g, margin, slim = false, avoidBots = null) {
       stamp(s.x - r, s.y - r, s.x + r, s.y + r, (x, y) => nearBox(s, x, y, 0.2));
     }
   }
-  for (const p of solidProps(g)) if (!ghosted(avoidBots, p)) circle(p, p.r + (slim ? 0.2 : BOT_R * 0.75) + 0.08);
-  const fixed = blocked.slice(); // cells blocked by walls, boxes and floor markings only (forklifts move away on their own)
+  const fixed = blocked.slice(); // cells blocked by walls and boxes only (forklifts move away on their own)
   for (const c of truckCircles(g)) circle(c, c.r + BOT_R + margin);
   if (avoidBots) for (const b of bots(g)) {
     if (b !== avoidBots && b.show > 0 && !canYield(g, avoidBots, b)) circle(b, BOT_SPACE + 0.1);
@@ -255,7 +238,6 @@ export function blockedAhead(g, bot) {
   const trucks = truckCircles(g);
   return pts.some((p) => g.walls.some((w) => rectDist(p.x, p.y, w) < (bot === g.tapeBot ? 0.25 : BOT_R))
     || trucks.some((c) => Math.hypot(p.x - c.x, p.y - c.y) < c.r + BOT_R * 0.9)
-    || solidProps(g).some((q) => !ghosted(bot, q) && Math.hypot(p.x - q.x, p.y - q.y) < q.r + propGap(g, bot))
     || (!bot.passing && bots(g).some((b) => b !== bot && b.show > 0 && !canYield(g, bot, b) && Math.hypot(p.x - b.x, p.y - b.y) < BOT_SPACE))
     || g.stacks.some((s) => bot === g.tapeBot ? nearBox(s, p.x, p.y, 0.2) : Math.hypot(p.x - s.x, p.y - s.y) < STACK_R + BOT_R * 0.9));
 }
@@ -307,11 +289,6 @@ export function moveBot(g, bot, x, y) {
     const t = len2 ? Math.max(0, Math.min(1, ((o.x - bot.x) * dx + (o.y - bot.y) * dy) / len2)) : 0;
     const d = Math.hypot(bot.x + dx * t - o.x, bot.y + dy * t - o.y);
     if (d < Math.min(BOT_SPACE, Math.hypot(bot.x - o.x, bot.y - o.y)) - 1e-8) return false;
-  }
-  for (const q of solidProps(g)) {
-    if (ghosted(bot, q)) continue;
-    const dNew = Math.hypot(x - q.x, y - q.y);
-    if (dNew < q.r + propGap(g, bot) - 1e-8 && dNew < Math.hypot(bot.x - q.x, bot.y - q.y) - 1e-9) return false; // moving away is always allowed
   }
   bot.x = x; bot.y = y;
   return true;

@@ -61,6 +61,8 @@ Fork level is a whole number 0–5 (`MAX_H`) (height above the floor in box heig
 ## Debug overlay
 Add `?debug` to the URL (see [URL parameters](#url-parameters)) for an FPS counter, frame/update/draw timings and their share of frame time (update/draw/debug/idle %, where debug is the overlay's own cost), boxes in the right place and other state, for troubleshooting performance. In endless mode it also shows the adaptive difficulty (measured unloading rate, pace, time to the next truck).
 
+Worker bots also log new job routes and stuck-recovery events to the browser console at debug level (enable verbose/debug messages in the console if needed). These are event-based rather than per-frame; logging still has some cost even when the console is closed. An empty route means no waypoints were planned, not necessarily that the goal is unreachable.
+
 ## URL parameters
 Combine with `&`, e.g. `index.html?skip&debug&gl=0`.
 

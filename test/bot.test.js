@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { newGame, update, addTruck, zoneDone, zoneWonky, flaggedStacks, flagSymbol, endPhotos, score } from '../js/game.js';
 import { issues } from '../js/photo.js';
-import { buildGrid, routeDistance, routeDistances, moveBot, watchStuck, STUCK_SECS } from '../js/bot/nav.js';
+import { buildGrid, blockedAhead, routeDistance, routeDistances, moveBot, watchStuck, STUCK_SECS } from '../js/bot/nav.js';
 import { BOT_R, CLEAN_SECS, truckGap, botDrawPos, TURN_RATE, stepBot, stepInspector, stepConeBot, stepFixBot, coneTargets, areaComplete, areaMarkKey, stackSig, stepConeCollisions, stepTapeBot, stepTapeCollisions, tapeCorners, trailingTape, stepSeq, startSpawn } from '../js/bot.js';
 import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
@@ -353,6 +353,68 @@ const solo = (...kinds) => {
 const out = (b, p) => Object.assign(b, { mode: 'out', show: 1, a: 0, path: [], repath: 1e9, ...p });
 const work = (g, kind, dt, goal = { x: 14, y: 6 }) => stepWorker(g, g[kind], dt, true, goal, 'job');
 const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null);
+
+// Tape posts neither block planning nor movement for any bot, and remain intact.
+{
+  for (const kind of [...botKinds, 'fixBot']) {
+    const g = solo(kind), b = out(g[kind], { x: 4, y: 6, state: 'going-to-work' });
+    const empty = buildGrid(g, 0.45, kind === 'tapeBot', b);
+    g.tapes = [{ x: 5.3, y: 6.3, w: 2, h: 2, posts: [true, false, false, false], edges: [false, false, false, false] }];
+    const grid = buildGrid(g, 0.45, kind === 'tapeBot', b);
+    assert.deepEqual(grid.blocked, empty.blocked, `${kind} plans through tape posts`);
+    assert.deepEqual(grid.fixed, empty.fixed);
+    b.path = [{ x: 5, y: 6 }];
+    b.x = 4.7;
+    assert.equal(blockedAhead(g, b), false, `${kind} does not replan around the post`);
+    for (let i = 0; i < 10; i++) assert.ok(moveBot(g, b, b.x + 0.1, b.y), `${kind} can pass through the post`);
+    assert.equal(g.tapes[0].posts[0], true, 'bot movement does not break the post');
+  }
+  for (const kind of ['coneBot', 'tapeBot']) {
+    const g = solo(kind), b = out(g[kind], { x: 3, y: 6.125, state: 'going-to-work', repath: 0 });
+    g.tapes = [{ x: 5.3, y: 6.425, w: 2, h: 2, posts: [true, false, false, false], edges: [false, false, false, false] }];
+    let nearest = Infinity;
+    for (let i = 0; i < 1200 && b.x < 6; i++) {
+      g.clock += 1 / 120;
+      stepWorker(g, b, 1 / 120, true, { x: 8, y: 6.125 }, 'cross-post');
+      nearest = Math.min(nearest, Math.hypot(b.x - 5, b.y - 6.125));
+    }
+    assert.ok(b.x >= 6 && nearest < 0.2, `${kind} drives through the post during a job`);
+    assert.equal(g.tapes[0].posts[0], true);
+  }
+}
+
+// Debug logging reports new routes and recoveries without logging every replan.
+{
+  const g = solo('coneBot'), b = out(g.coneBot, { x: 3, y: 6, state: 'going-to-work', repath: 0 });
+  const messages = [], original = console.debug;
+  console.debug = (...args) => messages.push(args);
+  try {
+    work(g, 'coneBot', 0.05);
+    assert.equal(messages.length, 0, 'normal games do not log');
+    g.debugBots = true;
+    stepWorker(g, b, 0.05, true, { x: 14, y: 6 }, 'new-job');
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0][0], '[worker bot] route planned');
+    assert.equal(messages[0][1].bot, 'coneBot');
+    assert.equal(messages[0][1].goalKey, 'new-job');
+    assert.ok(messages[0][1].waypoints > 0);
+    b.repath = 0;
+    stepWorker(g, b, 0.05, true, { x: 14, y: 6 }, 'new-job');
+    assert.equal(messages.length, 1, 'replanning the same goal does not spam the console');
+    Object.assign(b, { stuckTime: STUCK_SECS, stuckCount: 0, recoveryUntil: 0 });
+    g.clock = 10;
+    stepWorker(g, b, 0.05, true, { x: 14, y: 6 }, 'new-job', 0);
+    assert.equal(messages[1][0], '[worker bot] stuck recovery');
+    assert.equal(messages[1][1].action, 'escape route');
+    Object.assign(b, { stuckTime: STUCK_SECS, stuckCount: 2, recoveryUntil: 0 });
+    g.clock = 20;
+    stepWorker(g, b, 0.05, true, { x: 14, y: 6 }, 'new-job', 0);
+    assert.equal(messages[2][1].action, 'temporarily skipped job');
+    assert.equal(messages.length, 3);
+  } finally {
+    console.debug = original;
+  }
+}
 
 // Moving or removing a target cannot redirect a committed bot before it arrives.
 {
@@ -1862,7 +1924,7 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   assert.equal(coneTargets(g, []).length, 0, 'none once it is righted');
 }
 
-// Spawning and despawning: the bot stops 0.25 s, the object appears under it (collision off against it) and the bot drives on before collision returns;
+// Spawning and despawning: the bot stops 0.25 s, the object appears under it and the bot drives on;
 // removal backs onto the object, removes it and waits 0.25 s.
 {
   const g = newGame(1, 0), b = g.coneBot;
@@ -1878,7 +1940,7 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
     if (!cone && g.cones.length) {
       cone = g.cones[0]; spawnedAt = { x: b.x, y: b.y };
       assert.ok(Math.hypot(cone.x - b.x, cone.y - b.y) < 1e-6, 'the cone spawns directly under the bot');
-      assert.ok(b.ghost && Math.hypot(b.ghost.x - cone.x, b.ghost.y - cone.y) < 0.03, 'collision is off against the new cone');
+      assert.ok(b.ghost && Math.hypot(b.ghost.x - cone.x, b.ghost.y - cone.y) < 0.03, 'the saved sequence records the new cone position');
       assert.ok(b.say?.reason === 'spawn', 'the bot says something when spawning');
     }
     if (!cone) { waited += b.seq.phase === 'wait' ? 1 / 120 : 0; }
@@ -1886,7 +1948,7 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
     ghostCleared = !!cone && !b.ghost;
   }
   assert.ok(cone && waited >= 0.24, 'the bot stands still for 0.25 s before spawning');
-  assert.ok(left >= 0.26 * 0.9, 'the bot drives on at least the cone size before collision returns');
+  assert.ok(left >= 0.26 * 0.9, 'the bot drives on at least the cone size');
   g.oil = [];
   let removedAt = -1, freeAt = -1, t = 0;
   for (let i = 0; i < 120 * 90 && freeAt < 0; i++) {

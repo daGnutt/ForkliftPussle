@@ -5,9 +5,9 @@ import { speak } from './speech.js';
 
 // Spawning and despawning of cones and tape posts. A sequence is plain data in `bot.seq` so it survives saving; what it creates or removes is
 // done by the owner's registered `commit` (by name, see `registerCommit`).
-//   spawn:   aim at a clear heading → wait → create the object under the bot (collision off against it) → drive on ≥ its size → collision back on
-//   despawn: face away from the object → reverse onto it (collision off against it) → remove it → wait → free again
-// The bot drives on at least the object's size, and far enough that it is outside the object's collision margin (else it could not route again).
+//   spawn:   aim at a clear heading → wait → create the object under the bot → drive on ≥ its size
+//   despawn: face away from the object → reverse onto it → remove it → wait → free again
+// Bots ignore tape posts and cones when moving; ghost is retained in sequence state for save compatibility.
 export const LEAVE_MIN = 0.4, SPAWN_WAIT = 0.25, STUCK_SECS = 1.5, AIM_TOL = 0.05, TOUCH = 0.06;
 const COMMITS = {};
 export const registerCommit = (name, fn) => { COMMITS[name] = fn; };
