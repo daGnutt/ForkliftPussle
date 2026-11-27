@@ -51,7 +51,11 @@ export function stepConeCollisions(g) {
     }
     for (const bot of bots(g)) {
       if (!bot.show) continue;
-      if (bot === g.coneBot && cone.placedX != null && Math.hypot(cone.x - cone.placedX, cone.y - cone.placedY) < 0.22) continue;
+      if (bot === g.coneBot) {
+        if (bot.task?.type === 'retrieve' && bot.task.id === cone.id) continue;
+        if (bot.seq?.kind === 'despawn' && bot.seq.commit === 'cone' && bot.seq.data.id === cone.id) continue;
+        if (cone.placedX != null && Math.hypot(cone.x - cone.placedX, cone.y - cone.placedY) < 0.22) continue;
+      }
       const dx = cone.x - bot.x, dy = cone.y - bot.y, d = Math.hypot(dx, dy), min = BOT_R * 0.8 + 0.13;
       if (d >= min) continue;
       const a = d > 1e-6 ? Math.atan2(dy, dx) : hash((cone.id || '').length + bot.x * 7 + bot.y * 11) * Math.PI * 2;

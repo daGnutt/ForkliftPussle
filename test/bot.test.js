@@ -1251,6 +1251,34 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   assert.equal(b.state, 'loiter', 'the bot loiters once collection is finished');
 }
 
+// Retrieval must not push its own cone away while approaching or reversing onto it.
+for (const corner of [false, true]) {
+  const g = newGame(1, 0), b = g.coneBot;
+  flatWorld(g); g.stacks = []; g.zones = []; g.areas = []; g.oil = [];
+  g.bot = null; g.inspector = null; g.tapeBot = null; g.fixBot = null;
+  Object.assign(g.fl, { x: 1, y: 1, speed: 0 });
+  const at = corner ? { x: 8.8, y: 8.8 } : { x: 8, y: 8 };
+  if (corner) {
+    for (const wall of [{ x: 9, y: 5, w: 0.5, h: 4.5 }, { x: 5, y: 9, w: 4.5, h: 0.5 }]) {
+      wall.poly = rectPoly(wall.x + wall.w / 2, wall.y + wall.h / 2, wall.w / 2, wall.h / 2);
+      g.walls.push(wall);
+    }
+  }
+  const cone = { id: 'pickup', goalId: 'obsolete:0', ...at, a: 0, tipped: true, squished: false,
+    placedX: 6, placedY: 6 };
+  g.cones = [cone];
+  Object.assign(b, { x: 6, y: at.y, a: 0, mode: 'out', show: 1, path: [], repath: 0 });
+  let reversing = false;
+  for (let i = 0; i < 120 * 10 && g.cones.includes(cone); i++) {
+    update(g, NONE, 1 / 120);
+    reversing ||= b.seq?.kind === 'despawn' && b.seq.phase === 'reverse';
+    assert.equal(cone.x, at.x, 'pickup leaves the cone at its original x');
+    assert.equal(cone.y, at.y, 'pickup leaves the cone at its original y');
+  }
+  assert.ok(reversing, 'the bot reverses onto the cone to collect it');
+  assert.ok(!g.cones.includes(cone), 'the bot collects a displaced cone, including near a corner');
+}
+
 // A blocked target gets a persistent best-effort cone, which is improved when the route opens.
 {
   const g = newGame(1, 0);
@@ -1416,6 +1444,19 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   g.cones = [{ id: 'bot-hit', goalId: 'target', x: 8.1, y: 8, a: 0, tipped: false, squished: false }];
   stepConeCollisions(g);
   assert.ok(g.cones[0].tipped && Math.hypot(g.cones[0].x - 8.1, g.cones[0].y - 8) > 0.05, 'bot contact tips and displaces a cone');
+
+  g.bot = null;
+  Object.assign(g.coneBot, { x: 8, y: 8, show: 1, task: { type: 'retrieve', id: 'pickup-target' } });
+  const target = { id: 'pickup-target', goalId: 'old', x: 8.1, y: 8, a: 0, tipped: false };
+  const other = { id: 'other-cone', goalId: 'old', x: 8, y: 8.1, a: 0, tipped: false };
+  g.cones = [target, other];
+  stepConeCollisions(g);
+  assert.equal(target.x, 8.1, 'the cone bot does not push its retrieval target');
+  assert.equal(target.tipped, false, 'retrieval does not tip the target');
+  assert.ok(other.tipped && other.y > 8.1, 'the cone bot still pushes unrelated cones');
+  g.bot = { x: 8, y: 8, show: 1 };
+  stepConeCollisions(g);
+  assert.ok(target.tipped && target.x > 8.1, 'other bots still collide with the retrieval target');
 }
 
 // Worker bots expose their current work destination and clear it when fleeing.
