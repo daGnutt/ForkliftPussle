@@ -1117,7 +1117,11 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   for (let t = 0; t < 120 && !g.photo; t += 1 / 120) update(g, NONE, 1 / 120);
   assert.ok(g.photo, 'hard stack was photographed');
   assert.equal(g.photo.ok, false);
-  assert.deepEqual(issues(g.photo), ['Box 1 is rotated', 'Box 2 is shifted sideways']);
+  assert.deepEqual(issues(g.photo), ['Box 1 is rotated', 'Box 2 is shifted sidewise']);
+  const fresh = newGame(1, 0, true);
+  fresh.photo = g.photo;
+  const restored = deserializeGame(JSON.parse(JSON.stringify(serializeGame(fresh))));
+  assert.deepEqual(issues(restored.photo), issues(g.photo), 'inspector direction details survive save and load');
   assert.equal(score(g, true), score(g), 'reported placement losses now show in the live score');
   assert.equal(flaggedStacks(g)[0].wonky, true);
 
@@ -1127,7 +1131,15 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   assert.equal(score(g, true), 200);
   for (let t = 0; t < 120 && !g.photo; t += 1 / 120) update(g, NONE, 1 / 120);
   assert.ok(g.photo, 'changed stack was photographed again');
-  assert.equal(issues(g.photo)[1], 'Box 2 is rotated and shifted sideways');
+  assert.equal(issues(g.photo)[1], 'Box 2 is rotated and shifted lengthwise and sidewise');
+
+  s.rots[1] = Math.PI / 2;
+  update(g, NONE, 1 / 120);
+  for (let t = 0; t < 120 && !g.photo; t += 1 / 120) update(g, NONE, 1 / 120);
+  assert.ok(g.photo, 'the stack is re-inspected after turning');
+  assert.equal(issues(g.photo)[1], 'Box 2 is shifted lengthwise', 'the same world displacement follows the turned box axis');
+  delete g.inspector.photos;
+  assert.equal(issues(endPhotos(g)[0])[1], 'Box 2 is shifted lengthwise', 'a generated gallery report uses the same box-relative directions');
 }
 
 // End of level: every stack gets a picture with the points it contributed, longest-dormant stack first; a missing photo is faked from the stack.

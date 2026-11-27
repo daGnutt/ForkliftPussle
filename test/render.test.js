@@ -28,7 +28,7 @@ import { newGame, bindTrucks, update, addTruck, removeTruck, truckView, isGhost,
 import { capturePhotoScene } from '../js/photo-scene.js';
 import { addParticles, setParticlesEnabled, shouldSpawnSetdownDust } from '../js/gl/particles.js';
 import { Mesh, parseColor } from '../js/gl/mesh.js';
-import { areaMarkKey, BOT_BEACONS, tapeCorners } from '../js/bot.js';
+import { areaMarkKey, BOT_BEACONS, tapeCorners, makePhoto } from '../js/bot.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
@@ -1073,6 +1073,24 @@ console.log('render tests passed');
   assert.deepEqual(issues({ ...photo, pens: [{ crash: 30, wide: true, sq: 5 }, { crash: 20, barrelPart: 'base' }, { crash: 20, barrelPart: 'top' }] }), ['Box 1 is wonky'], 'damage on wide boxes and barrels is not listed (cannot be repaired), wonkiness is');
   assert.ok(stripHeight(bad) > stripHeight(photo), 'the caption strip grows with the list');
   console.log('damage symbol ok');
+}
+
+{ // Shift directions follow each box's fork-entry axis, not the world or camera axes.
+  const zone = { x: 10, y: 8 };
+  const photoFor = (a, dx, dy, shift = 5, sq = 0) => {
+    const stack = { x: zone.x, y: zone.y, a, layers: [0], rots: [a], offs: [{ x: dx, y: dy }], pen: [{ crash: 0, sq, shift }] };
+    return makePhoto(stack, false, 0, 1.4, 1, 0, zone);
+  };
+  assert.deepEqual(issues(photoFor(0, 0.3, 0)), ['Box 1 is shifted lengthwise']);
+  assert.deepEqual(issues(photoFor(0, 0, -0.3)), ['Box 1 is shifted sidewise']);
+  assert.deepEqual(issues(photoFor(Math.PI / 2, 0, 0.3)), ['Box 1 is shifted lengthwise']);
+  assert.deepEqual(issues(photoFor(Math.PI / 2, 0.3, 0)), ['Box 1 is shifted sidewise']);
+  assert.deepEqual(issues(photoFor(Math.PI / 4, 0.3, 0, 5, 10)), ['Box 1 is rotated and shifted lengthwise and sidewise']);
+  assert.deepEqual(issues(photoFor(Math.PI / 4, 0, 0, 5, 10)), ['Box 1 is rotated and outside the drop point']);
+  assert.deepEqual(issues(photoFor(0, 0.1, 0.1, 0)), [], 'movement inside the drop point is not penalized');
+  assert.deepEqual(issues({ pens: [{ crash: 0, sq: 0, shift: 5 }] }), ['Box 1 is shifted'], 'older reports do not claim a direction');
+  const saved = JSON.parse(JSON.stringify(photoFor(Math.PI / 2, 0, 0.3)));
+  assert.deepEqual(issues(saved), ['Box 1 is shifted lengthwise'], 'directions survive serialization');
 }
 
 // Gauge badges follow each box's inspection state before and after lifting.

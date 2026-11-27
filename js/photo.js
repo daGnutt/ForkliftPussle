@@ -22,7 +22,10 @@ export function issues(photo) {
     if (pen?.shift === undefined) {
       if (status.crooked) bits.push('is wonky');
     } else if (status.crooked) {
-      bits.push(`is ${[pen.sq > 0 && 'rotated', pen.shift > 0 && 'shifted sideways'].filter(Boolean).join(' and ')}`);
+      const directions = [pen.shiftLengthwise && 'lengthwise', pen.shiftSidewise && 'sidewise'].filter(Boolean);
+      const shifted = pen.shift > 0 && (directions.length ? `shifted ${directions.join(' and ')}` :
+        pen.shiftLengthwise === undefined ? 'shifted' : 'outside the drop point');
+      bits.push(`is ${[pen.sq > 0 && 'rotated', shifted].filter(Boolean).join(' and ')}`);
     }
     if (bits.length) out.push(`Box ${i + 1} ${bits.join(' and ')}`);
   });

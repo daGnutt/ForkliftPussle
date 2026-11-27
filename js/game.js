@@ -2608,7 +2608,7 @@ export function endPhotos(g) {
     if (!S || !pts) continue;
     const photo = (!g.hard || hasReport(g, S, z)) && g.inspector?.photos?.[inspectionKey(z)], src = photo || S;
     if (!endCache.has(src)) {
-      const base = photo || makePhoto(S, !pts.crash && !pts.square, Math.PI / 4 + (S.rots?.[0] ?? 0), 1.4, 0, g.clock);
+      const base = photo || makePhoto(S, !pts.crash && !pts.square, Math.PI / 4 + (S.rots?.[0] ?? 0), 1.4, 0, g.clock, z);
       if (!photo) base.scene = capturePhotoScene(g, S, base.view, base.dist);
       endCache.set(src, { ...base, score: { base: pts.base, crash: pts.crash, square: pts.square, total: pts.total } }); // one object per picture, so the gallery can tell which are up
     }

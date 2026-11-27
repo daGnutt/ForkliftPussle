@@ -59,7 +59,19 @@ export function pendingZones(g, done, stackAt = (z) => g.stacks.find((s) => Math
 export const WHEEL_R = 0.12;
 
 // The snapshot of stack `st` that the photo popup draws (js/photo.js): `ok` is the verdict, `view` the angle it is seen from and `dist` the distance. Also used to fake a picture at the end of a level.
-export const makePhoto = (st, ok, view, dist, n, t) => ({ n, t, ok, layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [], pens: st?.pen ? st.pen.map((q) => ({ barrelPart: q?.barrelPart, wide: !!q?.wide, crash: q?.crash || 0, sq: q?.sq || 0, shift: q?.shift, tape: q?.tape || 0 })) : [], view, dist });
+export const makePhoto = (st, ok, view, dist, n, t, zone) => ({
+  n, t, ok, layers: st ? [...st.layers] : [], rots: st?.rots ? [...st.rots] : [], offs: st?.offs ? st.offs.map((o) => ({ ...o })) : [],
+  pens: st?.pen ? st.pen.map((q, i) => {
+    const pen = { barrelPart: q?.barrelPart, wide: !!q?.wide, crash: q?.crash || 0, sq: q?.sq || 0, shift: q?.shift, tape: q?.tape || 0 };
+    if (zone && q?.shift > 0) {
+      const dx = st.x + (st.offs?.[i]?.x || 0) - zone.x, dy = st.y + (st.offs?.[i]?.y || 0) - zone.y;
+      const a = st.rots?.[i] ?? st.a ?? 0, c = Math.cos(a), s = Math.sin(a);
+      pen.shiftLengthwise = Math.abs(dx * c + dy * s) > 0.001;
+      pen.shiftSidewise = Math.abs(-dx * s + dy * c) > 0.001;
+    }
+    return pen;
+  }) : [], view, dist,
+});
 
 // Has the stack in the observer's last picture (`photo.at`, `photo.sig`) been touched, changed or taken away since?
 export function photoTampered(g) {
@@ -144,7 +156,7 @@ export function inspectorStep(g, dt, done, stackAt, wonky) {
       if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
         const lens = { x: bot.x + Math.cos(bot.a) * 0.3, y: bot.y + Math.sin(bot.a) * 0.3 };
         const photo = st && complete && makePhoto(st, !wonky(st, zone) && !st.pen.some((q) => q?.crash > 0 && repairable(q)),
-          Math.atan2(st.y - lens.y, st.x - lens.x), Math.hypot(st.x - lens.x, st.y - lens.y), (g.photo?.n || 0) + 1, g.clock);
+          Math.atan2(st.y - lens.y, st.x - lens.x), Math.hypot(st.x - lens.x, st.y - lens.y), (g.photo?.n || 0) + 1, g.clock, zone);
         if (photo) {
           photo.scene = capturePhotoScene(g, st, photo.view, photo.dist);
           g.photo = photo;
