@@ -119,7 +119,7 @@ function restoreForkHeight(g, version) {
 export function deserializeGame(data) {
   if (!data || data.version !== SAVE_VERSION || !data.state) throw new Error('Unknown save format');
   const { level, seed, hard, state: s } = data;
-  if (hard && data.hardPhysicsVersion !== undefined && ![1, 2, 3, HARD_PHYSICS_VERSION].includes(data.hardPhysicsVersion)) throw new HardPhysicsVersionError();
+  if (hard && data.hardPhysicsVersion !== undefined && ![1, 2, 3, 4, HARD_PHYSICS_VERSION].includes(data.hardPhysicsVersion)) throw new HardPhysicsVersionError();
   if (!Number.isInteger(level) || level < 1 || !num(seed)) throw new Error('Bad level or seed');
   if (data.layoutVersion !== LEVEL_LAYOUT_VERSION) {
     throw new Error('Saved level layout is no longer compatible');
@@ -178,7 +178,7 @@ export function serializeEndless(g) {
 // Returns the resumed endless game, or throws if the data is not a valid snapshot.
 export function deserializeEndless(data) {
   if (!data || data.version !== ENDLESS_VERSION || !data.state || !data.endless || !num(data.seed)) throw new Error('Unknown save format');
-  if (data.hard && data.hardPhysicsVersion !== undefined && ![1, 2, 3, HARD_PHYSICS_VERSION].includes(data.hardPhysicsVersion)) throw new HardPhysicsVersionError();
+  if (data.hard && data.hardPhysicsVersion !== undefined && ![1, 2, 3, 4, HARD_PHYSICS_VERSION].includes(data.hardPhysicsVersion)) throw new HardPhysicsVersionError();
   const s = data.state;
   checkState(s);
   if (s.status !== 'play') throw new Error('Corrupt state');

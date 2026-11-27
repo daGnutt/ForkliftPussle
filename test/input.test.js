@@ -9,6 +9,8 @@ Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [pa
 const { createInput, createCameraPointerInput } = await import('../js/input.js');
 
 import { drive } from '../js/forklift.js';
+import { newGame, update, forkDownTap } from '../js/game.js';
+import { createLocal } from '../js/local.js';
 const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   connected: true, mapping: 'standard', axes,
   buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: pressed.includes(i) })),
@@ -77,6 +79,30 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   pad = null;
   s = inp.state();
   assert.ok(!s.up && s.motionSource === 'gamepad', 'unplugging releases controls without changing the last motion source');
+}
+
+// Both the primary gamepad and a joined local pad recognize a fork-down double tap.
+{
+  const game = newGame(1, 1, false);
+  game.stacks = [];
+  game.H = game.hy = 4;
+  const inp = createInput({ down: () => forkDownTap(game) });
+  pad = mkPad({ pressed: [1] }); inp.state();
+  pad = mkPad(); inp.state(); update(game, {}, 0.1);
+  pad = mkPad({ pressed: [1] }); inp.state();
+  assert.equal(game.H, 0, 'primary gamepad lowers to the floor');
+
+  const local = createLocal();
+  const joined = newGame(1, 1, false);
+  joined.stacks = [];
+  pad = { ...mkPad({ pressed: [0] }), index: 0 };
+  local.step(joined, 0);
+  joined.trucks[1].H = joined.trucks[1].hy = 4;
+  pad = { ...mkPad({ pressed: [1] }), index: 0 }; local.step(joined, 0.1);
+  pad = { ...mkPad(), index: 0 }; local.step(joined, 0.2); update(joined, {}, 0.1);
+  pad = { ...mkPad({ pressed: [1] }), index: 0 }; local.step(joined, 0.3);
+  assert.equal(joined.trucks[1].H, 0, 'joined gamepad lowers its own forks');
+  pad = null;
 }
 
 // Touches on overlays take precedence over controls underneath, while pad touches can still slide.

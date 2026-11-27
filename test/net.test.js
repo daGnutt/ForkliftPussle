@@ -432,6 +432,18 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   for (let i = 0; i < 3; i++) await tick();
   assert.equal(host.trucks[1].H, 1, 'fork action applied to the guest truck');
 
+  const savedStacks = host.stacks;
+  host.stacks = [];
+  host.trucks[1].H = host.trucks[1].hy = 4;
+  guest.sendFork('down');
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(host.trucks[1].H, 3, 'first guest tap lowers one level');
+  guest.sendFork('down');
+  for (let i = 0; i < 3; i++) await tick();
+  assert.equal(host.trucks[1].H, 0, 'second guest tap lowers to the floor');
+  host.trucks[1].H = host.trucks[1].hy = 1;
+  host.stacks = savedStacks;
+
   assert.equal(h.callVote({ type: 'mode', hard: true }), true, 'host can initiate a vote');
   for (let i = 0; i < 3; i++) await tick();
   assert.equal(guestVote.status, 'active');

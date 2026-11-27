@@ -19,7 +19,7 @@ import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
 import { carriedDrawH, dropLift, liftedHf, newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 
-import { TAP_S, crashAlert } from '../js/game.js';
+import { TAP_S, crashAlert, forkDownTap } from '../js/game.js';
 import { FORK_CLEARANCE } from '../js/geom.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
@@ -539,6 +539,111 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   console.log('fork fluid height ok');
 }
 
+// Downward taps near a whole level skip to the level below, with or without a load.
+{
+  const game = (height, carried = false) => {
+    const g = newGame(1, 1, true);
+    flatWorld(g);
+    g.stacks = [];
+    Object.assign(g.fl, { x: 6, y: 5, a: 0, speed: 0 });
+    if (carried) {
+      g.carried = [0]; g.carriedRots = [0]; g.carriedPen = [{}]; g.carriedOffs = [{ x: 0, y: 0 }];
+    }
+    g.H = Math.floor(height); g.hy = height + (carried ? FORK_CLEARANCE : 0);
+    return g;
+  };
+  for (const carried of [false, true]) {
+    for (const [height, expected] of [[2.001, 1], [2.21, 1], [2.211, 2]]) {
+      const g = game(height, carried);
+      run(g, { forkDown: true }, 0.1); run(g, {}, 0.05);
+      assert.equal(g.H, expected, `tap from ${height}, carried ${carried}`);
+      assert.ok(Math.abs(g.hy - expected - (carried ? FORK_CLEARANCE : 0)) < 1e-6);
+    }
+  }
+  const floor = game(0.1);
+  forkDown(floor);
+  assert.equal(floor.hy, 0, 'near the floor, a tap stops at zero');
+  const floorLoad = game(0.1, true);
+  forkDown(floorLoad);
+  assert.equal(floorLoad.carried, null, 'a load near the floor is set down');
+  assert.equal(floorLoad.hy, 0);
+  const supported = game(1.2, true);
+  supported.stacks = [{ x: 10, y: 5, layers: [1], a: 0 }];
+  Object.assign(supported.fl, { x: 10 - FL.carryX, y: 5 });
+  forkDown(supported);
+  assert.equal(supported.carried, null, 'the load is set down on its support');
+  assert.deepEqual(supported.stacks[0].layers, [1, 0]);
+  assert.equal(supported.hy, 1, 'the forks stop at the support');
+  const blocked = game(1.2);
+  blocked.stacks = [{ x: 10, y: 5, layers: [1, 0], a: 0 }];
+  Object.assign(blocked.fl, { x: 10 - FL.carryX, y: 5 });
+  assert.equal(forkDown(blocked), 'blocked');
+  assert.equal(blocked.hy, 1.2, 'the supporting box prevents lowering');
+  assert.ok(blocked.stacks[0].pen[0].crash > 0);
+}
+
+// Double-tapping down lowers to the first safe support in both modes.
+{
+  const game = (hard, layers = [], carrying = false) => {
+    const g = newGame(1, 1, hard);
+    flatWorld(g);
+    g.stacks = layers.length ? [{ x: 10, y: 5, layers, a: 0 }] : [];
+    Object.assign(g.fl, { x: 10 - FL.carryX, y: 5, a: 0, speed: 0 });
+    if (carrying) {
+      g.carried = [0]; g.carriedRots = [0]; g.carriedPen = [{}]; g.carriedOffs = [{ x: 0, y: 0 }];
+    }
+    g.H = 4; g.hy = 4 + (hard && carrying ? FORK_CLEARANCE : 0);
+    return g;
+  };
+  const tap = (g) => {
+    if (g.hard) { run(g, { forkDown: true }, 0.05); run(g, {}, 0.05); }
+    else { forkDownTap(g); run(g, {}, 0.1); }
+  };
+  for (const hard of [false, true]) {
+    const empty = game(hard);
+    tap(empty);
+    assert.equal(empty.H, 3, 'one tap remains one level');
+    tap(empty);
+    assert.equal(empty.hy, 0, 'double tap lowers empty forks to the floor');
+
+    const box = game(hard, [1, 2]);
+    tap(box); tap(box);
+    assert.equal(box.H, 2, 'empty forks stop on top of the stack');
+    assert.equal(box.hits.length, 0, 'the stack is not damaged');
+
+    const load = game(hard, [1, 2], true);
+    tap(load); tap(load);
+    assert.equal(load.carried, null);
+    assert.deepEqual(load.stacks[0].layers, [1, 2, 0]);
+    assert.equal(load.H, 2);
+    assert.equal(load.hits.length, 0, 'the support is not damaged');
+
+    const slow = game(hard);
+    tap(slow); run(slow, {}, 0.5); tap(slow);
+    assert.equal(slow.H, 2, 'separated taps remain single steps');
+
+    const interrupted = game(hard);
+    tap(interrupted);
+    forkUp(interrupted);
+    tap(interrupted);
+    assert.equal(interrupted.H, 3, 'raising cancels the previous downward tap');
+
+    const multi = game(hard);
+    const id = addTruck(multi, 'Other');
+    const other = truckView(multi, id);
+    other.H = other.hy = 4;
+    tap(multi);
+    forkDownTap(other);
+    assert.equal(other.H, 3, 'another truck has its own tap history');
+  }
+  const held = game(true);
+  tap(held);
+  run(held, { forkDown: true }, TAP_S + 0.1); run(held, {}, 0.05);
+  assert.ok(held.hy > 2.8 && held.hy < 3, 'a hold moves fluidly rather than triggering the double tap');
+  tap(held);
+  assert.equal(held.H, 2, 'a hold clears the previous tap');
+}
+
 // Both tines must be under a pallet before it can be lifted in hard mode.
 {
   const game = (hard, y) => {
@@ -741,7 +846,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   run(driven, { down: true }, 0.8);
   assert.equal(driven.dropH, null, 'driving away clears the marker');
   forkDown(driven);
-  assert.equal(driven.hy, 1, 'after driving away, fractional lowering uses the ordinary rule');
+  assert.equal(driven.hy, 0, 'after driving away, a near-level tap skips to the level below');
 
   const other = dropped(true);
   const id = addTruck(other, 'Other');

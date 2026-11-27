@@ -1,5 +1,5 @@
 import './firstplay.js';
-import { newGame, update, endPhotos, forkUp, forkDown, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges, crashAlert, removeTruck } from './game.js';
+import { newGame, update, endPhotos, forkUp, forkDownTap, zoneDone, zoneWonky, score, liveTrucks, topOpen, truckPopChanges, crashAlert, removeTruck } from './game.js';
 import { newEndless, stepEndless, endEndless, endlessScore } from './endless.js';
 import { createInput, createCameraPointerInput, inTouchControlZone } from './input.js';
 import { createLocal } from './local.js';
@@ -451,7 +451,7 @@ const input = createInput({
     if (game.hard) return;
     if (mp?.role === 'guest') { mp.guest.sendFork('down'); noteForkResult('down', mp.guest.predictor.fork('down', performance.now() / 1000)); return; }
     const h = game.H;
-    const res = forkDown(game);
+    const res = forkDownTap(game);
     noteForkResult('down', res);
     if (res !== 'blocked' && game.H !== h) playFork(false);
   },
