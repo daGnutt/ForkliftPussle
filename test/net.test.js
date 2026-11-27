@@ -35,6 +35,25 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.deepEqual(guest.skidMarks, [], 'cleaned marks disappear on guests');
 }
 
+// Drop height is authoritative per-truck state, including when heights otherwise agree.
+{
+  const host = newGame(1, 0, true), guest = newGame(1, 0, true);
+  host.stacks = [];
+  Object.assign(host.fl, { x: 6, y: 5, a: 0, speed: 0 });
+  host.H = 2; host.hy = 2 + FORK_CLEARANCE; host.dropH = 2 + FORK_CLEARANCE;
+  const auth = structuredClone(snapshot(host));
+  applySnapshot(guest, auth);
+  assert.equal(guest.dropH, host.dropH, 'snapshot carries the drop height');
+  guest.dropH = null;
+  const predictor = createPredictor();
+  predictor.reset(guest);
+  predictor.onSnapshot(auth, 1, 0);
+  predictor.fork('down', 2);
+  predictor.apply(guest, 2);
+  assert.equal(guest.hy, 1, 'prediction reconciles drop height even when fork heights match');
+  assert.equal(guest.dropH, null);
+}
+
 // Successful link joins remove only the join parameter.
 {
   assert.equal(withoutJoinParam('https://example.test/?seed=x&multiplayer=ABCDE&testing#map'), 'https://example.test/?seed=x&testing=#map');

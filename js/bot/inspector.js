@@ -141,7 +141,7 @@ export function inspectorStep(g, dt, done, stackAt, wonky) {
       bot.aim = { x: target.x, y: target.y, h: st ? st.layers.length : 1 };
       if (Math.abs(turnTo(bot, Math.atan2(target.y - bot.y, target.x - bot.x), dt)) < 0.15) bot.shooting += dt;
       if (bot.shooting >= Math.max(1, bot.aim.h) * BOX_SECS) {
-        const photo = st && complete && makePhoto(st, !wonky(st, target) && !st.pen.some((q) => q?.crash > 0 && repairable(q)),
+        const photo = st && complete && makePhoto(st, !wonky(st, zone) && !st.pen.some((q) => q?.crash > 0 && repairable(q)),
           Math.atan2(target.y - bot.y, target.x - bot.x), Math.hypot(target.x - bot.x, target.y - bot.y), (g.photo?.n || 0) + 1, g.clock);
         if (photo) {
           g.photo = photo;

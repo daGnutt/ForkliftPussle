@@ -745,6 +745,26 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
   assert.deepEqual(deserializeGame(JSON.parse(JSON.stringify(serializeGame(g3)))).inspector.seen, ['1,2,0'], 'the inspector is saved');
 }
 
+{
+  const g = solo('inspector');
+  out(g.inspector, { x: 3, y: 6, state: 'going-to-work', repath: 0 });
+  const zone = { x: 12, y: 6, color: 5, count: 1, wide: true, hx: 0.6, hy: 1.1, a: 0 };
+  const stack = { x: zone.x, y: zone.y, layers: [5], rots: [0], offs: [{ x: 0, y: 0 }], pen: [{ wide: true, crash: 0, sq: 0, shift: 0 }] };
+  const key = `${zone.x},${zone.y},${zone.color}`;
+  g.zones = [zone]; g.stacks = [stack];
+  let checkedZone = false;
+  for (let i = 0; i < 2400 && !g.inspector.seen.includes(key); i++) {
+    g.clock += 0.05;
+    stepInspector(g, 0.05, [zone], () => stack, (_s, inspectedZone) => {
+      checkedZone = true;
+      assert.equal(zoneExt(inspectedZone).y, 1.265, 'placement inspection uses the wide zone depth');
+      return false;
+    });
+  }
+  assert.ok(checkedZone && g.inspector.seen.includes(key), 'the wide stack was inspected');
+  assert.equal(g.inspector.photos[key].pens[0].shift, 0, 'a wide box inside its actual zone is not reported shifted');
+}
+
 // Driving into a stack marks it touched (which sends the inspector round again); a stack left alone is not.
 {
   const g = newGame(1, 0);

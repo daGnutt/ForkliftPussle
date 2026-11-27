@@ -63,7 +63,7 @@ const boxPoints = (pen) => (pen?.wide ? 2 * BOX_POINTS : BOX_POINTS);
 // the local truck (`g.self`): g.fl, g.H, g.carried... forward to `g.trucks[g.self]`, so single-player code and
 // tests just use `g`. `truckView(g, i)` gives the same view for another truck (a Proxy), which every per-truck
 // function (update steps, forkUp/forkDown, resolve) accepts in place of `g`.
-const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hy', 'hf', 'ef', 'fk', 'hitAt', 'horn', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
+const TRUCK_KEYS = ['fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'bonks', 'bonkPower', 'bonkAt', 'scrape', 'wallPush', 'contact', 'slip', 'H', 'hy', 'hf', 'dropH', 'ef', 'fk', 'hitAt', 'horn', 'lifting', 'liftedBy', 'liftRel', 'perchZ', 'rideLv', 'rideOff'];
 const TRUCK_SET = new Set(TRUCK_KEYS);
 
 export function makeTruck(start, id = 0, name = '') {
@@ -74,7 +74,7 @@ export function makeTruck(start, id = 0, name = '') {
     bonks: 0, bonkPower: 0, bonkAt: -1, scrape: 0, wallPush: null,
     contact: null, // last wall hit: { x, y, nx, ny } = point on the truck and the direction the wall pushed it (for sparks)
     slip: 0, // 0..1, how much the tyres are spinning (driving into something that does not give, or being shoved); drives tyre smoke
-    H: 0, hy: 0, hf: 0, ef: 0, // hard-mode hy is physical tine height; H is the logical load/pallet level
+    H: 0, hy: 0, hf: 0, dropH: null, ef: 0, // hard-mode hy is physical tine height; H is the logical load/pallet level
     fk: { dir: 0, t: 0, fluid: false, hit: false, last: 0, n: 0, ev: null }, // hard mode fork key state: held direction, time held, last direction moved, last event
     horn: false, // the horn key is held
     lifting: -1, // id of the truck riding on this truck's tines (-1 none)
@@ -873,6 +873,7 @@ function liftBoxes(g, S, from) {
     return { x: l.x - FL.carryX, y: l.y };
   });
   g.carried = S.layers.splice(from);
+  g.dropH = null;
   if (g.hard) g.hy += FORK_CLEARANCE;
   g.carriedRots = S.rots.splice(from).map((r) => r - g.fl.a);
   g.carriedPen = S.pen.splice(from);
@@ -2004,6 +2005,7 @@ function stepTruck(g, input, dt) {
   }
   clearWallOverlaps(g);
   containStacks(g);
+  if (Math.hypot(f.x - prevX, f.y - prevY) > 1e-6 || Math.abs(f.a - prevA) > 1e-6) g.dropH = null;
 
   if (Math.abs(intended) > 1e-6) {
     const actual = (f.x - driven.x) * Math.cos(f.a) + (f.y - driven.y) * Math.sin(f.a) + intended;
@@ -2149,6 +2151,7 @@ function transferCarried(from, to, k = 0, onto = false) {
   });
   const rots = from.carriedRots.slice(k).map((r) => r + d);
   const layers = from.carried.slice(k), pen = from.carriedPen.slice(k);
+  to.dropH = null;
   if (onto) {
     to.carried = to.carried.concat(layers);
     to.carriedPen = to.carriedPen.concat(pen);
@@ -2326,12 +2329,20 @@ export function forkUp(g) {
   syncHy(g);
   const h = g.H;
   const res = forkUpStep(g);
-  if (res !== 'blocked' && g.H !== h) setHy(g, g.H);
+  if (res !== 'blocked' && g.H !== h) { g.dropH = null; setHy(g, g.H); }
   return res;
 }
 
 export function forkDown(g) {
   syncHy(g);
+  if (g.hard && !g.carried && g.lifting < 0 && g.dropH != null && forkHeight(g) <= g.dropH + 1e-6) {
+    const res = forkDownStep(g);
+    if (res !== 'blocked') {
+      if (g.H < Math.floor(g.dropH)) g.dropH = null;
+      setHy(g, g.H);
+    }
+    return res;
+  }
   const frac = forkHeight(g) > g.H;
   if (frac && !g.carried && g.lifting < 0) { // empty forks between levels: the level below is the one they are in
     setHy(g, g.H);
@@ -2357,6 +2368,7 @@ function setHy(g, hy) {
   const height = Math.abs(hy - r) < 1e-6 ? r : hy;
   g.hy = height + (g.hard && g.carried ? FORK_CLEARANCE : 0);
   g.H = Math.floor(height);
+  if (g.dropH != null && height < Math.floor(g.dropH) - 1e-6) g.dropH = null;
 }
 
 // Hard mode: the fork keys are read from the held state in `input.forkUp` / `input.forkDown`. A key released within TAP_S is a tap
@@ -2411,7 +2423,7 @@ function fluidUp(g, k, dt) {
   const hy = Math.min(MAX_H, g.hy + FORK_RATE * dt);
   const S = forkedStack(g);
   if (!S && hy - g.H >= FORK_CLEARANCE - 1e-6) {
-    if (toppleOffOneTine(g)) { setHy(g, hy); return; }
+    if (toppleOffOneTine(g)) { if (hy > g.hy) g.dropH = null; setHy(g, hy); return; }
     if (forkObstructed(g)) return 'blocked';
   }
   if (S && hy - g.H >= FORK_CLEARANCE - 1e-6) {
@@ -2420,6 +2432,7 @@ function fluidUp(g, k, dt) {
     setHy(g, Math.max(g.H, hy - FORK_CLEARANCE));
     return;
   }
+  if (hy > g.hy) g.dropH = null;
   setHy(g, hy);
 }
 
@@ -2523,6 +2536,7 @@ function putDown(g, S, n) {
     if (g.carried.length === 1 && repairable(g.carriedPen[0])) recordDropAngle(g, cp.x, cp.y, worldRots[0]);
   }
   g.carried = null;
+  if (g.hard) g.dropH = n + FORK_CLEARANCE;
   g.carriedRots = [];
   g.carriedPen = [];
   g.carriedOffs = [];

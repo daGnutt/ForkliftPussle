@@ -35,7 +35,7 @@ function migrateBots(g) {
   }
 }
 
-const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'oil', 'skidMarks', 'cones', 'tapes', 'repair', 'bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot', 'photo', 'bonks', 'H', 'hy', 'hf', 'status', 'time', 'started', 'clock'];
+const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'oil', 'skidMarks', 'cones', 'tapes', 'repair', 'bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot', 'photo', 'bonks', 'H', 'hy', 'hf', 'dropH', 'status', 'time', 'started', 'clock'];
 
 // Plain-JSON snapshot of a level in progress; the static layout is regenerated from (level, seed, hard).
 export function serializeGame(g, seedText = '') {
@@ -88,7 +88,8 @@ function checkState(s) {
     && (t.edges === undefined || arr(t.edges, 4, (v) => typeof v === 'boolean'))
     && (t.wallSides === undefined || arr(t.wallSides, 4, (v) => v === null || num(v)))
     && (t.postPoints === undefined || arr(t.postPoints, 4, (p) => p === null || p && num(p.x) && num(p.y)))));
-  if (!okFl || !okStacks || !okCarried || !okOil || !okSkids || !okCones || !okTapes || !Number.isInteger(s.H) || s.H < 0 || s.H > MAX_H) throw new Error('Corrupt state');
+  if (!okFl || !okStacks || !okCarried || !okOil || !okSkids || !okCones || !okTapes || !Number.isInteger(s.H) || s.H < 0 || s.H > MAX_H ||
+      !(s.dropH == null || num(s.dropH) && s.dropH >= 0 && s.dropH <= MAX_H + FORK_CLEARANCE)) throw new Error('Corrupt state');
   if (s.status !== 'play' && s.status !== 'won') throw new Error('Corrupt state');
 }
 
@@ -103,7 +104,7 @@ function restoreForkHeight(g, version) {
 export function deserializeGame(data) {
   if (!data || data.version !== SAVE_VERSION || !data.state) throw new Error('Unknown save format');
   const { level, seed, hard, state: s } = data;
-  if (hard && data.hardPhysicsVersion !== undefined && ![1, 2, HARD_PHYSICS_VERSION].includes(data.hardPhysicsVersion)) throw new HardPhysicsVersionError();
+  if (hard && data.hardPhysicsVersion !== undefined && ![1, 2, 3, HARD_PHYSICS_VERSION].includes(data.hardPhysicsVersion)) throw new HardPhysicsVersionError();
   if (!Number.isInteger(level) || level < 1 || !num(seed)) throw new Error('Bad level or seed');
   if (data.layoutVersion !== LEVEL_LAYOUT_VERSION) {
     throw new Error('Saved level layout is no longer compatible');
@@ -161,7 +162,7 @@ export function serializeEndless(g) {
 // Returns the resumed endless game, or throws if the data is not a valid snapshot.
 export function deserializeEndless(data) {
   if (!data || data.version !== ENDLESS_VERSION || !data.state || !data.endless || !num(data.seed)) throw new Error('Unknown save format');
-  if (data.hard && data.hardPhysicsVersion !== undefined && ![1, 2, HARD_PHYSICS_VERSION].includes(data.hardPhysicsVersion)) throw new HardPhysicsVersionError();
+  if (data.hard && data.hardPhysicsVersion !== undefined && ![1, 2, 3, HARD_PHYSICS_VERSION].includes(data.hardPhysicsVersion)) throw new HardPhysicsVersionError();
   const s = data.state;
   checkState(s);
   if (s.status !== 'play') throw new Error('Corrupt state');

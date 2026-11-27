@@ -684,6 +684,70 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   }
 }
 
+// A tap after a hard-mode drop skips the pallet clearance, but never lowers through its support.
+{
+  const dropped = (fluid, n = 1) => {
+    const g = newGame(1, 1, true);
+    flatWorld(g);
+    g.stacks = n ? [{ x: 10, y: 5, layers: Array(n).fill(1), a: 0 }] : [];
+    Object.assign(g.fl, { x: 10 - FL.carryX, y: 5, a: 0, speed: 0 });
+    g.carried = [0]; g.carriedRots = [0]; g.carriedPen = [{}]; g.carriedOffs = [{ x: 0, y: 0 }];
+    g.H = n + 1; g.hy = g.hf = g.H + FORK_CLEARANCE;
+    if (fluid) { run(g, { forkDown: true }, 2); run(g, {}, 0.05); }
+    else forkDown(g);
+    assert.equal(g.carried, null);
+    assert.equal(g.dropH, n + FORK_CLEARANCE);
+    return g;
+  };
+  for (const fluid of [false, true]) {
+    const blocked = dropped(fluid);
+    assert.equal(forkDown(blocked), 'blocked');
+    assert.equal(blocked.H, 1, 'support prevents lowering');
+    assert.equal(blocked.dropH, 1 + FORK_CLEARANCE, 'a blocked attempt retains the drop height');
+    assert.ok(blocked.stacks[0].pen[0].crash > 0, 'blocking damages the supporting box');
+
+    const free = dropped(fluid, 2);
+    free.stacks = [];
+    run(free, { forkDown: true }, 0.1); run(free, {}, 0.05);
+    assert.equal(free.hy, 1, 'tap moves directly to the level below the drop');
+    assert.equal(free.dropH, null);
+
+    const floor = dropped(fluid, 0);
+    assert.notEqual(forkDown(floor), 'blocked');
+    assert.equal(floor.H, 0);
+    assert.equal(floor.hy, 0, 'floor tap does not leave the forks above the floor');
+  }
+  const partial = dropped(true, 2);
+  partial.stacks = [];
+  run(partial, { forkDown: true }, TAP_S + 0.02); run(partial, {}, 0.05);
+  assert.ok(partial.hy > 2 && partial.hy < partial.dropH, 'held lowering can stop within the clearance');
+  forkDown(partial);
+  assert.equal(partial.hy, 1, 'a subsequent tap skips the rest of the clearance');
+  assert.equal(partial.dropH, null);
+
+  const passed = dropped(true, 2);
+  passed.stacks = [];
+  run(passed, { forkDown: true }, TAP_S + 0.2); run(passed, {}, 0.05);
+  assert.equal(passed.dropH, null, 'held lowering clears the marker after passing the drop level');
+  const raised = dropped(true);
+  forkUp(raised);
+  assert.equal(raised.dropH, null, 'pickup or raising clears the marker');
+  const raisedEmpty = dropped(true);
+  raisedEmpty.stacks = [];
+  run(raisedEmpty, { forkUp: true }, TAP_S + 0.02); run(raisedEmpty, {}, 0.05);
+  assert.equal(raisedEmpty.carried, null);
+  assert.equal(raisedEmpty.dropH, null, 'fluid raising empty forks clears the marker');
+  const driven = dropped(true);
+  run(driven, { down: true }, 0.8);
+  assert.equal(driven.dropH, null, 'driving away clears the marker');
+  forkDown(driven);
+  assert.equal(driven.hy, 1, 'after driving away, fractional lowering uses the ordinary rule');
+
+  const other = dropped(true);
+  const id = addTruck(other, 'Other');
+  assert.equal(truckView(other, id).dropH, null, 'drop height belongs to the individual truck');
+}
+
 // Quickly lifting from a stack must wait for the smoothed forks to reach the pickup level.
 {
   const g = newGame(1, 1, true);
