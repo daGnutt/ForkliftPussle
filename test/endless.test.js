@@ -99,13 +99,43 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(!lorryHonks(g).some((h) => h.id === 100 + d.k), 'the honk ends');
   g.stacks = held;
   // an unloaded truck leaves
+  const onTruck = { x: d.area.x + 0.05, y: d.area.y + d.area.h / 2 };
+  const outsideTruck = { x: d.area.x - 0.21, y: onTruck.y };
+  Object.assign(g.bot, { ...onTruck, show: 1, mode: 'out', state: 'working', task: { type: 'test' } });
+  Object.assign(g.coneBot, { ...onTruck, show: 1, mode: 'out', state: 'working' });
+  g.skidMarks = [{ ...onTruck, id: 'truck-skid' }, { ...outsideTruck, id: 'yard-skid' }];
+  const nearEdges = [
+    { x: d.area.x - 0.19, y: onTruck.y },
+    { x: d.area.x + d.area.w + 0.19, y: onTruck.y },
+    { x: onTruck.x, y: d.area.y - 0.19 },
+    { x: onTruck.x, y: d.area.y + d.area.h + 0.19 },
+  ];
+  g.skidMarks.push(...nearEdges.map((p, i) => ({ ...p, id: `edge-skid:${i}` })));
+  g.cones = [{ ...onTruck, id: 'truck-cone', goalId: 'truck:0' }, { ...outsideTruck, id: 'yard-cone', goalId: 'yard:0' }];
+  g.oil = [{ ...onTruck, id: 'truck-oil' }, { ...outsideTruck, id: 'yard-oil' }];
   g.stacks = [];
-  step(0.2);
+  stepEndless(g, 0.2);
   assert.equal(d.state, 'leaving');
+  assert.ok(truckRoofs(g).some((r) => r.closed), 'the roof is rendered after the rear closes');
+  assert.equal(g.bot.show, 0, 'bots inside the trailer are hidden');
+  assert.equal(g.coneBot.show, 0, 'all bots inside the trailer are hidden');
+  assert.deepEqual(g.skidMarks.map((m) => m.id), ['yard-skid']);
+  assert.deepEqual(g.cones.map((c) => c.id), ['yard-cone']);
+  assert.deepEqual(g.oil.map((s) => s.id), ['yard-oil']);
   assert.equal(dockWaits(g)[d.k], null, 'a leaving truck is no longer timed');
   step(5);
   assert.equal(d.state, 'free');
   assert.equal(E.unloaded, 1);
+
+  const eastDock = E.docks.find((o) => o.side > 0);
+  eastDock.off = 0; eastDock.placed = 0; eastDock.state = 'arriving'; eastDock.gateClosed = true;
+  stepEndless(g, 1 / 60); // position the east-side trailer at its dock
+  eastDock.state = 'present'; eastDock.gateClosed = false;
+  const eastMark = { id: 'east-skid', x: eastDock.area.x + eastDock.area.w + 0.19, y: eastDock.area.y + eastDock.area.h / 2 };
+  g.skidMarks = [eastMark];
+  stepEndless(g, 0.2);
+  assert.equal(eastDock.state, 'leaving');
+  assert.equal(g.skidMarks.length, 0, 'marks at the east trailer edge are removed too');
 
   // delivery truck: a full truck closes its gate and drives off with its load
   E.arriveT = 1e9;

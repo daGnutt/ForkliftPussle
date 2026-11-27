@@ -2,6 +2,7 @@ import { rectPoly, sat } from './geom.js';
 import { FL, toWorld } from './forklift.js';
 import { COLORS } from './level.js';
 import { gameFromLayout, liveTrucks, wonkyStack, solidPolys, zoneDone, zonePoints } from './game.js';
+import { fixAbort, freeSpot } from './bot/fixbot.js';
 
 // Endless mode: incoming trucks park in bays along the west wall, each carrying 2x3 stacks of random height and colour. The player
 // carries them to the delivery truck of their colour south of the warehouse (one bay per colour). A full delivery truck (6 stacks
@@ -308,6 +309,50 @@ function placeDock(g, d) {
   d.placed = d.off;
 }
 
+function clearDock(g, d) {
+  const margin = 0.2;
+  const r = { x0: d.area.x - margin, y0: d.area.y - margin, x1: d.area.x + d.area.w + margin, y1: d.area.y + d.area.h + margin };
+  const inside = (p) => p.x >= r.x0 && p.x <= r.x1 && p.y >= r.y0 && p.y <= r.y1;
+  g.skidMarks = (g.skidMarks || []).filter((m) => !inside(m));
+  g.cones = (g.cones || []).filter((c) => !inside(c));
+  g.oil = (g.oil || []).filter((s) => !inside(s));
+  for (const bot of [g.bot, g.inspector, g.coneBot, g.tapeBot, g.fixBot]) {
+    if (!bot || !inside(bot)) continue;
+    if (bot === g.fixBot && bot.carry) {
+      const carried = bot.carry;
+      fixAbort(g, bot, bot.fix);
+      const spot = freeSpot(g, { ...bot, x: d.side < 0 ? WX + 1 : XE - 1 }, carried);
+      carried.x = spot.x; carried.y = spot.y; carried.a = spot.a;
+      carried.rots = carried.rots.map(() => spot.a);
+      carried.offs = carried.offs.map(() => ({ x: 0, y: 0 }));
+    }
+    Object.assign(bot, {
+      x: g.hatch.x + g.hatch.nx * 0.4,
+      y: g.hatch.y + g.hatch.ny * 0.4,
+      a: g.hatch.a,
+      show: 0,
+      mode: 'hidden',
+      leaving: false,
+      state: 'loiter',
+      task: null,
+      path: [],
+      repath: 0,
+      seq: null,
+      ghost: null,
+      target: null,
+      goal: null,
+      workKey: null,
+      tapeJob: null,
+      carried: null,
+      carry: null,
+      fix: null,
+      beam: null,
+      carryZ: 0,
+      unfold: 0,
+    });
+  }
+}
+
 // An incoming truck's load: 2x3 stacks of random height; the more random the truck, the more often a stack mixes colours.
 function loadDock(g, d) {
   const e = g.endless;
@@ -337,7 +382,10 @@ function stepDock(g, d, dt) {
     if (mins > d.nagN) { d.nagN = mins; d.nagT = g.endless.elapsed; d.nagDur = NAG_BASE + NAG_STEP * Math.floor(mins / 5); } // impatient driver: a longer honk every 5 minutes waited
     const r = dockInterior(d), f = dockRect(d, 0.5);
     const empty = !g.stacks.some((s) => s.x > r.x0 && s.x < r.x1 && s.y > r.y0 && s.y < r.y1);
-    if (empty && !g.trucks.some((t) => !t.gone && solidPolys(t).some((p) => sat(p, f)))) { d.state = 'leaving'; d.gateClosed = true; d.v = 0; d.cargo = []; }
+    if (empty && !g.trucks.some((t) => !t.gone && solidPolys(t).some((p) => sat(p, f)))) {
+      clearDock(g, d);
+      d.state = 'leaving'; d.gateClosed = true; d.v = 0; d.cargo = [];
+    }
   } else if (d.state === 'leaving') {
     d.v = Math.min(5, d.v + 2.5 * dt);
     d.off += d.v * dt;
