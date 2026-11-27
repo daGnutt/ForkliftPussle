@@ -1,6 +1,6 @@
 // Local multiplayer: every connected gamepad can join the running game as its own truck (the keyboard drives truck 0).
 // Y toggles that truck's cabin view (onCab(slot)). A pad joins by pressing A; its truck is removed when the pad is unplugged. Drive/steer/horn/forks use the same mapping as input.js.
-import { addTruck, removeTruck, truckView, forkUp, forkDownTap } from './game.js';
+import { addTruck, removeTruck, truckView, forkUp, forkDown } from './game.js';
 import { standardPads, padAxes } from './gamepad.js';
 
 const MAX_LOCAL_PADS = 3;
@@ -74,7 +74,7 @@ export function createLocal(onCab = null) {
           if (edge(3)) onCab?.(p.slot);
           if (!g.hard) { // hard mode reads the held buttons in update()
             if (edge(0) || edge(5)) forkUp(v);
-            if (edge(1) || edge(4)) forkDownTap(v);
+            if (edge(1) || edge(4)) forkDown(v);
           }
         }
         p.prev = cur;

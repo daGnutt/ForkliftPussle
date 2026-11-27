@@ -29,7 +29,6 @@ const FORK_BLOCK_POINTS = 10;
 export const TAP_S = 0.2; // hard mode: a fork key released within this many seconds is a tap (next level); held longer it moves the forks fluidly
 export const FORK_RATE = 1; // levels per second while a fork key is held (hard mode)
 const FORK_DOWN_SNAP = 0.21;
-const FORK_DOUBLE_S = 0.4;
 const CEILING_LEVELS = MAX_H + 1; // the carried stack's top (H + boxes) may not go above this many box heights
 const CEILING_POINTS = 10; // crash points per box on the forks each time they hit the ceiling
 const PALLET_INERTIA = 0.17; // radius of gyration squared of a unit box
@@ -2328,40 +2327,11 @@ function hitCeiling(g, rider = null) {
 
 // Discrete fork actions (easy mode keys; in hard mode a tap) move to the next whole level in that direction, also from between levels.
 export function forkUp(g) {
-  g.fk.downTap = null;
   syncHy(g);
   const h = g.H;
   const res = forkUpStep(g);
   if (res !== 'blocked' && g.H !== h) { g.dropH = null; setHy(g, g.H); }
   return res;
-}
-
-// Input taps use the truck's own clocked tap history; programmatic forkDown remains a single step.
-export function forkDownTap(g) {
-  const now = g.root.clock, last = g.fk.downTap;
-  if (last != null && now - last >= 0 && now - last <= FORK_DOUBLE_S) {
-    g.fk.downTap = null;
-    return forkDownAll(g);
-  }
-  g.fk.downTap = now;
-  return forkDown(g);
-}
-
-function forkDownAll(g) {
-  if (stuck(g)) return;
-  syncHy(g);
-  for (let i = 0; i <= MAX_H + 1; i++) {
-    if (!g.carried && g.lifting < 0 && boxUnderForks(g)) {
-      setHy(g, g.H);
-      return;
-    }
-    const height = forkHeight(g), carrying = !!g.carried, lifting = g.lifting;
-    const res = forkDown(g);
-    if (res === 'blocked') return res;
-    if (lifting >= 0 && g.lifting < 0) return;
-    if (carrying && !g.carried && !stackInZone(g)) return;
-    if (forkHeight(g) >= height - 1e-6) return;
-  }
 }
 
 export function forkDown(g) {
@@ -2410,8 +2380,7 @@ function stepForks(g, input, dt) {
   const event = (d, res, moved) => { k.ev = { n: ++k.n, dir: d, res, moved }; };
   if (dir !== k.dir) {
     if (k.dir && !k.fluid && k.t < TAP_S) {
-      if (k.dir > 0) k.downTap = null;
-      const before = g.hy, res = (k.dir > 0 ? forkUp : forkDownTap)(g);
+      const before = g.hy, res = (k.dir > 0 ? forkUp : forkDown)(g);
       if (res !== 'blocked') k.last = k.dir;
       event(k.dir, res, g.hy !== before);
     }
@@ -2422,7 +2391,6 @@ function stepForks(g, input, dt) {
   if (k.t < TAP_S || k.stop) return;
   const special = g.lifting >= 0 || (g.carried ? !!tinesUnderMyStack(g) : !!(truckOnMyTines(g) || stackOnMyTines(g)));
   if (special) { // handing over or lifting a truck stays in whole levels: the held key repeats the tap
-    if (!k.fluid) k.downTap = null;
     if (!k.fluid || (k.rep += dt) >= 0.5) {
       k.rep = 0;
       const before = g.hy, res = (dir > 0 ? forkUp : forkDown)(g);
@@ -2433,7 +2401,6 @@ function stepForks(g, input, dt) {
     return;
   }
   const first = !k.fluid;
-  if (first) k.downTap = null;
   k.fluid = true;
   const before = g.hy, res = dir > 0 ? fluidUp(g, k, dt) : fluidDown(g, k, dt);
   if (res === 'blocked') { if (!k.hit) { k.hit = true; event(dir, 'blocked', false); } return; }

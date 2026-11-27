@@ -19,7 +19,7 @@ import { rectPoly, sat } from '../js/geom.js';
 import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecals, truckRoofs, numberRects, dockWaits, truckGeom, unloadRate, interval, endlessScore, animatedDoors } from '../js/endless.js';
 import { carriedDrawH, dropLift, liftedHf, newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 
-import { TAP_S, crashAlert, forkDownTap } from '../js/game.js';
+import { TAP_S, crashAlert } from '../js/game.js';
 import { FORK_CLEARANCE } from '../js/geom.js';
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
@@ -582,7 +582,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.ok(blocked.stacks[0].pen[0].crash > 0);
 }
 
-// Double-tapping down lowers to the first safe support in both modes.
+// Rapid downward taps remain separate steps in both modes.
 {
   const game = (hard, layers = [], carrying = false) => {
     const g = newGame(1, 1, hard);
@@ -597,14 +597,14 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   };
   const tap = (g) => {
     if (g.hard) { run(g, { forkDown: true }, 0.05); run(g, {}, 0.05); }
-    else { forkDownTap(g); run(g, {}, 0.1); }
+    else { forkDown(g); run(g, {}, 0.1); }
   };
   for (const hard of [false, true]) {
     const empty = game(hard);
     tap(empty);
     assert.equal(empty.H, 3, 'one tap remains one level');
     tap(empty);
-    assert.equal(empty.hy, 0, 'double tap lowers empty forks to the floor');
+    assert.equal(empty.hy, 2, 'two rapid taps lower exactly two levels');
 
     const box = game(hard, [1, 2]);
     tap(box); tap(box);
@@ -626,22 +626,22 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
     tap(interrupted);
     forkUp(interrupted);
     tap(interrupted);
-    assert.equal(interrupted.H, 3, 'raising cancels the previous downward tap');
+    assert.equal(interrupted.H, 3, 'raising between taps preserves single-step lowering');
 
     const multi = game(hard);
     const id = addTruck(multi, 'Other');
     const other = truckView(multi, id);
     other.H = other.hy = 4;
     tap(multi);
-    forkDownTap(other);
-    assert.equal(other.H, 3, 'another truck has its own tap history');
+    forkDown(other);
+    assert.equal(other.H, 3, 'another truck lowers one level');
   }
   const held = game(true);
   tap(held);
   run(held, { forkDown: true }, TAP_S + 0.1); run(held, {}, 0.05);
-  assert.ok(held.hy > 2.8 && held.hy < 3, 'a hold moves fluidly rather than triggering the double tap');
+  assert.ok(held.hy > 2.8 && held.hy < 3, 'a hard-mode hold still moves fluidly');
   tap(held);
-  assert.equal(held.H, 2, 'a hold clears the previous tap');
+  assert.equal(held.H, 2, 'a tap after a hold moves to the next lower level');
 }
 
 // Both tines must be under a pallet before it can be lifted in hard mode.

@@ -440,7 +440,7 @@ import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
   assert.equal(host.trucks[1].H, 3, 'first guest tap lowers one level');
   guest.sendFork('down');
   for (let i = 0; i < 3; i++) await tick();
-  assert.equal(host.trucks[1].H, 0, 'second guest tap lowers to the floor');
+  assert.equal(host.trucks[1].H, 2, 'second guest tap lowers just one more level');
   host.trucks[1].H = host.trucks[1].hy = 1;
   host.stacks = savedStacks;
 

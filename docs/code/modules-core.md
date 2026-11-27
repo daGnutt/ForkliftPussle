@@ -34,7 +34,7 @@ Camera pointer gestures: `createCameraPointerInput` in `input.js` distinguishes 
 
 Touch controls only claim touches starting on their own elements, so overlapping UI such as the round Ready / OK button remains tappable; a touch that starts on a pad button may still slide between buttons.
 
-Hard-mode level and endless snapshots include `hardPhysicsVersion` 5. Legacy snapshots (no version or version 1) convert carried-load `hy` to physical tine height; versions 2–4 already use physical height and remain loadable. Unknown versions are rejected, with imports reporting the error and local saves restarting with a warning. Easy-mode snapshots do not require it.
+Hard-mode level and endless snapshots include `hardPhysicsVersion` 6. Legacy snapshots (no version or version 1) convert carried-load `hy` to physical tine height; versions 2–5 already use physical height and remain loadable. Unknown versions are rejected, with imports reporting the error and local saves restarting with a warning. Easy-mode snapshots do not require it.
 
 Gear: `g.fl.gear` is `'D'` or `'R'` (set in `drive`, flips only at standstill when the opposite throttle is held; idling in R — stopped, no throttle — for 3 s (`IDLE_TO_D`, timer in a `WeakMap` in `forklift.js`, not saved) flips back to D). R drives reverse lights/beeper; both cabin cameras keep looking forward in R.
 

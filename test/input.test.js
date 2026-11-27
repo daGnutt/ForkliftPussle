@@ -9,7 +9,7 @@ Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [pa
 const { createInput, createCameraPointerInput } = await import('../js/input.js');
 
 import { drive } from '../js/forklift.js';
-import { newGame, update, forkDownTap } from '../js/game.js';
+import { newGame, update, forkDown } from '../js/game.js';
 import { createLocal } from '../js/local.js';
 const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   connected: true, mapping: 'standard', axes,
@@ -81,16 +81,16 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   assert.ok(!s.up && s.motionSource === 'gamepad', 'unplugging releases controls without changing the last motion source');
 }
 
-// Both the primary gamepad and a joined local pad recognize a fork-down double tap.
+// Rapid fork-down presses remain single steps on the primary and joined local pads.
 {
   const game = newGame(1, 1, false);
   game.stacks = [];
   game.H = game.hy = 4;
-  const inp = createInput({ down: () => forkDownTap(game) });
+  const inp = createInput({ down: () => forkDown(game) });
   pad = mkPad({ pressed: [1] }); inp.state();
   pad = mkPad(); inp.state(); update(game, {}, 0.1);
   pad = mkPad({ pressed: [1] }); inp.state();
-  assert.equal(game.H, 0, 'primary gamepad lowers to the floor');
+  assert.equal(game.H, 2, 'primary gamepad lowers two levels for two presses');
 
   const local = createLocal();
   const joined = newGame(1, 1, false);
@@ -101,7 +101,7 @@ const mkPad = ({ axes = [0, 0, 0, 0], pressed = [] } = {}) => ({
   pad = { ...mkPad({ pressed: [1] }), index: 0 }; local.step(joined, 0.1);
   pad = { ...mkPad(), index: 0 }; local.step(joined, 0.2); update(joined, {}, 0.1);
   pad = { ...mkPad({ pressed: [1] }), index: 0 }; local.step(joined, 0.3);
-  assert.equal(joined.trucks[1].H, 0, 'joined gamepad lowers its own forks');
+  assert.equal(joined.trucks[1].H, 2, 'joined gamepad lowers its own forks two levels');
   pad = null;
 }
 
