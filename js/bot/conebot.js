@@ -167,8 +167,11 @@ export function clearConeSpot(g, p, ignored, trucks = truckCircles(g)) {
 export function conePlacement(g, bot, target) {
   const grid = buildGrid(g, 0.45, false, bot);
   const trucks = truckCircles(g);
-  const path = plan(grid, bot, 80, (x, y, cost) => clearConeSpot(g, { x, y }, null, trucks)
-    ? Math.hypot(x - target.x, y - target.y) * 10 + cost * 0.02 : Infinity);
+  const path = plan(grid, bot, 80, (x, y, cost, bestScore) => {
+    const score = Math.hypot(x - target.x, y - target.y) * 10 + cost * 0.02;
+    if (score >= bestScore) return Infinity;
+    return clearConeSpot(g, { x, y }, null, trucks) ? score : Infinity;
+  });
   const end = path.at(-1) || { x: bot.x, y: bot.y };
   if (bot.show !== 1) return null; // still in the hatch
   const clearLine = !g.walls.some((w) => sightHits(end, target, w.x + w.w / 2, w.y + w.h / 2, w.w / 2 + CONE_R, w.h / 2 + CONE_R));
@@ -248,6 +251,7 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
   };
   if (!bot.task) {
     const jobs = preferLive(g, bot, findJobs(), jobKey);
+    if (jobs.length && bot.show !== 1) { stepWorker(g, bot, dt, true, null, null); return; }
     const current = jobs.filter((job) => job.key === bot.workKey);
     const pool = current.length ? current : jobs;
     let selected = pool[0];
@@ -264,7 +268,6 @@ export function stepConeBot(g, dt, doneZones, stackAt) {
       stepWorker(g, bot, dt, false, null, null);
       return;
     }
-    if (bot.show !== 1) { stepWorker(g, bot, dt, true, null, null); return; }
     const placement = selected.type === 'retrieve' ? null : conePlacement(g, bot, selected.item);
     if (selected.cone && (!placement || Math.hypot(placement.spot.x - selected.cone.x, placement.spot.y - selected.cone.y) < CONE_R * 2
         || Math.hypot(placement.spot.x - selected.item.x, placement.spot.y - selected.item.y) >= Math.hypot(selected.cone.x - selected.item.x, selected.cone.y - selected.item.y) - 0.22)) {
