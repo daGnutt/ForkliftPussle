@@ -739,7 +739,7 @@ export function newGame(levelNumber, seed = 0, hard = false) {
   return gameFromLayout(generateLevel(levelNumber, seed), levelNumber, seed, hard);
 }
 
-// Builds the game state from a layout (`generateLevel`'s shape: w, h, walls, charger, zones, areas, bays, doors, stacks, start).
+// Builds the game state from a layout (including optional hatchWalls restricting the hatch to specific wall spans).
 export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
   const walls = [];
   const T = 3;
@@ -781,7 +781,7 @@ export function gameFromLayout(lvl, levelNumber, seed = 0, hard = false) {
   };
   g.repair = makeStation(g);
   if (g.repair) { const m = g.repair.mast; walls.push({ ...m, poly: rectPoly(m.x + m.w / 2, m.y + m.h / 2, m.w / 2, m.h / 2), mast: true }); }
-  g.hatch = makeHatch(g);
+  g.hatch = makeHatch(g, lvl.hatchWalls);
   g.bot = makeBot(g);
   g.inspector = makeInspector(g);
   g.coneBot = makeConeBot(g);

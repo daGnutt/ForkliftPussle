@@ -21,6 +21,19 @@ import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetwee
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
 
+// The shared bot hatch is on the warehouse's north wall, not in either truck yard.
+{
+  for (const seed of [0, 1, 5, 42]) {
+    const g = newEndless(seed, false, 1), h = g.hatch, wall = g.walls[0].draw;
+    assert.equal(h.y, 0);
+    assert.deepEqual([h.nx, h.ny], [0, 1]);
+    assert.ok(h.x >= wall.x + 0.45 && h.x <= wall.x + wall.w - 0.45, 'hatch fits on the warehouse wall');
+    const offset = Math.sqrt(2.5 ** 2 - (g.start.y - 0.5) ** 2);
+    assert.ok(Math.abs(Math.abs(h.x - g.parking.x) - offset) < 1e-9, 'hatch is as close to parking as forklift clearance permits');
+    assert.deepEqual(h, newEndless(seed, false, 2).hatch, 'placement is independent of the run seed');
+  }
+}
+
 // Endless mode in a party: the snapshot carries the trucks and gates, and the guest's prediction shares the moving walls.
 {
   const host = newEndless(5);

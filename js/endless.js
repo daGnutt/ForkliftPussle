@@ -153,6 +153,7 @@ export function newEndless(seed = 0, hard = false, rs = (Math.random() * 4294967
   const layout = {
     w: ENDLESS_W, h: ENDLESS_H, walls: outerWalls(), charger: null, zones, areas, bays: loadingLanes(), doors: [], stacks: [],
     start: { x: WX + WH_W / 2, y: 2.2, a: Math.PI / 2 },
+    hatchWalls: [{ axis: 'x', fixed: 0, min: WX, max: XE, nx: 0, ny: 1 }],
   };
   const g = gameFromLayout(layout, 0, seed, hard);
   g.walls[0].draw = { x: XR, y: -WALL, w: XE + WALL - XR, h: WALL }; // the north border wall is drawn as a thin strip over the warehouse only, not the yards beside it

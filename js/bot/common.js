@@ -19,19 +19,15 @@ export function turnTo(bot, ang, dt, rate = TURN_RATE) {
 export const turnAfterPath = (bot, ang, dt) => bot.didTurn ? angDiff(bot.a, ang) : turnTo(bot, ang, dt);
 export const hash = (n) => { const t = Math.sin(n * 12.9898) * 43758.5453; return t - Math.floor(t); };
 
-// Predetermined hatch position on the outer walls: seeded, and clear of stacks, pillars and the start.
-export function makeHatch(g) {
+// Place the hatch as close to parking as possible while leaving room in front of it.
+export function makeHatch(g, hatchWalls) {
   if (!g.zones?.length && !g.stacks.some((s) => s.layers.includes(BARREL_COLOR))) return null;
-  const sides = [
-    (t) => ({ x: t * g.w, y: 0, nx: 0, ny: 1 }),
-    (t) => ({ x: g.w, y: t * g.h, nx: -1, ny: 0 }),
-    (t) => ({ x: t * g.w, y: g.h, nx: 0, ny: -1 }),
-    (t) => ({ x: 0, y: t * g.h, nx: 1, ny: 0 }),
+  const sides = hatchWalls || [
+    { axis: 'x', fixed: 0, min: 0, max: g.w, nx: 0, ny: 1 },
+    { axis: 'y', fixed: g.w, min: 0, max: g.h, nx: -1, ny: 0 },
+    { axis: 'x', fixed: g.h, min: 0, max: g.w, nx: 0, ny: -1 },
+    { axis: 'y', fixed: 0, min: 0, max: g.h, nx: 1, ny: 0 },
   ];
-  const cands = [];
-  for (let side = 0; side < 4; side++) for (let k = 1; k < 20; k++) cands.push({ ...sides[side](k / 20), side });
-  const base = (g.seed || 0) * 7 + g.level * 31;
-  // Clearance of the spot in front of the hatch to stacks, pillars, drop-off zones and the start; the hatch must also open into free floor.
   const clearance = (h) => {
     const p = { x: h.x + h.nx * 0.5, y: h.y + h.ny * 0.5 };
     let c = Math.hypot(g.start.x - p.x, g.start.y - p.y) - 2;
@@ -40,13 +36,45 @@ export function makeHatch(g) {
     for (const w of g.walls.slice(4)) c = Math.min(c, rectDist(p.x, p.y, w) - 0.5);
     return c;
   };
-  const start = Math.floor(hash(base) * cands.length);
-  let best = null, bestC = -Infinity;
-  for (let i = 0; i < cands.length; i++) {
-    const h = cands[(start + i) % cands.length], c = clearance(h);
-    if (c >= 0.5) { best = h; break; }
-    if (c > bestC) { bestC = c; best = h; }
+  let best = null, bestD = Infinity, fallback = null, bestC = -Infinity;
+  for (const side of sides) {
+    const horizontal = side.axis === 'x', cross = side.fixed + (horizontal ? side.ny : side.nx) * 0.5;
+    const at = (t) => horizontal
+      ? { x: t, y: side.fixed, nx: side.nx, ny: side.ny }
+      : { x: side.fixed, y: t, nx: side.nx, ny: side.ny };
+    let spans = [[side.min + 0.45, side.max - 0.45]];
+    const exclude = (lo, hi) => {
+      spans = spans.flatMap(([a, b]) => hi <= a || lo >= b ? [[a, b]]
+        : [...(lo > a ? [[a, lo]] : []), ...(hi < b ? [[hi, b]] : [])]);
+    };
+    const circle = (p, r) => {
+      const d = cross - (horizontal ? p.y : p.x);
+      if (Math.abs(d) >= r) return;
+      const t = horizontal ? p.x : p.y, reach = Math.sqrt(r * r - d * d);
+      exclude(t - reach, t + reach);
+    };
+    circle(g.start, 2.5);
+    for (const s of g.stacks) circle(s, 1.5);
+    for (const z of g.zones || []) circle(z, 1.2);
+    for (const w of g.walls.slice(4)) {
+      const a = horizontal ? w.y : w.x, b = a + (horizontal ? w.h : w.w);
+      const d = Math.max(a - cross, 0, cross - b);
+      if (d >= 1) continue;
+      const reach = Math.sqrt(1 - d * d), t = horizontal ? w.x : w.y;
+      exclude(t - reach, t + (horizontal ? w.w : w.h) + reach);
+    }
+    for (const [a, b] of spans) {
+      const t = Math.max(a, Math.min(b, horizontal ? g.parking.x : g.parking.y));
+      const h = at(t), d = Math.hypot(h.x - g.parking.x, h.y - g.parking.y);
+      if (d < bestD) { best = h; bestD = d; }
+    }
+    // Retain the old best-clearance fallback when no wall has enough space.
+    for (let k = 1; k < 20; k++) {
+      const h = at(side.min + (side.max - side.min) * k / 20), c = clearance(h);
+      if (c > bestC) { fallback = h; bestC = c; }
+    }
   }
+  best ||= fallback;
   return { x: best.x, y: best.y, nx: best.nx, ny: best.ny, a: Math.atan2(best.ny, best.nx) };
 }
 

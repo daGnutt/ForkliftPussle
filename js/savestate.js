@@ -2,12 +2,13 @@ import { newGame, forkHeight } from './game.js';
 import { newEndless, endlessSnapshot, restoreEndless } from './endless.js';
 import { MAX_H, MAX_LAYERS } from './forklift.js';
 import { FORK_CLEARANCE } from './geom.js';
-import { makeBot, stackSig } from './bot.js';
+import { BOT_KEYS, laneAt, makeBot, stackSig } from './bot.js';
 import { HARD_PHYSICS_VERSION } from './hard-physics.js';
 
 const SAVE_VERSION = 1;
 const LEVEL_LAYOUT_VERSION = 5;
 const INSPECTION_VERSION = 2;
+const HATCH_VERSION = 1;
 export class HardPhysicsVersionError extends Error {
   constructor() { super('Saved hard-mode physics is no longer compatible'); }
 }
@@ -35,13 +36,27 @@ function migrateBots(g) {
   }
 }
 
+function migrateHatch(g, data) {
+  if (data.hatchVersion === HATCH_VERSION || !g.hatch) return;
+  for (const k of BOT_KEYS) {
+    const b = g[k];
+    if (!b) continue;
+    b.path = [];
+    b.repath = 0;
+    if (b.show < 1) {
+      Object.assign(b, laneAt(g.hatch, b.show));
+      b.a = g.hatch.a + (b.leaving ? Math.PI : 0);
+    }
+  }
+}
+
 const DYNAMIC = ['stacks', 'fl', 'carried', 'carriedRel', 'carriedRots', 'carriedPen', 'carriedOffs', 'carriedRest', 'oil', 'skidMarks', 'cones', 'tapes', 'repair', 'bot', 'inspector', 'coneBot', 'tapeBot', 'fixBot', 'photo', 'bonks', 'H', 'hy', 'hf', 'dropH', 'status', 'time', 'started', 'clock'];
 
 // Plain-JSON snapshot of a level in progress; the static layout is regenerated from (level, seed, hard).
 export function serializeGame(g, seedText = '') {
   const state = {};
   for (const k of DYNAMIC) if (g[k] !== undefined) state[k] = clone(g[k]);
-  return { version: SAVE_VERSION, layoutVersion: LEVEL_LAYOUT_VERSION, inspectionVersion: INSPECTION_VERSION, ...(g.hard && { hardPhysicsVersion: HARD_PHYSICS_VERSION }), level: g.level, seed: g.seed, seedText, hard: g.hard, state };
+  return { version: SAVE_VERSION, layoutVersion: LEVEL_LAYOUT_VERSION, inspectionVersion: INSPECTION_VERSION, hatchVersion: HATCH_VERSION, ...(g.hard && { hardPhysicsVersion: HARD_PHYSICS_VERSION }), level: g.level, seed: g.seed, seedText, hard: g.hard, state };
 }
 
 // Older saves tracked inspections by zone; only recover boxes still matching a recorded photo.
@@ -116,6 +131,7 @@ export function deserializeGame(data) {
   Object.assign(g, clone(s));
   if (!g.bot) g.bot = makeBot(g);
   migrateBots(g);
+  migrateHatch(g, data);
   restoreInspections(g, data);
   const ph = g.photo; // the observer's last picture; a malformed one is dropped rather than failing the load
   if (ph != null && !(Array.isArray(ph.layers) && Array.isArray(ph.pens) && Array.isArray(ph.rots) && Array.isArray(ph.offs) && num(ph.at?.x) && num(ph.at?.y))) g.photo = null;
@@ -156,7 +172,7 @@ const ENDLESS_VERSION = 1;
 export function serializeEndless(g) {
   const state = {};
   for (const k of DYNAMIC) if (g[k] !== undefined) state[k] = clone(g[k]);
-  return { version: ENDLESS_VERSION, inspectionVersion: INSPECTION_VERSION, ...(g.hard && { hardPhysicsVersion: HARD_PHYSICS_VERSION }), seed: g.seed, hard: g.hard, state, endless: clone(endlessSnapshot(g)) };
+  return { version: ENDLESS_VERSION, inspectionVersion: INSPECTION_VERSION, hatchVersion: HATCH_VERSION, ...(g.hard && { hardPhysicsVersion: HARD_PHYSICS_VERSION }), seed: g.seed, hard: g.hard, state, endless: clone(endlessSnapshot(g)) };
 }
 
 // Returns the resumed endless game, or throws if the data is not a valid snapshot.
@@ -170,6 +186,7 @@ export function deserializeEndless(data) {
   Object.assign(g, clone(s));
   if (!g.bot) g.bot = makeBot(g);
   migrateBots(g);
+  migrateHatch(g, data);
   restoreForkHeight(g, data.hardPhysicsVersion);
   if (!num(g.time)) g.time = 0;
   if (!num(g.bonks)) g.bonks = 0;

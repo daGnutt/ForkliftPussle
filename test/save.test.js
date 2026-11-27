@@ -10,7 +10,7 @@ import { chaseDrift, povCamera, overviewCamera, chaseCamera, chaseRig, chaseTile
 import { staticMeshes, dynamicMeshes } from '../js/gl/scene.js';
 import { projectPoint } from '../js/gl/mat.js';
 import { setThemeMode } from '../js/theme.js';
-import { stackSig } from '../js/bot.js';
+import { laneAt, stackSig } from '../js/bot.js';
 import { setDiscoEnabled } from '../js/disco.js';
 import { createDemo } from '../js/demo.js';
 import { createHost } from '../js/net/host.js';
@@ -22,6 +22,23 @@ import { TRUCK_BONUS, lorryHonks, newEndless, stepEndless, endEndless, rampDecal
 import { newGame, update, addTruck, removeTruck, truckView, isGhost, ghostBetween, forkUp, forkDown, stackInZone, isParked, isFinished, score, maxScore, lostBreakdown, zoneWonky, zoneDone, zonePoints, zoneLabelPos, stackZ, wonkyStack, fallView } from '../js/game.js';
 
 import { NONE, pts, run, faceStack, flatWorld, driveUntil } from './common.js';
+
+// Old saves keep active bots but relocate bots in the old hatch and replan their routes.
+{
+  for (const endless of [false, true]) {
+    const g = endless ? newEndless(7) : newGame(3, 7);
+    const data = endless ? serializeEndless(g) : serializeGame(g);
+    delete data.hatchVersion;
+    Object.assign(data.state.bot, { x: -5, y: -5, show: 0.5, leaving: true, path: [{ x: -5, y: -5 }], repath: 10 });
+    Object.assign(data.state.inspector, { x: 5, y: 6, show: 1, path: [{ x: -5, y: -5 }], repath: 10 });
+    const restored = endless ? deserializeEndless(data) : deserializeGame(data);
+    assert.deepEqual({ x: restored.bot.x, y: restored.bot.y }, laneAt(restored.hatch, 0.5));
+    assert.equal(restored.bot.a, restored.hatch.a + Math.PI);
+    assert.deepEqual([restored.inspector.x, restored.inspector.y], [5, 6], 'active bots remain in place');
+    assert.deepEqual(restored.inspector.path, []);
+    assert.equal(restored.inspector.repath, 0);
+  }
+}
 
 // Rolling history is detached, bounded and based on active simulation time.
 {

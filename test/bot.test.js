@@ -7,7 +7,7 @@ import { serializeGame, deserializeGame } from '../js/savestate.js';
 import { BOX_HALF_X, halfY, zoneExt, rectPoly } from '../js/geom.js';
 import { run, NONE, flatWorld } from './common.js';
 import { floorDecals } from '../js/decals.js';
-import { FLEE_TURN_RATE } from '../js/bot/common.js';
+import { FLEE_TURN_RATE, makeHatch, rectDist } from '../js/bot/common.js';
 
 const hasBarrel = (g) => g.stacks.some((s) => s.layers.includes(6));
 const botGame = () => {
@@ -39,6 +39,43 @@ const idleStep = (g, kind, dt) => {
 
 assert.ok(newGame(1, 0).hatch && newGame(1, 0).bot && newGame(1, 0).inspector, 'levels without barrels also have a cleaning bot');
 assert.deepEqual(newGame(4, 0).hatch, newGame(4, 0).hatch, 'the hatch is deterministic');
+
+// Choose the nearest clear point, including positions between the old fixed wall samples.
+{
+  const g = {
+    w: 20, h: 20, parking: { x: 10, y: 1 }, start: { x: 10, y: 2 },
+    stacks: [], zones: [{ x: 18, y: 18 }], walls: [{}, {}, {}, {}],
+  };
+  const h = makeHatch(g), offset = Math.sqrt(2.5 ** 2 - 1.5 ** 2);
+  assert.equal(h.y, 0);
+  assert.ok(Math.abs(Math.abs(h.x - g.parking.x) - offset) < 1e-9, 'closest point clears the parked forklift');
+
+  g.walls.push({ x: h.x - 0.1, y: 0, w: 0.2, h: 1 });
+  const other = makeHatch(g);
+  assert.equal(other.y, 0);
+  assert.ok(Math.abs(Math.abs(other.x - g.parking.x) - offset) < 1e-9 && other.x !== h.x, 'a wall obstruction selects the other equally close point');
+}
+
+// Generated levels choose no farther than any clear sampled point on the perimeter.
+{
+  for (const n of [1, 4, 12, 25]) for (const seed of [0, 7, 42]) {
+    const g = newGame(n, seed), h = g.hatch;
+    const distance = Math.hypot(h.x - g.parking.x, h.y - g.parking.y);
+    for (const [length, at] of [
+      [g.w, (t) => ({ x: t, y: 0, nx: 0, ny: 1 })],
+      [g.w, (t) => ({ x: t, y: g.h, nx: 0, ny: -1 })],
+      [g.h, (t) => ({ x: 0, y: t, nx: 1, ny: 0 })],
+      [g.h, (t) => ({ x: g.w, y: t, nx: -1, ny: 0 })],
+    ]) for (let t = 0.45; t <= length - 0.45; t += 0.1) {
+      const q = at(t), p = { x: q.x + q.nx * 0.5, y: q.y + q.ny * 0.5 };
+      if (Math.hypot(p.x - g.start.x, p.y - g.start.y) < 2.5 ||
+          g.stacks.some((s) => Math.hypot(p.x - s.x, p.y - s.y) < 1.5) ||
+          g.zones.some((z) => Math.hypot(p.x - z.x, p.y - z.y) < 1.2) ||
+          g.walls.slice(4).some((w) => rectDist(p.x, p.y, w) < 1)) continue;
+      assert.ok(distance <= Math.hypot(q.x - g.parking.x, q.y - g.parking.y) + 1e-8, `level ${n}, seed ${seed}: nearest clear hatch`);
+    }
+  }
+}
 
 // Wheel smoke leaves fresh marks, which the cleaner removes without touching permanent decals.
 {
@@ -958,7 +995,7 @@ const loiterStep = (g, kind, dt) => stepWorker(g, g[kind], dt, false, null, null
     }
     assert.ok(waited && !crossed && g.oil.length, 'the bot waits while the only way is blocked');
     assert.ok(truckGap(g, g.bot) > -BOT_R * 0.5, 'and is not run over');
-    g.fl.x = g.bot.x; g.fl.y = g.h - 1;
+    g.fl.x = mx; g.fl.y = 1;
     let t = 0;
     while (g.oil.length && t++ < 120 * 90) update(g, NONE, 1 / 120);
     assert.ok(!g.oil.length, 'it gets through and cleans once the way is free');
